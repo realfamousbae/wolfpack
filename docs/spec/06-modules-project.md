@@ -1,6 +1,6 @@
 # Chapter 6: Modules, names and the project
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
 This chapter defines modules and imports, how names are resolved, visibility, the project layout and
 the manifest `wolfpack.toml`. The `std` modules and `extern` are in chapter 7; the generated projects
@@ -252,10 +252,10 @@ Proposed range E06xx (confirmed in chapter 9).
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D6.1 | Import forms: whole module, group of names, `as` aliases; no globs, no relative paths, no use without import | yes |
-| D6.2 | `pub` imports (re-exports) only in `src/lib.wolf` | yes: one meaning for re-exports |
-| D6.3 | An unused import is an error | yes, as in Go: keeps dependencies honest |
-| D6.4 | Strict layout: only `.wolf` files in `src/`; `tests/` and `examples/` as described | yes |
-| D6.5 | `let _ = expr` to discard a value explicitly (grammar change in chapter 3) | yes |
-| D6.6 | Manifest details: package name and version format, optional `[targets]` with defaults, `[config.<module>]` override format with exact types, unknown keys are errors | yes |
-| D6.7 | Rest: scopes and conflicts, no private types in public signatures, panic exit code 101, `assert` usable outside tests, prelude names cannot be redeclared, diagnostics | yes |
+| D6.1 | Import forms: whole module, group of names, `as` aliases; no globs, no relative paths, no use without import | **answered**: yes |
+| D6.2 | `pub` imports (re-exports) only in `src/lib.wolf` | **answered**: yes: one meaning for re-exports |
+| D6.3 | An unused import is an error | **answered**: yes, as in Go: keeps dependencies honest |
+| D6.4 | Strict layout: only `.wolf` files in `src/`; `tests/` and `examples/` as described | **answered**: yes |
+| D6.5 | `let _ = expr` to discard a value explicitly (grammar change in chapter 3) | **answered**: yes |
+| D6.6 | Manifest details: package name and version format, optional `[targets]` with defaults, `[config.<module>]` override format with exact types, unknown keys are errors | **answered**: yes |
+| D6.7 | Rest: scopes and conflicts, no private types in public signatures, panic exit code 101, `assert` usable outside tests, prelude names cannot be redeclared, diagnostics | **answered**: yes |
