@@ -1,0 +1,8 @@
+module main
+
+config {
+    a: String = "\u{D800}"
+    b: String = "\u{110000}"
+    c: String = "\x80"
+    d: String = "\u41"
+}

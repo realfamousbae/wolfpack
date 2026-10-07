@@ -1,0 +1,31 @@
+error[E0102]: unexpected character `@`
+  --> lexer/E0102_unexpected_character.wolf:4:21
+  |
+4 |     limit: Int = 10 @ 2
+  |                     ^ this character is not valid here
+
+error[E0102]: unexpected character `;`
+  --> lexer/E0102_unexpected_character.wolf:5:19
+  |
+5 |     ratio: Int = 3;
+  |                   ^ this character is not valid here
+  |
+  = help: there is no `;`: put each statement on its own line
+
+error[E0102]: unexpected character `'`
+  --> lexer/E0102_unexpected_character.wolf:6:20
+  |
+6 |     name: String = 'x'
+  |                    ^ this character is not valid here
+  |
+  = help: strings use double quotes: `"text"`
+
+error[E0102]: unexpected character `'`
+  --> lexer/E0102_unexpected_character.wolf:6:22
+  |
+6 |     name: String = 'x'
+  |                      ^ this character is not valid here
+  |
+  = help: strings use double quotes: `"text"`
+
+error: aborting due to 4 errors

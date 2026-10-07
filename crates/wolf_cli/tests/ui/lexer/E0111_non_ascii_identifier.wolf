@@ -1,0 +1,6 @@
+module main
+
+config {
+    naïve: Int = 1
+    счёт: Int = 2
+}

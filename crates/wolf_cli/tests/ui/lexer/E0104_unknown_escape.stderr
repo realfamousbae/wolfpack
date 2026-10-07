@@ -1,0 +1,17 @@
+error[E0104]: unknown escape sequence `\U`
+  --> lexer/E0104_unknown_escape.wolf:4:23
+  |
+4 |     path: String = "C:\Users\wolf"
+  |                       ^^ not a valid escape
+  |
+  = help: valid escapes are `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\xHH` and `\u{...}`
+
+error[E0104]: unknown escape sequence `\w`
+  --> lexer/E0104_unknown_escape.wolf:4:29
+  |
+4 |     path: String = "C:\Users\wolf"
+  |                             ^^ not a valid escape
+  |
+  = help: valid escapes are `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\xHH` and `\u{...}`
+
+error: aborting due to 2 errors

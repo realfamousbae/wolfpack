@@ -1,0 +1,7 @@
+error[E0102]: unexpected character `@`
+  --> lexer/columns_count_scalar_values.wolf:4:35
+  |
+4 |     title: String = "Привет, мир" @
+  |                                   ^ this character is not valid here
+
+error: aborting due to 1 error

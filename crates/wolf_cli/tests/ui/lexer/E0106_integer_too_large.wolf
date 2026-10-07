@@ -1,0 +1,6 @@
+module main
+
+config {
+    max: Int = 9223372036854775808
+    too_big: Int = 9223372036854775809
+}

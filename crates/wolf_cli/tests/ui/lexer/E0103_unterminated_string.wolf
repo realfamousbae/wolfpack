@@ -1,0 +1,6 @@
+module main
+
+config {
+    greeting: String = "hello
+    other: Int = 1
+}

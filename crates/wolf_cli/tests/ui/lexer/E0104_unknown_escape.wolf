@@ -1,0 +1,5 @@
+module main
+
+config {
+    path: String = "C:\Users\wolf"
+}

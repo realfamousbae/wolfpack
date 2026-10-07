@@ -1,0 +1,9 @@
+error[E0106]: integer literal too large
+  --> lexer/E0106_integer_too_large.wolf:5:20
+  |
+5 |     too_big: Int = 9223372036854775809
+  |                    ^^^^^^^^^^^^^^^^^^^ this value does not fit into `Int`
+  |
+  = note: `Int` is a signed 64-bit integer; the largest value is 9223372036854775807
+
+error: aborting due to 1 error

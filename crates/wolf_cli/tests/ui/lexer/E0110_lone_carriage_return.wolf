@@ -1,0 +1,4 @@
+module main
+
+config {    limit: Int = 1
+}

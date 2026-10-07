@@ -1,0 +1,25 @@
+error[E0105]: invalid character escape `\u{D800}`
+  --> lexer/E0105_invalid_escape.wolf:4:18
+  |
+4 |     a: String = "\u{D800}"
+  |                  ^^^^^^^^ not a Unicode scalar value (surrogate or above U+10FFFF)
+
+error[E0105]: invalid character escape `\u{110000}`
+  --> lexer/E0105_invalid_escape.wolf:5:18
+  |
+5 |     b: String = "\u{110000}"
+  |                  ^^^^^^^^^^ not a Unicode scalar value (surrogate or above U+10FFFF)
+
+error[E0105]: invalid character escape `\x80`
+  --> lexer/E0105_invalid_escape.wolf:6:18
+  |
+6 |     c: String = "\x80"
+  |                  ^^^^ `\x` needs exactly two hex digits, at most `7F`
+
+error[E0105]: invalid character escape `\u`
+  --> lexer/E0105_invalid_escape.wolf:7:18
+  |
+7 |     d: String = "\u41"
+  |                  ^^ write a Unicode escape as `\u{1F600}`
+
+error: aborting due to 4 errors

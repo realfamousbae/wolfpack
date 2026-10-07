@@ -1,0 +1,2 @@
+# UI test inputs must keep their exact bytes (CRLF, lone CR, invalid UTF-8).
+crates/wolf_cli/tests/ui/** -text

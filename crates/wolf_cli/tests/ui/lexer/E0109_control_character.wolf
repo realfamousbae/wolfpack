@@ -1,0 +1,5 @@
+module main
+
+config {
+    bell: String = "ding"
+}

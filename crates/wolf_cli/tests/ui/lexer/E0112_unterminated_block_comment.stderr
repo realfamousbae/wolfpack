@@ -1,0 +1,9 @@
+error[E0112]: unterminated block comment
+  --> lexer/E0112_unterminated_block_comment.wolf:3:1
+  |
+3 | /* outer /* inner */
+  | ^^ this comment is never closed
+  |
+  = note: block comments nest: every `/*` needs its own `*/`
+
+error: aborting due to 1 error

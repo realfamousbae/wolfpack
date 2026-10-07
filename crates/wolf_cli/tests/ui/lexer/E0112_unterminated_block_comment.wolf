@@ -1,0 +1,6 @@
+module main
+
+/* outer /* inner */
+config {
+    limit: Int = 1
+}

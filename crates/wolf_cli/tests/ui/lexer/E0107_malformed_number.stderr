@@ -1,0 +1,45 @@
+error[E0107]: malformed number literal `007`
+  --> lexer/E0107_malformed_number.wolf:4:14
+  |
+4 |     a: Int = 007
+  |              ^^^ leading zeros are not allowed; octal numbers are written `0o7`
+
+error[E0107]: malformed number literal `1_`
+  --> lexer/E0107_malformed_number.wolf:5:14
+  |
+5 |     b: Int = 1_
+  |              ^^ `_` may only stand between two digits
+
+error[E0107]: malformed number literal `0x`
+  --> lexer/E0107_malformed_number.wolf:6:14
+  |
+6 |     c: Int = 0x
+  |              ^^ expected digits after the prefix
+
+error[E0107]: malformed number literal `1.`
+  --> lexer/E0107_malformed_number.wolf:7:16
+  |
+7 |     d: Float = 1.
+  |                ^^ a float needs a digit after the dot, for example `1.0`
+
+error[E0107]: malformed number literal `.5`
+  --> lexer/E0107_malformed_number.wolf:8:16
+  |
+8 |     e: Float = .5
+  |                ^^ a float needs a digit before the dot
+  |
+  = help: write `0.5`
+
+error[E0107]: malformed number literal `5i32`
+  --> lexer/E0107_malformed_number.wolf:9:14
+  |
+9 |     f: Int = 5i32
+  |              ^^^^ unexpected `i32` after the number; separate them with a space
+
+error[E0107]: malformed number literal `1e`
+   --> lexer/E0107_malformed_number.wolf:10:16
+   |
+10 |     g: Float = 1e
+   |                ^^ an exponent needs digits, for example `1e10`
+
+error: aborting due to 7 errors

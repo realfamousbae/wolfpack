@@ -1,0 +1,17 @@
+error[E0113]: reserved literal prefix `f`
+  --> lexer/E0113_reserved_prefix.wolf:4:17
+  |
+4 |     a: String = f"{name}"
+  |                 ^^ an identifier directly before `"` is reserved
+  |
+  = help: add a space after `f` or remove the prefix
+
+error[E0113]: reserved literal prefix `r`
+  --> lexer/E0113_reserved_prefix.wolf:5:17
+  |
+5 |     b: String = r"raw"
+  |                 ^^ an identifier directly before `"` is reserved
+  |
+  = help: add a space after `r` or remove the prefix
+
+error: aborting due to 2 errors

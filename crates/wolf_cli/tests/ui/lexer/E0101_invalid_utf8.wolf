@@ -1,0 +1,5 @@
+module main
+
+config {
+    name: String = "café"
+}

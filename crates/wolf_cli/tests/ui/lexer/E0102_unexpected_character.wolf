@@ -1,0 +1,7 @@
+module main
+
+config {
+    limit: Int = 10 @ 2
+    ratio: Int = 3;
+    name: String = 'x'
+}

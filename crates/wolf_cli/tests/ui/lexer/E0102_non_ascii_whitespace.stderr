@@ -1,0 +1,9 @@
+error[E0102]: unexpected character U+00A0
+  --> lexer/E0102_non_ascii_whitespace.wolf:4:11
+  |
+4 |     limit: Int = 10
+  |           ^ this character is not valid here
+  |
+  = help: only spaces, tabs and line ends count as whitespace
+
+error: aborting due to 1 error

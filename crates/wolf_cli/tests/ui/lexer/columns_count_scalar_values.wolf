@@ -1,0 +1,5 @@
+module main
+
+config {
+    title: String = "Привет, мир" @
+}

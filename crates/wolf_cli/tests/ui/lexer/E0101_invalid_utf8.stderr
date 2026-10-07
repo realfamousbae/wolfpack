@@ -1,0 +1,9 @@
+error[E0101]: file is not valid UTF-8
+  --> lexer/E0101_invalid_utf8.wolf:4:24
+  |
+4 |     name: String = "caf�"
+  |                        ^ invalid byte sequence here
+  |
+  = note: Wolfpack source files must be encoded in UTF-8
+
+error: aborting due to 1 error

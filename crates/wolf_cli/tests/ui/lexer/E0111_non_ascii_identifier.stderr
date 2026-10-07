@@ -1,0 +1,17 @@
+error[E0111]: non-ASCII character in identifier `naïve`
+  --> lexer/E0111_non_ascii_identifier.wolf:4:5
+  |
+4 |     naïve: Int = 1
+  |     ^^^^^ identifiers may only contain ASCII letters, digits and `_`
+  |
+  = note: names are translated to the naming style of each target, which needs ASCII
+
+error[E0111]: non-ASCII character in identifier `счёт`
+  --> lexer/E0111_non_ascii_identifier.wolf:5:5
+  |
+5 |     счёт: Int = 2
+  |     ^^^^ identifiers may only contain ASCII letters, digits and `_`
+  |
+  = note: names are translated to the naming style of each target, which needs ASCII
+
+error: aborting due to 2 errors

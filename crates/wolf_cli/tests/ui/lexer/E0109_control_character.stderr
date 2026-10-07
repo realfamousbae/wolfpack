@@ -1,0 +1,9 @@
+error[E0109]: unescaped control character U+0007 in a string
+  --> lexer/E0109_control_character.wolf:4:25
+  |
+4 |     bell: String = "ding?"
+  |                         ^ control characters must be escaped
+  |
+  = help: write it as `\u{7}`
+
+error: aborting due to 1 error

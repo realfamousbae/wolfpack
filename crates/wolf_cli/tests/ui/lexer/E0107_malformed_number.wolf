@@ -1,0 +1,11 @@
+module main
+
+config {
+    a: Int = 007
+    b: Int = 1_
+    c: Int = 0x
+    d: Float = 1.
+    e: Float = .5
+    f: Int = 5i32
+    g: Float = 1e
+}

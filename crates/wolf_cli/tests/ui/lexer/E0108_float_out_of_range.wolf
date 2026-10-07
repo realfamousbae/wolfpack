@@ -1,0 +1,5 @@
+module main
+
+config {
+    huge: Float = 1.0e999
+}

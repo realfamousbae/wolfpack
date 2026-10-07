@@ -1,0 +1,9 @@
+error[E0108]: float literal out of range
+  --> lexer/E0108_float_out_of_range.wolf:4:19
+  |
+4 |     huge: Float = 1.0e999
+  |                   ^^^^^^^ this value is too large for `Float`
+  |
+  = note: the largest `Float` is about 1.8e308
+
+error: aborting due to 1 error
