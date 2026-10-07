@@ -150,23 +150,26 @@ fn report(map: &mut SourceMap, diagnostics: &[Diagnostic], args: &CheckArgs) {
 /// Reports a command-line error as E0002 (spec chapter 9).
 fn usage_error(error: &clap::Error) -> ExitCode {
     use clap::error::ErrorKind;
-    if matches!(
-        error.kind(),
-        ErrorKind::DisplayHelp
-            | ErrorKind::DisplayVersion
-            | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
-    ) {
-        let _ = error.print();
-        return if error.kind() == ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand {
-            ExitCode::from(EXIT_USAGE)
-        } else {
-            ExitCode::SUCCESS
-        };
-    }
-    let text = error.render().to_string();
-    let text = text.strip_prefix("error: ").unwrap_or(&text);
     let mut stderr = io::stderr();
-    let _ = write!(stderr, "error[{}]: {}", codes::E0002.id(), text);
+    match error.kind() {
+        ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+            let _ = error.print();
+            return ExitCode::SUCCESS;
+        }
+        ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => {
+            let help = error.render().to_string();
+            let _ = write!(
+                stderr,
+                "error[{}]: no command given\n\n{help}",
+                codes::E0002.id()
+            );
+        }
+        _ => {
+            let text = error.render().to_string();
+            let text = text.strip_prefix("error: ").unwrap_or(&text);
+            let _ = write!(stderr, "error[{}]: {}", codes::E0002.id(), text);
+        }
+    }
     ExitCode::from(EXIT_USAGE)
 }
 
