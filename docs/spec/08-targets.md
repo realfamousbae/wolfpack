@@ -1,6 +1,6 @@
 # Chapter 8: Mapping to the targets
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** and **[INTERNAL]** item in this chapter is accepted.
 
 This chapter says how each construct of Wolfpack becomes TypeScript, Go and Rust, and what the
 generated projects in `out/` look like. The observable behaviour is already fixed by chapters 1–7;
@@ -237,8 +237,8 @@ copy defensively.
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D8.1 | Header comment text and doc comment placement (section 1) | yes |
-| D8.2 | Kind `lib` naming for each target (section 2, rule 4) | yes |
-| D8.3 | Name mapping rules, including `aB_1` for `a_b_1` (section 3) | yes |
-| D8.4 | Extern boundary conversions (section 8), in particular `Int` as a checked `number` for TS libraries | yes |
-| D8.5 | Review the **[INTERNAL]** choices: generated runtime contents, entry wrapper, Go dictionary passing for bounds, temporaries for expression `if`/`match`, panic message translation | object only if something looks wrong |
+| D8.1 | Header comment text and doc comment placement (section 1) | **answered**: yes |
+| D8.2 | Kind `lib` naming for each target (section 2, rule 4) | **answered**: yes |
+| D8.3 | Name mapping rules, including `aB_1` for `a_b_1` (section 3) | **answered**: yes |
+| D8.4 | Extern boundary conversions (section 8), in particular `Int` as a checked `number` for TS libraries | **answered**: yes |
+| D8.5 | Review the **[INTERNAL]** choices: generated runtime contents, entry wrapper, Go dictionary passing for bounds, temporaries for expression `if`/`match`, panic message translation | **answered**: accepted |
