@@ -372,6 +372,10 @@ name = "wolf_cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "codespan-reporting",
+ "wolf_diag",
+ "wolf_lexer",
+ "wolf_span",
 ]
 
 [[package]]
