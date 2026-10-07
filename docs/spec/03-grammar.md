@@ -1,6 +1,6 @@
 # Chapter 3: Grammar
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
 This chapter gives the syntax of declarations, types, statements, expressions and patterns, and the
 operator precedence. Tokens are defined in chapter 1, the file skeleton in chapter 2. Meaning
@@ -167,7 +167,9 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
 ```
 
 1. **Calls and modes.** An argument may be marked `mut` or `own`: `sort(mut items)`,
-   `save(own user)` **[PLAN]**. Whether the receiver of a method call is marked is D3.5.
+   `save(own user)` **[PLAN]**. The receiver of a method call is **not** marked (author, D3.5): `items.push(4)`, `user.archive()`.
+   Calling a `mut self` method requires the receiver to be a `var` (or a `mut` parameter); an
+   `own self` call moves the receiver, and later use is reported by the ownership check (chapter 5).
 2. **Explicit type arguments** are written with a dot: `parse.<Int>(text)`, `List.<Int>.new()`
    (author). Usually they are inferred and omitted.
 3. **Paths.** Module members, variants and associated functions are reached with `.`:
@@ -308,10 +310,10 @@ level, or to the closing delimiter, and continues.
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D3.1 | Enum variants may also have named fields: `Moved { x: Int, y: Int }` | yes |
-| D3.2 | Impl head declares type parameters: `Stack<T: Comparable> { }`; no impl for a concrete instantiation | yes |
-| D3.3 | Interfaces: no default method bodies and no super-interfaces in v1 (to `ideas.md`) | yes |
-| D3.4 | No destructuring `let`, no `if let`, no `while let` in v1 (to `ideas.md`) | yes |
-| D3.5 | Receiver of a method with `mut self` or `own self`: not marked at the call site (`items.push(4)`) or marked (`mut items.push(4)`) | not marked; a `mut self` call requires the variable to be `var`, which is visible at the declaration |
-| D3.6 | Pattern forms in section 7, including `\|` alternatives and `if` guards | yes |
-| D3.7 | Rest: separators (section 1), associated functions `Type.name()`, `pub` fields, function types `fn(A) -> B`, assignment as a statement, no `loop`/labels/free blocks, field shorthand in struct literals, struct literal restriction in conditions, precedence table, diagnostic list | yes |
+| D3.1 | Enum variants may also have named fields: `Moved { x: Int, y: Int }` | **answered**: yes |
+| D3.2 | Impl head declares type parameters: `Stack<T: Comparable> { }`; no impl for a concrete instantiation | **answered**: yes |
+| D3.3 | Interfaces: no default method bodies and no super-interfaces in v1 (to `ideas.md`) | **answered**: yes, not in v1 |
+| D3.4 | No destructuring `let`, no `if let`, no `while let` in v1 (to `ideas.md`) | **answered**: yes, not in v1 |
+| D3.5 | Receiver of a method with `mut self` or `own self` is marked at the call site or not | **answered**: not marked |
+| D3.6 | Pattern forms in section 7, including `\|` alternatives and `if` guards | **answered**: yes |
+| D3.7 | Rest: separators (section 1), associated functions `Type.name()`, `pub` fields, function types `fn(A) -> B`, assignment as a statement, no `loop`/labels/free blocks, field shorthand in struct literals, struct literal restriction in conditions, precedence table, diagnostic list | **answered**: yes |
