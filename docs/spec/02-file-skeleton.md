@@ -1,6 +1,6 @@
 # Chapter 2: File skeleton
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
 This chapter defines the fixed structure of a `.wolf` file: the `module` line, the sections, their
 order and what each section may contain. The exact grammar of each declaration is in chapter 3;
@@ -112,7 +112,15 @@ config {
 2. Constants are immutable **[PLAN]** and can be overridden from `[config]` in `wolfpack.toml`
    (decisions register, item 4; rules in chapter 6).
 3. A constant may be `pub`. **[PROPOSAL]**
-4. Which types and which initializer expressions are allowed: see D2.1.
+4. The type of a constant is `Int`, `Float`, `Bool` or `String` (author, D2.1). These are the
+   types that map directly onto TOML values in `[config]`.
+5. The initializer is a **constant expression**, evaluated by the compiler (author, D2.1): literals,
+   other `config` constants of any module, unary and binary arithmetic, bitwise, comparison and
+   logical operators, and string concatenation. Function calls are not allowed. Example:
+   `max_bytes: Int = max_users * 1024`.
+6. Evaluation follows the normal rules of the language: an overflow or a division by zero in a
+   constant expression is a compile error, not a runtime panic. A cycle between constants
+   (`a = b`, `b = a`) is a compile error. Codes for these are in the type-checking range.
 
 ### 3.4 `types`
 
@@ -183,7 +191,9 @@ tests {
 1. A test is `test "name" { body }` **[PLAN]**.
 2. Test names are unique within a file (E0211). **[PROPOSAL]**
 3. Tests cannot be `pub` and cannot be called. **[PROPOSAL]**
-4. Whether helper functions may be declared inside `tests`: see D2.2.
+4. Helper functions may be declared inside `tests` (author, D2.2). They are written like functions in
+   `functions` but cannot be `pub`, are visible only to tests and helpers of the same file, and are
+   not part of the non-test build.
 5. Tests see every name of the module, private ones included. **[PROPOSAL]**
 
 ## 4. Doc comments in the skeleton
@@ -227,8 +237,8 @@ The example from `PLAN.md` section 5, unchanged, is a valid file under this chap
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D2.1 | `config`: allowed types and initializers | types `Int`, `Float`, `Bool`, `String` only (they map onto `[config]` in the manifest); initializer is a constant expression: literals, other constants, arithmetic, comparison and logical operators, string concatenation, no function calls |
-| D2.2 | Helper functions inside `tests` | yes: `fn` declarations are allowed in `tests`, are private and visible only to tests of the same file; they are not compiled into the non-test build |
-| D2.3 | `impl` block forms: inherent `Type { }` plus `Type: Interface { }`, at most one inherent block per type in a module | yes |
-| D2.4 | A file with only a `module` line is valid | yes |
-| D2.5 | Rest of the chapter: order is layout not visibility (2.6), unknown section and stray declaration errors (2.7, 2.8), `extern` target blocks (3.2), `pub` rules for config, methods and tests, doc comment placement (section 4), diagnostics list (section 5) | yes |
+| D2.1 | `config`: allowed types and initializers | **answered**: types `Int`, `Float`, `Bool`, `String` only (they map onto `[config]` in the manifest); initializer is a constant expression: literals, other constants, arithmetic, comparison and logical operators, string concatenation, no function calls |
+| D2.2 | Helper functions inside `tests` | **answered**: yes: `fn` declarations are allowed in `tests`, are private and visible only to tests of the same file; they are not compiled into the non-test build |
+| D2.3 | `impl` block forms: inherent `Type { }` plus `Type: Interface { }`, at most one inherent block per type in a module | **answered**: yes |
+| D2.4 | A file with only a `module` line is valid | **answered**: yes |
+| D2.5 | Rest of the chapter: order is layout not visibility (2.6), unknown section and stray declaration errors (2.7, 2.8), `extern` target blocks (3.2), `pub` rules for config, methods and tests, doc comment placement (section 4), diagnostics list (section 5) | **answered**: yes |
