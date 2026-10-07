@@ -1,6 +1,6 @@
 # Chapter 1: Lexical structure
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
 This chapter defines how source text becomes a sequence of tokens. Grammar, operator precedence and
 the meaning of tokens belong to chapter 3. Diagnostic code ranges belong to chapter 9; the codes
@@ -21,14 +21,29 @@ named here are proposals for the lexical range.
 
 ## 2. Comments
 
-1. A line comment starts with `//` and runs to the end of the line. **[PLAN]** (used in section 4)
-2. A **doc comment** starts with exactly `///` and documents the declaration that follows it.
-   `////` (four or more slashes) is an ordinary comment. **[PROPOSAL]**
-3. Doc comments are tokens, not whitespace: the compiler keeps them because they are carried into the
-   generated code **[PLAN]** (section 8). Where a doc comment may appear is defined in chapter 3.
-4. Ordinary comments are kept as trivia attached to tokens so that `wolf fmt` (M12) can preserve
-   them. They have no meaning for the language. **[PROPOSAL]**
-5. There are no block comments (`/* */`) in v1. **[PROPOSAL]** (see D1.6)
+Comments follow the Rust rules (author, D1.6).
+
+| Form | Kind | Documents |
+| --- | --- | --- |
+| `// ...` | line comment | nothing |
+| `/* ... */` | block comment, **nests**: `/* a /* b */ c */` is one comment | nothing |
+| `/// ...` | outer doc comment (line) | the declaration that follows |
+| `/** ... */` | outer doc comment (block) | the declaration that follows |
+| `//! ...` | inner doc comment (line) | the enclosing item; at the top of a file, the module |
+| `/*! ... */` | inner doc comment (block) | the enclosing item; at the top of a file, the module |
+
+1. `//` comes from `PLAN.md` (section 4); the rest is the Rust set.
+2. As in Rust, `////...` (four or more slashes), `/**/` and `/***...` are ordinary comments, not doc
+   comments.
+3. A block comment that is not closed before the end of the file is an error (E0112). Inside a
+   block comment, `"` and other characters have no meaning; only `/*` and `*/` are counted.
+4. Doc comments are tokens, not whitespace: the compiler keeps them because they are carried into the
+   generated code **[PLAN]** (section 8). Where outer and inner doc comments may appear is defined
+   in chapter 3.
+5. Ordinary comments are kept as trivia attached to tokens so that `wolf fmt` (M12) can preserve
+   them. They have no meaning for the language.
+6. For statement termination (section 7), a block comment that contains a newline counts as a
+   newline; one without a newline counts as a space.
 
 ```
 /// Returns the user with the given id.
@@ -99,33 +114,41 @@ So `let config = load()` and `let types = List.new()` are valid.
 ### 5.1 Integer literals
 
 ```
-int_lit   = dec_lit | hex_lit | bin_lit
+int_lit   = dec_lit | hex_lit | oct_lit | bin_lit
 dec_lit   = "0" | [1-9] ( "_"? [0-9] )*
 hex_lit   = "0x" [0-9a-fA-F] ( "_"? [0-9a-fA-F] )*
+oct_lit   = "0o" [0-7] ( "_"? [0-7] )*
 bin_lit   = "0b" [01] ( "_"? [01] )*
 ```
 
 1. Integer literals have no sign. `-5` is the unary minus applied to `5`.
 2. `_` may appear only between two digits: `1_000_000` is valid, while `1_`, `_1`, `1__0` and
    `0x_1` are not (E0107).
-3. A leading zero is not allowed (`007`, E0107). This rules out confusion with octal notation.
+3. A leading zero is not allowed (`007`, E0107). Octal is written `0o7`; this rules out the C
+   confusion where `010` means 8. Prefixes are lower case only (`0X1` is E0107).
 4. The value of a literal must not exceed 2^63 (E0106). The value 2^63 (`9223372036854775808`) is
    valid only as the direct operand of a unary minus, so `-9223372036854775808` is the minimum
    `Int`. That check happens after parsing (chapter 4).
-5. There is no octal notation and no type suffix (`5i32`). **[PROPOSAL]**
+5. **Reserved for the future: type suffixes.** A number literal immediately followed by a letter,
+   digit or `_` that is not part of the literal is an error (E0107): `5i32`, `1.0f`, `0b102`,
+   `0xfg`. This keeps the door open for suffixes such as `5i32` if sized integer types are added
+   later, without changing the meaning of any valid program.
 
 ### 5.2 Float literals
 
 ```
 float_lit = dec_digits "." dec_digits exponent?
+          | dec_digits exponent
 exponent  = ( "e" | "E" ) ( "+" | "-" )? dec_digits
 dec_digits = [0-9] ( "_"? [0-9] )*
 ```
 
 1. Digits are required on **both** sides of `.`. `1.` and `.5` are not floats (E0107). This keeps
    `1.copy()` and other method calls on literals unambiguous.
-2. An exponent requires the dot form: `1.0e10` is valid, `1e10` is not (E0107). **[PROPOSAL]**
-3. A literal that rounds to infinity is an error (E0108). There are no `NaN` or `inf` literals.
+2. An exponent without a dot is allowed and makes a float, as in Rust: `1e10` and `2E-3` are
+   `Float`. An exponent without digits (`1.0e`, `1e+`) is an error (E0107).
+3. Hex, octal and binary floats do not exist.
+4. A literal that rounds to infinity is an error (E0108). There are no `NaN` or `inf` literals.
 
 ### 5.3 String literals
 
@@ -139,16 +162,24 @@ dec_digits = [0-9] ( "_"? [0-9] )*
    | `\r` | carriage return |
    | `\t` | tab |
    | `\0` | U+0000 |
+   | `\xHH` | ASCII character, exactly 2 hex digits, at most `7F` |
    | `\\` | backslash |
    | `\"` | double quote |
    | `\u{H...}` | Unicode scalar value, 1 to 6 hex digits |
 
    Any other escape is an error (E0104). A `\u{...}` that is empty, too long, a surrogate
-   (U+D800 to U+DFFF) or above U+10FFFF is an error (E0105).
+   (U+D800 to U+DFFF) or above U+10FFFF is an error (E0105), as is a `\x` escape above `7F`.
 3. Control characters other than tab must be escaped (E0109).
-4. There is no string interpolation, no raw string and no multiline string in v1. There is no
-   character literal, because there is no `Char` type in `PLAN.md`. **[PROPOSAL]** (go to
-   `docs/ideas.md`)
+4. There is no string interpolation, no raw string and no multiline string in v1, and no character
+   literal, because there is no `Char` type in `PLAN.md`. These are recorded in `docs/ideas.md`.
+5. **Reserved for the future: literal prefixes.** An identifier immediately followed by `"` is an
+   error (E0113): `f"..."`, `r"..."`, `b"..."`. This is the Rust 2021 rule. It means a future
+   interpolated string can be `f"{name}"` while `{` in a plain string stays an ordinary character
+   forever, and raw strings can be `r"..."`, without breaking any valid program.
+6. **Reserved for the future: `'`.** The character `'` is not used in v1 and is an error (E0102,
+   with a hint that strings use `"`). It stays free for a possible `Char` literal.
+7. Forbidding raw newlines in strings is also deliberate: allowing them later is a compatible
+   change, while forbidding them later would not be.
 
 ### 5.4 Other values
 
@@ -234,11 +265,13 @@ The complete list of errors the lexer reports. This is the scope of milestone M1
 | E0104 | Unknown escape sequence | `"\q"` |
 | E0105 | Invalid Unicode escape | `"\u{D800}"`, `"\u{}"`, `"\u{110000}"` |
 | E0106 | Integer literal too large | `99999999999999999999` |
-| E0107 | Malformed number literal | `007`, `1_`, `0x`, `1.`, `1e5` |
+| E0107 | Malformed number literal | `007`, `1_`, `0x`, `1.`, `1e`, `5i32` |
 | E0108 | Float literal out of range | `1.0e999` |
 | E0109 | Unescaped control character in string | a raw U+0007 inside `"..."` |
 | E0110 | Carriage return without line feed | lone `CR` |
 | E0111 | Non-ASCII character in identifier | `naïve` (hint: identifiers are ASCII only) |
+| E0112 | Unterminated block comment | `/* a /* b */` at the end of the file |
+| E0113 | Reserved literal prefix | `f"x"`, `r"x"` (hint: add a space or remove the prefix) |
 
 Recovery: after an error the lexer emits an `Error` token covering the bad text and continues, so
 that all lexical errors of a file are reported at once **[PLAN]** (section 9). The lexer never
@@ -253,7 +286,7 @@ panics on any input; fuzzing in `fuzz/` checks this **[PLAN]** (section 12).
 | D1.3 | No `;` in v1 | **answered**: yes |
 | D1.4 | Reserved and contextual keywords as listed in section 4, including `async`/`await` reserved for the future | **answered**: yes |
 | D1.5 | ASCII-only identifiers; naming style is a compile error, not a warning | **answered**: yes |
-| D1.6 | No block comments in v1 | yes |
+| D1.6 | Block comments | **answered**: comments as in Rust (section 2) |
 | D1.7 | Extra operators in v1: compound assignment `+=` etc., range `..` (`for i in 0..n`), bitwise and shift | **answered**: all three are in v1 (against the drafter's recommendation) |
-| D1.8 | Literal rules in section 5 (no leading zeros, dot required in floats, escape set, no interpolation/raw/char literals) | yes |
-| D1.9 | Lexical error list in section 8 | yes |
+| D1.8 | Literal rules in section 5 | **answered**: delegated to the drafter with future extensions in mind; rules as in section 5 |
+| D1.9 | Lexical error list in section 8 | **answered**: yes |
