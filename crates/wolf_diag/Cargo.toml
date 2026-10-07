@@ -1,0 +1,13 @@
+[package]
+name = "wolf_diag"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+codespan-reporting = "0.13.1"
+wolf_span = { workspace = true }
+
+[lints]
+workspace = true

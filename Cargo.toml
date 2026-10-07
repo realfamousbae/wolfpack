@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+repository = "https://github.com/realfamousbae/Wolfpack"
+
+[workspace.dependencies]
+wolf_span = { path = "crates/wolf_span" }
+wolf_diag = { path = "crates/wolf_diag" }
+wolf_lexer = { path = "crates/wolf_lexer" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+indexing_slicing = "warn"

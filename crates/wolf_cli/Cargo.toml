@@ -1,0 +1,16 @@
+[package]
+name = "wolf_cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "wolf"
+path = "src/main.rs"
