@@ -19,3 +19,11 @@ Do not implement anything listed here without an approved spec change.
 - Loop labels, `loop`, `break` with a value.
 - Struct update syntax: `User { name: "B", ..old }`.
 - `impl` blocks for a concrete instantiation of a generic type (`Stack<Int> { }`).
+
+## Standard library (from chapter 7)
+
+- Bounds on individual methods (`fn contains(self, item: T) -> Bool where T: Equatable`), so that
+  `items.contains(x)` and `items.sort()` can be methods instead of free functions in `std.list`.
+- Full Unicode case mapping (`to_upper`), once the targets can be made to agree.
+- A small helper to create an `Error` from a message without declaring a type.
+- `assert_eq(a, b)` that prints both values.
