@@ -9,3 +9,13 @@ Do not implement anything listed here without an approved spec change.
 - Raw strings `r"..."` and multiline string literals.
 - A `Char` type with `'a'` literals. The `'` character is already reserved.
 - Numeric type suffixes (`5i32`) together with sized integer types. Suffixes are already reserved.
+
+## Syntax (from chapter 3)
+
+- Default method bodies in interfaces.
+- Super-interfaces: `interface Ordered: Comparable { }`.
+- `if let` and `while let`.
+- Destructuring `let` for irrefutable patterns: `let Point { x, y } = p`.
+- Loop labels, `loop`, `break` with a value.
+- Struct update syntax: `User { name: "B", ..old }`.
+- `impl` blocks for a concrete instantiation of a generic type (`Stack<Int> { }`).
