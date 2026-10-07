@@ -101,6 +101,7 @@ Contextual:
 | `imports`, `config`, `types`, `interfaces`, `functions`, `tests` | at the top level of a file, as a section header followed by `{` |
 | `ts`, `go`, `rust` | as a block header directly inside `extern { }` |
 | `from` | after a signature inside an `extern` block |
+| `as` | inside `imports`, before an alias (chapter 6) |
 | `intrinsic` | as a modifier of a declaration in a `std` module (chapter 7) |
 | `test` | at the start of a declaration inside `tests { }` |
 

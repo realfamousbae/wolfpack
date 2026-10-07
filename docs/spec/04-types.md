@@ -58,12 +58,13 @@ Decisions already taken by the author for this chapter (2026-10-07):
 1. `+`, `-`, `*` and unary `-` **panic on overflow** on every target (register item 9).
 2. `/` truncates toward zero. `%` has the sign of the dividend: `-7 / 2 == -3`, `-7 % 2 == -1`.
    (Rust, Go and JS `bigint` already agree on this.)
-3. Division or remainder by zero panics. `Int.MIN / -1` and `Int.MIN % -1` panic (overflow). Go
+3. Division or remainder by zero panics. `MIN / -1` (where `MIN` is the smallest `Int`, `math.int_min`
+   in std) and `MIN % -1` panic (overflow). Go
    wraps silently here, so the Go backend must check.
 4. Bitwise `&`, `|`, `^`, `~` work on `Int` only, on the two's complement representation.
 5. Shifts `<<` and `>>` **[PROPOSAL]** (see D4.8):
    - the shift amount must be in `0..=63`, otherwise the shift panics;
-   - `<<` discards the bits shifted out and never panics for overflow (`1 << 63 == Int.MIN`);
+   - `<<` discards the bits shifted out and never panics for overflow (`1 << 63 == math.int_min`);
    - `>>` is arithmetic: it copies the sign bit.
 
    The three targets disagree here (Rust discards bits, JS `bigint` grows without limit, Go panics

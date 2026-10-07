@@ -38,6 +38,8 @@ Decisions already taken by the author for this chapter (2026-10-07):
    interface values, function values. They are copied only explicitly with `x.copy()` **[PLAN]**,
    which requires `Copyable` (chapter 4, section 9) and returns a new owned value.
 3. `Option<Int>` and similar are move types even if their contents are copy types. **[PROPOSAL]**
+   A **type parameter** `T` is a move type inside the generic code, whatever it is instantiated with:
+   `self.items.push(own item)` needs the marker even if `T` turns out to be `Int`.
    (A simpler rule; `.copy()` is cheap for them.)
 
 ## 3. Ownership and moves

@@ -102,7 +102,8 @@ type_args  = "<" sep(type, ",") ">"
 ## 4. Statements
 
 ```
-block      = "{" ( stmt NL )* expr? "}"
+block      = "{" NL* ( stmt ( NL+ stmt )* NL* )? "}"
+           // the last statement may be an expression: it is the value of the block
 stmt       = let_stmt | assign_stmt | expr_stmt
            | while_stmt | for_stmt
 let_stmt   = ( "let" | "var" ) IDENT ( ":" type )? "=" expr

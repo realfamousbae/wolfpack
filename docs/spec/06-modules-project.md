@@ -57,7 +57,8 @@ import_name = IDENT ( "as" IDENT )?
 6. A module may not import itself, and may not import an entry module (`main`, `lib`) from `src/`.
    **[PROPOSAL]**
 7. **Cyclic imports are forbidden** **[PLAN]**. The error lists the whole cycle (E0604).
-8. An **unused import is an error** (E0615), as in Go. **[PROPOSAL]** (see D6.3)
+8. An **unused import is an error** (E0615), as in Go. **[PROPOSAL]** (see D6.3) A `pub` import in
+   `src/lib.wolf` is always used: it exports the names.
 
 ### 2.2 Re-exports
 
