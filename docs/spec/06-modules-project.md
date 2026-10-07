@@ -248,6 +248,7 @@ Proposed range E06xx (confirmed in chapter 9).
 | E0615 | Unused import |
 | E0616 | Import of an entry module, or of the module itself |
 | E0617 | Redeclaration of a prelude name |
+| E0618 | Unused local variable (added by chapter 9; discard with `let _ = expr`) |
 
 ## 10. Decisions for the author
 
