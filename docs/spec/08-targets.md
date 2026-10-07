@@ -66,6 +66,19 @@ Decisions already taken by the author for this chapter (2026-10-07):
 6. **Tests** (milestone M7): TS uses `node:test` in `*.test.ts` files, Go uses `testing` in
    `*_test.go` files of the same package, Rust uses `#[cfg(test)] mod tests` **[PLAN]**.
 
+### 2.1 Re-exports, `tests/` and `examples/`
+
+Added after approval, while writing the examples. **[INTERNAL]**
+
+1. **Re-exports** of `src/lib.wolf` (chapter 6, section 2.2): TS `export { capitalize } from
+   "./text/words.js"`; Rust `pub use crate::text::words::capitalize;` with the inner modules
+   declared `pub(crate)`; Go has no re-exports, so the root package declares type aliases
+   (`type User = model.User`) and forwarding functions.
+2. **`tests/`**: TS `test/<path>.test.ts`; Go an external test package (`package mylib_test`) in the
+   root directory; Rust the native `tests/<path>.rs` integration tests of Cargo.
+3. **`examples/`**: TS `examples/<path>.ts` compiled as separate entry points; Go one `main` package
+   per example in `examples/<path>/main.go`; Rust the native `examples/<path>.rs` of Cargo.
+
 ## 3. Names
 
 | Wolfpack | TS | Go | Rust |
