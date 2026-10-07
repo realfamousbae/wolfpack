@@ -113,7 +113,7 @@ place      = IDENT ( "." IDENT | "[" expr "]" )*
            | "self" ( "." IDENT | "[" expr "]" )*
 expr_stmt  = expr
 while_stmt = "while" expr_no_struct block
-for_stmt   = "for" IDENT "in" ( range | expr_no_struct ) block
+for_stmt   = "for" IDENT "in" ( range | mode? expr_no_struct ) block
 range      = expr ( ".." | "..=" ) expr
 ```
 
@@ -130,7 +130,9 @@ range      = expr ( ".." | "..=" ) expr
 5. `break` and `continue` have no labels and no values. There is no `loop`; write `while true`.
    **[PROPOSAL]**
 6. `for x in collection` iterates a collection **[PLAN]**; `for i in 0..n` and `for i in 1..=n`
-   iterate integers (author). The loop variable is a plain name. **[PROPOSAL]**
+   iterate integers (author). The loop variable is a plain name. **[PROPOSAL]** The collection may
+   be marked `mut` or `own` (`for u in mut users`, `for u in own users`); the meaning is in
+   chapter 5. A range cannot be marked.
 7. A free-standing block `{ ... }` as a statement does not exist in v1. **[PROPOSAL]**
 
 ## 5. Expressions
@@ -166,7 +168,7 @@ path       = IDENT ( "." IDENT )*
 field_init = IDENT ( ":" expr )?
 
 if_expr    = "if" expr_no_struct block ( "else" ( if_expr | block ) )?
-match_expr = "match" expr_no_struct "{" ( arm NL )+ "}"
+match_expr = "match" mode? expr_no_struct "{" ( arm NL )+ "}"
 arm        = pattern ( "if" expr )? "=>" ( expr | block )
 ```
 
@@ -197,10 +199,12 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
    `[:]`. The parser decides between list and map by the `:` after the first element.
 9. **Slices** (author): `s[1..3]`, `items[2..]`, `items[..n]`, `s[0..=i]`. A slice produces a new
    value (references cannot be stored, PLAN section 4). Ranges appear nowhere else.
-10. `if` and `match` are expressions **[PLAN]** and may be operands: `let x = if ok { 1 } else { 2 }`.
+10. The scrutinee of `match` may be marked `mut` or `own` (`match own result { ... }`); the meaning
+    is in chapter 5.
+11. `if` and `match` are expressions **[PLAN]** and may be operands: `let x = if ok { 1 } else { 2 }`.
     An `if` without `else` has the value `()`.
-11. `else` must be on the same line as the closing `}` of the previous branch (chapter 1, section 7).
-12. `()` is the `Void` value **[PLAN]**.
+12. `else` must be on the same line as the closing `}` of the previous branch (chapter 1, section 7).
+13. `()` is the `Void` value **[PLAN]**.
 
 ## 6. Operator precedence
 
