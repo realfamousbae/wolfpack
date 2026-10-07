@@ -1,0 +1,136 @@
+---
+source: crates/wolf_lexer/tests/acceptance.rs
+expression: "dump(text, &lexed.tokens)"
+---
+0..16 DocInner " Module docs."
+16..17 Newline
+17..23 module
+24..30 Ident "shapes"
+30..31 Newline
+32..37 Ident "types"
+38..39 {
+39..40 Newline
+44..56 DocOuter " A shape."
+56..57 Newline
+61..64 pub
+65..69 enum
+70..75 Ident "Shape"
+76..77 {
+77..78 Newline
+86..92 Ident "Circle"
+92..93 (
+93..98 Ident "Float"
+98..99 )
+111..112 Newline
+120..124 Ident "Rect"
+125..126 {
+127..128 Ident "w"
+128..129 :
+130..135 Ident "Float"
+135..136 ,
+137..138 Ident "h"
+138..139 :
+140..145 Ident "Float"
+146..147 }
+147..148 Newline
+152..153 }
+153..154 Newline
+154..155 }
+155..156 Newline
+157..166 Ident "functions"
+167..168 {
+168..169 Newline
+173..176 pub
+177..179 fn
+180..184 Ident "area"
+184..185 (
+185..186 Ident "s"
+186..187 :
+188..193 Ident "Shape"
+193..194 )
+195..197 ->
+198..203 Ident "Float"
+204..205 {
+205..206 Newline
+214..219 match
+220..221 Ident "s"
+222..223 {
+223..224 Newline
+236..241 Ident "Shape"
+241..242 .
+242..248 Ident "Circle"
+248..249 (
+249..250 Ident "r"
+250..251 )
+252..254 =>
+255..259 Float 3.14
+260..261 *
+262..263 Ident "r"
+264..265 *
+266..267 Ident "r"
+267..268 Newline
+280..285 Ident "Shape"
+285..286 .
+286..290 Ident "Rect"
+291..292 {
+293..294 Ident "w"
+294..295 ,
+296..297 Ident "h"
+298..299 }
+300..302 =>
+303..304 Ident "w"
+305..306 *
+307..308 Ident "h"
+308..309 Newline
+317..318 }
+318..319 Newline
+323..324 }
+324..325 Newline
+330..332 fn
+333..338 Ident "count"
+338..339 (
+339..344 Ident "items"
+344..345 :
+346..350 Ident "List"
+350..351 <
+351..355 Ident "List"
+355..356 <
+356..359 Ident "Int"
+359..361 >>
+361..362 )
+363..365 ->
+366..369 Ident "Int"
+370..371 {
+371..372 Newline
+380..383 var
+384..385 Ident "n"
+386..387 =
+388..392 Int 16
+392..393 Newline
+401..404 for
+405..406 Ident "i"
+407..409 in
+410..411 Int 0
+411..414 ..=
+414..419 Ident "items"
+419..420 .
+420..423 Ident "len"
+423..424 (
+424..425 )
+426..427 {
+428..429 Ident "n"
+430..432 +=
+433..434 Ident "i"
+435..436 }
+436..437 Newline
+445..446 Ident "n"
+447..450 >>=
+451..452 Int 1
+452..453 Newline
+461..462 Ident "n"
+462..463 Newline
+467..468 }
+468..469 Newline
+469..470 }
+470..471 Newline
+471..471 Eof

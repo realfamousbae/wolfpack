@@ -387,6 +387,8 @@ name = "wolf_lexer"
 version = "0.1.0"
 dependencies = [
  "insta",
+ "wolf_diag",
+ "wolf_span",
 ]
 
 [[package]]
