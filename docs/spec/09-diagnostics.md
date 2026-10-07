@@ -1,6 +1,6 @@
 # Chapter 9: Diagnostics
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
 This chapter fixes the code ranges, the policy and the style of compiler diagnostics. The codes
 themselves are listed in one file in the code (`wolf_diag`) **[PLAN]**; the tables in chapters 1–7
@@ -105,7 +105,7 @@ succeeded. **[PROPOSAL]**
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D9.1 | Code ranges and driver codes E0001–E0003, internal compiler error handling | yes |
-| D9.2 | Suppression of follow-up errors, sorted output | yes |
-| D9.3 | Message style (section 3) and the JSON format defined in M1 | yes |
-| D9.4 | Exit codes of `wolf` (section 4) | yes |
+| D9.1 | Code ranges and driver codes E0001–E0003, internal compiler error handling | **answered**: yes |
+| D9.2 | Suppression of follow-up errors, sorted output | **answered**: yes |
+| D9.3 | Message style (section 3) and the JSON format defined in M1 | **answered**: yes |
+| D9.4 | Exit codes of `wolf` (section 4) | **answered**: yes |
