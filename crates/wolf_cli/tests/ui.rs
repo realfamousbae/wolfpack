@@ -133,6 +133,8 @@ fn e0002_bad_usage() {
     assert!(stderr.starts_with("error[E0002]: "), "{stderr}");
 }
 
+/// The simulated internal error exists only in debug builds.
+#[cfg(debug_assertions)]
 #[test]
 fn e0003_internal_error() {
     let output = Command::new(env!("CARGO_BIN_EXE_wolf"))
@@ -148,6 +150,32 @@ fn e0003_internal_error() {
         "{stderr}"
     );
     assert!(!stderr.contains("panicked"), "{stderr}");
+}
+
+#[test]
+fn e0002_missing_command() {
+    let output = wolf(&ui_dir(), &[]);
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("error[E0002]: no command given\n"),
+        "{stderr}"
+    );
+}
+
+/// A symbolic link back to an ancestor must not make `wolf check` loop or report twice.
+#[cfg(unix)]
+#[test]
+fn symlink_loops_are_not_followed() {
+    let dir = std::env::temp_dir().join(format!("wolf_symlink_{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::write(dir.join("src/a.wolf"), "@\n").unwrap();
+    std::os::unix::fs::symlink(&dir, dir.join("src/loop")).unwrap();
+    let output = wolf(&dir, &["check", "--color", "never", "."]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let _ = fs::remove_dir_all(&dir);
+    assert_eq!(stderr.matches("error[E0102]").count(), 1, "{stderr}");
 }
 
 #[test]

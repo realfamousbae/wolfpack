@@ -32,8 +32,8 @@ pub(crate) fn run(args: &CheckArgs) -> CheckResult {
     result
 }
 
-/// Collects `.wolf` files. Directories are walked in sorted order; hidden directories and the
-/// build directories `out` and `target` are skipped.
+/// Collects `.wolf` files. Directories are walked in sorted order; hidden directories, the
+/// build directories `out` and `target`, and symbolic links to directories are skipped.
 fn collect(path: &Path, files: &mut Vec<PathBuf>, diagnostics: &mut Vec<Diagnostic>) {
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
@@ -53,11 +53,18 @@ fn collect(path: &Path, files: &mut Vec<PathBuf>, diagnostics: &mut Vec<Diagnost
             return;
         }
     };
-    let mut children: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+    // `file_type` does not follow symbolic links, so a link cannot make the walk loop.
+    let mut children: Vec<(PathBuf, bool)> = entries
+        .flatten()
+        .map(|e| {
+            let is_dir = e.file_type().is_ok_and(|t| t.is_dir());
+            (e.path(), is_dir)
+        })
+        .collect();
     children.sort();
-    for child in children {
+    for (child, is_dir) in children {
         let name = child.file_name().and_then(|n| n.to_str()).unwrap_or("");
-        if child.is_dir() {
+        if is_dir {
             if !name.starts_with('.') && name != "out" && name != "target" {
                 collect(&child, files, diagnostics);
             }
