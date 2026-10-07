@@ -1,0 +1,80 @@
+//! A store of tasks: `mut self` methods, `for x in mut`, `match mut`.
+
+module todo.store
+
+imports {
+    todo.model.{Task, Priority, Status}
+}
+
+types {
+    /// The fields are private: other modules use the methods below.
+    pub struct Store {
+        tasks: List<Task>
+        next_id: Int
+    }
+}
+
+impl {
+    Store {
+        pub fn new() -> Store {
+            Store { tasks: [], next_id: 1 }
+        }
+
+        /// Adds a task and returns its id. The title is moved into the store.
+        pub fn add(mut self, own title: String, priority: Priority) -> Int {
+            let id = self.next_id
+            self.tasks.push(Task.new(id, own title, priority))
+            self.next_id += 1
+            id
+        }
+
+        /// Marks a task as done. Returns `false` if there is no task with this id.
+        pub fn complete(mut self, id: Int) -> Bool {
+            for task in mut self.tasks {
+                if task.id == id {
+                    task.status = Status.Done
+                    return true
+                }
+            }
+            false
+        }
+
+        /// Snoozes every open task.
+        pub fn snooze_open(mut self, days: Int) {
+            for task in mut self.tasks {
+                if task.status == Status.Open {
+                    task.status = Status.Snoozed(days)
+                }
+            }
+        }
+
+        /// Adds days to every snoozed task, changing the payload in place.
+        pub fn postpone(mut self, days: Int) {
+            for task in mut self.tasks {
+                match mut task.status {
+                    Status.Snoozed(left) => { left += days }
+                    _ => ()
+                }
+            }
+        }
+
+        /// Removes finished tasks and returns how many were removed.
+        pub fn remove_done(mut self) -> Int {
+            var removed = 0
+            var i = 0
+            while i < self.tasks.len() {
+                if self.tasks[i].status == Status.Done {
+                    let _ = self.tasks.remove(i)
+                    removed += 1
+                } else {
+                    i += 1
+                }
+            }
+            removed
+        }
+
+        pub fn report(self) -> List<String> {
+            self.tasks.map(|task| task.describe())
+        }
+    }
+}

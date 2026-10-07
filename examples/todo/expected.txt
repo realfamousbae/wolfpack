@@ -1,0 +1,13 @@
+[ ] write the spec (high)
+[ ] buy milk (low)
+[ ] walk the dog (normal)
+--
+completed: true
+[x] write the spec (high)
+[z3] buy milk (low)
+[z3] walk the dog (normal)
+--
+removed: 1
+[z3] buy milk (low)
+[z3] walk the dog (normal)
+--

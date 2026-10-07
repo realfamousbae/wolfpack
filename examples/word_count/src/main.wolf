@@ -1,0 +1,43 @@
+//! Counts words: string methods, a `Map` that keeps insertion order, closures and sorting.
+
+module main
+
+imports {
+    std.list
+    std.string
+}
+
+config {
+    sample: String = "the quick brown fox jumps over the lazy dog the fox"
+}
+
+functions {
+    fn count_words(text: String) -> Map<String, Int> {
+        var counts: Map<String, Int> = [:]
+        for word in text.to_lower_ascii().split(" ") {
+            if counts.contains_key(word) {
+                counts[word] += 1
+            } else {
+                let _ = counts.insert(word.copy(), 1)
+            }
+        }
+        counts
+    }
+
+    fn main() {
+        let counts = count_words(sample)
+        for word in counts.keys() {
+            print(word + ": " + counts[word].to_string())
+        }
+
+        let long_words = counts.keys().filter(|w| w.len() > 4)
+        print("long words: " + string.join(long_words, ", "))
+
+        var entries = counts.entries()
+        list.sort_by(mut entries, |a, b| b.value.compare(a.value))
+        print("top three:")
+        for i in 0..3 {
+            print("  " + entries[i].key + " " + entries[i].value.to_string())
+        }
+    }
+}

@@ -1,0 +1,5 @@
+size: 5
+top label: #25
+sum: 55
+largest word: zucchini
+threes: 3

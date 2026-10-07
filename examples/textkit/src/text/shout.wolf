@@ -1,0 +1,23 @@
+//! Uses a function of each target language through `extern`. The same signature is declared for
+//! all three targets, so the module stays portable (chapter 7, section 8.5).
+
+module text.shout
+
+extern {
+    ts {
+        fn to_upper(s: String) -> String from "String.prototype.toUpperCase"
+    }
+    go {
+        fn to_upper(s: String) -> String from "strings.ToUpper"
+    }
+    rust {
+        fn to_upper(s: String) -> String from "str::to_uppercase"
+    }
+}
+
+functions {
+    /// Upper-cases `text` with the target's own function and adds an exclamation mark.
+    pub fn shout(text: String) -> String {
+        to_upper(text) + "!"
+    }
+}

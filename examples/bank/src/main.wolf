@@ -1,0 +1,118 @@
+//! A bank: ownership in action. `mut` parameters change an account in place, `own` takes it
+//! away, and the compiler rejects `transfer(mut alice, mut alice, 10)` because the two `mut`
+//! arguments overlap (chapter 5, section 7.2).
+
+module main
+
+types {
+    struct Account {
+        owner: String
+        balance: Int
+    }
+
+    enum BankError {
+        /// The amount that is missing.
+        InsufficientFunds(Int)
+        InvalidAmount(Int)
+    }
+}
+
+impl {
+    Account {
+        fn open(own owner: String, deposit: Int) -> Account {
+            Account { owner, balance: deposit }
+        }
+
+        fn deposit(mut self, amount: Int) -> Result<Void, BankError> {
+            if amount <= 0 {
+                return Err(BankError.InvalidAmount(amount))
+            }
+            self.balance += amount
+            Ok(())
+        }
+
+        fn withdraw(mut self, amount: Int) -> Result<Void, BankError> {
+            if amount <= 0 {
+                return Err(BankError.InvalidAmount(amount))
+            }
+            if amount > self.balance {
+                return Err(BankError.InsufficientFunds(amount - self.balance))
+            }
+            self.balance -= amount
+            Ok(())
+        }
+
+        fn summary(self) -> String {
+            self.owner + ": " + self.balance.to_string()
+        }
+    }
+
+    BankError: Error {
+        fn message(self) -> String {
+            match self {
+                BankError.InsufficientFunds(missing) => "insufficient funds, missing " + missing.to_string()
+                BankError.InvalidAmount(amount) => "invalid amount " + amount.to_string()
+            }
+        }
+    }
+}
+
+functions {
+    /// Moves money between two different accounts.
+    fn transfer(mut from: Account, mut to: Account, amount: Int) -> Result<Void, BankError> {
+        from.withdraw(amount)?
+        to.deposit(amount)?
+        Ok(())
+    }
+
+    /// Closes the account and returns its final balance. The caller can no longer use it.
+    fn close(own account: Account) -> Int {
+        account.balance
+    }
+
+    fn main() -> Result<Void, Error> {
+        var alice = Account.open("Alice", 100)
+        var bob = Account.open("Bob", 20)
+
+        transfer(mut alice, mut bob, 30)?
+        print(alice.summary())
+        print(bob.summary())
+
+        match transfer(mut bob, mut alice, 500) {
+            Ok(_) => print("transfer done")
+            Err(error) => print("transfer failed: " + error.message())
+        }
+
+        let final_balance = close(own bob)
+        print("closed Bob's account with " + final_balance.to_string())
+        // print(bob.summary())   would not compile: `bob` was moved into `close`
+
+        match alice.deposit(0) {
+            Ok(_) => print("deposit done")
+            Err(error) => print("deposit failed: " + error.message())
+        }
+        print(alice.summary())
+        Ok(())
+    }
+}
+
+tests {
+    test "transfer moves money" {
+        var a = Account.open("A", 10)
+        var b = Account.open("B", 0)
+        assert(transfer(mut a, mut b, 10) == Ok(()))
+        assert(a.balance == 0)
+        assert(b.balance == 10)
+    }
+
+    test "a failed withdrawal changes nothing" {
+        var a = Account.open("A", 5)
+        assert(a.withdraw(8) == Err(BankError.InsufficientFunds(3)))
+        assert(a.balance == 5)
+    }
+
+    test "closing returns the balance" {
+        let a = Account.open("A", 42)
+        assert(close(own a) == 42)
+    }
+}

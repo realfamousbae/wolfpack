@@ -1,0 +1,26 @@
+//! Word helpers written in portable Wolfpack.
+
+module text.words
+
+imports {
+    std.string
+}
+
+functions {
+    /// Counts the words of `text`, ignoring repeated spaces.
+    pub fn word_count(text: String) -> Int {
+        text.split(" ").filter(|w| !w.is_empty()).len()
+    }
+
+    /// Upper-cases the first letter of every word (ASCII only).
+    pub fn capitalize(text: String) -> String {
+        string.join(text.split(" ").map(|w| capitalize_word(w)), " ")
+    }
+
+    fn capitalize_word(word: String) -> String {
+        if word.is_empty() {
+            return ""
+        }
+        word[0..1].to_upper_ascii() + word[1..]
+    }
+}

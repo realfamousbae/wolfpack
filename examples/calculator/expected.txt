@@ -1,0 +1,8 @@
+3 4 + = 7
+5 1 2 + 4 * + 3 - = 14
+2 3 4 * + = 14
+10 2 / = 5
+1 +: not enough operands
+4 0 /: division by zero
+1 2: 2 values left on the stack
+2 x *: bad token: x

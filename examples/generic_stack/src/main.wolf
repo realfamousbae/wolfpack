@@ -1,0 +1,122 @@
+//! A generic stack: a generic struct, a generic method, bounds on type parameters.
+
+module main
+
+types {
+    /// A last-in, first-out stack.
+    struct Stack<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Stack<T> {
+        fn new() -> Stack<T> {
+            Stack { items: [] }
+        }
+
+        fn push(mut self, own item: T) {
+            self.items.push(own item)
+        }
+
+        fn pop(mut self) -> Option<T> {
+            self.items.pop()
+        }
+
+        fn len(self) -> Int {
+            self.items.len()
+        }
+
+        fn is_empty(self) -> Bool {
+            self.items.is_empty()
+        }
+
+        /// A generic method: allowed in an inherent `impl` (chapter 4, section 8.3).
+        fn map<U>(self, f: fn(T) -> U) -> Stack<U> {
+            Stack { items: self.items.map(f) }
+        }
+    }
+}
+
+functions {
+    /// Takes the stack and sums it. An `own` parameter is mutable inside the function.
+    fn drain_sum(own stack: Stack<Int>) -> Int {
+        var total = 0
+        while true {
+            match stack.pop() {
+                Some(value) => { total += value }
+                None => break
+            }
+        }
+        total
+    }
+
+    fn count_equal<T: Equatable>(items: List<T>, target: T) -> Int {
+        var count = 0
+        for item in items {
+            if item == target {
+                count += 1
+            }
+        }
+        count
+    }
+
+    fn largest<T: Comparable + Copyable>(items: List<T>) -> Option<T> {
+        if items.is_empty() {
+            return None
+        }
+        var best = items[0].copy()
+        for item in items {
+            if item.compare(best) == Ordering.Greater {
+                best = item.copy()
+            }
+        }
+        Some(best)
+    }
+
+    fn main() {
+        var numbers: Stack<Int> = Stack.new()
+        for i in 1..=5 {
+            numbers.push(i * i)
+        }
+        print("size: " + numbers.len().to_string())
+
+        var labels = numbers.map(|n| "#" + n.to_string())
+        match labels.pop() {
+            Some(label) => print("top label: " + label)
+            None => print("no labels")
+        }
+
+        print("sum: " + drain_sum(own numbers).to_string())
+
+        match largest(["pear", "apple", "zucchini", "fig"]) {
+            Some(word) => print("largest word: " + word)
+            None => print("no words")
+        }
+        print("threes: " + count_equal([3, 1, 3, 2, 3], 3).to_string())
+    }
+}
+
+tests {
+    test "pop returns items in reverse order" {
+        var stack: Stack<Int> = Stack.new()
+        stack.push(1)
+        stack.push(2)
+        assert(stack.pop() == Some(2))
+        assert(stack.pop() == Some(1))
+        assert(stack.pop() == None)
+    }
+
+    test "largest of an empty list is none" {
+        let empty: List<Int> = []
+        assert(largest(empty) == None)
+    }
+
+    test "map keeps the order" {
+        var stack: Stack<Int> = Stack.new()
+        stack.push(1)
+        stack.push(2)
+        var doubled = stack.map(|n| n * 2)
+        assert(doubled.pop() == Some(4))
+    }
+}

@@ -1,0 +1,6 @@
+Alice: 70
+Bob: 50
+transfer failed: insufficient funds, missing 450
+closed Bob's account with 50
+deposit failed: invalid amount 0
+Alice: 70

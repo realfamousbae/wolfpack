@@ -1,0 +1,39 @@
+//! FizzBuzz: ranges, `match` with alternatives, conversion to `String`.
+
+module main
+
+functions {
+    /// Returns the FizzBuzz word for `n`.
+    fn fizzbuzz(n: Int) -> String {
+        match n % 15 {
+            0 => "FizzBuzz"
+            3 | 6 | 9 | 12 => "Fizz"
+            5 | 10 => "Buzz"
+            _ => n.to_string()
+        }
+    }
+
+    fn main() {
+        for i in 1..=15 {
+            print(fizzbuzz(i))
+        }
+    }
+}
+
+tests {
+    test "multiples of three" {
+        assert(fizzbuzz(9) == "Fizz")
+    }
+
+    test "multiples of five" {
+        assert(fizzbuzz(10) == "Buzz")
+    }
+
+    test "multiples of fifteen" {
+        assert(fizzbuzz(30) == "FizzBuzz")
+    }
+
+    test "other numbers" {
+        assert(fizzbuzz(7) == "7")
+    }
+}

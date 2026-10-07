@@ -1,0 +1,9 @@
+//! textkit: small text helpers. This file is the whole public API of the library: it re-exports
+//! names from internal modules with `pub` imports (chapter 6, section 2.2).
+
+module lib
+
+imports {
+    pub text.words.{word_count, capitalize}
+    pub text.shout.{shout}
+}

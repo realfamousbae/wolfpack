@@ -1,0 +1,34 @@
+//! A todo list split into modules: `todo.model` and `todo.store`.
+
+module main
+
+imports {
+    todo.model.{Priority}
+    todo.store.{Store}
+}
+
+functions {
+    fn show(store: Store) {
+        for line in store.report() {
+            print(line)
+        }
+        print("--")
+    }
+
+    fn main() {
+        var store = Store.new()
+        let first = store.add("write the spec", Priority.High)
+        store.add("buy milk", Priority.Low)
+        store.add("walk the dog", Priority.Normal)
+        show(store)
+
+        print("completed: " + store.complete(first).to_string())
+        store.snooze_open(2)
+        store.postpone(1)
+        show(store)
+
+        let removed = store.remove_done()
+        print("removed: " + removed.to_string())
+        show(store)
+    }
+}

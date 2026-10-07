@@ -1,0 +1,55 @@
+//! The data model of the todo list.
+
+module todo.model
+
+types {
+    /// Payload-less enums are copy types (ADR 0004).
+    pub enum Priority {
+        Low
+        Normal
+        High
+    }
+
+    pub enum Status {
+        Open
+        Done
+        /// Snoozed for a number of days.
+        Snoozed(Int)
+    }
+
+    pub struct Task {
+        pub id: Int
+        pub title: String
+        pub priority: Priority
+        pub status: Status
+    }
+}
+
+impl {
+    Task {
+        /// Creates an open task. The title is moved into the task.
+        pub fn new(id: Int, own title: String, priority: Priority) -> Task {
+            Task { id, title, priority, status: Status.Open }
+        }
+
+        /// One line such as `[x] buy milk (low)`.
+        pub fn describe(self) -> String {
+            let mark = match self.status {
+                Status.Open => "[ ]"
+                Status.Done => "[x]"
+                Status.Snoozed(days) => "[z" + days.to_string() + "]"
+            }
+            mark + " " + self.title + " (" + priority_name(self.priority) + ")"
+        }
+    }
+}
+
+functions {
+    fn priority_name(priority: Priority) -> String {
+        match priority {
+            Priority.Low => "low"
+            Priority.Normal => "normal"
+            Priority.High => "high"
+        }
+    }
+}

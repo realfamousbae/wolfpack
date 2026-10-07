@@ -1,0 +1,102 @@
+//! A reverse Polish notation calculator: enums with data, `Result`, the `?` operator, a user
+//! error type that implements `Error`, and `main` returning a `Result`.
+
+module main
+
+types {
+    enum CalcError {
+        BadToken(String)
+        StackUnderflow
+        DivisionByZero
+        Unbalanced(Int)
+    }
+}
+
+impl {
+    CalcError: Error {
+        fn message(self) -> String {
+            match self {
+                CalcError.BadToken(token) => "bad token: " + token
+                CalcError.StackUnderflow => "not enough operands"
+                CalcError.DivisionByZero => "division by zero"
+                CalcError.Unbalanced(count) => count.to_string() + " values left on the stack"
+            }
+        }
+    }
+}
+
+functions {
+    fn pop(mut stack: List<Int>) -> Result<Int, CalcError> {
+        match stack.pop() {
+            Some(value) => Ok(value)
+            None => Err(CalcError.StackUnderflow)
+        }
+    }
+
+    fn apply(op: String, a: Int, b: Int) -> Result<Int, CalcError> {
+        match op {
+            "+" => Ok(a + b)
+            "-" => Ok(a - b)
+            "*" => Ok(a * b)
+            "/" => if b == 0 { Err(CalcError.DivisionByZero) } else { Ok(a / b) }
+            _ => Err(CalcError.BadToken(op.copy()))
+        }
+    }
+
+    fn is_operator(token: String) -> Bool {
+        token == "+" || token == "-" || token == "*" || token == "/"
+    }
+
+    /// Evaluates tokens separated by single spaces, for example `3 4 + 2 *`.
+    fn evaluate(text: String) -> Result<Int, CalcError> {
+        var stack: List<Int> = []
+        for token in text.split(" ") {
+            if is_operator(token) {
+                let b = pop(mut stack)?
+                let a = pop(mut stack)?
+                stack.push(apply(token, a, b)?)
+            } else {
+                match token.parse_int() {
+                    Ok(number) => stack.push(number)
+                    Err(_) => return Err(CalcError.BadToken(token.copy()))
+                }
+            }
+        }
+        let result = pop(mut stack)?
+        if !stack.is_empty() {
+            return Err(CalcError.Unbalanced(stack.len() + 1))
+        }
+        Ok(result)
+    }
+
+    fn main() -> Result<Void, Error> {
+        for line in ["3 4 +", "5 1 2 + 4 * + 3 -", "2 3 4 * +", "10 2 /"] {
+            print(line + " = " + evaluate(line)?.to_string())
+        }
+        for line in ["1 +", "4 0 /", "1 2", "2 x *"] {
+            match evaluate(line) {
+                Ok(value) => print(line + " = " + value.to_string())
+                Err(error) => print(line + ": " + error.message())
+            }
+        }
+        Ok(())
+    }
+}
+
+tests {
+    test "adds two numbers" {
+        assert(evaluate("2 3 +") == Ok(5))
+    }
+
+    test "respects operand order" {
+        assert(evaluate("10 4 -") == Ok(6))
+    }
+
+    test "reports division by zero" {
+        assert(evaluate("1 0 /") == Err(CalcError.DivisionByZero))
+    }
+
+    test "reports a bad token" {
+        assert(evaluate("1 a +") == Err(CalcError.BadToken("a")))
+    }
+}

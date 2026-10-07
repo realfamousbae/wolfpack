@@ -1,0 +1,95 @@
+//! A binary search tree: a recursive enum, `own self` and `match own`, recursion.
+
+module main
+
+imports {
+    std.string
+}
+
+types {
+    /// Recursive through the enum; the Rust backend adds `Box` (chapter 4, section 7.4).
+    enum Tree {
+        Leaf
+        Node(Tree, Int, Tree)
+    }
+}
+
+impl {
+    Tree {
+        /// Consumes the tree and returns a new one that also holds `value`.
+        fn insert(own self, value: Int) -> Tree {
+            match own self {
+                Tree.Leaf => Tree.Node(Tree.Leaf, value, Tree.Leaf)
+                Tree.Node(left, v, right) => if value < v {
+                    Tree.Node(left.insert(value), v, right)
+                } else {
+                    Tree.Node(left, v, right.insert(value))
+                }
+            }
+        }
+
+        fn contains(self, value: Int) -> Bool {
+            match self {
+                Tree.Leaf => false
+                Tree.Node(left, v, right) => if value == v {
+                    true
+                } else if value < v {
+                    left.contains(value)
+                } else {
+                    right.contains(value)
+                }
+            }
+        }
+
+        /// Appends the values in ascending order.
+        fn collect(self, mut out: List<Int>) {
+            match self {
+                Tree.Leaf => ()
+                Tree.Node(left, v, right) => {
+                    left.collect(mut out)
+                    out.push(v)
+                    right.collect(mut out)
+                }
+            }
+        }
+
+        fn depth(self) -> Int {
+            match self {
+                Tree.Leaf => 0
+                Tree.Node(left, _, right) => 1 + left.depth().max(right.depth())
+            }
+        }
+    }
+}
+
+functions {
+    fn join_ints(values: List<Int>) -> String {
+        string.join(values.map(|v| v.to_string()), ", ")
+    }
+
+    fn main() {
+        var tree = Tree.Leaf
+        for value in [50, 30, 70, 20, 40, 60, 80, 35] {
+            tree = tree.insert(value)
+        }
+
+        var sorted: List<Int> = []
+        tree.collect(mut sorted)
+        print("in order: " + join_ints(sorted))
+        print("depth: " + tree.depth().to_string())
+        print("contains 35: " + tree.contains(35).to_string())
+        print("contains 36: " + tree.contains(36).to_string())
+    }
+}
+
+tests {
+    test "values come out sorted" {
+        var tree = Tree.Leaf
+        for value in [3, 1, 2] {
+            tree = tree.insert(value)
+        }
+        var out: List<Int> = []
+        tree.collect(mut out)
+        assert(out == [1, 2, 3])
+    }
+}

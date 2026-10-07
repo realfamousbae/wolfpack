@@ -1,0 +1,5 @@
+square: 4.0
+rectangle: 12.0
+triangle: 15.0
+total: 31.0
+largest rectangle: 2.0 x 3.0

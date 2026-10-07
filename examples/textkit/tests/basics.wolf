@@ -1,0 +1,25 @@
+//! Integration tests: they see only the library API (chapter 6, section 7).
+
+module tests.basics
+
+imports {
+    lib.{word_count, capitalize, shout}
+}
+
+tests {
+    test "counts words" {
+        assert(word_count("one two  three") == 3)
+    }
+
+    test "counts nothing in an empty string" {
+        assert(word_count("") == 0)
+    }
+
+    test "capitalizes every word" {
+        assert(capitalize("hello wolf pack") == "Hello Wolf Pack")
+    }
+
+    test "shouts" {
+        assert(shout("hey") == "HEY!")
+    }
+}
