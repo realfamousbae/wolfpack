@@ -287,7 +287,7 @@ functions {
         sum
     }
 
-    pub fn big(shapes: List<Shape>) -> List<Shape> {
+    pub fn big(own shapes: List<Shape>) -> List<Shape> {   // filter consumes the list (chapter 7)
         shapes.filter(|s| area(s) > 10.0)
     }
 }
