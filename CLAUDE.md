@@ -43,7 +43,9 @@ commit messages and compiler diagnostics. `PLAN.md` stays in Russian as the auth
 
 - Commits and pull requests are authored by the user only. Never add `Co-Authored-By`, "Generated
   with", or any other attribution to Claude in commits, PRs, issues or contributor lists.
-- Do not commit or push unless the user asked for it.
+- The author granted standing permission (2026-10-07) to commit and push to the private GitHub
+  repository `Wolfpack` (`origin`, branch `main`). One logical change per commit; spec edits in
+  their own commits. Do not change repository visibility, and do not push anywhere else.
 - Never put personal or sensitive data of the user into files or commits: this repository is
   planned to be public.
 
