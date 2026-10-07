@@ -105,7 +105,6 @@ type_args  = "<" sep(type, ",") ">"
 block      = "{" ( stmt NL )* expr? "}"
 stmt       = let_stmt | assign_stmt | expr_stmt
            | while_stmt | for_stmt
-           | "return" expr? | "break" | "continue"
 let_stmt   = ( "let" | "var" ) IDENT ( ":" type )? "=" expr
 assign_stmt = place assign_op expr
 assign_op  = "=" | "+=" | "-=" | "*=" | "/=" | "%="
@@ -124,7 +123,10 @@ range      = expr ( ".." | "..=" ) expr
 2. `let` and `var` always have an initializer. **[PROPOSAL]** The binding is a plain name; there is
    no destructuring in `let` and no `if let` in v1 (use `match`). **[PROPOSAL]** (see D3.4)
 3. **Assignment is a statement, not an expression.** `a = b = c` does not parse. **[PROPOSAL]**
-4. `return` without a value returns `()`. A `return` inside a closure returns from the closure.
+4. `return`, `break` and `continue` are **expressions** of type Never (chapter 4, D4.2), so they can
+   stand in a `match` arm: `None => return 0`. `return` without a value returns `()`. A `return`
+   inside a closure returns from the closure. The value after `return` extends to the end of the
+   line, as for any expression.
 5. `break` and `continue` have no labels and no values. There is no `loop`; write `while true`.
    **[PROPOSAL]**
 6. `for x in collection` iterates a collection **[PLAN]**; `for i in 0..n` and `for i in 1..=n`
@@ -156,6 +158,7 @@ primary    = INT | FLOAT | STRING | "true" | "false"
            | "(" expr ")" | "(" ")"
            | list_lit | map_lit | struct_lit
            | if_expr | match_expr
+           | "return" expr? | "break" | "continue"
 list_lit   = "[" sep(expr, ",")? "]"
 map_lit    = "[" sep(expr ":" expr, ",") "]" | "[" ":" "]"
 struct_lit = path ( "." "<" sep(type, ",") ">" )? "{" sep(field_init, ",")? "}"
