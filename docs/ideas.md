@@ -27,3 +27,5 @@ Do not implement anything listed here without an approved spec change.
 - Full Unicode case mapping (`to_upper`), once the targets can be made to agree.
 - A small helper to create an `Error` from a message without declaring a type.
 - `assert_eq(a, b)` that prints both values.
+- A debug build flag (`wolf build --debug`) that adds `.wolf` source locations to built-in panics
+  (overflow, index out of range).

@@ -69,9 +69,12 @@ pub interface Error {
 1. **Panic output** **[PROPOSAL]**: the program writes
    `panic at <file>:<line>:<column>: <message>` to standard error and exits with code 101. The
    location is the source location in the `.wolf` file, inserted by the compiler. No target stack
-   trace is printed. The same format is used for panics raised by the language itself (overflow,
-   index out of range, division by zero), with a fixed message per kind, for example
-   `integer overflow` and `index 5 out of range for length 3`.
+   trace is printed.
+   Panics raised by the language itself (overflow, index out of range, division by zero, shift out of
+   range) print `panic: <message>` **without a location**, with a fixed message per kind, for example
+   `panic: integer overflow` and `panic: index 5 out of range for length 3`. The exit code is also
+   101. (Author, 2026-10-07: locations on every operation would make the generated code much less
+   readable. A debug build flag with locations is in `docs/ideas.md`.)
 2. **`assert`** failing panics with the message `assertion failed: <source text of the condition>`.
    The compiler inserts the text. There is no second message parameter (no overloading).
 3. Output is identical on every target, so it can be compared in tests.
@@ -325,7 +328,7 @@ Proposed range E07xx (confirmed in chapter 9).
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D7.1 | Panic and assertion output format with source location; exit code 101; no target stack traces | **answered**: yes |
+| D7.1 | Panic and assertion output format with source location; exit code 101; no target stack traces | **answered**: yes; later narrowed: built-in panics have no location |
 | D7.2 | Canonical `Float` format (section 4.1) | **answered**: yes |
 | D7.3 | Only ASCII case mapping in v1 (`to_upper_ascii`, `to_lower_ascii`) | **answered**: yes |
 | D7.4 | Operations needing a bound are free functions in `std.list` / `std.map`; `filter` consumes the list (per-method bounds go to `ideas.md`) | **answered**: yes |
