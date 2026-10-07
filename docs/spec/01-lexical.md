@@ -191,7 +191,7 @@ dec_digits = [0-9] ( "_"? [0-9] )*
 ## 6. Operators and punctuation
 
 ```
-(   )   [   ]   {   }   ,   .   ..  :   ?   _
+(   )   [   ]   {   }   ,   .   ..  ..= :   ?   _
 =   ->  =>
 +   -   *   /   %
 ==  !=  <   <=  >   >=
@@ -233,7 +233,8 @@ The examples in `PLAN.md` have no semicolons **[PLAN]**. The proposed rule **[PR
    - after a token that cannot end an expression: a binary operator, `=`, `,`, `.`, `:`, `->`,
      `=>`, `(`, `[`, `{`;
    - before a line whose first token is `.` (method chains) **[PROPOSAL]** (see D1.2).
-3. There is no `;` in v1 (D1.3). One statement per line.
+3. There is no `;` in v1 (D1.3). One statement per line. A `;` in the source is an unexpected
+   character (E0102) with the hint that statements are separated by new lines.
 4. Consequences, shown on examples:
 
 ```
