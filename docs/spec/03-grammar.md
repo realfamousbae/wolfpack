@@ -106,6 +106,7 @@ block      = "{" ( stmt NL )* expr? "}"
 stmt       = let_stmt | assign_stmt | expr_stmt
            | while_stmt | for_stmt
 let_stmt   = ( "let" | "var" ) IDENT ( ":" type )? "=" expr
+           | "let" "_" "=" expr
 assign_stmt = place assign_op expr
 assign_op  = "=" | "+=" | "-=" | "*=" | "/=" | "%="
            | "&=" | "|=" | "^=" | "<<=" | ">>="
@@ -120,7 +121,8 @@ range      = expr ( ".." | "..=" ) expr
 1. **Value of a block.** A block may end with an expression without anything after it; that
    expression is the value of the block **[PLAN]** (`None` and `Ok(())` at the end of functions in
    sections 3 and 5). A block without a final expression has the value `()`.
-2. `let` and `var` always have an initializer. **[PROPOSAL]** The binding is a plain name; there is
+2. `let` and `var` always have an initializer. **[PROPOSAL]** `let _ = expr` evaluates `expr` and
+   drops the value; it is the explicit way to discard a value such as a `Result` (chapter 6, D6.5). The binding is a plain name; there is
    no destructuring in `let` and no `if let` in v1 (use `match`). **[PROPOSAL]** (see D3.4)
 3. **Assignment is a statement, not an expression.** `a = b = c` does not parse. **[PROPOSAL]**
 4. `return`, `break` and `continue` are **expressions** of type Never (chapter 4, D4.2), so they can
