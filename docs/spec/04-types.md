@@ -1,6 +1,6 @@
 # Chapter 4: Type system
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
 This chapter defines the types of Wolfpack, how expressions are typed, generics, interfaces, the
 built-in interfaces and the exhaustiveness of `match`. Ownership (moves, parameter modes) is in
@@ -47,7 +47,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
    variants `Some`, `None`, `Ok`, `Err` are written without qualification. `Ordering` variants are
    qualified: `Ordering.Less`. **[PROPOSAL]**
 2. There is also an internal type **Never**, which has no values and cannot be written in source. It
-   is the type of `panic(...)` and, if D4.2 is accepted, of `return`, `break` and `continue`. An
+   is the type of `panic(...)`, `return`, `break` and `continue` (D4.2; they are expressions, chapter 3). An
    expression of type Never is accepted where any type is expected. This is what makes
    `None => return 0` or `_ => panic("unreachable")` type-check in a `match`. **[PROPOSAL]**
 
@@ -115,7 +115,12 @@ Decisions already taken by the author for this chapter (2026-10-07):
 3. `Map<K, V>` requires `K: Hashable` (section 9). `m[k]` gives the value and **panics if the key is
    missing**; `m.get(k)` returns `Option<V>` (chapter 7). `m[k] = v` inserts or replaces.
    **[PROPOSAL]**
-4. **Iteration order of `Map`** must be the same on every target (differential tests): see D4.1.
+4. **Iteration order of `Map` is insertion order** on every target (author, D4.1): `m.keys()`,
+   `m.values()` and the other std functions that walk a map return elements in the order their keys
+   were first inserted. Replacing the value of an existing key keeps its position; removing a key
+   and inserting it again puts it at the end. TS uses `Map` as is; the Rust backend uses an
+   insertion-ordered map (for example the `indexmap` crate); the Go backend uses a generated type
+   that keeps a key slice next to the map (chapter 8).
 5. A literal's element types must agree: `[1, "a"]` is an error. `[]` and `[:]` take their type
    from context (section 10).
 6. Two lists are equal when they have the same length and equal elements in order. Two maps are
@@ -333,14 +338,14 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D4.1 | Iteration order of `Map` (`m.keys()` and so on) on every target | see question |
-| D4.2 | `return`, `break`, `continue` become expressions of type Never, so that `None => return 0` parses as a `match` arm (changes chapter 3 grammar) | yes |
-| D4.3 | Discarding a `Result` in an expression statement is an error | yes |
-| D4.4 | Interface members must take `self`; no associated functions in interfaces in v1 | yes |
-| D4.5 | Coherence: every `impl` is in the module of the type | yes |
-| D4.6 | Implicit coercion of a concrete value to an interface type where the interface is expected | yes |
-| D4.7 | `Float`: IEEE semantics for `==` and arithmetic; not `Comparable`, not `Hashable` | yes |
-| D4.8 | `Int` semantics: truncating `/`, sign of `%`, panics for overflow and division by zero, shift amount `0..=63`, `<<` discards bits | yes |
-| D4.9 | Unreachable `match` arm is an error | yes |
-| D4.10 | No `s[i]` on strings; `for` over `List` and ranges only (other collections through std functions returning `List`) | yes |
-| D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | yes |
+| D4.1 | Iteration order of `Map` (`m.keys()` and so on) on every target | **answered**: insertion order |
+| D4.2 | `return`, `break`, `continue` become expressions of type Never, so that `None => return 0` parses as a `match` arm (changes chapter 3 grammar) | **answered**: yes |
+| D4.3 | Discarding a `Result` in an expression statement is an error | **answered**: yes |
+| D4.4 | Interface members must take `self`; no associated functions in interfaces in v1 | **answered**: yes |
+| D4.5 | Coherence: every `impl` is in the module of the type | **answered**: yes |
+| D4.6 | Implicit coercion of a concrete value to an interface type where the interface is expected | **answered**: yes |
+| D4.7 | `Float`: IEEE semantics for `==` and arithmetic; not `Comparable`, not `Hashable` | **answered**: yes |
+| D4.8 | `Int` semantics: truncating `/`, sign of `%`, panics for overflow and division by zero, shift amount `0..=63`, `<<` discards bits | **answered**: yes |
+| D4.9 | Unreachable `match` arm is an error | **answered**: yes |
+| D4.10 | No `s[i]` on strings; `for` over `List` and ranges only (other collections through std functions returning `List`) | **answered**: yes |
+| D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |
