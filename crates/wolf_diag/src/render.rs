@@ -20,7 +20,10 @@ pub fn render_human(
     diagnostics: &[Diagnostic],
     out: &mut dyn WriteColor,
 ) -> io::Result<()> {
-    let files = MapFiles(map);
+    let files = MapFiles {
+        map,
+        texts: map.iter().map(|(_, file)| printable(file.text())).collect(),
+    };
     let config = config();
     for diagnostic in diagnostics {
         let converted = convert(map, diagnostic);
@@ -96,7 +99,24 @@ pub(crate) fn sanitize(map: &SourceMap, span: Span) -> Range<usize> {
     start..end
 }
 
-struct MapFiles<'a>(&'a SourceMap);
+/// Replaces characters that would garble a terminal (control characters and a carriage return
+/// not followed by a line feed) with `?`. Each replaced character is one byte, and so is `?`, so
+/// byte offsets stay valid.
+fn printable(text: &str) -> String {
+    let bytes = text.as_bytes();
+    text.char_indices()
+        .map(|(index, c)| {
+            let lone_cr = c == '\r' && bytes.get(index + 1) != Some(&b'\n');
+            let control = c.is_ascii_control() && c != '\t' && c != '\n' && c != '\r';
+            if lone_cr || control { '?' } else { c }
+        })
+        .collect()
+}
+
+struct MapFiles<'a> {
+    map: &'a SourceMap,
+    texts: Vec<String>,
+}
 
 impl<'a> Files<'a> for MapFiles<'a> {
     type FileId = FileId;
@@ -104,27 +124,27 @@ impl<'a> Files<'a> for MapFiles<'a> {
     type Source = &'a str;
 
     fn name(&'a self, id: FileId) -> Result<&'a str, FilesError> {
-        self.0
+        self.map
             .get(id)
             .map(|file| file.name())
             .ok_or(FilesError::FileMissing)
     }
 
     fn source(&'a self, id: FileId) -> Result<&'a str, FilesError> {
-        self.0
-            .get(id)
-            .map(|file| file.text())
+        self.texts
+            .get(id.index())
+            .map(|text| text.as_str())
             .ok_or(FilesError::FileMissing)
     }
 
     fn line_index(&'a self, id: FileId, byte_index: usize) -> Result<usize, FilesError> {
-        let file = self.0.get(id).ok_or(FilesError::FileMissing)?;
+        let file = self.map.get(id).ok_or(FilesError::FileMissing)?;
         let offset = u32::try_from(byte_index).unwrap_or(u32::MAX);
         Ok(file.line_index(offset))
     }
 
     fn line_range(&'a self, id: FileId, line_index: usize) -> Result<Range<usize>, FilesError> {
-        let file = self.0.get(id).ok_or(FilesError::FileMissing)?;
+        let file = self.map.get(id).ok_or(FilesError::FileMissing)?;
         match file.line_range(line_index) {
             Some(range) => Ok(range),
             None => {
@@ -155,6 +175,16 @@ mod tests {
         );
         assert!(text.contains("--> main.wolf:1:9"), "{text}");
         assert!(text.contains("= help: remove it"), "{text}");
+    }
+
+    #[test]
+    fn control_characters_are_shown_as_question_marks() {
+        let mut map = SourceMap::new();
+        let id = map.add("m.wolf", "a\u{7}b\rc\r\n".to_string());
+        let d = Diagnostic::new(codes::E0109, "x").primary(Span::new(id, 1, 2), "here");
+        let text = render_human_to_string(&map, &[d]);
+        assert!(text.contains("a?b?c"), "{text}");
+        assert!(!text.contains('\u{7}'));
     }
 
     #[test]
