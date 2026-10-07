@@ -1,0 +1,27 @@
+# Fuzz targets (spec chapter 9, section 5): the lexer must never panic on any input.
+# Run with `cargo +nightly fuzz run lexer` (needs `cargo install cargo-fuzz`).
+# This is a separate workspace, so `cargo test` at the root does not build it.
+
+[package]
+name = "wolf_fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+wolf_span = { path = "../crates/wolf_span" }
+wolf_diag = { path = "../crates/wolf_diag" }
+wolf_lexer = { path = "../crates/wolf_lexer" }
+
+[[bin]]
+name = "lexer"
+path = "fuzz_targets/lexer.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
