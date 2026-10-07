@@ -171,7 +171,7 @@ path       = IDENT ( "." IDENT )*
 field_init = IDENT ( ":" expr )?
 
 if_expr    = "if" expr_no_struct block ( "else" ( if_expr | block ) )?
-match_expr = "match" mode? expr_no_struct "{" ( arm NL )+ "}"
+match_expr = "match" mode? expr_no_struct "{" NL* arm ( NL+ arm )* NL* "}"
 arm        = pattern ( "if" expr )? "=>" ( expr | block )
 ```
 
@@ -314,6 +314,7 @@ parser may add specific codes for frequent mistakes.
 | E0311 | Generic arguments in an expression without the dot (`parse<Int>(s)`, hint: `parse.<Int>(s)`) |
 | E0312 | Float literal in a pattern |
 | E0313 | Two statements on one line (hint: there is no `;`, use a new line) |
+| E0314 | Nesting too deep (more than 256 levels of expressions, blocks, types or patterns). Protects the compiler from stack overflow; added in M2 |
 
 Recovery **[PLAN]** (section 9): on an error the parser skips to the next `NL` at the current nesting
 level, or to the closing delimiter, and continues.
