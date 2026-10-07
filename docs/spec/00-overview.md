@@ -1,6 +1,6 @@
 # Chapter 0: Overview, chapter list and decisions register
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07).
 
 Convention used in every chapter of this spec:
 
@@ -45,22 +45,23 @@ Recommendations are the drafter's; "plan default" is what `PLAN.md` says.
 | 9 | Integer overflow | **closed** (plan default), details pending | Panic on every target. Follow-up for chapter 8: checked arithmetic in Go and `overflow-checks = true` in generated Rust (gap G8) |
 | 10 | Docs language | **closed** | English everywhere (author, 2026-10-07) |
 | 11 | Process of M0 | **closed** | Chapter by chapter with approval (author, 2026-10-07) |
+| 12 | Gap directions G1 to G10 | **closed** | See section 3, column "Decision" (author, 2026-10-07) |
 
 ## 3. Cross-target gaps already visible in PLAN.md
 
 The core is defined as the intersection of the three targets **[PLAN]**. The following points are
 where the intersection is not yet defined by `PLAN.md`. Each must get an explicit rule in the
-named chapter, otherwise differential tests will fail late. **[PROPOSAL]** for the proposed
-direction; every direction is a language-behaviour decision and needs the author.
+named chapter, otherwise differential tests will fail late. The direction for every gap was decided
+by the author on 2026-10-07; the exact rules are written in the named chapters.
 
-| # | Gap | Problem | Proposed direction | Chapter |
+| # | Gap | Problem | Decision | Chapter |
 | --- | --- | --- | --- | --- |
-| G1 | String length and slicing | Go strings index bytes, Rust slices on UTF-8 byte boundaries, JS counts UTF-16 units | Define `String` operations in terms of Unicode scalar values or of UTF-8 bytes, once, and make every backend implement exactly that | 4, 7 |
+| G1 | String length and slicing | Go strings index bytes, Rust slices on UTF-8 byte boundaries, JS counts UTF-16 units | `String` length, indices and slices are measured in Unicode scalar values on every target | 4, 7 |
 | G2 | `==` on structs | TS `===` compares references | `==` is structural for everything that is comparable. Backends generate equality functions where needed | 4, 8 |
 | G3 | `Map` key types | TS `Map` keys objects by identity | Restrict keys to `Int`, `String`, `Bool` (and enums without data) in v1 | 4, 8 |
-| G4 | `Option` / `Result` representation | `Option<Option<T>>` and `Option<Void>` collapse in `T \| undefined`. Go `(T, error)` is not a first-class value, so `List<Result<..>>` or a `Result` field has no mapping; `E` must implement Go's `error` | Represent both as tagged values in TS and Go when used as data (fields, collection elements, nesting), and use the idiomatic form only at function boundaries. Needs author decision on how much idiom to give up | 4, 8 |
-| G5 | Generic methods in `impl` | Go methods cannot have type parameters | Either forbid generic methods, or generate them as free functions in Go | 4, 8 |
-| G6 | Interfaces as value types | If an interface can be a parameter or field type, Rust needs `dyn` and object safety rules | In v1 interfaces are usable only as generic bounds, not as value types | 4 |
+| G4 | `Option` / `Result` representation | `Option<Option<T>>` and `Option<Void>` collapse in `T \| undefined`. Go `(T, error)` is not a first-class value, so `List<Result<..>>` or a `Result` field has no mapping; `E` must implement Go's `error` | Hybrid: the idiomatic form in function results where it is unambiguous (`(T, error)` in Go, `T \| undefined` in TS); a tagged value when used as data (fields, collection elements, nesting) | 4, 8 |
+| G5 | Generic methods in `impl` | Go methods cannot have type parameters | Generic methods are allowed. The Go backend emits them as free generic functions | 4, 8 |
+| G6 | Interfaces as value types | If an interface can be a parameter or field type, Rust needs `dyn` and object safety rules | Interfaces are usable both as generic bounds and as value types (`List<Shape>`). Rust uses `Box<dyn Trait>`; chapter 4 defines the object-safety rules for interfaces used as values | 4 |
 | G7 | `==`, hash, copy on generic `T` | Constraints like `Comparable` must exist in the language, not only as names in examples | Define a small fixed set of built-in interfaces (`Comparable`, `Hashable`, `Copy`) | 4, 7 |
 | G8 | Overflow panic | Go wraps silently, Rust wraps in release unless `overflow-checks` is on | Backends emit checked arithmetic (or set the Cargo profile flag) | 8 |
 | G9 | `Float` to string | Rust prints full digits, JS and Go print `1e+21` | Define one canonical formatting in `std.string` and implement it in each backend, or avoid printing floats in examples until M12 | 7, 8 |
@@ -93,9 +94,9 @@ Map), todo list with enums and `match`, geometry with interfaces, generic stack,
 
 ## 5. Decisions for the author
 
-| # | Decision | Recommendation |
+| # | Decision | Answer |
 | --- | --- | --- |
-| D0.1 | Approve the chapter list in section 1 | yes |
-| D0.2 | Answer open questions 4 to 9 in the register (section 2) | keep the plan defaults |
-| D0.3 | Approve the direction for each gap G1 to G10 (section 3), or choose another | as proposed |
-| D0.4 | Approve the coverage matrix (section 4) | yes |
+| D0.1 | Approve the chapter list in section 1 | approved |
+| D0.2 | Answer open questions 4 to 9 in the register (section 2) | plan defaults kept |
+| D0.3 | Approve the direction for each gap G1 to G10 (section 3) | approved; G1 scalar values, G4 hybrid, G5 and G6 allowed (against the drafter's recommendation to forbid) |
+| D0.4 | Approve the coverage matrix (section 4) | approved |
