@@ -1,6 +1,6 @@
 # Chapter 7: Standard library and `extern`
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
 This chapter defines the standard library `std` of v1 and the `extern` section through which a module
 uses libraries of a target language **[PLAN]** (section 7). How each std function and each `extern`
@@ -325,12 +325,12 @@ Proposed range E07xx (confirmed in chapter 9).
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D7.1 | Panic and assertion output format with source location; exit code 101; no target stack traces | yes |
-| D7.2 | Canonical `Float` format (section 4.1) | yes |
-| D7.3 | Only ASCII case mapping in v1 (`to_upper_ascii`, `to_lower_ascii`) | yes |
-| D7.4 | Operations needing a bound are free functions in `std.list` / `std.map`; `filter` consumes the list (per-method bounds go to `ideas.md`) | yes |
-| D7.5 | Math as methods of `Int` and `Float`, constants in `std.math` | yes |
-| D7.6 | std error types `FsError` and `ParseError` with fixed messages | yes |
-| D7.7 | Extern functions: no generics, no `mut` parameters; result error type is `Error`; target errors and exceptions become `Err` or a panic | yes |
-| D7.8 | Read parameters are passed to extern code without copies (unchecked contract) | yes |
-| D7.9 | Rest: method lists of `String`, `List`, `Map`; `std.io`, `std.fs`, `std.process`; target binding; diagnostics | yes |
+| D7.1 | Panic and assertion output format with source location; exit code 101; no target stack traces | **answered**: yes |
+| D7.2 | Canonical `Float` format (section 4.1) | **answered**: yes |
+| D7.3 | Only ASCII case mapping in v1 (`to_upper_ascii`, `to_lower_ascii`) | **answered**: yes |
+| D7.4 | Operations needing a bound are free functions in `std.list` / `std.map`; `filter` consumes the list (per-method bounds go to `ideas.md`) | **answered**: yes |
+| D7.5 | Math as methods of `Int` and `Float`, constants in `std.math` | **answered**: yes |
+| D7.6 | std error types `FsError` and `ParseError` with fixed messages | **answered**: yes |
+| D7.7 | Extern functions: no generics, no `mut` parameters; result error type is `Error`; target errors and exceptions become `Err` or a panic | **answered**: yes |
+| D7.8 | Read parameters are passed to extern code without copies (unchecked contract) | **answered**: yes |
+| D7.9 | Rest: method lists of `String`, `List`, `Map`; `std.io`, `std.fs`, `std.process`; target binding; diagnostics | **answered**: yes |
