@@ -14,7 +14,8 @@ Decisions taken by the author for this chapter (2026-10-07):
 ## 1. Codes
 
 1. A code is `E` followed by four digits. Each code has exactly one meaning, a source range and a test
-   **[PLAN]**. A code is never reused, even after the error it named is removed; removed codes stay
+   **[PLAN]**. Exception: driver errors (E00xx) may have no source range, because they are not about
+   a place in a source file (author, 2026-10-08). A code is never reused, even after the error it named is removed; removed codes stay
    listed as retired. **[PLAN]**
 2. Ranges:
 
@@ -58,7 +59,7 @@ Decisions taken by the author for this chapter (2026-10-07):
 1. Messages are English, start with a lower-case letter and have no final period:
    `` use of moved value `user` ``.
 2. Code is in backticks. Types are printed as in source: `List<User>`.
-3. Every error has a **primary label** on the exact range. Related places get **secondary labels**:
+3. Every error except a driver error (E00xx) has a **primary label** on the exact range. Related places get **secondary labels**:
    "value moved here", "first declared here".
 4. Where a fix is known, a `help:` line shows it, if possible as the changed source line.
    A `note:` line explains a rule when the reason is not obvious.
@@ -76,7 +77,9 @@ Decisions taken by the author for this chapter (2026-10-07):
       = help: pass a copy instead: `archive(own user.copy())`
    ```
 
-6. `--message-format json` prints one JSON object per diagnostic and line on standard error. The
+6. After the diagnostics, human output ends with the line `error: aborting due to N errors`
+   (`1 error` for one). JSON output has no such line. (Author, 2026-10-08.)
+7. `--message-format json` prints one JSON object per diagnostic and line on standard error. The
    schema (defined in milestone M1, kept stable after v0.1):
 
    ```json
@@ -102,7 +105,7 @@ Decisions taken by the author for this chapter (2026-10-07):
    `start` and `end` are byte offsets (end exclusive); lines and columns are one-based and columns
    count Unicode scalar values. `severity` is always `"error"` in v1. `labels` may be empty (for
    example for E0001). The object is printed on a single line.
-7. `wolf explain <code>` shows a longer description with a wrong and a fixed example **[PLAN]**
+8. `wolf explain <code>` shows a longer description with a wrong and a fixed example **[PLAN]**
    (section 10, milestone M12). Each code gets this text when it is introduced.
 
 ## 4. Exit codes of `wolf`

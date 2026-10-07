@@ -40,8 +40,8 @@ Comments follow the Rust rules (author, D1.6).
 4. Doc comments are tokens, not whitespace: the compiler keeps them because they are carried into the
    generated code **[PLAN]** (section 8). Where outer and inner doc comments may appear is defined
    in chapter 3.
-5. Ordinary comments are kept as trivia attached to tokens so that `wolf fmt` (M12) can preserve
-   them. They have no meaning for the language.
+5. Ordinary comments are kept by the lexer, with their positions, so that `wolf fmt` (M12) can
+   preserve them. They have no meaning for the language.
 6. For statement termination (section 7), a block comment that contains a newline counts as a
    newline; one without a newline counts as a space.
 
