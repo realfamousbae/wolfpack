@@ -12,7 +12,7 @@ commit messages and compiler diagnostics. `PLAN.md` stays in Russian as the auth
 ## Order of work
 
 1. Work on one milestone at a time (see section 11 of `PLAN.md`). Do not jump ahead.
-2. **M1 is current.** M0 (the specification) was approved by the author on 2026-10-07.
+2. **M2 is current.** M0 (the specification) was approved on 2026-10-07, M1 (lexer) on 2026-10-08.
 3. M0 is done chapter by chapter: draft one chapter of `docs/spec/`, the author reviews, then the next.
 4. At the end of a milestone show the result: what works, which tests were added, what was deferred.
 5. After each milestone briefly explain to the author how the result is built and why. Learning is
@@ -32,7 +32,7 @@ commit messages and compiler diagnostics. `PLAN.md` stays in Russian as the auth
 - No `unsafe`. No `unwrap`, `expect` or `panic!` on any path that depends on user input.
 - The compiler never panics on user input: every invalid file yields a diagnostic.
 - Every diagnostic has a unique code (`E0101`), a source range and a test. Codes are listed in one
-  file and never reused.
+  file and never reused. Driver errors (E00xx) may have no source range.
 - Backends read only the IR. Each backend builds a target-language tree and then prints it; direct
   string concatenation from IR is forbidden.
 - Before every commit run `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test`.
