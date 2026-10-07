@@ -159,21 +159,32 @@ dec_digits = [0-9] ( "_"? [0-9] )*
 ## 6. Operators and punctuation
 
 ```
-(   )   [   ]   {   }   ,   .   :   ?   _
+(   )   [   ]   {   }   ,   .   ..  :   ?   _
 =   ->  =>
 +   -   *   /   %
 ==  !=  <   <=  >   >=
 &&  ||  !
+&   |   ^   ~   <<  >>
++=  -=  *=  /=  %=  &=  |=  ^=  <<=  >>=
 ```
 
 1. The lexer always takes the longest match: `->` is one token, `- >` is two.
 2. Usage that comes from `PLAN.md`: `.` for module paths, fields, methods and variants
    (`StorageError.Full`, there is no `::`); `.{` in imports (`users.model.{User}`) is the two tokens
    `.` and `{`; postfix `?`; `->` in signatures.
-3. There are **no** bitwise or shift operators (`&`, `|`, `^`, `~`, `<<`, `>>`) **[PROPOSAL]**. A
-   side effect: `>>` is never a token, so `Map<String, List<Int>>` needs no special splitting.
-4. There is no compound assignment (`+=`) and no range operator (`..`) **[PROPOSAL]** (see D1.7).
-5. Closure syntax is decided in chapter 3; it may add a token to this list.
+3. Bitwise and shift operators `&`, `|`, `^`, `~`, `<<`, `>>` exist (author, D1.7). Nested generic
+   types such as `Map<String, List<Int>>` must still parse: in a type context the parser treats
+   `>>` (and `>=`, `>>=`) as a sequence of single `>` tokens. How exactly is a compiler-internal
+   matter. The semantics (shift by a negative amount or by 64 or more, `&`/`|` on `Bool`) are
+   defined in chapter 4.
+4. Compound assignment exists for every binary arithmetic and bitwise operator (author, D1.7):
+   `x op= y` means `x = x op y`, with `x` evaluated once. The exact rules (which places can be
+   assigned to) are in chapter 3. `&&=` and `||=` do not exist.
+5. The range operator `..` exists (author, D1.7), as in `for i in 0..n`. Whether a range is a value
+   or only syntax in `for`, and whether an inclusive form (`..=`) exists, is decided in chapter 3 or
+   4. `1..5` lexes as `1`, `..`, `5`, because a float needs a digit after the dot.
+6. Closure syntax is decided in chapter 3. It may add tokens to this list, and it must not be
+   ambiguous with the `|` operator.
 
 ## 7. Statement termination
 
@@ -237,12 +248,12 @@ panics on any input; fuzzing in `fuzz/` checks this **[PLAN]** (section 12).
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D1.1 | Statement termination: newline tokens interpreted by the parser with the exceptions in section 7, or the Go-style rule (the lexer inserts `;` after certain tokens at line end) | parser-driven rule |
-| D1.2 | A line starting with `.` continues the previous statement | yes |
-| D1.3 | No `;` in v1 | yes |
-| D1.4 | Reserved and contextual keywords as listed in section 4, including `async`/`await` reserved for the future | yes |
-| D1.5 | ASCII-only identifiers; naming style is a compile error, not a warning | yes |
+| D1.1 | Statement termination: newline tokens interpreted by the parser with the exceptions in section 7, or the Go-style rule (the lexer inserts `;` after certain tokens at line end) | **answered**: parser-driven rule |
+| D1.2 | A line starting with `.` continues the previous statement | **answered**: yes |
+| D1.3 | No `;` in v1 | **answered**: yes |
+| D1.4 | Reserved and contextual keywords as listed in section 4, including `async`/`await` reserved for the future | **answered**: yes |
+| D1.5 | ASCII-only identifiers; naming style is a compile error, not a warning | **answered**: yes |
 | D1.6 | No block comments in v1 | yes |
-| D1.7 | Extra operators in v1: compound assignment `+=` etc., range `..` (`for i in 0..n`), bitwise and shift | none; record in `ideas.md` |
+| D1.7 | Extra operators in v1: compound assignment `+=` etc., range `..` (`for i in 0..n`), bitwise and shift | **answered**: all three are in v1 (against the drafter's recommendation) |
 | D1.8 | Literal rules in section 5 (no leading zeros, dot required in floats, escape set, no interpolation/raw/char literals) | yes |
 | D1.9 | Lexical error list in section 8 | yes |
