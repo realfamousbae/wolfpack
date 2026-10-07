@@ -1,6 +1,6 @@
 # Chapter 5: Ownership
 
-Status: **DRAFT, awaiting author review.**
+Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
 This chapter defines ownership in Wolfpack: which values are copied and which are moved, the three
 parameter modes, exclusive access, and closures. The model is "ownership without lifetimes"
@@ -31,8 +31,9 @@ Decisions already taken by the author for this chapter (2026-10-07):
 
 ## 2. Copy types and move types
 
-1. Values of `Int`, `Float` and `Bool` are **copied** implicitly on every use **[PLAN]**. They are
-   the *copy types*. See D5.1 for extending this list.
+1. Values of the **copy types** are copied implicitly on every use: `Int`, `Float`, `Bool`
+   **[PLAN]**, and also `Void`, `Ordering` and every enum whose variants have no payload
+   (author, D5.1; ADR 0004). A generic enum is never a copy type.
 2. All other types are **move types**: `String`, `List`, `Map`, `Option`, `Result`, structs, enums,
    interface values, function values. They are copied only explicitly with `x.copy()` **[PLAN]**,
    which requires `Copyable` (chapter 4, section 9) and returns a new owned value.
@@ -115,7 +116,7 @@ A parameter has one of three modes **[PLAN]**. The mode of `self` works the same
 2. Read parameters and read `self` are immutable. `mut` and `own` parameters and `mut self`/`own self`
    are mutable.
 3. Bindings introduced by `match place` and `for x in xs` are immutable. Bindings of
-   `for x in mut xs` are mutable (they give access to the element in place). Bindings of
+   `for x in mut xs` and `match mut place` are mutable (they give access to the part in place). Bindings of
    `match own` and `for x in own xs` are owned but immutable, like `let`; write `var y = x` to
    change them. **[PROPOSAL]**
 4. Every form of change requires a mutable place: assignment, compound assignment, `mut` argument,
@@ -156,7 +157,9 @@ Two places **overlap** if one is a prefix of the other: `user` and `user.name` o
 2. `match own place` moves the place before the arms; the bindings own the parts.
 3. `match temporary` (for example `match find(id)`) behaves like `match own`: the temporary has no
    other owner.
-4. See D5.2 for a `match mut place` form.
+4. `match mut place` (author, D5.2) borrows the place exclusively. The bindings give in-place,
+   mutable access to the parts: `match mut shape { Shape.Circle(r) => r *= 2.0 }`. Inside the arm the
+   place itself cannot be used except through the bindings. The place must be a mutable place.
 
 ### 7.5 Assignment
 
@@ -228,10 +231,10 @@ Each rule of this chapter gets a pair of tests: correct code and code with the e
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
-| D5.1 | Extend implicit copying beyond `Int`, `Float`, `Bool` to `Void`, `Ordering` and enums without payloads (deviates from PLAN rule 3, would need an ADR) | yes: such enums are as cheap as `Int`, and `let c = color` moving a `Color.Red` is surprising |
-| D5.2 | Add `match mut place`: bindings give in-place access to the parts (`match mut shape { Shape.Circle(r) => r *= 2.0 }`) | yes: symmetric with `for x in mut` |
-| D5.3 | Call-site markers are required exactly where they are meaningful; an extra marker is an error | yes |
-| D5.4 | An `own` parameter is mutable inside the callee | yes |
-| D5.5 | Overlap: disjoint fields are independent, any two indices into one list overlap | yes |
-| D5.6 | Closures capture whole variables, not individual fields | yes |
-| D5.7 | Rest: moves only of whole variables, flow-sensitive move check and loop rule, mutable place rule, `match` borrows the place in each arm, diagnostics | yes |
+| D5.1 | Extend implicit copying beyond `Int`, `Float`, `Bool` to `Void`, `Ordering` and enums without payloads | **answered**: yes (ADR 0004) |
+| D5.2 | Add `match mut place` | **answered**: yes |
+| D5.3 | Call-site markers are required exactly where they are meaningful; an extra marker is an error | **answered**: yes |
+| D5.4 | An `own` parameter is mutable inside the callee | **answered**: yes |
+| D5.5 | Overlap: disjoint fields are independent, any two indices into one list overlap | **answered**: yes |
+| D5.6 | Closures capture whole variables, not individual fields | **answered**: yes |
+| D5.7 | Rest: moves only of whole variables, flow-sensitive move check and loop rule, mutable place rule, `match` borrows the place in each arm, diagnostics | **answered**: yes |
