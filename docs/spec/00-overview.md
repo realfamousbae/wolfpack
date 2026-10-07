@@ -48,7 +48,7 @@ Recommendations are the drafter's; "plan default" is what `PLAN.md` says.
 | 12 | Gap directions G1 to G10 | **closed** | See section 3, column "Decision" (author, 2026-10-07). G4 is recorded in ADR 0002 |
 | 13 | Interactions of G5, G6 and G2 | **closed** (chapter 4) | (a) generic methods only in inherent `impl` blocks, never in interfaces; (b) interface values support `.copy()` but not `==`. Original problem: | (a) A generic method signature inside an `interface` has no Go mapping and makes the Rust trait not object-safe. (b) `Box<dyn Trait>` is neither `Clone` nor `PartialEq` for free, so `.copy()` and structural `==` on interface values need extra rules. Chapter 4 presents options to the author |
 | 14 | Go constraint satisfied by both `int64` and structs | open, for chapter 8 | See chapter 4, section 14: monomorphization or dictionary passing in the Go backend |
-| 15 | Shared `std` `Error` type for `?` | open, for chapter 7 | See chapter 4, section 5 |
+| 15 | Shared `std` `Error` type for `?` | **closed** | `Error` is a built-in interface; `?` coerces a concrete error to it (chapter 4, section 5; chapter 7) |
 
 ## 3. Cross-target gaps already visible in PLAN.md
 

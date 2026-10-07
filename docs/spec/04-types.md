@@ -129,15 +129,17 @@ Decisions already taken by the author for this chapter (2026-10-07):
 ## 5. `Option`, `Result` and the `?` operator
 
 1. `?` applied to `Result<T, E>` evaluates to `T` on `Ok`, and on `Err(e)` returns `Err(e)` from the
-   enclosing function. The enclosing function must return `Result<U, E>` with **the same `E`**;
-   there is no automatic conversion of errors. **[PROPOSAL]**
+   enclosing function. The enclosing function must return `Result<U, F>` where either `F` is `E`, or
+   `F` is an interface that `E` implements; in the second case `e` is coerced to `F` exactly as in
+   section 8.5. The usual case is `F = Error`, the built-in error interface (chapter 7). No other
+   conversion of errors exists. (Author, 2026-10-07, register item 15.)
 2. `?` applied to `Option<T>` evaluates to `T` on `Some`, and on `None` returns `None`. The
    enclosing function must return `Option<U>`.
 3. `?` on `Option` inside a function returning `Result` (or the reverse) is an error.
 4. Inside a closure, `?` refers to the closure's own result type.
-5. Note for chapter 7: the `PLAN.md` example `fs.read_text(path)?` inside a function returning
-   `Result<Config, Error>` means `std` has a shared `Error` type. Rule 1 then works without
-   conversions.
+5. The `PLAN.md` example `fs.read_text(path)?` inside a function returning `Result<Config, Error>`
+   works by rule 1: `fs.read_text` returns `Result<String, FsError>`, and `FsError` implements
+   `Error` (chapter 7).
 
 ## 6. Control flow typing
 
@@ -332,7 +334,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | # | Item | Chapter |
 | --- | --- | --- |
 | 14 | Go: a single constraint cannot be satisfied both by `int64` (no methods) and by a struct with a `Compare` method. `fn max<T: Comparable>` used with `Int` and with a user type needs monomorphization or dictionary passing in the Go backend | 8 |
-| 15 | `std` must provide a shared `Error` type so that `?` composes across std calls (section 5, rule 5) | 7 |
+| 15 | `std` must provide a shared `Error` type so that `?` composes across std calls. **Closed**: `Error` is a built-in interface, `?` coerces to it (section 5, rule 1) | 7 |
 
 ## 15. Decisions for the author
 
