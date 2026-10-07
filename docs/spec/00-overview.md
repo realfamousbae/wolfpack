@@ -45,7 +45,8 @@ Recommendations are the drafter's; "plan default" is what `PLAN.md` says.
 | 9 | Integer overflow | **closed** (plan default), details pending | Panic on every target. Follow-up for chapter 8: checked arithmetic in Go and `overflow-checks = true` in generated Rust (gap G8) |
 | 10 | Docs language | **closed** | English everywhere (author, 2026-10-07) |
 | 11 | Process of M0 | **closed** | Chapter by chapter with approval (author, 2026-10-07) |
-| 12 | Gap directions G1 to G10 | **closed** | See section 3, column "Decision" (author, 2026-10-07) |
+| 12 | Gap directions G1 to G10 | **closed** | See section 3, column "Decision" (author, 2026-10-07). G4 is recorded in ADR 0002 |
+| 13 | Interactions of G5, G6 and G2 | open, for chapter 4 | (a) A generic method signature inside an `interface` has no Go mapping and makes the Rust trait not object-safe. (b) `Box<dyn Trait>` is neither `Clone` nor `PartialEq` for free, so `.copy()` and structural `==` on interface values need extra rules. Chapter 4 presents options to the author |
 
 ## 3. Cross-target gaps already visible in PLAN.md
 
