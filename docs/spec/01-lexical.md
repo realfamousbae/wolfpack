@@ -225,7 +225,10 @@ The examples in `PLAN.md` have no semicolons **[PLAN]**. The proposed rule **[PR
    lines collapsed into one. It does not decide anything else.
 2. A `Newline` **ends** a statement, a field, a variant or a section entry, **except** when it is
    ignored:
-   - inside `( )` and `[ ]`;
+   - when the innermost open delimiter is `( )`, `[ ]` or the braces of a struct literal. Only the
+     innermost delimiter counts: the braces of a block, a `match` or a declaration make newlines
+     significant again, even inside parentheses. So `list.map(|x| {` followed by statements on
+     separate lines, or `print(match x {` with one arm per line, work as expected;
    - after a token that cannot end an expression: a binary operator, `=`, `,`, `.`, `:`, `->`,
      `=>`, `(`, `[`, `{`;
    - before a line whose first token is `.` (method chains) **[PROPOSAL]** (see D1.2).

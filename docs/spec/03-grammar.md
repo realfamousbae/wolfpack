@@ -158,7 +158,8 @@ primary    = INT | FLOAT | STRING | "true" | "false"
            | if_expr | match_expr
 list_lit   = "[" sep(expr, ",")? "]"
 map_lit    = "[" sep(expr ":" expr, ",") "]" | "[" ":" "]"
-struct_lit = type_path "{" sep(field_init, ",")? "}"
+struct_lit = path ( "." "<" sep(type, ",") ">" )? "{" sep(field_init, ",")? "}"
+path       = IDENT ( "." IDENT )*
 field_init = IDENT ( ":" expr )?
 
 if_expr    = "if" expr_no_struct block ( "else" ( if_expr | block ) )?
@@ -181,7 +182,8 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
    this is written is decided in chapter 5.
 5. **`|` disambiguation.** `|` (and `||`) at the start of an operand begins a closure; between two
    operands it is the bitwise (logical) operator.
-6. **Struct literals** are `User { id: 1, name: "Ann" }` **[PLAN]**. A field whose value is a
+6. **Struct literals** are `User { id: 1, name: "Ann" }` **[PLAN]**. Type arguments in a literal
+   use the expression form: `Stack.<Int> { items: [] }`, not `Stack<Int> { ... }`. A field whose value is a
    variable of the same name may be shortened: `User { id, name }` **[PROPOSAL]**. There is no
    update syntax (`..other`).
 7. **Struct literals in conditions.** In the condition of `if`, `while`, the scrutinee of `match`
