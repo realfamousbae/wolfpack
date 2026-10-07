@@ -76,9 +76,32 @@ Decisions taken by the author for this chapter (2026-10-07):
       = help: pass a copy instead: `archive(own user.copy())`
    ```
 
-6. `--message-format json` prints one JSON object per diagnostic and line, with the code, message,
-   severity, labels (file, byte and line/column ranges, text), help and notes. The schema is defined
-   with milestone M1 and kept stable after v0.1.
+6. `--message-format json` prints one JSON object per diagnostic and line on standard error. The
+   schema (defined in milestone M1, kept stable after v0.1):
+
+   ```json
+   {
+     "code": "E0107",
+     "severity": "error",
+     "message": "malformed number literal `007`",
+     "labels": [
+       {
+         "file": "src/main.wolf",
+         "start": 59, "end": 62,
+         "line_start": 5, "column_start": 19,
+         "line_end": 5, "column_end": 22,
+         "primary": true,
+         "message": "leading zeros are not allowed; octal numbers are written `0o7`"
+       }
+     ],
+     "help": [],
+     "notes": []
+   }
+   ```
+
+   `start` and `end` are byte offsets (end exclusive); lines and columns are one-based and columns
+   count Unicode scalar values. `severity` is always `"error"` in v1. `labels` may be empty (for
+   example for E0001). The object is printed on a single line.
 7. `wolf explain <code>` shows a longer description with a wrong and a fixed example **[PLAN]**
    (section 10, milestone M12). Each code gets this text when it is introduced.
 
