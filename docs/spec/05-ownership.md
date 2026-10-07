@@ -60,10 +60,15 @@ Decisions already taken by the author for this chapter (2026-10-07):
    variable or an `own` parameter, never a field path or an index. `let n = user.name` is an error
    with three suggestions: copy it (`user.name.copy()`), take the whole value apart with
    `match own user`, or use a std function that takes a part out (`list.remove(i)`,
-   `replace(mut place, own value)`, chapter 7).
+   `replace(mut place, own value)` from the prelude, rule 7).
 4. A **borrowed** value cannot be moved: a read or `mut` parameter, `self` in read or `mut` mode, a
    binding of `match place`, a variable of `for x in xs`. The error suggests `.copy()`.
 5. For copy types, an owning position simply copies; none of these restrictions apply.
+6. **Operands of operators are only read.** `"a" + s`, `a == b`, `-x` read their operands and
+   produce a new value; they never move. (Author, 2026-10-07.)
+7. To take a whole value out of a place that cannot be moved from (a field, an element, a `mut`
+   parameter), use the prelude function `replace(mut place, own value) -> T`, which puts `value`
+   in and returns the old value: `let old = replace(mut self.tasks, [])`.
 
 ## 4. Use after move
 
@@ -151,6 +156,10 @@ Two places **overlap** if one is a prefix of the other: `user` and `user.name` o
    cannot be used at all, except through `x`.
 3. `for x in own xs` moves `xs` before the first iteration; each `x` owns one element.
 4. Ranges (`for i in 0..n`) borrow nothing; `n` is evaluated once before the loop. **[PROPOSAL]**
+5. **A temporary collection** (`for w in text.split(" ")`, `for x in [1, 2]`) lives for the whole
+   loop. `for x in temp` gives read bindings, `for x in own temp` gives owned elements, and
+   `for x in mut temp` is an error (E0506), like a temporary passed to a `mut` parameter.
+   (Author, 2026-10-07.)
 
 ### 7.4 `match`
 

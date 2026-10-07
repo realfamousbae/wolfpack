@@ -65,6 +65,7 @@ pub interface Error {
 | `fn print(s: String)` | writes `s` and a line feed to standard output (author: `String` only) |
 | `fn panic(message: String) -> Never` | stops the program (below) |
 | `fn assert(condition: Bool)` | panics if `condition` is `false` (below) |
+| `fn replace<T>(mut place: T, own value: T) -> T` | stores `value` in `place` and returns the old value (chapter 5, section 3; author, 2026-10-07) |
 
 1. **Panic output** **[PROPOSAL]**: the program writes
    `panic at <file>:<line>:<column>: <message>` to standard error and exits with code 101. The

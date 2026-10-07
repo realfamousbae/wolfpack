@@ -111,7 +111,8 @@ Available in every module without imports (author):
 - the variants `Some`, `None`, `Ok`, `Err`;
 - the built-in interfaces `Equatable`, `Copyable`, `Hashable`, `Comparable`, and the error interface
   `Error` (chapter 7);
-- the functions `print` (defined in `std.io`, re-exported by the prelude), `panic` and `assert`.
+- the functions `print` (defined in `std.io`, re-exported by the prelude), `panic`, `assert` and
+  `replace` (chapter 7).
 
 `assert` is usable everywhere, not only in tests **[PROPOSAL]**. Its exact signature and the
 behaviour of a failed assertion are in chapter 7.

@@ -114,8 +114,10 @@ Decisions already taken by the author for this chapter (2026-10-07):
 2. `l[a..b]` (and the other slice forms) gives a new `List<T>` of copies; it requires
    `T: Copyable`. Bounds as for strings.
 3. `Map<K, V>` requires `K: Hashable` (section 9). `m[k]` gives the value and **panics if the key is
-   missing**; `m.get(k)` returns `Option<V>` (chapter 7). `m[k] = v` inserts or replaces.
-   **[PROPOSAL]**
+   missing**; `m.get(k)` returns `Option<V>` (chapter 7). `m[k] = v` (and `m[k] += 1`) **replaces** the value
+   of an existing key and panics if the key is missing; a new key is added only with
+   `m.insert(own key, own value)`, so the map never takes a key it does not own. (Author,
+   2026-10-07.)
 4. **Iteration order of `Map` is insertion order** on every target (author, D4.1): `m.keys()`,
    `m.values()` and the other std functions that walk a map return elements in the order their keys
    were first inserted. Replacing the value of an existing key keeps its position; removing a key
