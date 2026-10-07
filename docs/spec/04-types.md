@@ -1,0 +1,346 @@
+# Chapter 4: Type system
+
+Status: **DRAFT, awaiting author review.**
+
+This chapter defines the types of Wolfpack, how expressions are typed, generics, interfaces, the
+built-in interfaces and the exhaustiveness of `match`. Ownership (moves, parameter modes) is in
+chapter 5; the methods of built-in types are in chapter 7.
+
+Decisions already taken by the author for this chapter (2026-10-07):
+
+- Generic methods are allowed only in inherent `impl` blocks, never in interface signatures
+  (register item 13a).
+- `==` is structural and derived automatically; `<`, `<=`, `>`, `>=` work only on primitives;
+  ordering of other types goes through `a.compare(b)` (no operator overloading, PLAN section 3).
+- `==` and `.copy()` of user types are derived automatically; an error at the use site names the
+  field that prevents it.
+- Values of an interface type support `.copy()` but not `==` (register item 13b).
+
+## 1. Principles
+
+1. Typing is static, strict and **nominal**: two struct types with the same fields are different
+   types. **[PLAN]**
+2. There are **no implicit conversions** between types **[PLAN]**. `1 + 1.0` is an error; write
+   `1.to_float() + 1.0` (conversions are std functions, chapter 7).
+3. The only implicit change of type is the **interface coercion** of section 8.5: a value of a
+   concrete type is accepted where an interface type is expected. **[PROPOSAL]** (see D4.6)
+4. Types of parameters, results, fields and constants are always written. Types of local variables
+   and closure parameters are inferred **[PLAN]** (section 10).
+
+## 2. Built-in types
+
+| Type | Values | Notes |
+| --- | --- | --- |
+| `Int` | signed 64-bit integers | ADR 0001 |
+| `Float` | IEEE 754 binary64 | **[PLAN]** |
+| `Bool` | `true`, `false` | |
+| `String` | immutable sequences of Unicode scalar values, stored as UTF-8 | **[PLAN]**, G1 |
+| `Void` | exactly one value, `()` | **[PLAN]** |
+| `List<T>` | ordered, growable sequence | **[PLAN]** |
+| `Map<K, V>` | finite map from keys to values, `K: Hashable` | **[PLAN]**, G3 |
+| `Option<T>` | enum `Some(T)`, `None` | **[PLAN]** |
+| `Result<T, E>` | enum `Ok(T)`, `Err(E)` | **[PLAN]** |
+| `Ordering` | enum `Less`, `Equal`, `Greater` | result of `compare`, **[PROPOSAL]** |
+| function types | `fn(A, B) -> R` | chapter 3, section 3 |
+
+1. `Option`, `Result` and `Ordering` behave exactly like user enums (section 7), except that the
+   variants `Some`, `None`, `Ok`, `Err` are written without qualification. `Ordering` variants are
+   qualified: `Ordering.Less`. **[PROPOSAL]**
+2. There is also an internal type **Never**, which has no values and cannot be written in source. It
+   is the type of `panic(...)` and, if D4.2 is accepted, of `return`, `break` and `continue`. An
+   expression of type Never is accepted where any type is expected. This is what makes
+   `None => return 0` or `_ => panic("unreachable")` type-check in a `match`. **[PROPOSAL]**
+
+## 3. Arithmetic and operators
+
+### 3.1 `Int`
+
+1. `+`, `-`, `*` and unary `-` **panic on overflow** on every target (register item 9).
+2. `/` truncates toward zero. `%` has the sign of the dividend: `-7 / 2 == -3`, `-7 % 2 == -1`.
+   (Rust, Go and JS `bigint` already agree on this.)
+3. Division or remainder by zero panics. `Int.MIN / -1` and `Int.MIN % -1` panic (overflow). Go
+   wraps silently here, so the Go backend must check.
+4. Bitwise `&`, `|`, `^`, `~` work on `Int` only, on the two's complement representation.
+5. Shifts `<<` and `>>` **[PROPOSAL]** (see D4.8):
+   - the shift amount must be in `0..=63`, otherwise the shift panics;
+   - `<<` discards the bits shifted out and never panics for overflow (`1 << 63 == Int.MIN`);
+   - `>>` is arithmetic: it copies the sign bit.
+
+   The three targets disagree here (Rust discards bits, JS `bigint` grows without limit, Go panics
+   only on negative amounts), so every backend implements exactly this rule.
+6. Literals: an integer literal has type `Int` and must fit (chapter 1, section 5.1). There are no
+   untyped or polymorphic literals: `let x = 5` is `Int`, and `5` is never a `Float`.
+
+### 3.2 `Float`
+
+1. `+`, `-`, `*`, `/` follow IEEE 754 on every target: division by zero gives an infinity or NaN,
+   it does not panic. `%` on `Float` is IEEE `fmod` with the sign of the dividend.
+2. `==` follows IEEE: `NaN != NaN`. **[PROPOSAL]** (see D4.7)
+3. `<`, `<=`, `>`, `>=` work on `Float` with IEEE semantics (every comparison with NaN is `false`).
+4. `Float` is **not** `Comparable` and not `Hashable` (it has no total order). **[PROPOSAL]**
+5. Bitwise operators and shifts do not apply to `Float`.
+
+### 3.3 `Bool`
+
+`&&` and `||` short-circuit; `!` negates. Bitwise operators do not apply to `Bool`: Go has no `&` on
+`bool`. `==` and `!=` work. `<` and friends do not.
+
+### 3.4 `String`
+
+1. `+` concatenates two `String` values. Nothing else can be added to a `String` (`"n=" + 5` is an
+   error; use `5.to_string()`).
+2. `==` compares scalar values. `<`, `<=`, `>`, `>=` compare **lexicographically by Unicode scalar
+   value** (equivalently, by UTF-8 bytes). JS compares UTF-16 units, which differs for characters
+   above U+FFFF, so the TS backend uses a helper. **[PROPOSAL]**
+3. Length, positions and slices count scalar values (G1). `s[a..b]` is a new `String`; a bound
+   outside `0..=len` or `a > b` panics.
+4. There is no `s[i]` on `String` (there is no `Char` type); use `s[i..=i]`. **[PROPOSAL]**
+
+### 3.5 Comparison operators in general
+
+1. `==` and `!=` work on any type that is `Equatable` (section 9), both sides of the same type.
+2. `<`, `<=`, `>`, `>=` work only on `Int`, `Float` and `String` (author). Generic code and user
+   types use `a.compare(b)`, which returns `Ordering`.
+
+### 3.6 Compound assignment
+
+`x op= y` has exactly the typing and the panics of `x = x op y`; `x` is evaluated once.
+
+## 4. Lists and maps
+
+1. `l[i]` on `List<T>` requires `i: Int`; an index outside `0..len` panics. `l[i] = v` replaces an
+   element under the same rule.
+2. `l[a..b]` (and the other slice forms) gives a new `List<T>` of copies; it requires
+   `T: Copyable`. Bounds as for strings.
+3. `Map<K, V>` requires `K: Hashable` (section 9). `m[k]` gives the value and **panics if the key is
+   missing**; `m.get(k)` returns `Option<V>` (chapter 7). `m[k] = v` inserts or replaces.
+   **[PROPOSAL]**
+4. **Iteration order of `Map`** must be the same on every target (differential tests): see D4.1.
+5. A literal's element types must agree: `[1, "a"]` is an error. `[]` and `[:]` take their type
+   from context (section 10).
+6. Two lists are equal when they have the same length and equal elements in order. Two maps are
+   equal when they have the same keys and equal values, independent of order.
+
+## 5. `Option`, `Result` and the `?` operator
+
+1. `?` applied to `Result<T, E>` evaluates to `T` on `Ok`, and on `Err(e)` returns `Err(e)` from the
+   enclosing function. The enclosing function must return `Result<U, E>` with **the same `E`**;
+   there is no automatic conversion of errors. **[PROPOSAL]**
+2. `?` applied to `Option<T>` evaluates to `T` on `Some`, and on `None` returns `None`. The
+   enclosing function must return `Option<U>`.
+3. `?` on `Option` inside a function returning `Result` (or the reverse) is an error.
+4. Inside a closure, `?` refers to the closure's own result type.
+5. Note for chapter 7: the `PLAN.md` example `fs.read_text(path)?` inside a function returning
+   `Result<Config, Error>` means `std` has a shared `Error` type. Rule 1 then works without
+   conversions.
+
+## 6. Control flow typing
+
+1. Conditions of `if` and `while` have type `Bool`.
+2. An `if` with `else` has the type of its branches, which must agree (Never agrees with
+   everything). An `if` without `else` has type `Void`, and its block must have type `Void`.
+3. All arms of a `match` have the same type.
+4. A block has the type of its final expression, or `Void` if there is none.
+5. A function's body must have the declared result type. A function whose result is not `Void`
+   must not fall off its end without a value.
+6. `for x in e` accepts `e: List<T>` (then `x: T`) and integer ranges (then `x: Int`).
+   **[PROPOSAL]** Other collections are iterated through std functions that return a `List`
+   (`m.keys()`, `s.chars()`, chapter 7), so the language has no iterator protocol in v1.
+7. **Discarding a `Result`.** An expression statement whose value is a `Result` is an error
+   (E04xx): the error must be handled, propagated with `?` or explicitly ignored. Other values may
+   be discarded. **[PROPOSAL]** (see D4.3)
+
+## 7. User types
+
+### 7.1 Structs
+
+1. A struct literal must give every field exactly once.
+2. Field access `x.f` requires the field to be visible (chapter 6).
+
+### 7.2 Enums
+
+1. A variant is constructed with its qualified name: `StorageError.Full`, `StorageError.Io("x")`,
+   `Shape.Rect { w: 1.0, h: 2.0 }`.
+2. Variants are not types of their own: `StorageError.Io("x")` has type `StorageError`.
+3. An enum has at least one variant (chapter 3).
+
+### 7.3 Type aliases
+
+`type UserId = Int` introduces another name for the same type: `UserId` and `Int` are fully
+interchangeable. Aliases may be generic (`type Pairs<T> = List<List<T>>`). A cycle of aliases is an
+error. **[PROPOSAL]**
+
+### 7.4 Recursive types
+
+1. A type may refer to itself through an enum variant, `Option`, `List` or `Map`: `enum Tree { Leaf,
+   Node(Tree, Tree) }`, `struct Node { next: Option<Node> }`. The Rust backend adds `Box` where
+   needed **[PLAN]** (section 4).
+2. A struct that contains itself directly (`struct A { a: A }`), possibly through other structs, has
+   no finite values and is an error. **[PROPOSAL]**
+
+## 8. Generics and interfaces
+
+### 8.1 Generic declarations
+
+1. Functions, structs, enums, aliases, interfaces and inherent `impl` blocks may have type
+   parameters with bounds `<T: A + B>` **[PLAN]**.
+2. Inside a generic body only the operations allowed by the bounds may be used on `T`: methods of
+   the bound interfaces, `==` with `T: Equatable`, `.copy()` with `T: Copyable`. **[PROPOSAL]**
+3. Generic code is checked once, at the declaration, not at each use (as in Rust and Go, unlike C++
+   templates).
+4. A use of a generic declaration must satisfy the bounds; the error points at the use and names
+   the missing interface.
+
+### 8.2 Interfaces
+
+1. An interface is a set of method signatures **[PLAN]**. Every member takes `self` (in any mode).
+   Functions without `self` are not allowed in interfaces in v1. **[PROPOSAL]** (see D4.4)
+2. An interface may have type parameters (`interface Container<T>`), but its methods may not (author,
+   13a). The reason: neither Go nor a Rust trait object can express a generic interface method.
+3. A signature may use `Self`, meaning "the implementing type": `fn compare(self, other: Self) ->
+   Ordering`.
+
+### 8.3 Implementations
+
+1. `Type: Interface { ... }` must define every method of the interface, with exactly the same
+   parameter modes, parameter types and result type (after substituting `Self`). Extra methods are
+   not allowed in such a block.
+2. **Coherence** **[PROPOSAL]** (see D4.5): every `impl` block for a type, inherent or for an
+   interface, must be in the module that declares the type. Consequently user interfaces cannot be
+   implemented for `Int`, `String`, `List` or extern types. Reason: Go allows methods only on types
+   of the same package; this rule makes every `impl` map onto Go methods.
+3. A type may implement an interface at most once.
+4. **No two methods with the same name** on one type, across its inherent block and all its
+   interface blocks. Go cannot express that. **[PROPOSAL]**
+5. Generic inherent methods (`fn map<U>(self, f: fn(T) -> U) -> Stack<U>`) are allowed (author). The
+   Go backend may emit them as free generic functions until it can rely on generic methods in Go;
+   this is a backend matter (chapter 8).
+
+### 8.4 Method calls
+
+`x.m(args)` looks up `m` among the methods of the type of `x` (inherent or from an implemented
+interface). By rule 8.3.4 there is at most one. For a type parameter `T`, the methods come from its
+bounds. Associated functions are called as `Type.f(args)`.
+
+### 8.5 Interfaces as value types
+
+1. An interface `I` can be used as a type (`List<Shape>`, a field of type `Shape`) **only if it is
+   object-safe**: no method mentions `Self` except as the receiver, and (by 8.2) no method is
+   generic and every member takes `self`. Using a non-object-safe interface as a type is an error
+   that names the offending method. Such interfaces (for example `Comparable`) are still usable as
+   bounds. **[PROPOSAL]**
+2. **Coercion.** Where an expression of interface type `I` is expected (an annotated `let`, an
+   argument, a field, a list element with a known element type, a result), a value of a concrete
+   type that implements `I` is accepted and becomes a value of type `I`. **[PROPOSAL]** (see D4.6)
+   There is no coercion between `List<Circle>` and `List<Shape>`: only single values are coerced.
+3. Operations on a value of type `I`: calling the methods of `I`, `.copy()` (author, 13b), moving.
+   `==` is not available (author, 13b). There is no downcast back to the concrete type in v1.
+4. In Rust the type is `Box<dyn I>`; `own self` methods take `self: Box<Self>`. Chapter 8 has
+   the mapping.
+
+## 9. Built-in interfaces
+
+| Interface | Meaning | Who implements it |
+| --- | --- | --- |
+| `Equatable` | `==` and `!=` are defined | **derived automatically**: `Int`, `Float`, `Bool`, `String`, `Void`, `Ordering`; `List<T>`, `Option<T>` if `T: Equatable`; `Map<K, V>` if `V: Equatable`; `Result<T, E>` if both are; a struct or enum if all its fields and payloads are. Not: function types, interface values |
+| `Copyable` | `.copy()` is defined | **derived automatically**: every type except function types and types containing them. Interface values are `Copyable` (author, 13b) |
+| `Hashable` | can be a `Map` key | **closed**: `Int`, `String`, `Bool` and enums without payloads (G3). Cannot be implemented by the user |
+| `Comparable` | `fn compare(self, other: Self) -> Ordering` | built in for `Int` and `String`; implemented by the user for own types like any interface |
+
+1. `Equatable` and `Copyable` cannot be implemented by hand: there is no custom equality or copy
+   in v1 (no operator overloading, PLAN section 3). **[PROPOSAL]**
+2. When `==` or `.copy()` is used on a type that does not have it, the error names the field or
+   payload that prevents it: "`Task` is not `Equatable` because field `on_done` has a function
+   type". (author)
+3. `Comparable` is not object-safe (it mentions `Self`), so it is a bound only.
+4. A type parameter has no built-in interfaces unless they are in its bounds:
+   `fn dedup<T: Equatable + Copyable>(items: List<T>) -> List<T>`.
+5. Name note: G7 called the copy interface `Copy`. It is named `Copyable` to avoid confusion with
+   Rust's `Copy` (implicit copies), which in Wolfpack applies only to `Int`, `Float`, `Bool`
+   (chapter 5).
+
+## 10. Type inference
+
+1. Inference is **local to one function body** (or one `config` initializer, or one test) and
+   never crosses a signature **[PLAN]**.
+2. Inside a body it works in both directions, as in Rust: `var names = []` followed by
+   `names.push("a")` makes `names: List<String>`. A type that is still unknown at the end of the
+   body is an error asking for an annotation (`let names: List<String> = []`).
+3. Closure parameter types come from the expected function type (`users.filter(|u| u.active)`), or
+   from annotations, or from later use in the same body.
+4. Type arguments of generic calls are inferred from arguments and the expected type; when that is
+   not enough, they are written `parse.<Int>(s)` (chapter 3).
+5. `None`, `[]` and `[:]` need their type from context.
+
+## 11. Patterns and exhaustiveness
+
+1. A pattern must have the type of the scrutinee: `Some(x)` against `Option<T>` binds `x: T`.
+2. Literal patterns are allowed for `Int`, `String` and `Bool` (chapter 3 forbids `Float`).
+3. Both sides of `A | B` must bind the same names with the same types.
+4. A guard (`if cond`) must be `Bool`. **A guarded arm never counts toward exhaustiveness.**
+5. **Exhaustiveness** **[PLAN]**: the arms must cover every value of the scrutinee type. For
+   `Int` and `String` this needs a `_` or a binding arm. For enums, every variant (and every
+   combination for nested patterns) must be covered. The error lists an example of a missing
+   pattern: "missing `Shape.Rect { .. }`".
+6. **Unreachable arms** (covered entirely by earlier arms) are an error. **[PROPOSAL]** (see D4.9)
+7. How a binding in a pattern relates to ownership (does `Some(x)` move or borrow) is in chapter 5.
+
+## 12. Constant expressions
+
+The initializer of a `config` constant (chapter 2, section 3.3) is evaluated by the compiler using
+exactly the rules of this chapter. A panic during that evaluation (overflow, division by zero,
+shift out of range) is a compile error.
+
+## 13. Diagnostics
+
+Proposed range E04xx (confirmed in chapter 9). Main codes:
+
+| Code | Error |
+| --- | --- |
+| E0401 | Type mismatch (expected X, found Y) |
+| E0402 | Unknown type name |
+| E0403 | Wrong number of type arguments |
+| E0404 | Bound not satisfied (`T` does not implement `I`) |
+| E0405 | Operator not defined for these types (`"a" + 1`, `true & false`, `<` on a struct) |
+| E0406 | Type not `Equatable` / not `Copyable` (names the offending field) |
+| E0407 | Map key type not `Hashable` |
+| E0408 | `?` used in a function with an incompatible result type |
+| E0409 | Unhandled `Result` value discarded |
+| E0410 | Non-exhaustive `match` (lists a missing pattern) |
+| E0411 | Unreachable `match` arm |
+| E0412 | Alternatives in a pattern bind different names or types |
+| E0413 | Missing method / wrong signature in an interface implementation |
+| E0414 | `impl` outside the module of the type |
+| E0415 | Two methods with the same name on one type |
+| E0416 | Interface is not object-safe but used as a type (names the method) |
+| E0417 | Generic method in an interface, or interface member without `self` |
+| E0418 | Infinitely sized struct |
+| E0419 | Cycle in type aliases or in `config` constants |
+| E0420 | Type cannot be inferred (asks for an annotation) |
+| E0421 | Missing result: function may end without a value |
+| E0422 | Struct literal: missing, unknown or duplicate field |
+| E0423 | Integer literal out of range, constant evaluation panic |
+| E0424 | Unknown field or method |
+
+## 14. Register items opened by this chapter
+
+| # | Item | Chapter |
+| --- | --- | --- |
+| 14 | Go: a single constraint cannot be satisfied both by `int64` (no methods) and by a struct with a `Compare` method. `fn max<T: Comparable>` used with `Int` and with a user type needs monomorphization or dictionary passing in the Go backend | 8 |
+| 15 | `std` must provide a shared `Error` type so that `?` composes across std calls (section 5, rule 5) | 7 |
+
+## 15. Decisions for the author
+
+| # | Decision | Recommendation |
+| --- | --- | --- |
+| D4.1 | Iteration order of `Map` (`m.keys()` and so on) on every target | see question |
+| D4.2 | `return`, `break`, `continue` become expressions of type Never, so that `None => return 0` parses as a `match` arm (changes chapter 3 grammar) | yes |
+| D4.3 | Discarding a `Result` in an expression statement is an error | yes |
+| D4.4 | Interface members must take `self`; no associated functions in interfaces in v1 | yes |
+| D4.5 | Coherence: every `impl` is in the module of the type | yes |
+| D4.6 | Implicit coercion of a concrete value to an interface type where the interface is expected | yes |
+| D4.7 | `Float`: IEEE semantics for `==` and arithmetic; not `Comparable`, not `Hashable` | yes |
+| D4.8 | `Int` semantics: truncating `/`, sign of `%`, panics for overflow and division by zero, shift amount `0..=63`, `<<` discards bits | yes |
+| D4.9 | Unreachable `match` arm is an error | yes |
+| D4.10 | No `s[i]` on strings; `for` over `List` and ranges only (other collections through std functions returning `List`) | yes |
+| D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | yes |
