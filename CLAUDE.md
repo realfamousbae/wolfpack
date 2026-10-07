@@ -12,7 +12,7 @@ commit messages and compiler diagnostics. `PLAN.md` stays in Russian as the auth
 ## Order of work
 
 1. Work on one milestone at a time (see section 11 of `PLAN.md`). Do not jump ahead.
-2. **M0 is current.** Do not write compiler code until the author has approved the specification.
+2. **M1 is current.** M0 (the specification) was approved by the author on 2026-10-07.
 3. M0 is done chapter by chapter: draft one chapter of `docs/spec/`, the author reviews, then the next.
 4. At the end of a milestone show the result: what works, which tests were added, what was deferred.
 5. After each milestone briefly explain to the author how the result is built and why. Learning is
