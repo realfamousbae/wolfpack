@@ -1,0 +1,21 @@
+module users.model
+
+types {
+    pub struct User {
+        pub name: String
+    }
+}
+
+impl {
+    User {
+        fn create() -> User {
+            User { name: "x" }
+        }
+    }
+}
+
+functions {
+    fn secret() -> Int {
+        42
+    }
+}

@@ -1,0 +1,9 @@
+error[E0610]: module `main` is declared as `app`
+  --> src/main.wolf:1:8
+  |
+1 | module app
+  |        ^^^ the file path gives `main`
+  |
+  = help: write `module main`
+
+error: aborting due to 1 error

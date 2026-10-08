@@ -1,0 +1,14 @@
+module main
+
+types {
+    struct User {
+        name: Strng
+        age: print
+    }
+}
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}

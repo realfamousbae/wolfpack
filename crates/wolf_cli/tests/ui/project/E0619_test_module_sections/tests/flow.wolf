@@ -1,0 +1,13 @@
+module tests.flow
+
+types {
+    struct Fixture {
+        x: Int
+    }
+}
+
+tests {
+    test "works" {
+        assert(true)
+    }
+}

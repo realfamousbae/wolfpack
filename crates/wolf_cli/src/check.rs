@@ -72,9 +72,48 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
     };
     let (files, diagnostics) = wolf_project::discover(&root, &manifest);
     result.diagnostics.extend(diagnostics);
-    for file in &files {
-        let _ = parse_file(&file.path, file.display.clone(), args, result);
+    // The std modules take part in resolution like any module.
+    let mut parsed: Vec<(Vec<String>, wolf_resolve::Role, FileId, wolf_ast::File)> = Vec::new();
+    for module in wolf_std::MODULES {
+        let id = result.map.add(module.file_name, module.source.to_string());
+        let lexed = wolf_lexer::lex(id, module.source);
+        let tree = wolf_parser::parse(id, module.source, &lexed.tokens);
+        result.diagnostics.extend(lexed.diagnostics);
+        result.diagnostics.extend(tree.diagnostics);
+        let role = if module.path == wolf_std::PRELUDE {
+            wolf_resolve::Role::Prelude
+        } else {
+            wolf_resolve::Role::Std
+        };
+        let path = module.path.split('.').map(str::to_string).collect();
+        parsed.push((path, role, id, tree.file));
     }
+    for file in &files {
+        if let Some((id, ast)) = parse_file(&file.path, file.display.clone(), args, result) {
+            let role = match file.role {
+                wolf_project::Role::Entry => wolf_resolve::Role::Entry,
+                wolf_project::Role::Src => wolf_resolve::Role::Src,
+                wolf_project::Role::Test => wolf_resolve::Role::Test,
+                wolf_project::Role::Example => wolf_resolve::Role::Example,
+            };
+            parsed.push((file.module.clone(), role, id, ast));
+        }
+    }
+    let inputs: Vec<wolf_resolve::ModuleInput<'_>> = parsed
+        .iter()
+        .map(|(path, role, file, ast)| wolf_resolve::ModuleInput {
+            path: path.clone(),
+            role: *role,
+            file: *file,
+            ast,
+        })
+        .collect();
+    let info = wolf_resolve::ProjectInfo {
+        kind: manifest.kind,
+        config: &manifest.config,
+    };
+    let resolved = wolf_resolve::resolve(&inputs, &info);
+    result.diagnostics.extend(resolved.diagnostics);
 }
 
 /// Reads, lexes and parses one file. Returns `None` if it could not be read or decoded.

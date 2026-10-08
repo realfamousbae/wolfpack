@@ -1,0 +1,5 @@
+module lib
+
+imports {
+    pub shapes.{make}
+}

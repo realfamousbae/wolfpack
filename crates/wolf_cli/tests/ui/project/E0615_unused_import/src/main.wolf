@@ -1,0 +1,12 @@
+module main
+
+imports {
+    std.fs
+    std.list.{sort, sum}
+}
+
+functions {
+    fn main() {
+        print(sum([1, 2]).to_string())
+    }
+}

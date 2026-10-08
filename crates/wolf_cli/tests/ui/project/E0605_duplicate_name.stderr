@@ -1,0 +1,48 @@
+error[E0605]: `FsError` is defined twice in this module
+   --> src/main.wolf:4:13
+   |
+ 4 |     std.fs.{FsError}
+   |             ^^^^^^^ imported here
+   .
+14 |     enum FsError {
+   |          ------- also defined here
+   |
+   = help: import it under another name: `as FsErrorOther`
+
+error[E0605]: `size` is defined twice in this module
+   --> src/main.wolf:5:24
+   |
+ 5 |     std.list.{range as size}
+   |                        ^^^^ imported here
+   .
+20 |     fn size() -> Int {
+   |        ---- also defined here
+   |
+   = help: import it under another name: `as size_other`
+
+error[E0605]: field `x` is declared twice
+   --> src/main.wolf:11:9
+   |
+11 |         x: Int
+   |         ^ second field with this name
+
+error[E0601]: function `Point` should be in `snake_case`
+   --> src/main.wolf:24:8
+   |
+24 |     fn Point() {
+   |        ^^^^^ not `snake_case`
+   |
+   = help: rename it to `point`
+
+error[E0605]: `Point` is declared twice
+   --> src/main.wolf:24:8
+   |
+ 9 |     struct Point {
+   |            ----- first declaration
+   .
+24 |     fn Point() {
+   |        ^^^^^ second declaration
+   |
+   = help: types and values share one namespace; rename one of them
+
+error: aborting due to 5 errors

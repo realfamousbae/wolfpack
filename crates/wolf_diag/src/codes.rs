@@ -111,12 +111,67 @@ pub const E0612: Code = Code::new("E0612", "invalid project layout");
 /// Invalid config override.
 pub const E0613: Code = Code::new("E0613", "invalid config override");
 
+/// Unknown type name.
+pub const E0402: Code = Code::new("E0402", "unknown type name");
+
+/// Name does not follow the naming style.
+pub const E0601: Code = Code::new("E0601", "name does not follow the naming style");
+
+/// Unknown module in an import.
+pub const E0602: Code = Code::new("E0602", "unknown module in an import");
+
+/// Imported name does not exist or is not public.
+pub const E0603: Code = Code::new("E0603", "imported name does not exist or is not public");
+
+/// Import cycle.
+pub const E0604: Code = Code::new("E0604", "import cycle");
+
+/// Name declared or imported twice in a module.
+pub const E0605: Code = Code::new("E0605", "name declared or imported twice in a module");
+
+/// Name declared twice in the same block.
+pub const E0606: Code = Code::new("E0606", "name declared twice in the same block");
+
+/// Private item used outside its module.
+pub const E0607: Code = Code::new("E0607", "private item used outside its module");
+
+/// Type less visible than the declaration using it.
+pub const E0608: Code = Code::new("E0608", "type less visible than the declaration using it");
+
+/// Unknown name.
+pub const E0609: Code = Code::new("E0609", "unknown name");
+
+/// `module` line does not match the file path.
+pub const E0610: Code = Code::new("E0610", "`module` line does not match the file path");
+
+/// Missing `main` or wrong signature.
+pub const E0614: Code = Code::new("E0614", "missing `main` or wrong signature");
+
+/// Unused import.
+pub const E0615: Code = Code::new("E0615", "unused import");
+
+/// Import of an entry module or of the module itself.
+pub const E0616: Code = Code::new("E0616", "import of an entry module or of the module itself");
+
+/// Redeclaration of a prelude name.
+pub const E0617: Code = Code::new("E0617", "redeclaration of a prelude name");
+
+/// Unused local variable.
+pub const E0618: Code = Code::new("E0618", "unused local variable");
+
+/// Section not allowed in a module of `tests/`.
+pub const E0619: Code = Code::new("E0619", "section not allowed in a module of `tests/`");
+
+/// `pub` import outside `src/lib.wolf`.
+pub const E0620: Code = Code::new("E0620", "`pub` import outside `src/lib.wolf`");
+
 /// Every code in use, in order.
 pub const ALL: &[Code] = &[
     E0001, E0002, E0003, E0004, E0101, E0102, E0103, E0104, E0105, E0106, E0107, E0108, E0109,
     E0110, E0111, E0112, E0113, E0201, E0202, E0203, E0204, E0205, E0206, E0207, E0208, E0209,
     E0210, E0211, E0212, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309, E0310,
-    E0311, E0312, E0313, E0314, E0611, E0612, E0613,
+    E0311, E0312, E0313, E0314, E0402, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608,
+    E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620,
 ];
 
 /// Codes that were used once and must never be used again.

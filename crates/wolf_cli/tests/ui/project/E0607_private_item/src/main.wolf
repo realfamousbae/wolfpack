@@ -1,0 +1,13 @@
+module main
+
+imports {
+    users.model
+}
+
+functions {
+    fn main() {
+        print(model.secret().to_string())
+        let u = model.User.create()
+        print(u.name)
+    }
+}

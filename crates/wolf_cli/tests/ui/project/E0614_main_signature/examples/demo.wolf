@@ -1,0 +1,7 @@
+module examples.demo
+
+functions {
+    fn start() {
+        print("x")
+    }
+}

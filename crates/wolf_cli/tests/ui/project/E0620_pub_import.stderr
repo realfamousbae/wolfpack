@@ -1,0 +1,9 @@
+error[E0620]: `pub` import outside `src/lib.wolf`
+  --> src/main.wolf:4:9
+  |
+4 |     pub std.list.{sum}
+  |         ^^^^^^^^^^^^^^ re-exports are allowed only in `src/lib.wolf`
+  |
+  = help: remove `pub`
+
+error: aborting due to 1 error

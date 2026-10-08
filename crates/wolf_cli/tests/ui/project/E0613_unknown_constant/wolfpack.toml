@@ -1,0 +1,12 @@
+[package]
+name = "demo"
+version = "0.1.0"
+kind = "cli"
+
+[config.main]
+max_users = 10
+limit = 2
+ratio = 1
+
+[config.nowhere]
+x = 1

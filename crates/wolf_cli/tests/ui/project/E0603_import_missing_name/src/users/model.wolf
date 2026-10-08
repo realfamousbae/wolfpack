@@ -1,0 +1,17 @@
+module users.model
+
+types {
+    pub struct User {
+        pub name: String
+    }
+
+    pub enum Role {
+        Admin
+    }
+}
+
+functions {
+    fn secret() -> Int {
+        42
+    }
+}

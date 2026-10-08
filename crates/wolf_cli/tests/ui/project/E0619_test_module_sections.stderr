@@ -1,0 +1,9 @@
+error[E0619]: section `types` in a module of `tests/`
+  --> tests/flow.wolf:3:1
+  |
+3 | types {
+  | ^^^^^ not allowed in integration tests
+  |
+  = help: integration tests contain only `imports`, `functions` and `tests`; move declarations into `src/`
+
+error: aborting due to 1 error

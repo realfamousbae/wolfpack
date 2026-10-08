@@ -1,0 +1,15 @@
+module main
+
+imports {
+    main.{helper}
+}
+
+functions {
+    fn helper() {
+        print("x")
+    }
+
+    fn main() {
+        helper()
+    }
+}

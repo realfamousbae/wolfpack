@@ -1,0 +1,17 @@
+error[E0615]: unused import `fs`
+  --> src/main.wolf:4:9
+  |
+4 |     std.fs
+  |         ^^ imported but never used
+  |
+  = help: remove it from `imports`
+
+error[E0615]: unused import `sort`
+  --> src/main.wolf:5:15
+  |
+5 |     std.list.{sort, sum}
+  |               ^^^^ imported but never used
+  |
+  = help: remove it from `imports`
+
+error: aborting due to 2 errors

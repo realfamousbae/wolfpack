@@ -1,0 +1,11 @@
+module util
+
+imports {
+    main.{helper}
+}
+
+functions {
+    pub fn run() {
+        helper()
+    }
+}

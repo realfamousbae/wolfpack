@@ -1,0 +1,11 @@
+module a
+
+imports {
+    b.{two}
+}
+
+functions {
+    pub fn one() -> Int {
+        two()
+    }
+}

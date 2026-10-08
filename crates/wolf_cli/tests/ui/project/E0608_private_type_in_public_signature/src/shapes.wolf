@@ -1,0 +1,13 @@
+module shapes
+
+types {
+    struct Secret {
+        x: Int
+    }
+}
+
+functions {
+    pub fn make() -> Secret {
+        Secret { x: 1 }
+    }
+}

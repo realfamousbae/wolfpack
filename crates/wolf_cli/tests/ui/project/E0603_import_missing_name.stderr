@@ -1,0 +1,17 @@
+error[E0603]: `Rolle` does not exist in `users.model`
+  --> src/main.wolf:4:24
+  |
+4 |     users.model.{User, Rolle, secret}
+  |                        ^^^^^ unknown name
+  |
+  = help: did you mean `Role`?
+
+error[E0603]: `secret` is not public in `users.model`
+  --> src/main.wolf:4:31
+  |
+4 |     users.model.{User, Rolle, secret}
+  |                               ^^^^^^ private declaration
+  |
+  = help: mark it `pub` in `users.model`
+
+error: aborting due to 2 errors

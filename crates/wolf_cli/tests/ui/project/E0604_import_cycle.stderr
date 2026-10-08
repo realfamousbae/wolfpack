@@ -1,0 +1,9 @@
+error[E0604]: import cycle: a -> b -> a
+  --> src/a.wolf:4:5
+  |
+4 |     b.{two}
+  |     ^^^^^^^ this import closes the cycle
+  |
+  = help: move the shared declarations into a module that both can import
+
+error: aborting due to 1 error

@@ -1,0 +1,13 @@
+module main
+
+config {
+    limit: String = "a"
+    ratio: Float = 0.5
+}
+
+functions {
+    fn main() {
+        print(limit)
+        print(ratio.to_string())
+    }
+}

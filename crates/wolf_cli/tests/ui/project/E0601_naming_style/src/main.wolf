@@ -1,0 +1,18 @@
+module main
+
+types {
+    struct user_record {
+        UserName: String
+    }
+}
+
+functions {
+    fn PrintAll(Items: List<Int>) {
+        let Total = 1
+        print(Total.to_string())
+    }
+
+    fn main() {
+        print("hi")
+    }
+}

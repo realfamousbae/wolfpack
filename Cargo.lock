@@ -461,7 +461,9 @@ dependencies = [
  "wolf_lexer",
  "wolf_parser",
  "wolf_project",
+ "wolf_resolve",
  "wolf_span",
+ "wolf_std",
 ]
 
 [[package]]
@@ -499,6 +501,19 @@ dependencies = [
  "toml",
  "wolf_diag",
  "wolf_span",
+]
+
+[[package]]
+name = "wolf_resolve"
+version = "0.1.0"
+dependencies = [
+ "wolf_ast",
+ "wolf_diag",
+ "wolf_lexer",
+ "wolf_parser",
+ "wolf_project",
+ "wolf_span",
+ "wolf_std",
 ]
 
 [[package]]

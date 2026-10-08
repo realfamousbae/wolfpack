@@ -1,0 +1,13 @@
+error[E0616]: a module cannot import itself
+  --> src/main.wolf:4:5
+  |
+4 |     main.{helper}
+  |     ^^^^^^^^^^^^^ this is the current module
+
+error[E0616]: import of the entry module `main`
+  --> src/util.wolf:4:5
+  |
+4 |     main.{helper}
+  |     ^^^^^^^^^^^^^ modules in `src/` cannot import the entry module
+
+error: aborting due to 2 errors

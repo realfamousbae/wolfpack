@@ -1,0 +1,9 @@
+error[E0608]: private type `Secret` in a public function
+   --> src/shapes.wolf:10:22
+   |
+10 |     pub fn make() -> Secret {
+   |                      ^^^^^^ this type is private to the module
+   |
+   = help: mark `Secret` as `pub`, or make the function private
+
+error: aborting due to 1 error

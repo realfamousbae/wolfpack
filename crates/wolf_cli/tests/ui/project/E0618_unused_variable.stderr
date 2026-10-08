@@ -1,0 +1,17 @@
+error[E0618]: unused variable `count`
+  --> src/main.wolf:5:13
+  |
+5 |         let count = 1
+  |             ^^^^^ this variable is never used
+  |
+  = help: remove it, or replace the name with `_`
+
+error[E0618]: unused variable `value`
+  --> src/main.wolf:9:18
+  |
+9 |             Some(value) => print("some")
+  |                  ^^^^^ this variable is never used
+  |
+  = help: remove it, or replace the name with `_`
+
+error: aborting due to 2 errors

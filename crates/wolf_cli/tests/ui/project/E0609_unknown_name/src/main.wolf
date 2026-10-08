@@ -1,0 +1,14 @@
+module main
+
+functions {
+    fn main() {
+        prnt("hi")
+        let n = lenght
+        print(n)
+        print(Color.Red)
+        match n {
+            Some(v) => print(v)
+            _ => print(self)
+        }
+    }
+}

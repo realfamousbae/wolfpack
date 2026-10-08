@@ -1,0 +1,31 @@
+module main
+
+imports {
+    std.fs.{FsError}
+    std.list.{range as size}
+}
+
+types {
+    struct Point {
+        x: Int
+        x: Int
+    }
+
+    enum FsError {
+        Missing
+    }
+}
+
+functions {
+    fn size() -> Int {
+        1
+    }
+
+    fn Point() {
+        print("x")
+    }
+
+    fn main() {
+        print(size().to_string())
+    }
+}

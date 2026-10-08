@@ -1,0 +1,9 @@
+error[E0608]: type `Circle` is used by the library API but not exported
+   --> src/shapes.wolf:10:22
+   |
+10 |     pub fn make() -> Circle {
+   |                      ^^^^^^ used by `make`, which `lib` exports
+   |
+   = help: re-export `Circle` in `src/lib.wolf` with a `pub` import
+
+error: aborting due to 1 error

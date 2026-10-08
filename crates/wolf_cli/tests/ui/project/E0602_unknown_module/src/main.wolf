@@ -1,0 +1,12 @@
+module main
+
+imports {
+    std.files
+    users.model
+}
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}

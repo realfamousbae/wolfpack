@@ -1,0 +1,11 @@
+module main
+
+imports {
+    pub std.list.{sum}
+}
+
+functions {
+    fn main() {
+        print(sum([1]).to_string())
+    }
+}

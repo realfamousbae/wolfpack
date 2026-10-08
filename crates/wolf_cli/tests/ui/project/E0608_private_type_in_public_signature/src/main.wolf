@@ -1,0 +1,11 @@
+module main
+
+imports {
+    shapes.{make}
+}
+
+functions {
+    fn main() {
+        let _ = make()
+    }
+}

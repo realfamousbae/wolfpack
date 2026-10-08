@@ -1,0 +1,13 @@
+module shapes
+
+types {
+    pub struct Circle {
+        pub r: Float
+    }
+}
+
+functions {
+    pub fn make() -> Circle {
+        Circle { r: 1.0 }
+    }
+}

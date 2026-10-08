@@ -1,0 +1,41 @@
+error[E0601]: struct `user_record` should be in `PascalCase`
+  --> src/main.wolf:4:12
+  |
+4 |     struct user_record {
+  |            ^^^^^^^^^^^ not `PascalCase`
+  |
+  = help: rename it to `UserRecord`
+
+error[E0601]: field `UserName` should be in `snake_case`
+  --> src/main.wolf:5:9
+  |
+5 |         UserName: String
+  |         ^^^^^^^^ not `snake_case`
+  |
+  = help: rename it to `user_name`
+
+error[E0601]: function `PrintAll` should be in `snake_case`
+   --> src/main.wolf:10:8
+   |
+10 |     fn PrintAll(Items: List<Int>) {
+   |        ^^^^^^^^ not `snake_case`
+   |
+   = help: rename it to `print_all`
+
+error[E0601]: parameter `Items` should be in `snake_case`
+   --> src/main.wolf:10:17
+   |
+10 |     fn PrintAll(Items: List<Int>) {
+   |                 ^^^^^ not `snake_case`
+   |
+   = help: rename it to `items`
+
+error[E0601]: variable `Total` should be in `snake_case`
+   --> src/main.wolf:11:13
+   |
+11 |         let Total = 1
+   |             ^^^^^ not `snake_case`
+   |
+   = help: rename it to `total`
+
+error: aborting due to 5 errors

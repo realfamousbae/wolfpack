@@ -1,0 +1,7 @@
+module main
+
+functions {
+    pub fn main(args: List<String>) -> Int {
+        0
+    }
+}

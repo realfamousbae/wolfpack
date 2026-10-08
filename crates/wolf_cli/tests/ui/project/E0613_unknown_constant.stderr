@@ -1,0 +1,25 @@
+error[E0613]: `main` has no constant `max_users`
+  --> wolfpack.toml:7:1
+  |
+7 | max_users = 10
+  | ^^^^^^^^^ unknown constant
+
+error[E0613]: constant `main.limit` is `String`, but the override is `Int`
+  --> wolfpack.toml:8:9
+  |
+8 | limit = 2
+  |         ^ expected a value of type `String`
+
+error[E0613]: constant `main.ratio` is `Float`, but the override is `Int`
+  --> wolfpack.toml:9:9
+  |
+9 | ratio = 1
+  |         ^ expected a value of type `Float` (write a float such as `1.0`)
+
+error[E0613]: config override for unknown module `nowhere`
+   --> wolfpack.toml:12:1
+   |
+12 | x = 1
+   | ^ no module with this path in `src/`
+
+error: aborting due to 4 errors

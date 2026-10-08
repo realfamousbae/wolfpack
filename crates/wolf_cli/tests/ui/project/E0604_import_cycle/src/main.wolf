@@ -1,0 +1,11 @@
+module main
+
+imports {
+    a.{one}
+}
+
+functions {
+    fn main() {
+        print(one().to_string())
+    }
+}

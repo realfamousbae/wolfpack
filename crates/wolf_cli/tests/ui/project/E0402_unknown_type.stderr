@@ -1,0 +1,15 @@
+error[E0402]: unknown type `Strng`
+  --> src/main.wolf:5:15
+  |
+5 |         name: Strng
+  |               ^^^^^ not found in this scope
+  |
+  = help: did you mean `String`?
+
+error[E0402]: `print` is a function, not a type
+  --> src/main.wolf:6:14
+  |
+6 |         age: print
+  |              ^^^^^ expected a type
+
+error: aborting due to 2 errors

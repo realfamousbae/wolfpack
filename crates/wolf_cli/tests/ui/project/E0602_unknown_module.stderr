@@ -1,0 +1,15 @@
+error[E0602]: unknown module `std.files`
+  --> src/main.wolf:4:5
+  |
+4 |     std.files
+  |     ^^^^^^^^^ no module with this path
+  |
+  = help: did you mean `std.fs`?
+
+error[E0602]: unknown module `users.model`
+  --> src/main.wolf:5:5
+  |
+5 |     users.model
+  |     ^^^^^^^^^^^ no module with this path
+
+error: aborting due to 2 errors

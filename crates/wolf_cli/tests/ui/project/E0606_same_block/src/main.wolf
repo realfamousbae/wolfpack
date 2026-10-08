@@ -1,0 +1,19 @@
+module main
+
+functions {
+    fn twice(x: Int) -> Int {
+        let x = 2
+        x
+    }
+
+    fn main() {
+        let a = 1
+        let a = 2
+        for item in [1, 2] {
+            let item = 3
+            print(item.to_string())
+        }
+        print(a.to_string())
+        print(twice(1).to_string())
+    }
+}
