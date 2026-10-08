@@ -144,9 +144,24 @@ impl Parser<'_> {
 
     /// A dotted path of identifiers.
     pub(crate) fn path(&mut self) -> Path {
+        self.path_from(false)
+    }
+
+    /// A dotted path that may start with `Self` (patterns inside `impl`, chapter 3, section 7).
+    pub(crate) fn path_or_self(&mut self) -> Path {
+        self.path_from(true)
+    }
+
+    fn path_from(&mut self, allow_self: bool) -> Path {
         let mut segments = Vec::new();
         let start = self.peek_span();
-        if let Some(first) = self.ident("a name") {
+        if allow_self && self.at(&TokenKind::SelfType) {
+            let span = self.bump().span;
+            segments.push(Ident {
+                name: "Self".to_string(),
+                span,
+            });
+        } else if let Some(first) = self.ident("a name") {
             segments.push(first);
         }
         while self.at(&TokenKind::Dot) && self.ident_after_dot() {

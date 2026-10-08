@@ -530,6 +530,7 @@ impl Parser<'_> {
     fn looks_like_struct_literal(&self, path: &Expr) -> bool {
         let uppercase = match &path.kind {
             ExprKind::Name(n) => n.name.starts_with(|c: char| c.is_ascii_uppercase()),
+            ExprKind::SelfType => true,
             ExprKind::Field { name, .. } => name.name.starts_with(|c: char| c.is_ascii_uppercase()),
             ExprKind::TypeArgs { .. } => true,
             _ => false,
@@ -1145,6 +1146,13 @@ fn as_path(expr: &Expr) -> Option<(Path, Vec<Ty>)> {
         match &expr.kind {
             ExprKind::Name(n) => {
                 out.push(n.clone());
+                true
+            }
+            ExprKind::SelfType => {
+                out.push(Ident {
+                    name: "Self".to_string(),
+                    span: expr.span,
+                });
                 true
             }
             ExprKind::Field { base, name } if segments(base, out) => {

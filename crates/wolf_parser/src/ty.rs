@@ -208,8 +208,8 @@ impl Parser<'_> {
                 self.bump();
                 PatKind::Bool(false)
             }
-            TokenKind::Ident => {
-                let path = self.path();
+            TokenKind::Ident | TokenKind::SelfType => {
+                let path = self.path_or_self();
                 if self.at(&TokenKind::LParen) {
                     self.bump();
                     let items = self.ignore_lines(|p| {
@@ -255,7 +255,7 @@ impl Parser<'_> {
                         (fields, rest)
                     });
                     PatKind::Struct { path, fields, rest }
-                } else if path.segments.len() == 1 {
+                } else if path.segments.len() == 1 && token.kind == TokenKind::Ident {
                     match path.segments.into_iter().next() {
                         Some(name) => PatKind::Name(name),
                         None => PatKind::Error,

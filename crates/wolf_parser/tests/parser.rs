@@ -173,6 +173,18 @@ fn struct_literals_and_conditions() {
 }
 
 #[test]
+fn self_in_struct_literals_and_patterns() {
+    let text = "module main\n\nimpl {\n    Tree {\n        fn leaf() -> Self {\n            Self.Leaf\n        }\n        fn new(v: Int) -> Self {\n            Self { value: v }\n        }\n        fn size(self) -> Int {\n            match self {\n                Self.Leaf => 0\n                Self.Node(l, _, r) => 1\n                Self { value, .. } => value\n                Self => 2\n            }\n        }\n    }\n}\n";
+    let dump = ok(text);
+    assert!(dump.contains("(block (. Self Leaf))"), "{dump}");
+    assert!(dump.contains("(struct Self (value: v))"), "{dump}");
+    assert!(dump.contains("(=> Self.Leaf 0)"), "{dump}");
+    assert!(dump.contains("(=> (Self.Node l _ r) 1)"), "{dump}");
+    assert!(dump.contains("(=> (Self {} value ..) value)"), "{dump}");
+    assert!(dump.contains("(=> Self 2)"), "{dump}");
+}
+
+#[test]
 fn one_line_match_and_arms() {
     let dump = ok(&body(
         "        let n = match x { Some(v) => v }\n        match y {\n            A | B => 1\n            C { x, .. } if x > 0 => 2\n            -1 => 3\n            None => return 0\n        }",
