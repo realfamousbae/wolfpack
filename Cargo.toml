@@ -16,6 +16,7 @@ wolf_diag = { path = "crates/wolf_diag" }
 wolf_lexer = { path = "crates/wolf_lexer" }
 wolf_ast = { path = "crates/wolf_ast" }
 wolf_parser = { path = "crates/wolf_parser" }
+wolf_std = { path = "crates/wolf_std" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

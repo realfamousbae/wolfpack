@@ -1,0 +1,18 @@
+[package]
+name = "wolf_std"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+wolf_span = { workspace = true }
+wolf_lexer = { workspace = true }
+wolf_parser = { workspace = true }
+wolf_diag = { workspace = true }
+
+[lints]
+workspace = true

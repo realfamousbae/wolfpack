@@ -1,0 +1,47 @@
+//! Numbers (spec chapter 7, sections 4.1 and 4.2).
+
+module std.math
+
+config {
+    pub pi: Float = 3.141592653589793
+    pub e: Float = 2.718281828459045
+    pub int_min: Int = -9223372036854775808
+    pub int_max: Int = 9223372036854775807
+}
+
+types {
+    /// A signed 64-bit integer.
+    pub intrinsic type Int
+
+    /// An IEEE 754 binary64 number.
+    pub intrinsic type Float
+}
+
+impl {
+    Int {
+        pub intrinsic fn to_string(self) -> String
+        pub intrinsic fn to_float(self) -> Float
+        pub intrinsic fn abs(self) -> Int
+        pub intrinsic fn min(self, other: Int) -> Int
+        pub intrinsic fn max(self, other: Int) -> Int
+        pub intrinsic fn pow(self, exp: Int) -> Int
+    }
+
+    Int: Comparable {
+        intrinsic fn compare(self, other: Self) -> Ordering
+    }
+
+    Float {
+        pub intrinsic fn to_string(self) -> String
+        pub intrinsic fn to_int(self) -> Int
+        pub intrinsic fn abs(self) -> Float
+        pub intrinsic fn min(self, other: Float) -> Float
+        pub intrinsic fn max(self, other: Float) -> Float
+        pub intrinsic fn pow(self, exp: Float) -> Float
+        pub intrinsic fn sqrt(self) -> Float
+        pub intrinsic fn floor(self) -> Float
+        pub intrinsic fn ceil(self) -> Float
+        pub intrinsic fn round(self) -> Float
+        pub intrinsic fn is_nan(self) -> Bool
+    }
+}

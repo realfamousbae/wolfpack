@@ -1,0 +1,74 @@
+//! The prelude: names available in every module without an import (spec chapter 6, section 3.3).
+//! This module cannot be imported. `Never` is used only in signatures of std and is not part of
+//! the prelude that users see.
+
+module std.prelude
+
+imports {
+    pub std.io.{print}
+}
+
+types {
+    /// `true` or `false`.
+    pub intrinsic type Bool
+
+    /// The type with the single value `()`.
+    pub intrinsic type Void
+
+    /// The type of expressions that never produce a value, such as `panic(...)`.
+    pub intrinsic type Never
+
+    /// An optional value.
+    pub enum Option<T> {
+        Some(T)
+        None
+    }
+
+    /// The result of an operation that can fail.
+    pub enum Result<T, E> {
+        Ok(T)
+        Err(E)
+    }
+
+    /// The result of `compare`.
+    pub enum Ordering {
+        Less
+        Equal
+        Greater
+    }
+}
+
+interfaces {
+    /// An error that can be shown to a person.
+    pub interface Error {
+        fn message(self) -> String
+    }
+
+    /// A total order.
+    pub interface Comparable {
+        fn compare(self, other: Self) -> Ordering
+    }
+
+    /// `==` and `!=` are defined. Derived by the compiler (chapter 4, section 9).
+    pub interface Equatable {
+    }
+
+    /// `.copy()` is defined. Derived by the compiler.
+    pub interface Copyable {
+    }
+
+    /// Can be a `Map` key. Closed: only `Int`, `String`, `Bool` and enums without payloads.
+    pub interface Hashable {
+    }
+}
+
+functions {
+    /// Stops the program with a message (chapter 7, section 3).
+    pub intrinsic fn panic(message: String) -> Never
+
+    /// Panics if `condition` is `false`.
+    pub intrinsic fn assert(condition: Bool)
+
+    /// Stores `value` in `place` and returns the old value.
+    pub intrinsic fn replace<T>(mut place: T, own value: T) -> T
+}

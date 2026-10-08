@@ -1,0 +1,11 @@
+//! The running process (spec chapter 7, section 7).
+
+module std.process
+
+functions {
+    /// Ends the program with `code` (0 to 255).
+    pub intrinsic fn exit(code: Int) -> Never
+
+    /// The value of an environment variable.
+    pub intrinsic fn env(name: String) -> Option<String>
+}

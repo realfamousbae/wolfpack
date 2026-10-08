@@ -1,0 +1,33 @@
+//! Maps (spec chapter 7, section 6). Iteration order is insertion order (ADR 0003).
+
+module std.map
+
+types {
+    /// A finite map from keys to values.
+    pub intrinsic type Map<K: Hashable, V>
+
+    /// One key and its value.
+    pub struct Entry<K, V> {
+        pub key: K
+        pub value: V
+    }
+}
+
+impl {
+    Map<K: Hashable, V> {
+        pub intrinsic fn new() -> Map<K, V>
+        pub intrinsic fn len(self) -> Int
+        pub intrinsic fn is_empty(self) -> Bool
+        pub intrinsic fn contains_key(self, key: K) -> Bool
+        pub intrinsic fn insert(mut self, own key: K, own value: V) -> Option<V>
+        pub intrinsic fn remove(mut self, key: K) -> Option<V>
+        pub intrinsic fn keys(self) -> List<K>
+        pub intrinsic fn entries(own self) -> List<Entry<K, V>>
+        pub intrinsic fn clear(mut self)
+    }
+}
+
+functions {
+    pub intrinsic fn get<K: Hashable, V: Copyable>(m: Map<K, V>, key: K) -> Option<V>
+    pub intrinsic fn values<K: Hashable, V: Copyable>(m: Map<K, V>) -> List<V>
+}

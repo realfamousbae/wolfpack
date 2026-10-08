@@ -418,3 +418,13 @@ dependencies = [
 [[package]]
 name = "wolf_span"
 version = "0.1.0"
+
+[[package]]
+name = "wolf_std"
+version = "0.1.0"
+dependencies = [
+ "wolf_diag",
+ "wolf_lexer",
+ "wolf_parser",
+ "wolf_span",
+]

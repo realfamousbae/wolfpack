@@ -1,0 +1,20 @@
+//! Standard input and output (spec chapter 7, section 7).
+
+module std.io
+
+functions {
+    /// Writes `s` and a line feed to standard output.
+    pub intrinsic fn print(s: String)
+
+    /// Writes `s` to standard output without a line feed.
+    pub intrinsic fn write(s: String)
+
+    /// Writes `s` and a line feed to standard error.
+    pub intrinsic fn eprint(s: String)
+
+    /// Reads one line without its terminator; `None` at the end of input.
+    pub intrinsic fn read_line() -> Option<String>
+
+    /// The command-line arguments without the program name.
+    pub intrinsic fn args() -> List<String>
+}

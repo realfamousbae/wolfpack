@@ -1,0 +1,31 @@
+//! Files (spec chapter 7, section 7).
+
+module std.fs
+
+types {
+    pub enum FsError {
+        /// The path.
+        NotFound(String)
+        PermissionDenied(String)
+        /// A message from the target.
+        Other(String)
+    }
+}
+
+impl {
+    FsError: Error {
+        fn message(self) -> String {
+            match self {
+                FsError.NotFound(path) => "file not found: " + path
+                FsError.PermissionDenied(path) => "permission denied: " + path
+                FsError.Other(text) => text.copy()
+            }
+        }
+    }
+}
+
+functions {
+    pub intrinsic fn read_text(path: String) -> Result<String, FsError>
+    pub intrinsic fn write_text(path: String, content: String) -> Result<Void, FsError>
+    pub intrinsic fn exists(path: String) -> Bool
+}

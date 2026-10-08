@@ -1,0 +1,49 @@
+//! Strings (spec chapter 7, section 4.3). Positions and lengths count Unicode scalar values.
+
+module std.string
+
+types {
+    /// An immutable sequence of Unicode scalar values.
+    pub intrinsic type String
+
+    /// The error of `parse_int` and `parse_float`.
+    pub struct ParseError {
+        input: String
+    }
+}
+
+impl {
+    String {
+        pub intrinsic fn len(self) -> Int
+        pub intrinsic fn is_empty(self) -> Bool
+        pub intrinsic fn contains(self, part: String) -> Bool
+        pub intrinsic fn starts_with(self, part: String) -> Bool
+        pub intrinsic fn ends_with(self, part: String) -> Bool
+        pub intrinsic fn find(self, part: String) -> Option<Int>
+        pub intrinsic fn split(self, separator: String) -> List<String>
+        pub intrinsic fn lines(self) -> List<String>
+        pub intrinsic fn chars(self) -> List<String>
+        pub intrinsic fn trim(self) -> String
+        pub intrinsic fn replace(self, from: String, to: String) -> String
+        pub intrinsic fn repeat(self, times: Int) -> String
+        pub intrinsic fn to_upper_ascii(self) -> String
+        pub intrinsic fn to_lower_ascii(self) -> String
+        pub intrinsic fn parse_int(self) -> Result<Int, ParseError>
+        pub intrinsic fn parse_float(self) -> Result<Float, ParseError>
+    }
+
+    String: Comparable {
+        intrinsic fn compare(self, other: Self) -> Ordering
+    }
+
+    ParseError: Error {
+        fn message(self) -> String {
+            "cannot parse " + self.input
+        }
+    }
+}
+
+functions {
+    /// Joins `parts` with `separator` between them.
+    pub intrinsic fn join(parts: List<String>, separator: String) -> String
+}
