@@ -166,7 +166,8 @@ Decisions already taken by the author for this chapter (2026-10-07):
    Other values returned by calls may be discarded. **[PROPOSAL]** (see D4.3)
 8. **A useless expression statement is an error** (E0425), as in Go (author, 2026-10-08). An
    expression statement that is not the value of its block must be one of: a call (of a function,
-   method or closure, possibly followed by `?`), an `if`, a `match`, or `return`, `break`,
+   method or closure, possibly followed by `?`), an `if`, a `match`, a block `{ ... }`, the empty
+   value `()` (a "do nothing" arm such as `_ => ()`; author, 2026-10-09), or `return`, `break`,
    `continue`. Anything else (`- tax`, `x + 1`, `name`, a literal) computes a value that nobody uses
    and is rejected. This also catches a statement split by a line break:
    ```
@@ -354,7 +355,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0422 | Struct literal: missing, unknown or duplicate field |
 | E0423 | Integer literal out of range, constant evaluation panic |
 | E0424 | Unknown field or method |
-| E0425 | Expression statement whose value is not used and that is not a call, `if`, `match`, `return`, `break` or `continue` |
+| E0425 | Expression statement whose value is not used and that is not a call, `if`, `match`, a block, `()`, `return`, `break` or `continue` |
 | E0426 | `config` initializer that is not a constant expression (chapter 2, section 3.3, rule 5) |
 | E0427 | `config` constant whose type is not `Int`, `Float`, `Bool` or `String` (chapter 2, section 3.3, rule 4) |
 | E0428 | Wrong number of arguments in a call or a pattern, or a variant written in the wrong form |
