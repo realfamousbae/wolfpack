@@ -150,7 +150,12 @@ Decisions already taken by the author for this chapter (2026-10-07):
 2. An `if` with `else` has the type of its branches, which must agree (Never agrees with
    everything). An `if` without `else` has type `Void`, and its block must have type `Void`.
 3. All arms of a `match` have the same type.
-4. A block has the type of its final expression, or `Void` if there is none.
+4. A block has the type of its final expression, or `Void` if there is none. When a block is
+   expected to have type `Void` (the body of a function or closure without a result, an `if`
+   without `else`, the body of a loop, the branches of an `if` or a `match` that is itself an
+   expression statement), its final expression is treated as an expression statement: its value
+   is discarded, and rules 7 and 8 apply to it. So `fn drop_last(mut l: List<Int>) { l.pop() }`
+   is valid although `pop` returns `Option<Int>`. (Author, 2026-10-09.)
 5. A function's body must have the declared result type. A function whose result is not `Void`
    must not fall off its end without a value.
 6. `for x in e` accepts `e: List<T>` (then `x: T`) and integer ranges (then `x: Int`).
