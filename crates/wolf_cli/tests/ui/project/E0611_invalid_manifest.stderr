@@ -1,0 +1,31 @@
+error[E0611]: invalid package name `Demo_App`
+  --> wolfpack.toml:2:8
+  |
+2 | name = "Demo_App"
+  |        ^^^^^^^^^^ use lower-case words separated by `-`, for example `my-app`
+
+error[E0611]: invalid version `1.0`
+  --> wolfpack.toml:3:11
+  |
+3 | version = "1.0"
+  |           ^^^^^ use MAJOR.MINOR.PATCH, for example `0.1.0`
+
+error[E0611]: unknown key `colour` in `[package]`
+  --> wolfpack.toml:5:1
+  |
+5 | colour = "blue"
+  | ^^^^^^ allowed here: name, version, kind
+
+error[E0611]: default target `go` is not enabled
+  --> wolfpack.toml:8:11
+  |
+8 | default = "go"
+  |           ^^^^ add it to `enabled` or choose an enabled target
+
+error[E0611]: unknown target
+  --> wolfpack.toml:9:18
+  |
+9 | enabled = ["ts", "java"]
+  |                  ^^^^^^ targets are `ts`, `go` and `rust`
+
+error: aborting due to 5 errors

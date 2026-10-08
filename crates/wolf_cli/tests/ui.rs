@@ -1,5 +1,9 @@
-//! UI tests: every `.wolf` file under `tests/ui/` is checked with `wolf check`, and its standard
-//! error must equal the `.stderr` file next to it (spec chapter 9, section 5).
+//! UI tests (spec chapter 9, section 5):
+//! - every `.wolf` file under `tests/ui/lexer` and `tests/ui/parser` is checked alone with
+//!   `wolf check <file>`;
+//! - every directory under `tests/ui/project` is a project checked with `wolf check` inside it.
+//!
+//! Standard error must equal the `.stderr` file next to the input.
 //!
 //! Run with `WOLF_BLESS=1` to write the `.stderr` files from the current output.
 
@@ -23,6 +27,9 @@ fn wolf_files(dir: &Path, out: &mut Vec<PathBuf>) {
     entries.sort();
     for path in entries {
         if path.is_dir() {
+            if path.file_name().is_some_and(|n| n == "project") {
+                continue;
+            }
             wolf_files(&path, out);
         } else if path.extension().is_some_and(|e| e == "wolf") {
             out.push(path);
@@ -77,16 +84,61 @@ fn ui_files_match_expected_stderr() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
-/// Every source diagnostic code has a UI test file named after it. Driver codes (E00xx) are
-/// tested by the CLI tests below.
+fn project_dirs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = fs::read_dir(ui_dir().join("project"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    dirs.sort();
+    dirs
+}
+
+#[test]
+fn ui_projects_match_expected_stderr() {
+    let bless = std::env::var_os("WOLF_BLESS").is_some();
+    let mut failures = Vec::new();
+    for dir in project_dirs() {
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let output = wolf(&dir, &["check", "--color", "never"]);
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        let expected_path = dir.with_extension("stderr");
+        if bless {
+            fs::write(&expected_path, &stderr).unwrap();
+            continue;
+        }
+        let expected = fs::read_to_string(&expected_path).unwrap_or_default();
+        if stderr != expected {
+            failures.push(format!(
+                "--- {name}\nexpected:\n{expected}\nactual:\n{stderr}"
+            ));
+        }
+        if output.status.code() != Some(1) {
+            failures.push(format!(
+                "--- {name}: exit code {:?}, expected 1",
+                output.status.code()
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Every source diagnostic code has a UI test named after it: a file, or a project directory.
+/// Driver codes (E00xx) are tested by the CLI tests below.
 #[test]
 fn every_code_has_a_ui_test() {
     let mut files = Vec::new();
     wolf_files(&ui_dir(), &mut files);
-    let names: Vec<String> = files
+    let mut names: Vec<String> = files
         .iter()
         .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .collect();
+    names.extend(
+        project_dirs()
+            .iter()
+            .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())),
+    );
     for code in wolf_diag::codes::ALL {
         if !code.id().starts_with("E00") {
             assert!(
@@ -98,17 +150,78 @@ fn every_code_has_a_ui_test() {
     }
 }
 
+/// The acceptance test of the milestones so far: every example project checks cleanly.
 #[test]
-fn examples_have_no_lexical_errors() {
+fn every_example_project_checks_cleanly() {
     let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
-    let output = wolf(&examples, &["check", "."]);
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+    let mut projects: Vec<PathBuf> = fs::read_dir(&examples)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.join("wolfpack.toml").is_file())
+        .collect();
+    projects.sort();
+    assert_eq!(projects.len(), 10);
+    for project in projects {
+        let output = wolf(&project, &["check", "--color", "never"]);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{}: {stderr}",
+            project.display()
+        );
+        assert!(stderr.is_empty(), "{stderr}");
+        // The project is also found from a subdirectory, with the same output.
+        let from_src = wolf(&project.join("src"), &["check", "--color", "never"]);
+        assert_eq!(from_src.status.code(), Some(0));
+    }
+}
+
+#[test]
+fn e0004_no_manifest() {
+    let dir = std::env::temp_dir().join(format!("wolf_no_manifest_{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    let output = wolf(&dir, &["check", "--color", "never"]);
+    let _ = fs::remove_dir_all(&dir);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("error[E0004]: no `wolfpack.toml` found"),
+        "{stderr}"
     );
-    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn wolf_new_creates_projects_that_check() {
+    let base = std::env::temp_dir().join(format!("wolf_new_{}", std::process::id()));
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(&base).unwrap();
+    for (name, kind) in [("my-app", "cli"), ("my-lib", "lib")] {
+        let output = wolf(&base, &["new", name, "--kind", kind]);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let project = base.join(name);
+        assert!(project.join(".gitignore").is_file());
+        assert!(project.join("tests").is_dir());
+        let check = wolf(&project, &["check", "--color", "never"]);
+        assert_eq!(
+            check.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&check.stderr)
+        );
+    }
+    // An existing non-empty directory and an invalid name are refused.
+    let again = wolf(&base, &["new", "my-app"]);
+    assert_eq!(again.status.code(), Some(2));
+    let bad = wolf(&base, &["new", "My_App"]);
+    assert_eq!(bad.status.code(), Some(2));
+    let _ = fs::remove_dir_all(&base);
 }
 
 #[test]
@@ -172,9 +285,14 @@ fn symlink_loops_are_not_followed() {
     let dir = std::env::temp_dir().join(format!("wolf_symlink_{}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(dir.join("src")).unwrap();
-    fs::write(dir.join("src/a.wolf"), "@\n").unwrap();
+    fs::write(
+        dir.join("wolfpack.toml"),
+        "[package]\nname = \"loop\"\nversion = \"0.1.0\"\nkind = \"cli\"\n",
+    )
+    .unwrap();
+    fs::write(dir.join("src/main.wolf"), "module main\n@\n").unwrap();
     std::os::unix::fs::symlink(&dir, dir.join("src/loop")).unwrap();
-    let output = wolf(&dir, &["check", "--color", "never", "."]);
+    let output = wolf(&dir, &["check", "--color", "never"]);
     let stderr = String::from_utf8_lossy(&output.stderr);
     let _ = fs::remove_dir_all(&dir);
     assert_eq!(stderr.matches("error[E0102]").count(), 1, "{stderr}");

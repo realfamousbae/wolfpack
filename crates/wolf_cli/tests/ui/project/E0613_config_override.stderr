@@ -1,0 +1,23 @@
+error[E0613]: config override `loose` has no module
+  --> wolfpack.toml:7:1
+  |
+7 | loose = 1
+  | ^^^^^ write it in a table named after the module
+  |
+  = help: for example `[config.main]` and then `loose = ...`
+
+error[E0613]: config override does not fit into `Int`
+   --> wolfpack.toml:10:7
+   |
+10 | big = 99999999999999999999
+   |       ^^^^^^^^^^^^^^^^^^^^ outside the 64-bit range
+
+error[E0613]: unsupported value for constant `list`
+   --> wolfpack.toml:11:8
+   |
+11 | list = [1, 2]
+   |        ^^^^^^ found array
+   |
+   = note: config constants are `Int`, `Float`, `Bool` or `String`
+
+error: aborting due to 3 errors

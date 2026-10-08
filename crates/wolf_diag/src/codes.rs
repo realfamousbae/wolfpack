@@ -12,6 +12,9 @@ pub const E0002: Code = Code::new("E0002", "invalid command-line usage");
 /// Internal compiler error.
 pub const E0003: Code = Code::new("E0003", "internal compiler error");
 
+/// No `wolfpack.toml` in the current directory or its parents.
+pub const E0004: Code = Code::new("E0004", "no `wolfpack.toml` found");
+
 /// The file is not valid UTF-8.
 pub const E0101: Code = Code::new("E0101", "file is not valid UTF-8");
 /// Unexpected character.
@@ -101,12 +104,19 @@ pub const E0313: Code = Code::new("E0313", "two statements on one line");
 /// Nesting too deep.
 pub const E0314: Code = Code::new("E0314", "nesting too deep");
 
+/// Invalid manifest.
+pub const E0611: Code = Code::new("E0611", "invalid manifest");
+/// Invalid project layout.
+pub const E0612: Code = Code::new("E0612", "invalid project layout");
+/// Invalid config override.
+pub const E0613: Code = Code::new("E0613", "invalid config override");
+
 /// Every code in use, in order.
 pub const ALL: &[Code] = &[
-    E0001, E0002, E0003, E0101, E0102, E0103, E0104, E0105, E0106, E0107, E0108, E0109, E0110,
-    E0111, E0112, E0113, E0201, E0202, E0203, E0204, E0205, E0206, E0207, E0208, E0209, E0210,
-    E0211, E0212, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309, E0310, E0311,
-    E0312, E0313, E0314,
+    E0001, E0002, E0003, E0004, E0101, E0102, E0103, E0104, E0105, E0106, E0107, E0108, E0109,
+    E0110, E0111, E0112, E0113, E0201, E0202, E0203, E0204, E0205, E0206, E0207, E0208, E0209,
+    E0210, E0211, E0212, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309, E0310,
+    E0311, E0312, E0313, E0314, E0611, E0612, E0613,
 ];
 
 /// Codes that were used once and must never be used again.

@@ -1,0 +1,7 @@
+error[E0611]: invalid TOML in `wolfpack.toml`
+  --> wolfpack.toml:1:9
+  |
+1 | [package
+  |         ^ unclosed table, expected `]`
+
+error: aborting due to 1 error

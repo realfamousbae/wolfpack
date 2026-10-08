@@ -13,6 +13,7 @@ wolf_ast = { workspace = true }
 wolf_diag = { workspace = true }
 wolf_lexer = { workspace = true }
 wolf_parser = { workspace = true }
+wolf_project = { workspace = true }
 wolf_span = { workspace = true }
 
 [lints]

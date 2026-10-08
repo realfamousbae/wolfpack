@@ -30,15 +30,37 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Check source files without generating code. In M2 this lexes and parses the files.
+    /// Check the project without generating code.
     Check(CheckArgs),
+    /// Create a new project with the standard layout.
+    New(NewArgs),
+}
+
+/// Options of `wolf new`.
+#[derive(clap::Args)]
+struct NewArgs {
+    /// The project name in kebab-case; also the directory to create.
+    name: String,
+
+    /// The kind of project.
+    #[arg(long, value_enum, default_value_t = ProjectKind::Cli)]
+    kind: ProjectKind,
+}
+
+/// `--kind` of `wolf new`.
+#[derive(Clone, Copy, ValueEnum)]
+enum ProjectKind {
+    /// A program with `src/main.wolf`.
+    Cli,
+    /// A library with `src/lib.wolf`.
+    Lib,
 }
 
 /// Options of `wolf check`.
 #[derive(clap::Args)]
 pub(crate) struct CheckArgs {
-    /// Files or directories to check. Directories are searched for `.wolf` files.
-    #[arg(default_value = ".")]
+    /// A project directory, or single `.wolf` files to lex and parse without a project.
+    /// Without paths, the project around the current directory is checked.
     pub(crate) paths: Vec<PathBuf>,
 
     /// Output format of diagnostics.
@@ -122,6 +144,7 @@ fn run() -> ExitCode {
         Err(error) => return usage_error(&error),
     };
     match cli.command {
+        Command::New(args) => new_project(&args),
         Command::Check(args) => {
             let result = check::run(&args);
             let mut map = result.map;
@@ -133,6 +156,23 @@ fn run() -> ExitCode {
             } else {
                 ExitCode::from(EXIT_ERRORS)
             }
+        }
+    }
+}
+
+fn new_project(args: &NewArgs) -> ExitCode {
+    let kind = match args.kind {
+        ProjectKind::Cli => wolf_project::Kind::Cli,
+        ProjectKind::Lib => wolf_project::Kind::Lib,
+    };
+    match wolf_project::create(&PathBuf::from(&args.name), &args.name, kind) {
+        Ok(()) => {
+            let _ = writeln!(io::stdout(), "created project `{}`", args.name);
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            let _ = writeln!(io::stderr(), "error[{}]: {message}", codes::E0002.id());
+            ExitCode::from(EXIT_USAGE)
         }
     }
 }

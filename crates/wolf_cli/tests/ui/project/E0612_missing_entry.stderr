@@ -1,0 +1,15 @@
+error[E0612]: missing entry file `src/lib.wolf`
+  --> wolfpack.toml:4:8
+  |
+4 | kind = "lib"
+  |        ^^^^^ a `lib` project needs `src/lib.wolf`
+
+error[E0612]: unexpected entry file `src/main.wolf`
+  --> wolfpack.toml:4:8
+  |
+4 | kind = "lib"
+  |        ^^^^^ a `lib` project has no `src/main.wolf`
+  |
+  = help: rename the file, or change `kind` to `"cli"`
+
+error: aborting due to 2 errors

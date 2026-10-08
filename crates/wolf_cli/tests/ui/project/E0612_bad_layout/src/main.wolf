@@ -1,0 +1,7 @@
+module main
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}

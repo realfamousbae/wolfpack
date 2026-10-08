@@ -1,0 +1,9 @@
+[package]
+name = "Demo_App"
+version = "1.0"
+kind = "cli"
+colour = "blue"
+
+[targets]
+default = "go"
+enabled = ["ts", "java"]
