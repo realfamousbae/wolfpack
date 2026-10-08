@@ -1,0 +1,21 @@
+module main
+
+types {
+    struct Counter {
+        value: Int
+    }
+}
+
+impl {
+    pub Counter {
+        fn get(self) -> Int {
+            self.value
+        }
+    }
+}
+
+tests {
+    pub test "counts" {
+        assert(true)
+    }
+}

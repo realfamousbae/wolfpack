@@ -1,0 +1,17 @@
+error[E0301]: unexpected `pub`
+   --> parser/E0301_unexpected_pub.wolf:10:5
+   |
+10 |     pub Counter {
+   |     ^^^ write `pub` on the methods, not on the block
+   |
+   = help: remove `pub`
+
+error[E0301]: unexpected `pub`
+   --> parser/E0301_unexpected_pub.wolf:18:5
+   |
+18 |     pub test "counts" {
+   |     ^^^ tests cannot be `pub`
+   |
+   = help: remove `pub`
+
+error: aborting due to 2 errors
