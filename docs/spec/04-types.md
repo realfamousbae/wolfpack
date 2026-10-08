@@ -173,6 +173,12 @@ Decisions already taken by the author for this chapter (2026-10-07):
    let total = price
        - tax          // error E0425: `- tax` is computed but not used
    ```
+9. **`while true` never ends** unless it contains a `break` that belongs to it (not one in a nested
+   loop or closure). Such a loop has type Never, so `fn next() -> Int { while true { ... } }`
+   needs no value after the loop. Only the literal `true` counts; conditions are not evaluated.
+   Every other loop has type `Void`. (Author, 2026-10-09; Go has the same rule for `for {}`.)
+10. `break` and `continue` are allowed only inside a loop body. The body of a closure is not
+    inside the loop around the closure (E0430).
 
 ## 7. User types
 
@@ -184,7 +190,10 @@ Decisions already taken by the author for this chapter (2026-10-07):
 ### 7.2 Enums
 
 1. A variant is constructed with its qualified name: `StorageError.Full`, `StorageError.Io("x")`,
-   `Shape.Rect { w: 1.0, h: 2.0 }`.
+   `Shape.Rect { w: 1.0, h: 2.0 }`. A variant with a payload is always written with it: it is not a
+   function value, so `names.map(Some)` is an error; write `names.map(|n| Some(n))`. The form must
+   match the declaration: `Ordering.Less()` and `Shape.Rect(1.0, 2.0)` are errors (E0428).
+   (Author, 2026-10-09.)
 2. Variants are not types of their own: `StorageError.Io("x")` has type `StorageError`.
 3. An enum has at least one variant (chapter 3).
 
@@ -346,6 +355,13 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0423 | Integer literal out of range, constant evaluation panic |
 | E0424 | Unknown field or method |
 | E0425 | Expression statement whose value is not used and that is not a call, `if`, `match`, `return`, `break` or `continue` |
+| E0426 | `config` initializer that is not a constant expression (chapter 2, section 3.3, rule 5) |
+| E0427 | `config` constant whose type is not `Int`, `Float`, `Bool` or `String` (chapter 2, section 3.3, rule 4) |
+| E0428 | Wrong number of arguments in a call or a pattern, or a variant written in the wrong form |
+| E0429 | A type or a module used as a value (`let x = Int`) |
+| E0430 | `break` or `continue` outside a loop |
+
+Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
 ## 14. Register items opened by this chapter
 
