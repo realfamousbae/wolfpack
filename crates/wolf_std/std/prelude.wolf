@@ -6,6 +6,10 @@ module std.prelude
 
 imports {
     pub std.io.{print}
+    pub std.list.{List}
+    pub std.map.{Map}
+    pub std.math.{Int, Float}
+    pub std.string.{String}
 }
 
 types {
