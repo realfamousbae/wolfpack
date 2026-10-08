@@ -4,6 +4,24 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M3: Projects and modules (2026-10-08)
+
+- `wolf_project`: `wolfpack.toml` with exact key positions in errors (E0611), `[config.*]`
+  overrides (E0613), the fixed layout (E0612), project discovery from any subdirectory, and
+  `wolf new <name> --kind cli|lib`.
+- `wolf_std`: the std modules as `.wolf` declarations (`intrinsic` functions and types), with the
+  prelude re-exporting the built-in types.
+- `wolf_resolve`: two-pass name resolution over the project and std: imports and the import
+  graph (E0602–E0605, E0615, E0616, E0620), visibility (E0607, E0608, library API), local scopes
+  and shadowing (E0606), unknown names and types with suggestions (E0609, E0402), naming style
+  (E0601), module lines (E0610), entry points (E0614), prelude names (E0617), unused variables
+  (E0618), sections of test modules (E0619). Failed imports do not cause follow-up errors.
+- New codes in the spec: E0004 (no manifest), E0619, E0620; `intrinsic type` in std.
+- `wolf check` checks the project; `wolf check <file.wolf>` stays as a lex-and-parse mode.
+- Tests: UI projects for every code of chapter 6, all 10 examples check cleanly (also from a
+  subdirectory), `wolf new` projects check cleanly, std resolves cleanly, deep nesting through the
+  resolver on the compiler stack.
+
 ## M2: Parser and skeleton (2026-10-08)
 
 - `wolf_ast`: the syntax tree for spec chapters 2 and 3, with node ids for later phases and a
