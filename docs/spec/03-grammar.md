@@ -45,6 +45,7 @@ variant      = IDENT ( "(" sep(type, ",") ")" | "{" sep(field_sig, ",") "}" )?
 field_sig    = IDENT ":" type
 
 alias_decl   = visibility "type" IDENT generics? "=" type
+intrinsic_type = visibility "intrinsic" "type" IDENT generics?   // std only, chapter 7
 
 interface_decl = visibility "interface" IDENT generics? "{" fn_sig* "}"
 fn_sig       = "fn" IDENT generics? "(" params? ")" ( "->" type )?
