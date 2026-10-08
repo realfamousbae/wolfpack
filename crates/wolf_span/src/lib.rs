@@ -11,6 +11,9 @@ use std::ops::Range;
 pub struct FileId(u32);
 
 impl FileId {
+    /// The id of the first file of a map. Useful as a placeholder in constants.
+    pub const ZERO: FileId = FileId(0);
+
     /// The index of the file in its [`SourceMap`].
     pub fn index(self) -> usize {
         self.0 as usize
