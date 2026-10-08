@@ -93,6 +93,55 @@ fn deep_types_and_patterns() {
 }
 
 #[test]
+fn deep_matches_struct_literals_calls_and_loops() {
+    let matches = in_function(&format!(
+        "{}1{}",
+        "match v { _ => { ".repeat(DEEP),
+        " } }".repeat(DEEP)
+    ));
+    assert_eq!(parse(&matches), ["E0314"]);
+    let literals = format!("{}1{}", "A { x: ".repeat(DEEP), " }".repeat(DEEP));
+    assert_eq!(parse(&in_function(&literals)), ["E0314"]);
+    let calls = format!("{}1{}", "f(".repeat(DEEP), ")".repeat(DEEP));
+    assert_eq!(parse(&in_function(&calls)), ["E0314"]);
+    let loops = format!(
+        "module main\n\nfunctions {{\n    fn main() {{\n{}x{}\n    }}\n}}\n",
+        "for i in xs {\n".repeat(DEEP),
+        "\n}".repeat(DEEP)
+    );
+    assert_eq!(parse(&loops), ["E0314"]);
+}
+
+/// The real requirement is far below [`wolf_parser::STACK_SIZE`]: the deepest accepted input
+/// also fits into 8 MiB in a debug build. This keeps the documented margin honest.
+#[test]
+fn the_limit_fits_into_eight_mebibytes() {
+    let depth = wolf_parser::MAX_DEPTH as usize - 10;
+    let shapes = [
+        in_function(&format!("{}1{}", "(".repeat(depth), ")".repeat(depth))),
+        in_function(&format!(
+            "{}1{}",
+            "match v { _ => { ".repeat(depth / 2),
+            " } }".repeat(depth / 2)
+        )),
+        format!(
+            "module main\n\nfunctions {{\n    fn main() {}{{ x }}{}\n}}\n",
+            "{ if a ".repeat(depth / 2),
+            " }".repeat(depth / 2)
+        ),
+    ];
+    for text in shapes {
+        let codes = std::thread::Builder::new()
+            .stack_size(8 * 1024 * 1024)
+            .spawn(move || parse_here(&text))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert!(codes.is_empty(), "{codes:?}");
+    }
+}
+
+#[test]
 fn moderate_nesting_is_fine() {
     let body = format!("{}1{}", "(".repeat(100), ")".repeat(100));
     assert!(parse(&in_function(&body)).is_empty());
