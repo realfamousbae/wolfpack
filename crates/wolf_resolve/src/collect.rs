@@ -122,6 +122,11 @@ impl<'a> Resolver<'a> {
             local_decls,
             res: self.res,
             members: self.members,
+            impls: self
+                .impl_owners
+                .iter()
+                .map(|(&(m, s, i), &def)| ((ModuleId(m as u32), s, i), def))
+                .collect(),
             diagnostics: self.diagnostics,
         }
     }

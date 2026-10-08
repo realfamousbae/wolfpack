@@ -220,6 +220,9 @@ pub struct Resolved {
     pub local_decls: BTreeMap<Span, LocalId>,
     /// Members (variants and inherent functions) of each type.
     pub members: BTreeMap<DefId, BTreeMap<String, DefId>>,
+    /// The type of each `impl` block, inherent or for an interface, keyed by module, section
+    /// index and item index. Blocks whose type did not resolve are missing.
+    pub impls: BTreeMap<(ModuleId, usize, usize), DefId>,
     /// Diagnostics of chapter 6.
     pub diagnostics: Vec<Diagnostic>,
 }
