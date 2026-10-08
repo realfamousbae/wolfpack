@@ -15,7 +15,9 @@ All notable changes are recorded here at the end of each milestone.
   graph (E0602–E0605, E0615, E0616, E0620), visibility (E0607, E0608, library API), local scopes
   and shadowing (E0606), unknown names and types with suggestions (E0609, E0402), naming style
   (E0601), module lines (E0610), entry points (E0614), prelude names (E0617), unused variables
-  (E0618), sections of test modules (E0619). Failed imports do not cause follow-up errors.
+  (E0618), sections of test modules (E0619), `intrinsic` outside std (E0701). Failed imports do
+  not cause follow-up errors. The resolution table maps names, types, patterns, shorthand fields
+  and declarations to what they name, for the type checker.
 - New codes in the spec: E0004 (no manifest), E0619, E0620; `intrinsic type` in std.
 - `wolf check` checks the project; `wolf check <file.wolf>` stays as a lex-and-parse mode.
 - Tests: UI projects for every code of chapter 6, all 10 examples check cleanly (also from a
