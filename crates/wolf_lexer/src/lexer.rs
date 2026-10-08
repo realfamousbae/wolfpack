@@ -677,6 +677,24 @@ impl<'a> Lexer<'a> {
                     self.pick(&[('=', Ge)], Gt)
                 }
             }
+            '\'' => {
+                // `'x'` is one mistake, not two: consume up to the closing quote on this line.
+                let mut ahead = 0;
+                while let Some(next) = self.cursor.peek(ahead) {
+                    if next == '\n' || next == '\r' {
+                        break;
+                    }
+                    if next == '\'' {
+                        for _ in 0..=ahead {
+                            self.cursor.bump();
+                        }
+                        break;
+                    }
+                    ahead += 1;
+                }
+                self.unexpected(start, '\'');
+                Error
+            }
             other => {
                 self.unexpected(start, other);
                 Error

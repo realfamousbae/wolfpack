@@ -167,7 +167,8 @@ fn spans_are_byte_ranges() {
 fn e0102_unexpected_character() {
     assert_eq!(errors("@"), ["E0102"]);
     assert_eq!(errors("a; b"), ["E0102"]);
-    assert_eq!(errors("'a'"), ["E0102", "E0102"]);
+    assert_eq!(errors("'a'"), ["E0102"]);
+    assert_eq!(errors("'a"), ["E0102"]);
     assert_eq!(errors("a\u{a0}b"), ["E0102"]);
     assert_eq!(errors("\u{7}"), ["E0102"]);
 }
