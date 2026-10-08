@@ -208,6 +208,12 @@ fn item(item: &Item) -> Tree {
             kids.push(ty(&decl.ty));
             "alias".to_string()
         }
+        ItemKind::IntrinsicType(decl) => {
+            flag(decl.public, "pub", &mut kids);
+            kids.push(leaf(decl.name.name.clone()));
+            generics(&decl.generics, &mut kids);
+            "intrinsic type".to_string()
+        }
         ItemKind::Interface(decl) => {
             flag(decl.public, "pub", &mut kids);
             kids.push(leaf(decl.name.name.clone()));

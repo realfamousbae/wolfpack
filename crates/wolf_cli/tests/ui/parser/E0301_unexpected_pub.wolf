@@ -6,16 +6,32 @@ types {
     }
 }
 
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+}
+
 impl {
     pub Counter {
         fn get(self) -> Int {
             self.value
         }
     }
+
+    Counter: Named {
+        pub fn name(self) -> String {
+            "counter"
+        }
+    }
 }
 
 tests {
+    pub fn helper() -> Int {
+        1
+    }
+
     pub test "counts" {
-        assert(true)
+        assert(helper() == 1)
     }
 }

@@ -151,6 +151,8 @@ pub enum ItemKind {
     Enum(EnumDecl),
     /// `type Name = Type`
     Alias(AliasDecl),
+    /// `intrinsic type Name<T>`: a built-in type declared in std (chapter 7, section 1).
+    IntrinsicType(IntrinsicTypeDecl),
     /// `interface`
     Interface(InterfaceDecl),
     /// A block of `impl`.
@@ -168,7 +170,10 @@ impl ItemKind {
             ItemKind::Import(_) => SectionKind::Imports,
             ItemKind::ExternTarget(_) => SectionKind::Extern,
             ItemKind::Config(_) => SectionKind::Config,
-            ItemKind::Struct(_) | ItemKind::Enum(_) | ItemKind::Alias(_) => SectionKind::Types,
+            ItemKind::Struct(_)
+            | ItemKind::Enum(_)
+            | ItemKind::Alias(_)
+            | ItemKind::IntrinsicType(_) => SectionKind::Types,
             ItemKind::Interface(_) => SectionKind::Interfaces,
             ItemKind::Impl(_) => SectionKind::Impl,
             ItemKind::Fn(_) => SectionKind::Functions,
@@ -185,6 +190,7 @@ impl ItemKind {
             ItemKind::Struct(_) => "`struct`",
             ItemKind::Enum(_) => "`enum`",
             ItemKind::Alias(_) => "type alias",
+            ItemKind::IntrinsicType(_) => "`intrinsic type`",
             ItemKind::Interface(_) => "`interface`",
             ItemKind::Impl(_) => "`impl` block",
             ItemKind::Fn(_) => "`fn`",
@@ -355,6 +361,17 @@ pub struct AliasDecl {
     pub generics: Vec<GenericParam>,
     /// The aliased type.
     pub ty: Ty,
+}
+
+/// `intrinsic type Name<T>`
+#[derive(Clone, Debug, PartialEq)]
+pub struct IntrinsicTypeDecl {
+    /// `pub`
+    pub public: bool,
+    /// The name.
+    pub name: Ident,
+    /// Type parameters.
+    pub generics: Vec<GenericParam>,
 }
 
 /// `interface Name<T> { signatures }`

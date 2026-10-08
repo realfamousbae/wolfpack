@@ -265,6 +265,7 @@ types {
     }
     enum Shape { Circle(Float), Rect { w: Float, h: Float } }
     type Ids = List<Int>
+    pub intrinsic type Map<K: Hashable, V>
 }
 
 interfaces {

@@ -422,6 +422,29 @@ impl Parser<'_> {
                 )),
             );
         }
+        // `pub` is written on inherent methods only; tests and their helpers are private.
+        let misplaced_pub: Vec<Span> = match &item.kind {
+            ItemKind::Impl(block) if block.interface.is_some() => block
+                .methods
+                .iter()
+                .filter(|m| m.decl.public)
+                .map(|m| m.span)
+                .collect(),
+            ItemKind::Fn(decl) if section == SectionKind::Tests && decl.public => vec![item.span],
+            _ => Vec::new(),
+        };
+        for span in misplaced_pub {
+            let why = if section == SectionKind::Tests {
+                "helpers in `tests` are private to the tests"
+            } else {
+                "methods of an interface implementation have the visibility of the interface"
+            };
+            self.report(
+                Diagnostic::new(codes::E0301, "unexpected `pub`")
+                    .primary(Span::new(span.file, span.start, span.start + 3), why)
+                    .help("remove `pub`"),
+            );
+        }
         match &item.kind {
             ItemKind::Impl(block) if block.interface.is_none() => {
                 let name = block.type_name.name.clone();
@@ -553,6 +576,17 @@ impl Parser<'_> {
             TokenKind::Ident if self.at_word("intrinsic") && self.nth_is(1, &TokenKind::Fn) => {
                 self.bump();
                 ItemKind::Fn(self.fn_decl(public, true, FnContext::Free)?)
+            }
+            TokenKind::Ident if self.at_word("intrinsic") && self.nth_is(1, &TokenKind::Type) => {
+                self.bump();
+                self.bump();
+                let name = self.ident("a type name")?;
+                let generics = self.generics();
+                ItemKind::IntrinsicType(IntrinsicTypeDecl {
+                    public,
+                    name,
+                    generics,
+                })
             }
             TokenKind::Struct => ItemKind::Struct(self.struct_decl(public)?),
             TokenKind::Enum => ItemKind::Enum(self.enum_decl(public)?),
@@ -1176,6 +1210,7 @@ pub(crate) fn head_span(item: &Item) -> Span {
         ItemKind::Struct(decl) => decl.name.span,
         ItemKind::Enum(decl) => decl.name.span,
         ItemKind::Alias(decl) => decl.name.span,
+        ItemKind::IntrinsicType(decl) => decl.name.span,
         ItemKind::Interface(decl) => decl.name.span,
         ItemKind::Impl(block) => block.type_name.span,
         ItemKind::Fn(decl) => decl.sig.name.span,

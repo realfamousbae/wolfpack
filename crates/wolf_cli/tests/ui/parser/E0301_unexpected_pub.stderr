@@ -1,17 +1,33 @@
 error[E0301]: unexpected `pub`
-   --> parser/E0301_unexpected_pub.wolf:10:5
+   --> parser/E0301_unexpected_pub.wolf:16:5
    |
-10 |     pub Counter {
+16 |     pub Counter {
    |     ^^^ write `pub` on the methods, not on the block
    |
    = help: remove `pub`
 
 error[E0301]: unexpected `pub`
-   --> parser/E0301_unexpected_pub.wolf:18:5
+   --> parser/E0301_unexpected_pub.wolf:23:9
    |
-18 |     pub test "counts" {
+23 |         pub fn name(self) -> String {
+   |         ^^^ methods of an interface implementation have the visibility of the interface
+   |
+   = help: remove `pub`
+
+error[E0301]: unexpected `pub`
+   --> parser/E0301_unexpected_pub.wolf:30:5
+   |
+30 |     pub fn helper() -> Int {
+   |     ^^^ helpers in `tests` are private to the tests
+   |
+   = help: remove `pub`
+
+error[E0301]: unexpected `pub`
+   --> parser/E0301_unexpected_pub.wolf:34:5
+   |
+34 |     pub test "counts" {
    |     ^^^ tests cannot be `pub`
    |
    = help: remove `pub`
 
-error: aborting due to 2 errors
+error: aborting due to 4 errors

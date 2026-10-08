@@ -18,6 +18,7 @@ file
       (variant Circle (tuple Float))
       (variant Rect (fields (field w Float) (field h Float)))
     (alias Ids (List Int))
+    (intrinsic type pub Map (generics (K Hashable) V))
   section interfaces
     (interface Container (generics T) (sig get (params self (i Int)) (-> (Option T))))
   section impl
