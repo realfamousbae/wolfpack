@@ -149,8 +149,9 @@ impl Parser<'_> {
         if let Some(first) = self.ident("a name") {
             segments.push(first);
         }
-        while self.at(&TokenKind::Dot) && self.nth_is(1, &TokenKind::Ident) {
+        while self.at(&TokenKind::Dot) && self.ident_after_dot() {
             self.bump();
+            self.skip_newlines();
             if let Some(next) = self.ident("a name") {
                 segments.push(next);
             }
@@ -159,6 +160,15 @@ impl Parser<'_> {
             segments,
             span: self.span_from(start),
         }
+    }
+
+    /// Whether the token after the next `.` (possibly on the next line) is an identifier.
+    fn ident_after_dot(&self) -> bool {
+        let mut ahead = self.visible_index(0) + 1 - self.pos;
+        while self.raw(ahead).kind == TokenKind::Newline {
+            ahead += 1;
+        }
+        self.raw(ahead).kind == TokenKind::Ident
     }
 
     pub(crate) fn ident(&mut self, what: &str) -> Option<Ident> {
@@ -521,6 +531,7 @@ impl Parser<'_> {
     /// One entry of a section.
     pub(crate) fn item(&mut self, section: SectionKind, docs: Vec<Doc>) -> Option<Item> {
         let start = self.peek_span();
+        let pub_span = self.peek_span();
         let public = self.eat(&TokenKind::Pub);
         let kind = match self.peek().clone() {
             TokenKind::Fn => ItemKind::Fn(self.fn_decl(public, false, FnContext::Free)?),
@@ -559,6 +570,23 @@ impl Parser<'_> {
                 return None;
             }
         };
+        if public
+            && matches!(
+                kind,
+                ItemKind::Test(_) | ItemKind::Impl(_) | ItemKind::ExternTarget(_)
+            )
+        {
+            let why = match kind {
+                ItemKind::Test(_) => "tests cannot be `pub`",
+                ItemKind::Impl(_) => "write `pub` on the methods, not on the block",
+                _ => "write `pub` on the declarations inside the block",
+            };
+            self.report(
+                Diagnostic::new(codes::E0301, "unexpected `pub`")
+                    .primary(pub_span, why)
+                    .help("remove `pub`"),
+            );
+        }
         Some(Item {
             docs,
             kind,
@@ -692,7 +720,7 @@ impl Parser<'_> {
 
     fn config_entry(&mut self, public: bool) -> Option<ConfigEntry> {
         let name = self.ident("a constant name")?;
-        self.expect(&TokenKind::Colon, "`:` and the type of the constant")?;
+        self.expect_then_lines(&TokenKind::Colon, "`:` and the type of the constant")?;
         let ty = self.ty();
         self.expect(&TokenKind::Eq, "`=` and the value")?;
         self.skip_newlines();
@@ -719,7 +747,7 @@ impl Parser<'_> {
                     break;
                 };
                 let mut bounds = Vec::new();
-                if p.eat(&TokenKind::Colon) {
+                if p.eat_then_lines(&TokenKind::Colon) {
                     bounds.push(p.ty());
                     while p.eat(&TokenKind::Plus) {
                         bounds.push(p.ty());
@@ -768,7 +796,7 @@ impl Parser<'_> {
                 let before = p.pos;
                 p.line_errors = p.start_line();
                 let field = p.ident("a field name").and_then(|name| {
-                    p.expect(&TokenKind::Colon, "`:` and the field type")?;
+                    p.expect_then_lines(&TokenKind::Colon, "`:` and the field type")?;
                     let ty = p.ty();
                     Some((name, ty))
                 });
@@ -880,7 +908,7 @@ impl Parser<'_> {
         self.bump(); // `type`
         let name = self.ident("an alias name")?;
         let generics = self.generics();
-        self.expect(&TokenKind::Eq, "`=` and the aliased type")?;
+        self.expect_then_lines(&TokenKind::Eq, "`=` and the aliased type")?;
         let ty = self.ty();
         Some(AliasDecl {
             public,
@@ -942,7 +970,7 @@ impl Parser<'_> {
     fn impl_block(&mut self) -> Option<ImplBlock> {
         let type_name = self.ident("a type name")?;
         let generics = self.generics();
-        let interface = if self.eat(&TokenKind::Colon) {
+        let interface = if self.eat_then_lines(&TokenKind::Colon) {
             Some(self.ty())
         } else {
             None
@@ -1042,7 +1070,7 @@ impl Parser<'_> {
             );
             self.recover();
         }
-        let ret = if self.eat(&TokenKind::Arrow) {
+        let ret = if self.eat_then_lines(&TokenKind::Arrow) {
             Some(self.ty())
         } else {
             None
@@ -1104,7 +1132,7 @@ impl Parser<'_> {
             });
         }
         let name = self.ident("a parameter name")?;
-        self.expect(&TokenKind::Colon, "`:` and the parameter type")?;
+        self.expect_then_lines(&TokenKind::Colon, "`:` and the parameter type")?;
         let ty = self.ty();
         Some(Param {
             mode,

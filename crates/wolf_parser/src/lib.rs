@@ -196,6 +196,24 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Consumes `kind` and then any newlines: after `.`, `:`, `->`, `=` and binary operators a
+    /// line break does not end anything (spec chapter 1, section 7, rule 2).
+    pub(crate) fn eat_then_lines(&mut self, kind: &TokenKind) -> bool {
+        if self.eat(kind) {
+            self.skip_newlines();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Like [`Parser::expect`], then skips newlines.
+    pub(crate) fn expect_then_lines(&mut self, kind: &TokenKind, what: &str) -> Option<Span> {
+        let span = self.expect(kind, what)?;
+        self.skip_newlines();
+        Some(span)
+    }
+
     pub(crate) fn eat_word(&mut self, word: &str) -> bool {
         if self.at_word(word) {
             self.bump();

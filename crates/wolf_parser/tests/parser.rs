@@ -117,6 +117,35 @@ fn newline_rules() {
     assert!(dump.contains("(block (let y (* x 2)) y)"), "{dump}");
 }
 
+/// After `.`, `:`, `->`, `=` and binary operators a newline continues the line (chapter 1, 7).
+#[test]
+fn newline_after_continuation_tokens() {
+    let text = "module main\n\nconfig {\n    max:\n        Int =\n        10\n}\n\ntypes {\n    type Ids =\n        List<Int>\n    struct S<T:\n        Copyable> {\n        x:\n            Int\n    }\n}\n\nfunctions {\n    fn f(a:\n        Int) ->\n        Int {\n        let b:\n            Int = a.\n            abs()\n        let g = |x: Int| ->\n            Int { x }\n        b\n    }\n}\n";
+    let dump = ok(text);
+    assert!(dump.contains("(const max Int 10)"), "{dump}");
+    assert!(dump.contains("(alias Ids (List Int))"), "{dump}");
+    assert!(dump.contains("(generics (T Copyable))"), "{dump}");
+    assert!(dump.contains("(field x Int)"), "{dump}");
+    assert!(dump.contains("(params (a Int))\n      (-> Int)"), "{dump}");
+    assert!(dump.contains("(let b Int (call (. a abs)))"), "{dump}");
+    assert!(dump.contains("(-> Int) (block x)"), "{dump}");
+    let impl_text = "module main\n\nimpl {\n    A:\n        B {\n        fn f(self) {}\n    }\n}\n";
+    assert!(ok(impl_text).contains("(for B)"));
+}
+
+#[test]
+fn pub_where_it_is_not_allowed() {
+    let codes = |text: &str| parse(text).codes;
+    assert_eq!(
+        codes("module main\n\ntests {\n    pub test \"x\" {\n    }\n}\n"),
+        ["E0301"]
+    );
+    assert_eq!(
+        codes("module main\n\nimpl {\n    pub A {\n        fn f(self) {}\n    }\n}\n"),
+        ["E0301"]
+    );
+}
+
 #[test]
 fn nested_generics_split_shift_tokens() {
     let dump = ok("module main\n\nconfig {\n    x: Map<String, List<List<Int>>> = [:]\n}\n");
@@ -293,9 +322,19 @@ fn parser_errors() {
     assert_eq!(codes("        let a = (1, 2)"), ["E0301"]);
 }
 
-/// Arbitrary token soup through lexer, parser and both renderers: no panic, no hang.
+/// Arbitrary token soup through lexer, parser and both renderers: no panic, no hang. Runs on a
+/// thread with the stack the compiler uses (`wolf_parser::STACK_SIZE`).
 #[test]
 fn arbitrary_input_never_panics() {
+    std::thread::Builder::new()
+        .stack_size(wolf_parser::STACK_SIZE)
+        .spawn(soup)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn soup() {
     const WORDS: &[&str] = &[
         "module",
         "main",

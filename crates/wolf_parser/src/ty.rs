@@ -80,7 +80,7 @@ impl Parser<'_> {
             p.expect(&TokenKind::RParen, "`)`");
             params
         });
-        let ret = if self.eat(&TokenKind::Arrow) {
+        let ret = if self.eat_then_lines(&TokenKind::Arrow) {
             Some(Box::new(self.ty()))
         } else {
             None

@@ -273,7 +273,7 @@ impl Parser<'_> {
         } else {
             Some(self.ident("a variable name")?)
         };
-        let ty = if self.eat(&TokenKind::Colon) {
+        let ty = if self.eat_then_lines(&TokenKind::Colon) {
             Some(self.ty())
         } else {
             None
@@ -553,6 +553,7 @@ impl Parser<'_> {
 
     fn dot_suffix(&mut self, base: Expr) -> Expr {
         self.bump(); // `.`
+        self.skip_newlines();
         if self.at(&TokenKind::Lt) {
             self.bump();
             let args = self.ignore_lines(|p| {
@@ -1073,7 +1074,7 @@ impl Parser<'_> {
                 return self.error_expr(start);
             }
         }
-        let ret = if self.eat(&TokenKind::Arrow) {
+        let ret = if self.eat_then_lines(&TokenKind::Arrow) {
             Some(self.ty())
         } else {
             None
