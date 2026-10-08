@@ -408,7 +408,7 @@ fn soup() {
         let len = (next() % 80) as usize;
         let mut text = String::new();
         for _ in 0..len {
-            text.push_str(WORDS[(next() as usize) % WORDS.len()]);
+            text.push_str(WORDS.get((next() as usize) % WORDS.len()).unwrap_or(&"x"));
             text.push(' ');
         }
         let _ = parse(&text);
