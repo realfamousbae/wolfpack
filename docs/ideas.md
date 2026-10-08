@@ -17,6 +17,7 @@ Do not implement anything listed here without an approved spec change.
 - `if let` and `while let`.
 - Destructuring `let` for irrefutable patterns: `let Point { x, y } = p`.
 - Loop labels, `loop`, `break` with a value.
+- Variants with a payload as function values: `names.map(Some)` (declined for v1, 2026-10-09).
 - Struct update syntax: `User { name: "B", ..old }`.
 - `impl` blocks for a concrete instantiation of a generic type (`Stack<Int> { }`).
 
