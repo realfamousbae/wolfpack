@@ -1,0 +1,7 @@
+error[E0611]: the default target `ts` is not enabled
+  --> wolfpack.toml:7:11
+  |
+7 | enabled = ["go", "rust"]
+  |           ^^^^^^^^^^^^^^ add `default = ...` with an enabled target
+
+error: aborting due to 1 error

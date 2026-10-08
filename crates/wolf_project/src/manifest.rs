@@ -396,10 +396,17 @@ fn targets(reader: &mut Reader, root: &DeTable<'_>) -> Option<(Target, Vec<Targe
             None => valid = false,
         },
         None => {
-            if let Some(first) = enabled.first() {
-                if !enabled.contains(&Target::Ts) {
-                    default = *first;
-                }
+            // `default` is `"ts"` unless written, and must be enabled (chapter 6, rule 6.2).
+            if valid && !enabled.contains(&Target::Ts) {
+                let span = get(table, "enabled")
+                    .map(|v| v.span())
+                    .unwrap_or(value.span());
+                reader.error(
+                    span,
+                    "the default target `ts` is not enabled",
+                    "add `default = ...` with an enabled target",
+                );
+                valid = false;
             }
         }
     }
