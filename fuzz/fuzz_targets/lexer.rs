@@ -1,4 +1,4 @@
-//! Lexes arbitrary bytes and renders the diagnostics. Any panic is a bug.
+//! Lexes and parses arbitrary bytes and renders the diagnostics. Any panic is a bug.
 
 #![no_main]
 
@@ -10,7 +10,12 @@ fuzz_target!(|data: &[u8]| {
     let diagnostics = match wolf_lexer::decode(data.to_vec()) {
         Ok(text) => {
             let id = map.add("fuzz.wolf", text.clone());
-            wolf_lexer::lex(id, &text).diagnostics
+            let lexed = wolf_lexer::lex(id, &text);
+            let parsed = wolf_parser::parse(id, &text, &lexed.tokens);
+            let _ = wolf_ast::dump(&parsed.file);
+            let mut diagnostics = lexed.diagnostics;
+            diagnostics.extend(parsed.diagnostics);
+            diagnostics
         }
         Err(invalid) => {
             let id = map.add("fuzz.wolf", invalid.lossy.clone());

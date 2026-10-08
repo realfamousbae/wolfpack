@@ -197,6 +197,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wolf_ast"
+version = "0.1.0"
+dependencies = [
+ "wolf_span",
+]
+
+[[package]]
 name = "wolf_diag"
 version = "0.1.0"
 dependencies = [
@@ -209,8 +216,10 @@ name = "wolf_fuzz"
 version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
+ "wolf_ast",
  "wolf_diag",
  "wolf_lexer",
+ "wolf_parser",
  "wolf_span",
 ]
 
@@ -219,6 +228,16 @@ name = "wolf_lexer"
 version = "0.1.0"
 dependencies = [
  "wolf_diag",
+ "wolf_span",
+]
+
+[[package]]
+name = "wolf_parser"
+version = "0.1.0"
+dependencies = [
+ "wolf_ast",
+ "wolf_diag",
+ "wolf_lexer",
  "wolf_span",
 ]
 
