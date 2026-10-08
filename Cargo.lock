@@ -380,8 +380,10 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "codespan-reporting",
+ "wolf_ast",
  "wolf_diag",
  "wolf_lexer",
+ "wolf_parser",
  "wolf_span",
 ]
 

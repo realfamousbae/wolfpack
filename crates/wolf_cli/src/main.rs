@@ -1,6 +1,6 @@
 //! The `wolf` command-line tool.
 //!
-//! Milestone M1 provides `wolf check`, which lexes `.wolf` files and reports lexical errors.
+//! `wolf check` lexes and parses `.wolf` files and reports their errors (milestone M2).
 //! Until project discovery arrives in M3, `wolf check` takes files or directories directly.
 
 mod check;
@@ -30,7 +30,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Check source files without generating code. In M1 this lexes the files.
+    /// Check source files without generating code. In M2 this lexes and parses the files.
     Check(CheckArgs),
 }
 
@@ -79,12 +79,25 @@ pub(crate) enum Color {
 pub(crate) enum Emit {
     /// The token stream of each file.
     Tokens,
+    /// The syntax tree of each file.
+    Ast,
 }
 
 fn main() -> ExitCode {
     // An internal error must not print Rust's panic message (spec chapter 9, section 1.4).
     panic::set_hook(Box::new(|_| {}));
-    match panic::catch_unwind(run) {
+    // The compiler runs on a thread with a large stack, so that input nested up to the parser's
+    // limit cannot overflow it (see `wolf_parser::STACK_SIZE`).
+    let worker = std::thread::Builder::new()
+        .name("wolf".to_string())
+        .stack_size(wolf_parser::STACK_SIZE)
+        .spawn(|| panic::catch_unwind(run));
+    let outcome = match worker {
+        Ok(handle) => handle.join().unwrap_or_else(Err),
+        // No thread could be started: run on the main thread instead.
+        Err(_) => panic::catch_unwind(run),
+    };
+    match outcome {
         Ok(code) => code,
         Err(payload) => {
             let detail = payload

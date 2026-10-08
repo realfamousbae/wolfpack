@@ -1,4 +1,4 @@
-//! `wolf check`: finds `.wolf` files and lexes them.
+//! `wolf check`: finds `.wolf` files, lexes and parses them.
 
 use std::fs;
 use std::io::Write;
@@ -104,12 +104,21 @@ fn check_file(path: &Path, args: &CheckArgs, result: &mut CheckResult) {
     let id = result.map.add(name.clone(), text);
     let text = result.map.get(id).map(|f| f.text()).unwrap_or("");
     let lexed = wolf_lexer::lex(id, text);
-    if let Some(Emit::Tokens) = args.emit {
-        let mut stdout = std::io::stdout();
-        let _ = writeln!(stdout, "== {name}");
-        let _ = stdout.write_all(wolf_lexer::dump(text, &lexed.tokens).as_bytes());
+    let parsed = wolf_parser::parse(id, text, &lexed.tokens);
+    let mut stdout = std::io::stdout();
+    match args.emit {
+        Some(Emit::Tokens) => {
+            let _ = writeln!(stdout, "== {name}");
+            let _ = stdout.write_all(wolf_lexer::dump(text, &lexed.tokens).as_bytes());
+        }
+        Some(Emit::Ast) => {
+            let _ = writeln!(stdout, "== {name}");
+            let _ = stdout.write_all(wolf_ast::dump(&parsed.file).as_bytes());
+        }
+        None => {}
     }
     result.diagnostics.extend(lexed.diagnostics);
+    result.diagnostics.extend(parsed.diagnostics);
 }
 
 fn read_error(path: &Path, error: &std::io::Error) -> Diagnostic {
