@@ -157,8 +157,17 @@ Decisions already taken by the author for this chapter (2026-10-07):
    **[PROPOSAL]** Other collections are iterated through std functions that return a `List`
    (`m.keys()`, `s.chars()`, chapter 7), so the language has no iterator protocol in v1.
 7. **Discarding a `Result`.** An expression statement whose value is a `Result` is an error
-   (E04xx): the error must be handled, propagated with `?` or explicitly ignored. Other values may
-   be discarded. **[PROPOSAL]** (see D4.3)
+   (E0409): the error must be handled, propagated with `?` or explicitly ignored with `let _ =`.
+   Other values returned by calls may be discarded. **[PROPOSAL]** (see D4.3)
+8. **A useless expression statement is an error** (E0425), as in Go (author, 2026-10-08). An
+   expression statement that is not the value of its block must be one of: a call (of a function,
+   method or closure, possibly followed by `?`), an `if`, a `match`, or `return`, `break`,
+   `continue`. Anything else (`- tax`, `x + 1`, `name`, a literal) computes a value that nobody uses
+   and is rejected. This also catches a statement split by a line break:
+   ```
+   let total = price
+       - tax          // error E0425: `- tax` is computed but not used
+   ```
 
 ## 7. User types
 
@@ -331,6 +340,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0422 | Struct literal: missing, unknown or duplicate field |
 | E0423 | Integer literal out of range, constant evaluation panic |
 | E0424 | Unknown field or method |
+| E0425 | Expression statement whose value is not used and that is not a call, `if`, `match`, `return`, `break` or `continue` |
 
 ## 14. Register items opened by this chapter
 
