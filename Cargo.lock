@@ -368,6 +368,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wolf_ast"
+version = "0.1.0"
+dependencies = [
+ "wolf_span",
+]
+
+[[package]]
 name = "wolf_cli"
 version = "0.1.0"
 dependencies = [
@@ -392,6 +399,17 @@ version = "0.1.0"
 dependencies = [
  "insta",
  "wolf_diag",
+ "wolf_span",
+]
+
+[[package]]
+name = "wolf_parser"
+version = "0.1.0"
+dependencies = [
+ "insta",
+ "wolf_ast",
+ "wolf_diag",
+ "wolf_lexer",
  "wolf_span",
 ]
 

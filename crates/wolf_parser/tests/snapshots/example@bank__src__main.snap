@@ -1,0 +1,117 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " A bank: ownership in action. `mut` parameters change an account in place, `own` takes it"
+  doc! " away, and the compiler rejects `transfer(mut alice, mut alice, 10)` because the two `mut`"
+  doc! " arguments overlap (chapter 5, section 7.2)."
+  module main
+  section types
+    (struct Account (field owner String) (field balance Int))
+    enum
+      BankError
+      (variant doc " The amount that is missing." InsufficientFunds (tuple Int))
+      (variant InvalidAmount (tuple Int))
+  section impl
+    impl
+      Account
+      fn
+        open
+        (params (own owner String) (deposit Int))
+        (-> Account)
+        (block (struct Account owner (balance: deposit)))
+      fn
+        deposit
+        (params mut self (amount Int))
+        (-> (Result Void BankError))
+        block
+          (if (<= amount 0) (block (return (call Err (call (. BankError InvalidAmount) amount)))))
+          (+= (. self balance) amount)
+          (call Ok ())
+      fn
+        withdraw
+        (params mut self (amount Int))
+        (-> (Result Void BankError))
+        block
+          (if (<= amount 0) (block (return (call Err (call (. BankError InvalidAmount) amount)))))
+          if
+            (> amount (. self balance))
+            block
+              (return (call Err (call (. BankError InsufficientFunds) (- amount (. self balance)))))
+          (-= (. self balance) amount)
+          (call Ok ())
+      fn
+        summary
+        (params self)
+        (-> String)
+        (block (+ (+ (. self owner) ": ") (call (. (. self balance) to_string))))
+    impl
+      BankError
+      (for Error)
+      fn
+        message
+        (params self)
+        (-> String)
+        block
+          match
+            self
+            =>
+              (BankError.InsufficientFunds missing)
+              (+ "insufficient funds, missing " (call (. missing to_string)))
+            (=> (BankError.InvalidAmount amount) (+ "invalid amount " (call (. amount to_string))))
+  section functions
+    fn
+      doc " Moves money between two different accounts."
+      transfer
+      (params (mut from Account) (mut to Account) (amount Int))
+      (-> (Result Void BankError))
+      (block (? (call (. from withdraw) amount)) (? (call (. to deposit) amount)) (call Ok ()))
+    fn
+      doc " Closes the account and returns its final balance. The caller can no longer use it."
+      close
+      (params (own account Account))
+      (-> Int)
+      (block (. account balance))
+    fn
+      main
+      ()
+      (-> (Result Void Error))
+      block
+        (var alice (call (. Account open) "Alice" 100))
+        (var bob (call (. Account open) "Bob" 20))
+        (? (call transfer (mut alice) (mut bob) 30))
+        (call print (call (. alice summary)))
+        (call print (call (. bob summary)))
+        match
+          (call transfer (mut bob) (mut alice) 500)
+          (=> (Ok _) (call print "transfer done"))
+          (=> (Err error) (call print (+ "transfer failed: " (call (. error message)))))
+        (let final_balance (call close (own bob)))
+        (call print (+ "closed Bob's account with " (call (. final_balance to_string))))
+        match
+          (call (. alice deposit) 0)
+          (=> (Ok _) (call print "deposit done"))
+          (=> (Err error) (call print (+ "deposit failed: " (call (. error message)))))
+        (call print (call (. alice summary)))
+        (call Ok ())
+  section tests
+    test
+      "transfer moves money"
+      block
+        (var a (call (. Account open) "A" 10))
+        (var b (call (. Account open) "B" 0))
+        (call assert (== (call transfer (mut a) (mut b) 10) (call Ok ())))
+        (call assert (== (. a balance) 0))
+        (call assert (== (. b balance) 10))
+    test
+      "a failed withdrawal changes nothing"
+      block
+        (var a (call (. Account open) "A" 5))
+        call
+          assert
+          (== (call (. a withdraw) 8) (call Err (call (. BankError InsufficientFunds) 3)))
+        (call assert (== (. a balance) 5))
+    test
+      "closing returns the balance"
+      (block (let a (call (. Account open) "A" 42)) (call assert (== (call close (own a)) 42)))

@@ -1,0 +1,17 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " Run with `wolf run --example demo`."
+  module examples.demo
+  (section imports (import lib (names word_count capitalize shout)))
+  section functions
+    fn
+      main
+      ()
+      block
+        (let text "the wolf pack hunts together")
+        (call print (call capitalize text))
+        (call print (+ (call (. (call word_count text) to_string)) " words"))
+        (call print (call shout "aroo"))

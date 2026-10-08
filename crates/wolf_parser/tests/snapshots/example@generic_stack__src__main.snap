@@ -1,0 +1,102 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " A generic stack: a generic struct, a generic method, bounds on type parameters."
+  module main
+  section types
+    (struct doc " A last-in, first-out stack." Stack (generics T) (field items (List T)))
+  section impl
+    impl
+      Stack
+      (generics T)
+      (fn new () (-> (Stack T)) (block (struct Stack (items: []))))
+      (fn push (params mut self (own item T)) (block (call (. (. self items) push) (own item))))
+      (fn pop (params mut self) (-> (Option T)) (block (call (. (. self items) pop))))
+      (fn len (params self) (-> Int) (block (call (. (. self items) len))))
+      (fn is_empty (params self) (-> Bool) (block (call (. (. self items) is_empty))))
+      fn
+        doc " A generic method: allowed in an inherent `impl` (chapter 4, section 8.3)."
+        map
+        (generics U)
+        (params self (f (fn T (-> U))))
+        (-> (Stack U))
+        (block (struct Stack (items: (call (. (. self items) map) f))))
+  section functions
+    fn
+      doc " Takes the stack and sums it. An `own` parameter is mutable inside the function."
+      drain_sum
+      (params (own stack (Stack Int)))
+      (-> Int)
+      block
+        (var total 0)
+        while
+          true
+          block
+            (match (call (. stack pop)) (=> (Some value) (block (+= total value))) (=> None break))
+        total
+    fn
+      count_equal
+      (generics (T Equatable))
+      (params (items (List T)) (target T))
+      (-> Int)
+      block
+        (var count 0)
+        (for item items (block (if (== item target) (block (+= count 1)))))
+        count
+    fn
+      largest
+      (generics (T Comparable Copyable))
+      (params (items (List T)))
+      (-> (Option T))
+      block
+        (if (call (. items is_empty)) (block (return None)))
+        (var best (call (. (index items 0) copy)))
+        for
+          item
+          items
+          block
+            if
+              (== (call (. item compare) best) (. Ordering Greater))
+              (block (= best (call (. item copy))))
+        (call Some best)
+    fn
+      main
+      ()
+      block
+        (var numbers (Stack Int) (call (. Stack new)))
+        (for i (..= 1 5) (block (call (. numbers push) (* i i))))
+        (call print (+ "size: " (call (. (call (. numbers len)) to_string))))
+        (var labels (call (. numbers map) (closure (params n) (+ "#" (call (. n to_string))))))
+        match
+          (call (. labels pop))
+          (=> (Some label) (call print (+ "top label: " label)))
+          (=> None (call print "no labels"))
+        (call print (+ "sum: " (call (. (call drain_sum (own numbers)) to_string))))
+        match
+          (call largest (list "pear" "apple" "zucchini" "fig"))
+          (=> (Some word) (call print (+ "largest word: " word)))
+          (=> None (call print "no words"))
+        (call print (+ "threes: " (call (. (call count_equal (list 3 1 3 2 3) 3) to_string))))
+  section tests
+    test
+      "pop returns items in reverse order"
+      block
+        (var stack (Stack Int) (call (. Stack new)))
+        (call (. stack push) 1)
+        (call (. stack push) 2)
+        (call assert (== (call (. stack pop)) (call Some 2)))
+        (call assert (== (call (. stack pop)) (call Some 1)))
+        (call assert (== (call (. stack pop)) None))
+    test
+      "largest of an empty list is none"
+      (block (let empty (List Int) []) (call assert (== (call largest empty) None)))
+    test
+      "map keeps the order"
+      block
+        (var stack (Stack Int) (call (. Stack new)))
+        (call (. stack push) 1)
+        (call (. stack push) 2)
+        (var doubled (call (. stack map) (closure (params n) (* n 2))))
+        (call assert (== (call (. doubled pop)) (call Some 4)))

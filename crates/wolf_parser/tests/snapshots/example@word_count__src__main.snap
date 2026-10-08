@@ -1,0 +1,53 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " Counts words: string methods, a `Map` that keeps insertion order, closures and sorting."
+  module main
+  (section imports (import std.list) (import std.string))
+  (section config (const sample String "the quick brown fox jumps over the lazy dog the fox"))
+  section functions
+    fn
+      count_words
+      (params (text String))
+      (-> (Map String Int))
+      block
+        (var counts (Map String Int) [:])
+        for
+          word
+          (call (. (call (. text to_lower_ascii)) split) " ")
+          block
+            if
+              (call (. counts contains_key) word)
+              (block (+= (index counts word) 1))
+              (else (block (let _ (call (. counts insert) (call (. word copy)) 1))))
+        counts
+    fn
+      main
+      ()
+      block
+        (let counts (call count_words sample))
+        for
+          word
+          (call (. counts keys))
+          (block (call print (+ (+ word ": ") (call (. (index counts word) to_string)))))
+        let
+          long_words
+          (call (. (call (. counts keys)) filter) (closure (params w) (> (call (. w len)) 4)))
+        (call print (+ "long words: " (call (. string join) long_words ", ")))
+        (var entries (call (. counts entries)))
+        call
+          (. list sort_by)
+          (mut entries)
+          (closure (params a b) (call (. (. b value) compare) (. a value)))
+        (call print "top three:")
+        for
+          i
+          (.. 0 3)
+          block
+            call
+              print
+              +
+                (+ (+ "  " (. (index entries i) key)) " ")
+                (call (. (. (index entries i) value) to_string))

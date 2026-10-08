@@ -1,0 +1,93 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " A store of tasks: `mut self` methods, `for x in mut`, `match mut`."
+  module todo.store
+  (section imports (import todo.model (names Task Priority Status)))
+  section types
+    struct
+      doc " The fields are private: other modules use the methods below."
+      pub
+      Store
+      (field tasks (List Task))
+      (field next_id Int)
+  section impl
+    impl
+      Store
+      (fn pub new () (-> Store) (block (struct Store (tasks: []) (next_id: 1))))
+      fn
+        doc " Adds a task and returns its id. The title is moved into the store."
+        pub
+        add
+        (params mut self (own title String) (priority Priority))
+        (-> Int)
+        block
+          (let id (. self next_id))
+          (call (. (. self tasks) push) (call (. Task new) id (own title) priority))
+          (+= (. self next_id) 1)
+          id
+      fn
+        doc " Marks a task as done. Returns `false` if there is no task with this id."
+        pub
+        complete
+        (params mut self (id Int))
+        (-> Bool)
+        block
+          for
+            task
+            (mut (. self tasks))
+            block
+              (if (== (. task id) id) (block (= (. task status) (. Status Done)) (return true)))
+          false
+      fn
+        doc " Snoozes every open task."
+        pub
+        snooze_open
+        (params mut self (days Int))
+        block
+          for
+            task
+            (mut (. self tasks))
+            block
+              if
+                (== (. task status) (. Status Open))
+                (block (= (. task status) (call (. Status Snoozed) days)))
+      fn
+        doc " Adds days to every snoozed task, changing the payload in place."
+        pub
+        postpone
+        (params mut self (days Int))
+        block
+          for
+            task
+            (mut (. self tasks))
+            block
+              match
+                (mut (. task status))
+                (=> (Status.Snoozed left) (block (+= left days)))
+                (=> _ ())
+      fn
+        doc " Removes finished tasks and returns how many were removed."
+        pub
+        remove_done
+        (params mut self)
+        (-> Int)
+        block
+          (var removed 0)
+          (var i 0)
+          while
+            (< i (call (. (. self tasks) len)))
+            block
+              if
+                (== (. (index (. self tasks) i) status) (. Status Done))
+                (block (let _ (call (. (. self tasks) remove) i)) (+= removed 1))
+                (else (block (+= i 1)))
+          removed
+      fn
+        pub
+        report
+        (params self)
+        (-> (List String))
+        (block (call (. (. self tasks) map) (closure (params task) (call (. task describe)))))

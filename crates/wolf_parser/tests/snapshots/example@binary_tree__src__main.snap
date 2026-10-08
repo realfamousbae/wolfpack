@@ -1,0 +1,106 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " A binary search tree: a recursive enum, `own self` and `match own`, recursion."
+  module main
+  (section imports (import std.string))
+  section types
+    enum
+      doc " Recursive through the enum; the Rust backend adds `Box` (chapter 4, section 7.4)."
+      Tree
+      (variant Leaf)
+      (variant Node (tuple Tree Int Tree))
+  section impl
+    impl
+      Tree
+      fn
+        doc " Consumes the tree and returns a new one that also holds `value`."
+        insert
+        (params own self (value Int))
+        (-> Tree)
+        block
+          match
+            (own self)
+            (=> Tree.Leaf (call (. Tree Node) (. Tree Leaf) value (. Tree Leaf)))
+            =>
+              (Tree.Node left v right)
+              if
+                (< value v)
+                (block (call (. Tree Node) (call (. left insert) value) v right))
+                (else (block (call (. Tree Node) left v (call (. right insert) value))))
+      fn
+        contains
+        (params self (value Int))
+        (-> Bool)
+        block
+          match
+            self
+            (=> Tree.Leaf false)
+            =>
+              (Tree.Node left v right)
+              if
+                (== value v)
+                (block true)
+                else
+                  if
+                    (< value v)
+                    (block (call (. left contains) value))
+                    (else (block (call (. right contains) value)))
+      fn
+        doc " Appends the values in ascending order."
+        collect
+        (params self (mut out (List Int)))
+        block
+          match
+            self
+            (=> Tree.Leaf ())
+            =>
+              (Tree.Node left v right)
+              block
+                (call (. left collect) (mut out))
+                (call (. out push) v)
+                (call (. right collect) (mut out))
+      fn
+        depth
+        (params self)
+        (-> Int)
+        block
+          match
+            self
+            (=> Tree.Leaf 0)
+            =>
+              (Tree.Node left _ right)
+              (+ 1 (call (. (call (. left depth)) max) (call (. right depth))))
+  section functions
+    fn
+      join_ints
+      (params (values (List Int)))
+      (-> String)
+      block
+        call
+          (. string join)
+          (call (. values map) (closure (params v) (call (. v to_string))))
+          ", "
+    fn
+      main
+      ()
+      block
+        (var tree (. Tree Leaf))
+        (for value (list 50 30 70 20 40 60 80 35) (block (= tree (call (. tree insert) value))))
+        (var sorted (List Int) [])
+        (call (. tree collect) (mut sorted))
+        (call print (+ "in order: " (call join_ints sorted)))
+        (call print (+ "depth: " (call (. (call (. tree depth)) to_string))))
+        (call print (+ "contains 35: " (call (. (call (. tree contains) 35) to_string))))
+        (call print (+ "contains 36: " (call (. (call (. tree contains) 36) to_string))))
+  section tests
+    test
+      "values come out sorted"
+      block
+        (var tree (. Tree Leaf))
+        (for value (list 3 1 2) (block (= tree (call (. tree insert) value))))
+        (var out (List Int) [])
+        (call (. tree collect) (mut out))
+        (call assert (== out (list 1 2 3)))

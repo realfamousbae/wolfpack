@@ -1,0 +1,11 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " textkit: small text helpers. This file is the whole public API of the library: it re-exports"
+  doc! " names from internal modules with `pub` imports (chapter 6, section 2.2)."
+  module lib
+  section imports
+    (import pub text.words (names word_count capitalize))
+    (import pub text.shout (names shout))

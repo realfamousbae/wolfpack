@@ -1,0 +1,26 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " FizzBuzz: ranges, `match` with alternatives, conversion to `String`."
+  module main
+  section functions
+    fn
+      doc " Returns the FizzBuzz word for `n`."
+      fizzbuzz
+      (params (n Int))
+      (-> String)
+      block
+        match
+          (% n 15)
+          (=> 0 "FizzBuzz")
+          (=> (| 3 6 9 12) "Fizz")
+          (=> (| 5 10) "Buzz")
+          (=> _ (call (. n to_string)))
+    (fn main () (block (for i (..= 1 15) (block (call print (call fizzbuzz i))))))
+  section tests
+    (test "multiples of three" (block (call assert (== (call fizzbuzz 9) "Fizz"))))
+    (test "multiples of five" (block (call assert (== (call fizzbuzz 10) "Buzz"))))
+    (test "multiples of fifteen" (block (call assert (== (call fizzbuzz 30) "FizzBuzz"))))
+    (test "other numbers" (block (call assert (== (call fizzbuzz 7) "7"))))

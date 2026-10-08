@@ -1,0 +1,21 @@
+[package]
+name = "wolf_parser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wolf_ast = { workspace = true }
+wolf_diag = { workspace = true }
+wolf_lexer = { workspace = true }
+wolf_span = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+insta = "1.49.0"
+wolf_diag = { path = "../wolf_diag" }
+wolf_lexer = { path = "../wolf_lexer" }

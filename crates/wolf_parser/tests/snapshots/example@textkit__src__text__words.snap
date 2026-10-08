@@ -1,0 +1,40 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " Word helpers written in portable Wolfpack."
+  module text.words
+  (section imports (import std.string))
+  section functions
+    fn
+      doc " Counts the words of `text`, ignoring repeated spaces."
+      pub
+      word_count
+      (params (text String))
+      (-> Int)
+      block
+        call
+          .
+            call
+              (. (call (. text split) " ") filter)
+              (closure (params w) (! (call (. w is_empty))))
+            len
+    fn
+      doc " Upper-cases the first letter of every word (ASCII only)."
+      pub
+      capitalize
+      (params (text String))
+      (-> String)
+      block
+        call
+          (. string join)
+          (call (. (call (. text split) " ") map) (closure (params w) (call capitalize_word w)))
+          " "
+    fn
+      capitalize_word
+      (params (word String))
+      (-> String)
+      block
+        (if (call (. word is_empty)) (block (return "")))
+        (+ (call (. (slice.. word 0 1) to_upper_ascii)) (slice.. word 1 _))

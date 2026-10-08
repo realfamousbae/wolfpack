@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/wolf_span", "crates/wolf_diag", "crates/wolf_lexer", "crates/wolf_ast", "crates/wolf_cli"]
+members = ["crates/*"]
 exclude = ["fuzz"]
 
 [workspace.package]
@@ -15,6 +15,7 @@ wolf_span = { path = "crates/wolf_span" }
 wolf_diag = { path = "crates/wolf_diag" }
 wolf_lexer = { path = "crates/wolf_lexer" }
 wolf_ast = { path = "crates/wolf_ast" }
+wolf_parser = { path = "crates/wolf_parser" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

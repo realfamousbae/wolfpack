@@ -1,0 +1,122 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " A reverse Polish notation calculator: enums with data, `Result`, the `?` operator, a user"
+  doc! " error type that implements `Error`, and `main` returning a `Result`."
+  module main
+  section types
+    enum
+      CalcError
+      (variant BadToken (tuple String))
+      (variant StackUnderflow)
+      (variant DivisionByZero)
+      (variant Unbalanced (tuple Int))
+  section impl
+    impl
+      CalcError
+      (for Error)
+      fn
+        message
+        (params self)
+        (-> String)
+        block
+          match
+            self
+            (=> (CalcError.BadToken token) (+ "bad token: " token))
+            (=> CalcError.StackUnderflow "not enough operands")
+            (=> CalcError.DivisionByZero "division by zero")
+            =>
+              (CalcError.Unbalanced count)
+              (+ (call (. count to_string)) " values left on the stack")
+  section functions
+    fn
+      pop
+      (params (mut stack (List Int)))
+      (-> (Result Int CalcError))
+      block
+        match
+          (call (. stack pop))
+          (=> (Some value) (call Ok value))
+          (=> None (call Err (. CalcError StackUnderflow)))
+    fn
+      apply
+      (params (op String) (a Int) (b Int))
+      (-> (Result Int CalcError))
+      block
+        match
+          op
+          (=> "+" (call Ok (+ a b)))
+          (=> "-" (call Ok (- a b)))
+          (=> "*" (call Ok (* a b)))
+          =>
+            "/"
+            if
+              (== b 0)
+              (block (call Err (. CalcError DivisionByZero)))
+              (else (block (call Ok (/ a b))))
+          (=> _ (call Err (call (. CalcError BadToken) (call (. op copy)))))
+    fn
+      is_operator
+      (params (token String))
+      (-> Bool)
+      (block (|| (|| (|| (== token "+") (== token "-")) (== token "*")) (== token "/")))
+    fn
+      doc " Evaluates tokens separated by single spaces, for example `3 4 + 2 *`."
+      evaluate
+      (params (text String))
+      (-> (Result Int CalcError))
+      block
+        (var stack (List Int) [])
+        for
+          token
+          (call (. text split) " ")
+          block
+            if
+              (call is_operator token)
+              block
+                (let b (? (call pop (mut stack))))
+                (let a (? (call pop (mut stack))))
+                (call (. stack push) (? (call apply token a b)))
+              else
+                block
+                  match
+                    (call (. token parse_int))
+                    (=> (Ok number) (call (. stack push) number))
+                    =>
+                      (Err _)
+                      (return (call Err (call (. CalcError BadToken) (call (. token copy)))))
+        (let result (? (call pop (mut stack))))
+        if
+          (! (call (. stack is_empty)))
+          (block (return (call Err (call (. CalcError Unbalanced) (+ (call (. stack len)) 1)))))
+        (call Ok result)
+    fn
+      main
+      ()
+      (-> (Result Void Error))
+      block
+        for
+          line
+          (list "3 4 +" "5 1 2 + 4 * + 3 -" "2 3 4 * +" "10 2 /")
+          (block (call print (+ (+ line " = ") (call (. (? (call evaluate line)) to_string)))))
+        for
+          line
+          (list "1 +" "4 0 /" "1 2" "2 x *")
+          block
+            match
+              (call evaluate line)
+              (=> (Ok value) (call print (+ (+ line " = ") (call (. value to_string)))))
+              (=> (Err error) (call print (+ (+ line ": ") (call (. error message)))))
+        (call Ok ())
+  section tests
+    (test "adds two numbers" (block (call assert (== (call evaluate "2 3 +") (call Ok 5)))))
+    (test "respects operand order" (block (call assert (== (call evaluate "10 4 -") (call Ok 6)))))
+    test
+      "reports division by zero"
+      (block (call assert (== (call evaluate "1 0 /") (call Err (. CalcError DivisionByZero)))))
+    test
+      "reports a bad token"
+      block
+        (call assert (== (call evaluate "1 a +") (call Err (call (. CalcError BadToken) "a"))))

@@ -1,0 +1,29 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " A todo list split into modules: `todo.model` and `todo.store`."
+  module main
+  (section imports (import todo.model (names Priority)) (import todo.store (names Store)))
+  section functions
+    fn
+      show
+      (params (store Store))
+      (block (for line (call (. store report)) (block (call print line))) (call print "--"))
+    fn
+      main
+      ()
+      block
+        (var store (call (. Store new)))
+        (let first (call (. store add) "write the spec" (. Priority High)))
+        (call (. store add) "buy milk" (. Priority Low))
+        (call (. store add) "walk the dog" (. Priority Normal))
+        (call show store)
+        (call print (+ "completed: " (call (. (call (. store complete) first) to_string))))
+        (call (. store snooze_open) 2)
+        (call (. store postpone) 1)
+        (call show store)
+        (let removed (call (. store remove_done)))
+        (call print (+ "removed: " (call (. removed to_string))))
+        (call show store)

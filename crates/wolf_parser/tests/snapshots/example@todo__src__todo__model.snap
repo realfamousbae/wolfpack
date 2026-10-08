@@ -1,0 +1,66 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " The data model of the todo list."
+  module todo.model
+  section types
+    enum
+      doc " Payload-less enums are copy types (ADR 0004)."
+      pub
+      Priority
+      (variant Low)
+      (variant Normal)
+      (variant High)
+    enum
+      pub
+      Status
+      (variant Open)
+      (variant Done)
+      (variant doc " Snoozed for a number of days." Snoozed (tuple Int))
+    struct
+      pub
+      Task
+      (field pub id Int)
+      (field pub title String)
+      (field pub priority Priority)
+      (field pub status Status)
+  section impl
+    impl
+      Task
+      fn
+        doc " Creates an open task. The title is moved into the task."
+        pub
+        new
+        (params (id Int) (own title String) (priority Priority))
+        (-> Task)
+        (block (struct Task id title priority (status: (. Status Open))))
+      fn
+        doc " One line such as `[x] buy milk (low)`."
+        pub
+        describe
+        (params self)
+        (-> String)
+        block
+          let
+            mark
+            match
+              (. self status)
+              (=> Status.Open "[ ]")
+              (=> Status.Done "[x]")
+              (=> (Status.Snoozed days) (+ (+ "[z" (call (. days to_string))) "]"))
+          +
+            (+ (+ (+ (+ mark " ") (. self title)) " (") (call priority_name (. self priority)))
+            ")"
+  section functions
+    fn
+      priority_name
+      (params (priority Priority))
+      (-> String)
+      block
+        match
+          priority
+          (=> Priority.Low "low")
+          (=> Priority.Normal "normal")
+          (=> Priority.High "high")

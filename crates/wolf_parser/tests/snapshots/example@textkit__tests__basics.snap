@@ -1,0 +1,15 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " Integration tests: they see only the library API (chapter 6, section 7)."
+  module tests.basics
+  (section imports (import lib (names word_count capitalize shout)))
+  section tests
+    (test "counts words" (block (call assert (== (call word_count "one two  three") 3))))
+    (test "counts nothing in an empty string" (block (call assert (== (call word_count "") 0))))
+    test
+      "capitalizes every word"
+      (block (call assert (== (call capitalize "hello wolf pack") "Hello Wolf Pack")))
+    (test "shouts" (block (call assert (== (call shout "hey") "HEY!"))))

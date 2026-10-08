@@ -1,0 +1,34 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: dump
+---
+file
+  doc! " Docs."
+  module lib
+  (section imports (import pub std.fs as files) (import users.model (names User Role as Kind)))
+  section extern
+    extern go
+      (fn pub upper (params (s String)) (-> String) from "strings.ToUpper")
+      (type Hasher from "hash.Hash")
+  (section config (const pub max Int (* 10 2)))
+  section types
+    (struct pub Box (generics (T Copyable)) (field pub value T))
+    enum
+      Shape
+      (variant Circle (tuple Float))
+      (variant Rect (fields (field w Float) (field h Float)))
+    (alias Ids (List Int))
+  section interfaces
+    (interface Container (generics T) (sig get (params self (i Int)) (-> (Option T))))
+  section impl
+    impl
+      Box
+      (generics (T Copyable))
+      (for (Container T))
+      (fn get (params self (i Int)) (-> (Option T)) (block None))
+  section functions
+    (fn intrinsic len (params (s String)) (-> Int))
+    (fn apply (params (f (fn (mut (List Int)) (-> Bool)))) {})
+  section tests
+    (fn helper () (-> Int) (block 1))
+    (test "works" (block (call assert (== (call helper) 1))))

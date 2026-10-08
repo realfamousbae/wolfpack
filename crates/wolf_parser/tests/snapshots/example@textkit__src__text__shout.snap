@@ -1,0 +1,20 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " Uses a function of each target language through `extern`. The same signature is declared for"
+  doc! " all three targets, so the module stays portable (chapter 7, section 8.5)."
+  module text.shout
+  section extern
+    (extern ts (fn to_upper (params (s String)) (-> String) from "String.prototype.toUpperCase"))
+    (extern go (fn to_upper (params (s String)) (-> String) from "strings.ToUpper"))
+    (extern rust (fn to_upper (params (s String)) (-> String) from "str::to_uppercase"))
+  section functions
+    fn
+      doc " Upper-cases `text` with the target's own function and adds an exclamation mark."
+      pub
+      shout
+      (params (text String))
+      (-> String)
+      (block (+ (call to_upper text) "!"))
