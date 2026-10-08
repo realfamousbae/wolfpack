@@ -15,7 +15,8 @@ Decisions taken by the author for this chapter (2026-10-07):
 
 1. A code is `E` followed by four digits. Each code has exactly one meaning, a source range and a test
    **[PLAN]**. Exception: driver errors (E00xx) may have no source range, because they are not about
-   a place in a source file (author, 2026-10-08). A code is never reused, even after the error it named is removed; removed codes stay
+   a place in a source file (author, 2026-10-08). The same holds for layout errors (E0612) about a
+   file that has no source to point at, such as an unexpected `src/notes.txt`. A code is never reused, even after the error it named is removed; removed codes stay
    listed as retired. **[PLAN]**
 2. Ranges:
 
@@ -33,7 +34,8 @@ Decisions taken by the author for this chapter (2026-10-07):
    | E09xx | reserved | |
 
 3. Initial driver codes: E0001 cannot read a file or directory; E0002 invalid command-line usage;
-   E0003 internal compiler error. **[PROPOSAL]**
+   E0003 internal compiler error. **[PROPOSAL]** Added in M3: E0004 no `wolfpack.toml` found in the
+   current directory or its parents.
 4. **Internal compiler error.** The compiler never panics on user input **[PLAN]**. If an internal
    invariant breaks anyway, the driver catches it and reports E0003 with a request to file a bug,
    instead of a Rust panic trace. **[PROPOSAL]**

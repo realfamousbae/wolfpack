@@ -64,7 +64,8 @@ import_name = IDENT ( "as" IDENT )?
 
 A `pub` import makes the imported names part of the importing module's own public names.
 Re-exports are allowed **only in `src/lib.wolf`**, where they build the library API (author;
-restriction to `lib.wolf` is **[PROPOSAL]**, see D6.2):
+restriction to `lib.wolf` is **[PROPOSAL]**, see D6.2); a `pub` import anywhere else is an error
+(E0620):
 
 ```
 module lib
@@ -100,6 +101,15 @@ From the innermost to the outermost:
    twice in one block (including a parameter and a `let` in the top block of the body) is an error
    (E0606).
 4. `match` arms and closure bodies are nested blocks, so `Some(x)` in two arms is fine.
+5. **Names introduced by a construct share the scope of its top block** (author, 2026-10-08): the
+   variable of `for x in xs { ... }`, the bindings of a `match` arm pattern and the parameters of a
+   closure are in the same scope as the first level of the body. So `for x in xs { let x = 1 }`,
+   `Some(x) => { let x = 1 }` and `|x| { let x = 1 }` are errors (E0606), exactly like a parameter
+   and a `let` in the top block of a function.
+6. **Unused local variables** (E0618, chapter 9) (author, 2026-10-08): the rule applies to `let`
+   and `var` bindings and to bindings in patterns, where `_` is available. The variable of a `for`
+   loop is exempt, because the grammar requires a name there. Any read or write of a variable
+   counts as a use: `left += days` uses `left`.
 5. Prelude names cannot be declared again at the top level of a module (E0617). **[PROPOSAL]**
 
 ### 3.3 The prelude
@@ -210,7 +220,8 @@ my-app/
 2. `src/` contains only `.wolf` files and directories. Any other file there is an error (E0612),
    except hidden files (names starting with `.`). **[PROPOSAL]** (see D6.4)
 3. **`tests/`** holds integration tests **[PLAN]**. Each file is a module `tests.<path>`. It may
-   contain only the sections `imports`, `functions` (helpers) and `tests`. It sees only `pub` names:
+   contain only the sections `imports`, `functions` (helpers) and `tests`; any other section is an
+   error (E0619). It sees only `pub` names:
    for a `lib`, only the library API (it imports `lib`); for a `cli`, the `pub` names of all modules
    in `src/`. **[PROPOSAL]**
 4. **`examples/`** holds usage examples **[PLAN]**. Each file is a module `examples.<path>` and a
@@ -244,13 +255,15 @@ Proposed range E06xx (confirmed in chapter 9).
 | E0609 | Unknown name (with a "did you mean" suggestion) |
 | E0610 | `module` line does not match the file path |
 | E0611 | Invalid manifest: syntax, unknown key, wrong value |
-| E0612 | Invalid layout: missing or extra entry file, index file, unexpected file, bad file name |
+| E0612 | Invalid layout: missing or extra entry file, index file, unexpected file, bad file name. When the problem has no place in a source file (an unexpected file such as `src/notes.txt`), the diagnostic has no label and names the path in its message (author, 2026-10-08) |
 | E0613 | Config override for an unknown constant or with a wrong type |
 | E0614 | Missing `main` or wrong signature |
 | E0615 | Unused import |
 | E0616 | Import of an entry module, or of the module itself |
 | E0617 | Redeclaration of a prelude name |
 | E0618 | Unused local variable (added by chapter 9; discard with `let _ = expr`) |
+| E0619 | Section not allowed in a module of `tests/` (added in M3) |
+| E0620 | `pub` import outside `src/lib.wolf` (added in M3) |
 
 ## 10. Decisions for the author
 
