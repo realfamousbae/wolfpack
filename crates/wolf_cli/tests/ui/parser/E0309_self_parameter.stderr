@@ -1,0 +1,13 @@
+error[E0309]: unexpected `self` parameter
+   --> parser/E0309_self_parameter.wolf:11:33
+   |
+11 |         fn add(amount: Int, mut self) {
+   |                                 ^^^^ `self` must be the first parameter
+
+error[E0309]: unexpected `self` parameter
+   --> parser/E0309_self_parameter.wolf:18:18
+   |
+18 |     fn reset(mut self) {
+   |                  ^^^^ only methods in `impl` and `interface` have `self`
+
+error: aborting due to 2 errors

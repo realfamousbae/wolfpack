@@ -1,0 +1,16 @@
+error[E0302]: unclosed `{`
+  --> parser/recovery_unclosed_function.wolf:4:15
+  |
+4 |     fn main() {
+  |               ^ this `{` is never closed
+  .
+7 | tests {
+  | ----- a section starts here
+
+error[E0301]: expected an expression, found `)`
+  --> parser/recovery_unclosed_function.wolf:9:20
+  |
+9 |         assert(1 + )
+  |                    ^ expected an expression
+
+error: aborting due to 2 errors

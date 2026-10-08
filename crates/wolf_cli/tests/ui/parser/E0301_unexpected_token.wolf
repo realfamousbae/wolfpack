@@ -1,0 +1,8 @@
+module main
+
+functions {
+    fn main() {
+        let = 5
+        print("after the error")
+    }
+}

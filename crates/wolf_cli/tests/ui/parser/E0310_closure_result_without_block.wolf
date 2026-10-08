@@ -1,0 +1,7 @@
+module main
+
+functions {
+    fn main() {
+        let inc = |x: Int| -> Int x + 1
+    }
+}

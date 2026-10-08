@@ -1,0 +1,24 @@
+module main
+
+imports {
+    std.io as
+}
+
+types {
+    struct Point {
+        x: Int
+        y Int
+    }
+}
+
+functions {
+    fn main() {
+        let a = (1 + 2
+        let b = 3
+        print(b.)
+    }
+
+    fn other() -> Int {
+        1 < 2 < 3
+    }
+}

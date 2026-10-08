@@ -77,8 +77,10 @@ fn ui_files_match_expected_stderr() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
+/// Every source diagnostic code has a UI test file named after it. Driver codes (E00xx) are
+/// tested by the CLI tests below.
 #[test]
-fn every_lexical_code_has_a_ui_test() {
+fn every_code_has_a_ui_test() {
     let mut files = Vec::new();
     wolf_files(&ui_dir(), &mut files);
     let names: Vec<String> = files
@@ -86,7 +88,7 @@ fn every_lexical_code_has_a_ui_test() {
         .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .collect();
     for code in wolf_diag::codes::ALL {
-        if code.id().starts_with("E01") {
+        if !code.id().starts_with("E00") {
             assert!(
                 names.iter().any(|n| n.starts_with(code.id())),
                 "no UI test for {}",

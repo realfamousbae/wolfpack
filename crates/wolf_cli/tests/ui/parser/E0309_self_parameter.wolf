@@ -1,0 +1,21 @@
+module main
+
+types {
+    struct Counter {
+        value: Int
+    }
+}
+
+impl {
+    Counter {
+        fn add(amount: Int, mut self) {
+            self.value += amount
+        }
+    }
+}
+
+functions {
+    fn reset(mut self) {
+        print("no")
+    }
+}

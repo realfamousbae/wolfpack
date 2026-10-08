@@ -1,0 +1,11 @@
+module main
+
+functions {
+    fn main() {
+        print("the closing brace of this function is missing")
+
+tests {
+    test "still parsed" {
+        assert(1 + )
+    }
+}

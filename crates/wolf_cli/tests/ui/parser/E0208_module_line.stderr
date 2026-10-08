@@ -1,0 +1,9 @@
+error[E0208]: unexpected content after the module path
+  --> parser/E0208_module_line.wolf:1:13
+  |
+1 | module main {
+  |             ^ the `module` line contains only the path
+  |
+  = help: put the sections on the following lines
+
+error: aborting due to 1 error

@@ -1,0 +1,11 @@
+module main
+
+tests {
+    test "adds" {
+        assert(1 + 1 == 2)
+    }
+
+    test "adds" {
+        assert(2 + 2 == 4)
+    }
+}

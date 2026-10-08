@@ -1,0 +1,10 @@
+error[E0211]: duplicate test name "adds"
+  --> parser/E0211_duplicate_test.wolf:8:10
+  |
+4 |     test "adds" {
+  |          ------ first used here
+  .
+8 |     test "adds" {
+  |          ^^^^^^ used again here
+
+error: aborting due to 1 error

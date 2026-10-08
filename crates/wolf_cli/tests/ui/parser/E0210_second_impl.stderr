@@ -1,0 +1,12 @@
+error[E0210]: second inherent `impl` block for `Counter`
+   --> parser/E0210_second_impl.wolf:16:5
+   |
+10 |     Counter {
+   |     ------- first block
+   .
+16 |     Counter {
+   |     ^^^^^^^ second block
+   |
+   = help: put all methods of the type into one block
+
+error: aborting due to 1 error

@@ -1,0 +1,9 @@
+error[E0303]: binary operator `+` at the start of a line
+  --> parser/E0303_operator_at_line_start.wolf:6:13
+  |
+6 |             + tax
+  |             ^ this line cannot start with an operator
+  |
+  = help: move the operator to the end of the previous line
+
+error: aborting due to 1 error

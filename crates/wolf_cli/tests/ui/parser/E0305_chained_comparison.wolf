@@ -1,0 +1,7 @@
+module main
+
+functions {
+    fn between(x: Int) -> Bool {
+        1 < x < 10
+    }
+}

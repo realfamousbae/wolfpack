@@ -1,0 +1,13 @@
+module main
+
+extern {
+    python {
+        fn sqrt(x: Float) -> Float from "math.sqrt"
+    }
+    go {
+        fn upper(s: String) -> String from "strings.ToUpper"
+    }
+    go {
+        fn lower(s: String) -> String from "strings.ToLower"
+    }
+}

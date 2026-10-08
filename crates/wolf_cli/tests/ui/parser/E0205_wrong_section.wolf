@@ -1,0 +1,11 @@
+module main
+
+functions {
+    struct Point {
+        x: Int
+    }
+
+    fn main() {
+        print("hi")
+    }
+}

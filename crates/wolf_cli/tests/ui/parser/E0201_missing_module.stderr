@@ -1,0 +1,9 @@
+error[E0201]: the file does not start with `module`
+  --> parser/E0201_missing_module.wolf:1:1
+  |
+1 | functions {
+  | ^^^^^^^^^ expected `module` here
+  |
+  = help: add `module <path>` as the first line, for example `module main`
+
+error: aborting due to 1 error

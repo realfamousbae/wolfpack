@@ -1,0 +1,9 @@
+error[E0304]: `else` on a new line
+  --> parser/E0304_else_on_new_line.wolf:8:9
+  |
+8 |         else {
+  |         ^^^^ `else` must follow `}` on the same line
+  |
+  = help: write `} else {`
+
+error: aborting due to 1 error

@@ -1,0 +1,9 @@
+error[E0305]: comparison operators cannot be chained
+  --> parser/E0305_chained_comparison.wolf:5:15
+  |
+5 |         1 < x < 10
+  |               ^ second comparison
+  |
+  = help: use `&&`: `a < b && b < c`
+
+error: aborting due to 1 error

@@ -1,0 +1,13 @@
+module main
+
+function {
+    fn main() {
+        print("hi")
+    }
+}
+
+helpers {
+    fn other() {
+        print("x")
+    }
+}

@@ -1,0 +1,12 @@
+error[E0203]: duplicate section `types`
+  --> parser/E0203_duplicate_section.wolf:9:1
+  |
+3 | types {
+  | ----- first section
+  .
+9 | types {
+  | ^^^^^ second section with this name
+  |
+  = help: merge the entries into the first `types` section
+
+error: aborting due to 1 error

@@ -1,0 +1,11 @@
+module main
+
+/// Helper functions.
+functions {
+    fn main() {
+        /// Prints a greeting.
+        print("hi")
+    }
+
+    /// Nothing follows this comment.
+}

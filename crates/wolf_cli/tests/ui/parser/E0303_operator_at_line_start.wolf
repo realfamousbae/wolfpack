@@ -1,0 +1,9 @@
+module main
+
+functions {
+    fn total(price: Int, tax: Int) -> Int {
+        let total = price
+            + tax
+        total
+    }
+}

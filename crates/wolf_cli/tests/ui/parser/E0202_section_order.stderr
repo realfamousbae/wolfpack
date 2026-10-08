@@ -1,0 +1,19 @@
+error[E0202]: section `types` is out of order
+  --> parser/E0202_section_order.wolf:9:1
+  |
+3 | functions {
+  | --------- `functions` must come after it
+  .
+9 | types {
+  | ^^^^^ this section comes too late
+  |
+  = help: move `types` before `functions`
+  = note: the order is: imports, extern, config, types, interfaces, impl, functions, tests
+
+error[E0102]: unexpected character `@`
+   --> parser/E0202_section_order.wolf:12:16
+   |
+12 |         y: Int @
+   |                ^ this character is not valid here
+
+error: aborting due to 2 errors

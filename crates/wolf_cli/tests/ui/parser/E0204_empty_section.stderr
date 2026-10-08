@@ -1,0 +1,17 @@
+error[E0204]: empty extern block `go`
+  --> parser/E0204_empty_section.wolf:4:5
+  |
+4 |     go {
+  |     ^^ this block has no declarations
+  |
+  = help: remove the block
+
+error[E0204]: empty section `types`
+  --> parser/E0204_empty_section.wolf:8:1
+  |
+8 | types {
+  | ^^^^^ this section has no entries
+  |
+  = help: remove the section; empty sections are not written
+
+error: aborting due to 2 errors

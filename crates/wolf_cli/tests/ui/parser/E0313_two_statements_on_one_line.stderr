@@ -1,0 +1,9 @@
+error[E0313]: two statements on one line
+  --> parser/E0313_two_statements_on_one_line.wolf:5:19
+  |
+5 |         let a = 1 let b = 2
+  |                   ^^^ a new statement starts here
+  |
+  = help: there is no `;`: put each statement on its own line
+
+error: aborting due to 1 error

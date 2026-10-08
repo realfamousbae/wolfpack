@@ -1,0 +1,9 @@
+error[E0312]: float literal in a pattern
+  --> parser/E0312_float_in_pattern.wolf:6:13
+  |
+6 |             1.5 => "one and a half"
+  |             ^^^ floats cannot be matched exactly
+  |
+  = help: compare with `<` and `>` in an `if` instead
+
+error: aborting due to 1 error

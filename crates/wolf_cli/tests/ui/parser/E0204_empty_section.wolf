@@ -1,0 +1,9 @@
+module main
+
+extern {
+    go {
+    }
+}
+
+types {
+}

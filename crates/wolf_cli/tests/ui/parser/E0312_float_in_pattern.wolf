@@ -1,0 +1,10 @@
+module main
+
+functions {
+    fn name(x: Float) -> String {
+        match x {
+            1.5 => "one and a half"
+            _ => "other"
+        }
+    }
+}

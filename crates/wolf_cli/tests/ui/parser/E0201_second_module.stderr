@@ -1,0 +1,9 @@
+error[E0201]: the `module` line appears twice
+  --> parser/E0201_second_module.wolf:2:1
+  |
+2 | module other
+  | ^^^^^^ second `module` line
+  |
+  = help: a file has exactly one `module` line, the first line
+
+error: aborting due to 1 error

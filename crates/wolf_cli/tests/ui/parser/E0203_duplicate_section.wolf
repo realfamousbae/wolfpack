@@ -1,0 +1,13 @@
+module main
+
+types {
+    struct A {
+        x: Int
+    }
+}
+
+types {
+    struct B {
+        y: Int
+    }
+}

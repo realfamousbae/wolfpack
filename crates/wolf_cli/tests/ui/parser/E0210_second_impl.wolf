@@ -1,0 +1,21 @@
+module main
+
+types {
+    struct Counter {
+        value: Int
+    }
+}
+
+impl {
+    Counter {
+        fn get(self) -> Int {
+            self.value
+        }
+    }
+
+    Counter {
+        fn reset(mut self) {
+            self.value = 0
+        }
+    }
+}

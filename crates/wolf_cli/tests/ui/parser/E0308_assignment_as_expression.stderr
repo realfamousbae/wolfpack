@@ -1,0 +1,19 @@
+error[E0308]: assignment used as an expression
+  --> parser/E0308_assignment_as_expression.wolf:7:15
+  |
+7 |         a = b = 3
+  |               ^ assignment is a statement, not an expression
+  |
+  = help: write the assignment on its own line
+
+error[E0308]: invalid left side of an assignment
+  --> parser/E0308_assignment_as_expression.wolf:8:9
+  |
+8 |         a + 1 = 5
+  |         ^^^^^ - assignment here
+  |         |      
+  |         this is not a place that can be assigned
+  |
+  = note: a place is a variable, `self`, a field or an index, like `user.name` or `items[i]`
+
+error: aborting due to 2 errors

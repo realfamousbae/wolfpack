@@ -1,0 +1,14 @@
+module main
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}
+
+types {
+    struct Point {
+        x: Int
+        y: Int @
+    }
+}

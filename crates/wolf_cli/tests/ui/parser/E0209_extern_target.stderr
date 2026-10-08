@@ -1,0 +1,18 @@
+error[E0209]: unknown extern target `python`
+  --> parser/E0209_extern_target.wolf:4:5
+  |
+4 |     python {
+  |     ^^^^^^ not a target
+  |
+  = help: targets are `ts`, `go` and `rust`
+
+error[E0209]: duplicate extern block `go`
+   --> parser/E0209_extern_target.wolf:10:5
+   |
+ 7 |     go {
+   |     -- first block
+   .
+10 |     go {
+   |     ^^ second block for this target
+
+error: aborting due to 2 errors

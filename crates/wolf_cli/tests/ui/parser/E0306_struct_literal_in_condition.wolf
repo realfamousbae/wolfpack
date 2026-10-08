@@ -1,0 +1,10 @@
+module main
+
+functions {
+    fn is_origin(p: Point) -> Bool {
+        if p == Point { x: 0, y: 0 } {
+            return true
+        }
+        false
+    }
+}

@@ -1,0 +1,9 @@
+error[E0306]: struct literal in a condition needs parentheses
+  --> parser/E0306_struct_literal_in_condition.wolf:5:17
+  |
+5 |         if p == Point { x: 0, y: 0 } {
+  |                 ^^^^^ this looks like a struct literal
+  |
+  = help: wrap it in parentheses: `(Point { x: 0, y: 0 })`
+
+error: aborting due to 1 error

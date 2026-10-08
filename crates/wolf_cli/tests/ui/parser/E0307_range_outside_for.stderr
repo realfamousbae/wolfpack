@@ -1,0 +1,7 @@
+error[E0307]: range outside `for` or index brackets
+  --> parser/E0307_range_outside_for.wolf:5:18
+  |
+5 |         let r = 0..10
+  |                  ^^ ranges are allowed only in `for i in a..b` and `items[a..b]`
+
+error: aborting due to 1 error

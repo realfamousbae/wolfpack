@@ -1,0 +1,23 @@
+error[E0212]: doc comment before a section
+  --> parser/E0212_doc_comment.wolf:3:1
+  |
+3 | /// Helper functions.
+  | ^^^^^^^^^^^^^^^^^^^^^ sections are not declarations
+  |
+  = help: use `//!` before the `module` line to document the module
+
+error[E0212]: doc comment inside a function body
+  --> parser/E0212_doc_comment.wolf:6:9
+  |
+6 |         /// Prints a greeting.
+  |         ^^^^^^^^^^^^^^^^^^^^^^ doc comments document declarations
+  |
+  = help: use `//` for a comment here
+
+error[E0212]: doc comment at the end of a section
+   --> parser/E0212_doc_comment.wolf:10:5
+   |
+10 |     /// Nothing follows this comment.
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this doc comment documents nothing
+
+error: aborting due to 3 errors
