@@ -167,7 +167,7 @@ primary    = INT | FLOAT | STRING | "true" | "false"
 list_lit   = "[" sep(expr, ",")? "]"
 map_lit    = "[" sep(expr ":" expr, ",") "]" | "[" ":" "]"
 struct_lit = path ( "." "<" sep(type, ",") ">" )? "{" sep(field_init, ",")? "}"
-path       = IDENT ( "." IDENT )*
+path       = ( IDENT | "Self" ) ( "." IDENT )*
 field_init = IDENT ( ":" expr )?
 
 if_expr    = "if" expr_no_struct block ( "else" ( if_expr | block ) )?
@@ -191,7 +191,10 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
 5. **`|` disambiguation.** `|` (and `||`) at the start of an operand begins a closure; between two
    operands it is the bitwise (logical) operator.
 6. **Struct literals** are `User { id: 1, name: "Ann" }` **[PLAN]**. Type arguments in a literal
-   use the expression form: `Stack.<Int> { items: [] }`, not `Stack<Int> { ... }`. A field whose value is a
+   use the expression form: `Stack.<Int> { items: [] }`, not `Stack<Int> { ... }`.
+   Inside an `impl` block the path may start with `Self`, which names the type of the block:
+   `Self { count: 0 }`, `Self.Leaf` (author, 2026-10-08). Outside `impl` blocks `Self` is an
+   error reported by name resolution. A field whose value is a
    variable of the same name may be shortened: `User { id, name }` **[PROPOSAL]**. There is no
    update syntax (`..other`).
 7. **Struct literals in conditions.** In the condition of `if`, `while`, the scrutinee of `match`
@@ -246,7 +249,7 @@ alt         = "_"
             | path ( "(" sep(pattern, ",") ")"
                    | "{" sep(field_pat, ",") ( "," ".." )? "}" )?
 field_pat   = IDENT ( ":" pattern )?
-path        = IDENT ( "." IDENT )*
+path        = ( IDENT | "Self" ) ( "." IDENT )*
 ```
 
 1. Patterns appear only in `match` arms in v1. **[PROPOSAL]**
@@ -259,6 +262,8 @@ path        = IDENT ( "." IDENT )*
    (`StorageError.Full`), so in practice only `None` and constants are affected. **[PROPOSAL]**
 4. In an alternative `A | B`, both sides must bind the same names (checked in chapter 4).
 5. Float literals in patterns are not allowed (rejected after parsing). **[PROPOSAL]**
+6. Inside an `impl` block a pattern path may start with `Self`: `Self.Node(left, v, right)`,
+   `Self { x, .. }` (author, 2026-10-08).
 
 ## 8. Full example
 
