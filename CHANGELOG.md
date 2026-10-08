@@ -4,6 +4,24 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M2: Parser and skeleton (2026-10-08)
+
+- `wolf_ast`: the syntax tree for spec chapters 2 and 3, with node ids for later phases and a
+  span-free text dump.
+- `wolf_parser`: recursive descent with a Pratt parser for expressions, the newline rules of
+  chapter 1 (innermost delimiter decides, trailing operators and leading `.` continue a line),
+  struct-literal restriction in conditions, `>>` splitting in type arguments.
+- Skeleton checks E0201–E0212 (order, duplicates, empty sections, misplaced declarations, unknown
+  sections, extern targets, inherent impls, test names, doc comment placement) and parser errors
+  E0301–E0314.
+- Error recovery: a lexer error silences the rest of its line, an error skips to the end of the
+  line or the closing delimiter, a section header inside a block closes the open blocks.
+- Nesting limit of 256 levels (E0314, new in the spec); the compiler runs on a 64 MiB thread so
+  that the limit always fits on the stack.
+- `wolf check` now lexes and parses; `--emit ast` prints the tree.
+- Tests: AST snapshots of all 16 example files, grammar unit tests, nesting tests for every kind
+  of deep input, a never-panic test on generated token soup, and UI tests for every code.
+
 ## M1: Foundation (2026-10-08)
 
 - Cargo workspace with lints (`unsafe_code` forbidden; `unwrap`, `expect`, `panic` denied outside
