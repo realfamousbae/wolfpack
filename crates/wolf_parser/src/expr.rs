@@ -714,7 +714,8 @@ impl Parser<'_> {
                 } else {
                     None
                 };
-                fields.push(FieldInit { name, value });
+                let id = p.id();
+                fields.push(FieldInit { id, name, value });
                 if !p.eat(&TokenKind::Comma) {
                     break;
                 }

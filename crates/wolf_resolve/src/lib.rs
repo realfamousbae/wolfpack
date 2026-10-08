@@ -175,8 +175,8 @@ pub enum Res {
     Module(ModuleId),
     /// A local variable, parameter or binding.
     Local(LocalId),
-    /// A type parameter of the enclosing declaration, by name index.
-    TypeParam(u32),
+    /// A type parameter, identified by the span of its declaration.
+    TypeParam(Span),
     /// `Self` inside an `impl` block or an interface.
     SelfType,
 }
@@ -212,8 +212,12 @@ pub struct Resolved {
     pub defs: Vec<Def>,
     /// All locals.
     pub locals: Vec<Local>,
-    /// What each resolved node names: `Name` and `Field` expressions, types, patterns.
+    /// What each resolved node names: `Name` and `Field` expressions, types, patterns, struct
+    /// literals and the shorthand fields of struct literals and patterns.
     pub res: BTreeMap<(FileId, NodeId), Res>,
+    /// The local declared at each name span (`let`, `var`, parameters, loop variables, closure
+    /// parameters, pattern bindings).
+    pub local_decls: BTreeMap<Span, LocalId>,
     /// Members (variants and inherent functions) of each type.
     pub members: BTreeMap<DefId, BTreeMap<String, DefId>>,
     /// Diagnostics of chapter 6.

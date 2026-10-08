@@ -1,13 +1,19 @@
 module main
 
 config {
+    port: Port = 80
     limit: String = "a"
     ratio: Float = 0.5
+}
+
+types {
+    type Port = Int
 }
 
 functions {
     fn main() {
         print(limit)
+        print(port.to_string())
         print(ratio.to_string())
     }
 }

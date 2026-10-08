@@ -4,6 +4,22 @@ types {
     pub struct Circle {
         pub r: Float
     }
+
+    pub struct Detail {
+        pub note: String
+    }
+
+    pub enum Kind {
+        Round(Detail)
+    }
+}
+
+impl {
+    Circle {
+        pub fn detail(self) -> Detail {
+            Detail { note: "x" }
+        }
+    }
 }
 
 functions {

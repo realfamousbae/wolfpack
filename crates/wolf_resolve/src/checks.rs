@@ -16,6 +16,7 @@ pub(crate) fn run(r: &mut Resolver<'_>) {
     for (index, input) in inputs.iter().enumerate() {
         let module = ModuleId(index as u32);
         module_line(r, input);
+        intrinsics(r, input);
         test_sections(r, input);
         entry(r, input);
         signatures(r, module, input);
@@ -45,6 +46,40 @@ fn module_line(r: &mut Resolver<'_>, input: &ModuleInput<'_>) {
                 format!("the file path gives `{}`", join(&input.path)),
             )
             .help(format!("write `module {}`", join(&input.path))),
+        );
+    }
+}
+
+/// `intrinsic` functions, methods and types exist only in std (E0701).
+fn intrinsics(r: &mut Resolver<'_>, input: &ModuleInput<'_>) {
+    if matches!(input.role, Role::Std | Role::Prelude) {
+        return;
+    }
+    let mut spans: Vec<Span> = Vec::new();
+    for section in &input.ast.sections {
+        for item in &section.items {
+            match &item.kind {
+                ItemKind::Fn(decl) if decl.intrinsic => spans.push(decl.sig.name.span),
+                ItemKind::IntrinsicType(decl) => spans.push(decl.name.span),
+                ItemKind::Impl(block) => spans.extend(
+                    block
+                        .methods
+                        .iter()
+                        .filter(|m| m.decl.intrinsic)
+                        .map(|m| m.decl.sig.name.span),
+                ),
+                _ => {}
+            }
+        }
+    }
+    for span in spans {
+        r.report(
+            Diagnostic::new(codes::E0701, "`intrinsic` outside `std`")
+                .primary(
+                    span,
+                    "only the standard library declares intrinsic functions and types",
+                )
+                .help("give the function a body, or use `extern` for code of the target language"),
         );
     }
 }
@@ -199,6 +234,13 @@ fn signatures(r: &mut Resolver<'_>, module: ModuleId, input: &ModuleInput<'_>) {
                     "interface"
                 }
                 ItemKind::Impl(block) if block.interface.is_none() => {
+                    // Methods of a private type are visible only where the type is.
+                    let owner_public = lookup_type(r, module, &block.type_name.name)
+                        .and_then(|d| r.def(d))
+                        .is_some_and(|d| d.public);
+                    if !owner_public {
+                        continue;
+                    }
                     for method in block.methods.iter().filter(|m| m.decl.public) {
                         sig_types(&method.decl.sig, &mut types);
                     }
@@ -231,6 +273,50 @@ fn signatures(r: &mut Resolver<'_>, module: ModuleId, input: &ModuleInput<'_>) {
             }
         }
     }
+}
+
+fn lookup_type(r: &Resolver<'_>, module: ModuleId, name: &str) -> Option<DefId> {
+    r.module(module).and_then(|m| m.items.get(name).copied())
+}
+
+/// The types in the public parts of a declaration: what other modules can see of it.
+fn public_types<'a>(item: &'a Item, out: &mut Vec<&'a Ty>) {
+    match &item.kind {
+        ItemKind::Fn(decl) => sig_types(&decl.sig, out),
+        ItemKind::Struct(decl) => {
+            out.extend(decl.fields.iter().filter(|f| f.public).map(|f| &f.ty))
+        }
+        ItemKind::Enum(decl) => {
+            for variant in &decl.variants {
+                match &variant.payload {
+                    VariantPayload::Tuple(list) => out.extend(list.iter()),
+                    VariantPayload::Struct(fields) => out.extend(fields.iter().map(|f| &f.ty)),
+                    VariantPayload::None => {}
+                }
+            }
+        }
+        ItemKind::Alias(decl) => out.push(&decl.ty),
+        ItemKind::Config(entry) => out.push(&entry.ty),
+        ItemKind::Interface(decl) => {
+            for method in &decl.methods {
+                sig_types(&method.sig, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The name span of a declaration, to match it with its definition.
+fn name_span(item: &Item) -> Option<Span> {
+    Some(match &item.kind {
+        ItemKind::Fn(decl) => decl.sig.name.span,
+        ItemKind::Struct(decl) => decl.name.span,
+        ItemKind::Enum(decl) => decl.name.span,
+        ItemKind::Alias(decl) => decl.name.span,
+        ItemKind::Config(entry) => entry.name.span,
+        ItemKind::Interface(decl) => decl.name.span,
+        _ => return None,
+    })
 }
 
 fn sig_types<'a>(sig: &'a FnSig, out: &mut Vec<&'a Ty>) {
@@ -303,14 +389,19 @@ fn library_api(r: &mut Resolver<'_>) {
         let mut types: Vec<&Ty> = Vec::new();
         for section in &input.ast.sections {
             for item in &section.items {
-                match &item.kind {
-                    ItemKind::Fn(decl) if decl.sig.name.span == d.span => {
-                        sig_types(&decl.sig, &mut types)
+                if name_span(item) == Some(d.span) {
+                    public_types(item, &mut types);
+                }
+                // The `pub` methods of an exported type are part of the API too.
+                if let ItemKind::Impl(block) = &item.kind {
+                    if block.interface.is_none()
+                        && block.type_name.name == d.name
+                        && d.kind.is_type()
+                    {
+                        for method in block.methods.iter().filter(|m| m.decl.public) {
+                            sig_types(&method.decl.sig, &mut types);
+                        }
                     }
-                    ItemKind::Struct(decl) if decl.name.span == d.span => {
-                        types.extend(decl.fields.iter().filter(|f| f.public).map(|f| &f.ty))
-                    }
-                    _ => {}
                 }
             }
         }
@@ -380,7 +471,11 @@ fn config_overrides(r: &mut Resolver<'_>) {
         };
         let declared = declared_type(r, module, def);
         let expected = o.value.type_name();
-        if let Some(declared) = declared {
+        // A constant whose type is an alias (`type Port = Int`) is checked with types (M4).
+        let builtin = declared
+            .as_deref()
+            .is_some_and(|t| matches!(t, "Int" | "Float" | "Bool" | "String"));
+        if let Some(declared) = declared.filter(|_| builtin) {
             if declared != expected {
                 let hint = match (&o.value, declared.as_str()) {
                     (ConfigValue::Int(_), "Float") => " (write a float such as `1.0`)",

@@ -6,6 +6,14 @@ types {
     }
 }
 
+impl {
+    Secret {
+        pub fn clone_it(self) -> Secret {
+            Secret { x: self.x }
+        }
+    }
+}
+
 functions {
     pub fn make() -> Secret {
         Secret { x: 1 }

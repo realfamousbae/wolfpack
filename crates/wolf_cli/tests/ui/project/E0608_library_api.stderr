@@ -1,9 +1,17 @@
-error[E0608]: type `Circle` is used by the library API but not exported
-   --> src/shapes.wolf:10:22
+error[E0608]: type `Detail` is used by the library API but not exported
+   --> src/shapes.wolf:13:15
    |
-10 |     pub fn make() -> Circle {
-   |                      ^^^^^^ used by `make`, which `lib` exports
+13 |         Round(Detail)
+   |               ^^^^^^ used by `Kind`, which `lib` exports
    |
-   = help: re-export `Circle` in `src/lib.wolf` with a `pub` import
+   = help: re-export `Detail` in `src/lib.wolf` with a `pub` import
 
-error: aborting due to 1 error
+error[E0608]: type `Detail` is used by the library API but not exported
+   --> src/shapes.wolf:19:32
+   |
+19 |         pub fn detail(self) -> Detail {
+   |                                ^^^^^^ used by `Circle`, which `lib` exports
+   |
+   = help: re-export `Detail` in `src/lib.wolf` with a `pub` import
+
+error: aborting due to 2 errors

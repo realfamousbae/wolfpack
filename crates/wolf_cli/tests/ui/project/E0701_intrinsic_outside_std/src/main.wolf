@@ -1,0 +1,13 @@
+module main
+
+types {
+    intrinsic type Handle
+}
+
+functions {
+    intrinsic fn fast() -> Int
+
+    fn main() {
+        print(fast().to_string())
+    }
+}

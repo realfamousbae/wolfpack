@@ -770,6 +770,8 @@ pub enum ExprKind {
 /// A field in a struct literal.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldInit {
+    /// Node id, for what a shorthand field names.
+    pub id: NodeId,
     /// The field name.
     pub name: Ident,
     /// The value; `None` for the shorthand `User { id }`.
@@ -937,6 +939,8 @@ pub enum PatKind {
 /// A field in a struct pattern.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldPat {
+    /// Node id, for the binding of a shorthand field.
+    pub id: NodeId,
     /// The field name.
     pub name: Ident,
     /// The sub-pattern; `None` for the shorthand `{ x }`.

@@ -165,13 +165,16 @@ pub const E0619: Code = Code::new("E0619", "section not allowed in a module of `
 /// `pub` import outside `src/lib.wolf`.
 pub const E0620: Code = Code::new("E0620", "`pub` import outside `src/lib.wolf`");
 
+/// `intrinsic` outside std.
+pub const E0701: Code = Code::new("E0701", "`intrinsic` outside `std`");
+
 /// Every code in use, in order.
 pub const ALL: &[Code] = &[
     E0001, E0002, E0003, E0004, E0101, E0102, E0103, E0104, E0105, E0106, E0107, E0108, E0109,
     E0110, E0111, E0112, E0113, E0201, E0202, E0203, E0204, E0205, E0206, E0207, E0208, E0209,
     E0210, E0211, E0212, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309, E0310,
     E0311, E0312, E0313, E0314, E0402, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608,
-    E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620,
+    E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620, E0701,
 ];
 
 /// Codes that were used once and must never be used again.

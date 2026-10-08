@@ -17,9 +17,9 @@ error[E0613]: constant `main.ratio` is `Float`, but the override is `Int`
   |         ^ expected a value of type `Float` (write a float such as `1.0`)
 
 error[E0613]: config override for unknown module `nowhere`
-   --> wolfpack.toml:12:1
+   --> wolfpack.toml:13:1
    |
-12 | x = 1
+13 | x = 1
    | ^ no module with this path in `src/`
 
 error: aborting due to 4 errors

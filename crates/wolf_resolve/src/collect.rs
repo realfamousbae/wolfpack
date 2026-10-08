@@ -9,8 +9,8 @@ use wolf_span::{FileId, Span};
 
 use crate::names::{is_pascal_case, is_snake_case, suggest, to_pascal, to_snake};
 use crate::{
-    Def, DefId, DefKind, Local, ModuleId, ModuleInfo, ModuleInput, Payload, ProjectInfo, Res,
-    Resolved, Role,
+    Def, DefId, DefKind, Local, LocalId, ModuleId, ModuleInfo, ModuleInput, Payload, ProjectInfo,
+    Res, Resolved, Role,
 };
 
 /// What a module-level name refers to.
@@ -100,6 +100,12 @@ impl<'a> Resolver<'a> {
     }
 
     pub(crate) fn finish(self) -> Resolved {
+        let local_decls = self
+            .locals
+            .iter()
+            .enumerate()
+            .map(|(i, l)| (l.span, LocalId(u32::try_from(i).unwrap_or(u32::MAX))))
+            .collect();
         Resolved {
             modules: self
                 .modules
@@ -113,6 +119,7 @@ impl<'a> Resolver<'a> {
                 .collect(),
             defs: self.defs,
             locals: self.locals,
+            local_decls,
             res: self.res,
             members: self.members,
             diagnostics: self.diagnostics,
@@ -693,6 +700,38 @@ impl<'a> Resolver<'a> {
             .filter(|(name, _)| self.prelude.contains_key(*name))
             .filter_map(|(name, def)| self.def(*def).map(|d| (name.clone(), d.span)))
             .collect();
+        let state = self.module(module);
+        let helper_clashes: Vec<(String, Span, Option<Span>)> = state
+            .map(|s| {
+                s.test_items
+                    .iter()
+                    .filter_map(|(name, def)| {
+                        let span = self.def(*def)?.span;
+                        let other = s.items.get(name).and_then(|d| self.def(*d)).map(|d| d.span);
+                        if other.is_some() || self.prelude.contains_key(name) {
+                            Some((name.clone(), span, other))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        for (name, span, other) in helper_clashes {
+            match other {
+                Some(first) => self.report(
+                    Diagnostic::new(codes::E0605, format!("`{name}` is declared twice"))
+                        .primary(span, "test helper with the name of a declaration")
+                        .secondary(first, "declared here")
+                        .help("rename the helper"),
+                ),
+                None => self.report(
+                    Diagnostic::new(codes::E0617, format!("`{name}` is a prelude name"))
+                        .primary(span, "this would hide the prelude name in the tests")
+                        .help("choose another name"),
+                ),
+            }
+        }
         for (name, span) in clashes {
             self.report(
                 Diagnostic::new(codes::E0617, format!("`{name}` is a prelude name"))

@@ -1,5 +1,5 @@
 module lib
 
 imports {
-    pub shapes.{make}
+    pub shapes.{make, Kind, Circle}
 }

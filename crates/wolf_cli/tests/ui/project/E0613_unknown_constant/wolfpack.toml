@@ -7,6 +7,7 @@ kind = "cli"
 max_users = 10
 limit = 2
 ratio = 1
+port = 8080
 
 [config.nowhere]
 x = 1

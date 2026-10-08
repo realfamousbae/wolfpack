@@ -45,4 +45,23 @@ error[E0605]: `Point` is declared twice
    |
    = help: types and values share one namespace; rename one of them
 
-error: aborting due to 5 errors
+error[E0605]: `size` is declared twice
+   --> src/main.wolf:34:8
+   |
+20 |     fn size() -> Int {
+   |        ---- declared here
+   .
+34 |     fn size() -> Int {
+   |        ^^^^ test helper with the name of a declaration
+   |
+   = help: rename the helper
+
+error[E0617]: `assert` is a prelude name
+   --> src/main.wolf:38:8
+   |
+38 |     fn assert() {
+   |        ^^^^^^ this would hide the prelude name in the tests
+   |
+   = help: choose another name
+
+error: aborting due to 7 errors

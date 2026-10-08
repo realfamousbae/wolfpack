@@ -15,8 +15,8 @@ use crate::{DefId, DefKind, Local, LocalId, ModuleId, Payload, Res};
 struct Ctx {
     module: ModuleId,
     in_tests: bool,
-    /// Type parameters in scope, innermost last.
-    generics: Vec<String>,
+    /// Type parameters in scope with their declaring spans, innermost last.
+    generics: Vec<(String, Span)>,
     /// `Self`: `Some(None)` inside an interface, `Some(Some(owner))` inside an impl block.
     self_type: Option<Option<DefId>>,
     /// Whether `self` is a parameter of the current function.
@@ -39,10 +39,23 @@ enum Head {
     Value,
 }
 
+/// How a local was introduced, for the E0618 rule and its hint.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    /// `let`
+    Let,
+    /// `var`
+    Var,
+    /// A binding in a pattern.
+    Pattern,
+    /// Parameters and loop variables: exempt from E0618.
+    Exempt,
+}
+
 pub(crate) struct Locals {
     scopes: Vec<Scope>,
-    /// Whether each local must be used (E0618), and whether it was.
-    must_use: Vec<bool>,
+    /// How each local was introduced, and whether it was used.
+    kinds: Vec<Kind>,
     used: Vec<bool>,
 }
 
@@ -73,7 +86,7 @@ impl Resolver<'_> {
     fn item(&mut self, ctx: &Ctx, item: &Item, impl_owner: Option<DefId>) {
         let mut locals = Locals {
             scopes: Vec::new(),
-            must_use: Vec::new(),
+            kinds: Vec::new(),
             used: Vec::new(),
         };
         match &item.kind {
@@ -165,7 +178,8 @@ impl Resolver<'_> {
                 );
             }
             seen.insert(param.name.name.clone(), param.name.span);
-            ctx.generics.push(param.name.name.clone());
+            ctx.generics
+                .push((param.name.name.clone(), param.name.span));
         }
         for param in generics {
             for bound in &param.bounds {
@@ -186,7 +200,7 @@ impl Resolver<'_> {
                     self.ty(&ctx, ty);
                     self.style(name, false, "parameter");
                     // Unused parameters are allowed (chapter 9, section 2).
-                    self.declare(name, locals, false);
+                    self.declare(name, locals, Kind::Exempt);
                 }
             }
         }
@@ -207,13 +221,13 @@ impl Resolver<'_> {
 
     // ----- locals ---------------------------------------------------------------------------
 
-    fn declare(&mut self, name: &Ident, locals: &mut Locals, must_use: bool) -> LocalId {
+    fn declare(&mut self, name: &Ident, locals: &mut Locals, kind: Kind) -> LocalId {
         let id = LocalId(u32::try_from(self.locals.len()).unwrap_or(u32::MAX));
         self.locals.push(Local {
             name: name.name.clone(),
             span: name.span,
         });
-        locals.must_use.push(must_use);
+        locals.kinds.push(kind);
         locals.used.push(false);
         if let Some(scope) = locals.scopes.last_mut() {
             if let Some(first) = scope.names.get(&name.name).copied() {
@@ -244,24 +258,28 @@ impl Resolver<'_> {
         let Some(scope) = locals.scopes.pop() else {
             return;
         };
-        let mut unused: Vec<(String, Span)> = Vec::new();
+        let mut unused: Vec<(String, Span, Kind)> = Vec::new();
         for (name, id) in &scope.names {
             if let Some(i) = self.local_index(*id, locals) {
-                let must = locals.must_use.get(i).copied().unwrap_or(false);
+                let kind = locals.kinds.get(i).copied().unwrap_or(Kind::Exempt);
                 let used = locals.used.get(i).copied().unwrap_or(true);
-                if must && !used {
+                if kind != Kind::Exempt && !used {
                     if let Some(local) = self.locals.get(id.0 as usize) {
-                        unused.push((name.clone(), local.span));
+                        unused.push((name.clone(), local.span, kind));
                     }
                 }
             }
         }
-        unused.sort_by_key(|(_, span)| *span);
-        for (name, span) in unused {
+        unused.sort_by_key(|(_, span, _)| *span);
+        for (name, span, kind) in unused {
+            let help = match kind {
+                Kind::Pattern => "remove it, or replace the name with `_`",
+                _ => "remove it, or write `let _ = ...` to compute the value without keeping it",
+            };
             self.report(
                 Diagnostic::new(codes::E0618, format!("unused variable `{name}`"))
                     .primary(span, "this variable is never used")
-                    .help("remove it, or replace the name with `_`"),
+                    .help(help),
             );
         }
     }
@@ -488,8 +506,13 @@ impl Resolver<'_> {
     fn type_path(&mut self, ctx: &Ctx, path: &Path) -> Option<Res> {
         let (first, rest) = path.segments.split_first()?;
         if rest.is_empty() {
-            if let Some(index) = ctx.generics.iter().rposition(|g| *g == first.name) {
-                return Some(Res::TypeParam(u32::try_from(index).unwrap_or(u32::MAX)));
+            if let Some((_, span)) = ctx
+                .generics
+                .iter()
+                .rev()
+                .find(|(name, _)| *name == first.name)
+            {
+                return Some(Res::TypeParam(*span));
             }
         }
         let mut binding =
@@ -562,7 +585,10 @@ impl Resolver<'_> {
     fn stmt(&mut self, ctx: &Ctx, stmt: &Stmt, locals: &mut Locals) {
         match &stmt.kind {
             StmtKind::Let {
-                name, ty, value, ..
+                name,
+                ty,
+                value,
+                mutable,
             } => {
                 if let Some(ty) = ty {
                     self.ty(ctx, ty);
@@ -571,7 +597,8 @@ impl Resolver<'_> {
                 self.expr(ctx, value, locals);
                 if let Some(name) = name {
                     self.style(name, false, "variable");
-                    self.declare(name, locals, true);
+                    let kind = if *mutable { Kind::Var } else { Kind::Let };
+                    self.declare(name, locals, kind);
                 }
             }
             StmtKind::Assign { target, value, .. } => {
@@ -593,7 +620,7 @@ impl Resolver<'_> {
                 locals.scopes.push(Scope::default());
                 self.style(var, false, "loop variable");
                 // Loop variables are exempt from E0618 (chapter 6, 3.2 rule 6).
-                self.declare(var, locals, false);
+                self.declare(var, locals, Kind::Exempt);
                 self.block(ctx, body, locals, true);
                 self.pop_scope(locals);
             }
@@ -660,7 +687,9 @@ impl Resolver<'_> {
                         Some(value) => self.expr(ctx, value, locals),
                         // `User { id }` uses the variable `id`.
                         None => {
-                            let _ = self.value_name(ctx, &field.name, locals);
+                            if let Some(res) = self.value_name(ctx, &field.name, locals) {
+                                self.record((file, field.id), res);
+                            }
                         }
                     }
                 }
@@ -695,7 +724,7 @@ impl Resolver<'_> {
                         self.ty(ctx, ty);
                     }
                     self.style(&param.name, false, "parameter");
-                    self.declare(&param.name, locals, false);
+                    self.declare(&param.name, locals, Kind::Exempt);
                 }
                 if let Some(ret) = ret {
                     self.ty(ctx, ret);
@@ -896,7 +925,7 @@ impl Resolver<'_> {
                     }
                 } else {
                     self.style(name, false, "binding");
-                    let id = self.declare(name, locals, true);
+                    let id = self.declare(name, locals, Kind::Pattern);
                     self.record((file, pat.id), Res::Local(id));
                 }
             }
@@ -922,7 +951,8 @@ impl Resolver<'_> {
                         Some(sub) => self.pattern(ctx, sub, locals),
                         None => {
                             self.style(&field.name, false, "binding");
-                            self.declare(&field.name, locals, true);
+                            let id = self.declare(&field.name, locals, Kind::Pattern);
+                            self.record((file, field.id), Res::Local(id));
                         }
                     }
                 }

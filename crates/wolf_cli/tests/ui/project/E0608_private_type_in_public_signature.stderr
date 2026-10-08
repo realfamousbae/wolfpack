@@ -1,7 +1,7 @@
 error[E0608]: private type `Secret` in a public function
-   --> src/shapes.wolf:10:22
+   --> src/shapes.wolf:18:22
    |
-10 |     pub fn make() -> Secret {
+18 |     pub fn make() -> Secret {
    |                      ^^^^^^ this type is private to the module
    |
    = help: mark `Secret` as `pub`, or make the function private

@@ -29,3 +29,17 @@ functions {
         print(size().to_string())
     }
 }
+
+tests {
+    fn size() -> Int {
+        2
+    }
+
+    fn assert() {
+        print("x")
+    }
+
+    test "sizes" {
+        assert()
+    }
+}

@@ -178,6 +178,17 @@ fn every_example_project_checks_cleanly() {
     }
 }
 
+/// Output does not depend on the directory `wolf check` runs from inside the project.
+#[test]
+fn output_is_the_same_from_a_subdirectory() {
+    for name in ["E0604_import_cycle", "E0618_unused_variable"] {
+        let dir = ui_dir().join("project").join(name);
+        let expected = fs::read_to_string(dir.with_extension("stderr")).unwrap();
+        let output = wolf(&dir.join("src"), &["check", "--color", "never"]);
+        assert_eq!(String::from_utf8_lossy(&output.stderr), expected, "{name}");
+    }
+}
+
 #[test]
 fn e0004_no_manifest() {
     let dir = std::env::temp_dir().join(format!("wolf_no_manifest_{}", std::process::id()));
