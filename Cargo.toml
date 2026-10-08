@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/wolf_span", "crates/wolf_diag", "crates/wolf_lexer", "crates/wolf_ast", "crates/wolf_cli"]
 exclude = ["fuzz"]
 
 [workspace.package]
@@ -14,6 +14,7 @@ repository = "https://github.com/realfamousbae/Wolfpack"
 wolf_span = { path = "crates/wolf_span" }
 wolf_diag = { path = "crates/wolf_diag" }
 wolf_lexer = { path = "crates/wolf_lexer" }
+wolf_ast = { path = "crates/wolf_ast" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
