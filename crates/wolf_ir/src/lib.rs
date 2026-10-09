@@ -332,6 +332,8 @@ pub struct Function {
     pub body: Option<Block>,
     /// The interface, for a function of an interface implementation.
     pub interface: Option<DefRef>,
+    /// A helper function of a `tests` section: part of test builds only.
+    pub in_tests: bool,
 }
 
 /// A `config` constant with its value.

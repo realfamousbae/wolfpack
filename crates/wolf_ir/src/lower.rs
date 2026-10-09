@@ -450,8 +450,9 @@ impl<'a> Lowerer<'a> {
         }
         let mut items = Vec::new();
         for section in &input.ast.sections {
+            let in_tests = section.kind == ast::SectionKind::Tests;
             for item in &section.items {
-                self.item(ctx, item, &mut methods, &mut items)?;
+                self.item(ctx, item, &mut methods, &mut items, in_tests)?;
             }
         }
         Ok(Module {
@@ -484,6 +485,7 @@ impl<'a> Lowerer<'a> {
         item: &'a ast::Item,
         methods: &mut BTreeMap<DefId, Vec<Function>>,
         out: &mut Vec<Item>,
+        in_tests: bool,
     ) -> Result<(), LowerError> {
         let def_of = |l: &Lowerer<'_>, name: &ast::Ident| l.def_at.get(&name.span).copied();
         match &item.kind {
@@ -591,6 +593,7 @@ impl<'a> Lowerer<'a> {
                         ret: self.ty(&sig.ret),
                         body: None,
                         interface: Some(Lowerer::dref(def)),
+                        in_tests: false,
                     });
                 }
                 out.push(Item::Interface(Interface {
@@ -624,6 +627,7 @@ impl<'a> Lowerer<'a> {
                     ret: self.ty(&sig.ret),
                     body,
                     interface: None,
+                    in_tests,
                 }));
             }
             ItemKind::Config(entry) => {
@@ -768,6 +772,7 @@ impl<'a> Lowerer<'a> {
             ret,
             body,
             interface: m.interface.map(Lowerer::dref),
+            in_tests: false,
         }))
     }
 
