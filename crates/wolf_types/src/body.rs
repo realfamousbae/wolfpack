@@ -206,6 +206,7 @@ impl<'a> Checker<'a> {
                 self.infer.poison(&ty);
             }
         }
+        self.check_pending_bounds();
         for check in std::mem::take(&mut b.deferred) {
             self.run_deferred(check);
         }
@@ -469,7 +470,8 @@ impl<'a> Checker<'a> {
                     self.expr(b, key, Some(&k));
                     self.expr(b, value, Some(&v));
                 }
-                if let Some(hashable) = self.b.hashable {
+                // With an expected type, the written type was checked already.
+                if let (Some(hashable), None) = (self.b.hashable, expected) {
                     b.deferred.push(Deferred::Bound {
                         ty: k.clone(),
                         interface: hashable,
@@ -657,6 +659,26 @@ impl<'a> Checker<'a> {
                             .iter()
                             .map(|s| (ParamId::Decl(*s), self.infer.fresh()))
                             .collect();
+                        // `Map.new()`: the bounds of the impl block apply to the new arguments.
+                        for (s, bounds) in m.impl_generics.iter().zip(&m.impl_bounds) {
+                            for bound in bounds {
+                                if let (Ty::Named(interface, _), Some(ty)) =
+                                    (bound, map.get(&ParamId::Decl(*s)))
+                                {
+                                    let why = if Some(*interface) == self.b.hashable {
+                                        "a map key".to_string()
+                                    } else {
+                                        format!("required by `{}`", d.name)
+                                    };
+                                    b.deferred.push(Deferred::Bound {
+                                        ty: ty.clone(),
+                                        interface: *interface,
+                                        span,
+                                        why,
+                                    });
+                                }
+                            }
+                        }
                         let (params, ret) =
                             self.instantiate(b, &m.sig, map, &d.name, span, explicit);
                         Ty::Fn(params, Box::new(ret))
@@ -1561,7 +1583,7 @@ impl<'a> Checker<'a> {
                     ty: item.clone(),
                     interface: copyable,
                     span: e.span,
-                    why: "a slice of a list, which copies its elements".to_string(),
+                    why: "slicing a list copies the elements and".to_string(),
                 });
             }
             return t;

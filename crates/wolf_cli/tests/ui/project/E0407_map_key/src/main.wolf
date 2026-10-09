@@ -1,9 +1,20 @@
 module main
 
+types {
+    struct Prices {
+        by_price: Map<Float, String>
+    }
+}
+
 functions {
+    fn count(groups: Map<List<Int>, String>) -> Int {
+        groups.len()
+    }
+
     fn main() {
-        let prices: Map<Float, String> = [:]
         let groups = [[1]: "one"]
-        let _ = [prices.len(), groups.len()]
+        var empty = Map.new()
+        empty[1.5] = 1
+        let _ = [groups.len(), empty.len()]
     }
 }

@@ -1,0 +1,23 @@
+module main
+
+functions {
+    fn first(items: List<Int>, ages: Map<String, Int>) -> Int {
+        let mixed = [1, "a"]
+        let _ = mixed
+        let x = items["x"]
+        let y = ages[1]
+        if x > y {
+            return
+        }
+        x
+    }
+
+    fn main() {
+        var total = 0
+        total += "a"
+        let fns = [|n: Int| n]
+        let part = fns[0..1]
+        let _ = part
+        print(first([1], [:]).to_string())
+    }
+}

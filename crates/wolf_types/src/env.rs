@@ -109,6 +109,8 @@ pub(crate) struct Method {
     pub(crate) module: ModuleId,
     /// The type parameters of the `impl` block, in the order of the type's parameters.
     pub(crate) impl_generics: Vec<Span>,
+    /// The bounds of the `impl` block's type parameters, in the same order.
+    pub(crate) impl_bounds: Vec<Vec<Ty>>,
     pub(crate) sig: Sig,
     pub(crate) public: bool,
     /// The interface, for a function of an interface implementation.
@@ -197,6 +199,8 @@ pub(crate) struct Checker<'a> {
     pub(crate) const_written: BTreeMap<DefId, (ast::Ty, FileId)>,
     /// Values from `[config]` in `wolfpack.toml`.
     pub(crate) overrides: BTreeMap<DefId, ConstValue>,
+    /// Bounds of type arguments in written types, waiting for [`Checker::check_pending_bounds`].
+    pub(crate) pending_bounds: Vec<(Ty, DefId, Span)>,
 }
 
 impl<'a> Checker<'a> {
@@ -239,6 +243,7 @@ impl<'a> Checker<'a> {
             const_failed: BTreeSet::new(),
             const_written: BTreeMap::new(),
             overrides: BTreeMap::new(),
+            pending_bounds: Vec::new(),
         }
     }
 
@@ -446,7 +451,36 @@ impl<'a> Checker<'a> {
         if kind == DefKind::Alias {
             return self.expand_alias(def, args);
         }
+        // Bounds of the type's parameters (`Map<K: Hashable, V>`), checked once all types are
+        // known. Types that mention type parameters are checked with generics (M5).
+        let bounds: Vec<Vec<Ty>> = self
+            .type_generics
+            .get(&def)
+            .map(|g| g.iter().map(|g| g.bounds.clone()).collect())
+            .unwrap_or_default();
+        for (arg, bounds) in args.iter().zip(bounds) {
+            for bound in bounds {
+                if let Ty::Named(interface, _) = bound {
+                    self.pending_bounds.push((arg.clone(), interface, span));
+                }
+            }
+        }
         Ty::Named(def, args)
+    }
+
+    /// Checks the bounds recorded while written types were lowered.
+    pub(crate) fn check_pending_bounds(&mut self) {
+        for (ty, interface, span) in std::mem::take(&mut self.pending_bounds) {
+            if ty.has_error() || has_param(&ty) {
+                continue;
+            }
+            let why = if Some(interface) == self.b.hashable {
+                "a map key".to_string()
+            } else {
+                "required by a bound of this type".to_string()
+            };
+            self.require(&ty, interface, span, &why);
+        }
     }
 
     fn expand_alias(&mut self, def: DefId, args: Vec<Ty>) -> Ty {
@@ -568,6 +602,7 @@ impl<'a> Checker<'a> {
         self.collect_aliases();
         let bodies = self.collect_items();
         self.infinite_structs();
+        self.check_pending_bounds();
         bodies
     }
 
@@ -852,6 +887,7 @@ impl<'a> Checker<'a> {
                 owner,
                 module,
                 impl_generics: impl_generics.clone(),
+                impl_bounds: generics.iter().map(|g| g.bounds.clone()).collect(),
                 sig,
                 public: public_methods.unwrap_or(method.decl.public),
                 interface,
@@ -1009,5 +1045,15 @@ pub(crate) fn given(n: usize) -> String {
         "1 was".to_string()
     } else {
         format!("{n} were")
+    }
+}
+
+/// Whether a type mentions a type parameter.
+fn has_param(ty: &Ty) -> bool {
+    match ty {
+        Ty::Param(_) => true,
+        Ty::Named(_, args) => args.iter().any(has_param),
+        Ty::Fn(params, ret) => params.iter().any(|(_, t)| has_param(t)) || has_param(ret),
+        Ty::Var(_) | Ty::Never | Ty::Error => false,
     }
 }
