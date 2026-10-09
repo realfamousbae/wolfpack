@@ -233,3 +233,14 @@ functions {
     );
     assert!(out.is_empty(), "{out}");
 }
+
+#[test]
+fn methods_on_struct_literals_are_checked() {
+    let out = check(
+        "module main\n\ntypes {\n    struct P {\n        x: Int\n    }\n}\n\nimpl {\n    P {\n        fn get(self) -> Int {\n            self.x\n        }\n    }\n}\n\nfunctions {\n    fn main() {\n        print(P { x: 1 }.get().to_string())\n        print(P { x: 1 }.nope().to_string())\n    }\n}\n",
+    );
+    assert!(
+        out.contains("E0424") && out.matches("error[").count() == 1,
+        "{out}"
+    );
+}

@@ -1234,6 +1234,16 @@ impl<'a> Checker<'a> {
 
     /// Whether an expression names a module or a type, so that `.name` after it is a path.
     fn is_path_head(&self, b: &Body, e: &ast::Expr) -> bool {
+        // Only names and dotted names are paths; a struct literal also has a resolution.
+        if !matches!(
+            e.kind,
+            ExprKind::Name(_)
+                | ExprKind::Field { .. }
+                | ExprKind::TypeArgs { .. }
+                | ExprKind::SelfType
+        ) {
+            return false;
+        }
         match self.res(b, e.id) {
             Some(Res::Module(_)) | Some(Res::SelfType) => true,
             Some(Res::Def(def)) => self.def_kind(def).is_some_and(|k| k.is_type()),
