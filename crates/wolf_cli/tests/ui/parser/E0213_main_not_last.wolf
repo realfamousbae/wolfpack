@@ -1,0 +1,11 @@
+module main
+
+functions {
+    fn main() {
+        print(greeting())
+    }
+
+    fn greeting() -> String {
+        "hi"
+    }
+}

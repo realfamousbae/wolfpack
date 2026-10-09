@@ -65,6 +65,9 @@ impl Parser<'_> {
                             );
                         }
                         let section = self.section(kind, &mut inherent_impls, &mut test_names);
+                        if kind == SectionKind::Functions {
+                            self.main_is_last(&section);
+                        }
                         file.sections.push(section);
                     } else {
                         self.stray_top_level(&docs);
@@ -73,6 +76,29 @@ impl Parser<'_> {
             }
         }
         file
+    }
+
+    /// `fn main` is the last declaration of `functions` (spec chapter 2, section 3.7; E0213).
+    fn main_is_last(&mut self, section: &Section) {
+        let Some((last, rest)) = section.items.split_last() else {
+            return;
+        };
+        for item in rest {
+            if let ItemKind::Fn(decl) = &item.kind {
+                if decl.sig.name.name == "main" {
+                    let mut d = Diagnostic::new(
+                        codes::E0213,
+                        "`main` is not the last function of the section",
+                    )
+                    .primary(decl.sig.name.span, "`main` must come last")
+                    .help("move `main` to the end of `functions`");
+                    if let ItemKind::Fn(other) = &last.kind {
+                        d = d.secondary(other.sig.name.span, "declared after `main`");
+                    }
+                    self.report(d);
+                }
+            }
+        }
     }
 
     /// Inner docs and the `module` line (spec chapter 2, section 1).

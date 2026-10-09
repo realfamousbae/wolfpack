@@ -10,26 +10,26 @@ error[E0301]: expected `:` and the field type, found identifier `Int`
 10 |         y Int
    |           ^^^ expected `:` and the field type
 
-error[E0302]: unclosed delimiter, expected `)`
-   --> parser/recovery_many_errors.wolf:16:17
-   |
-16 |         let a = (1 + 2
-   |                 ^ this delimiter is never closed
-17 |         let b = 3
-   |         - expected `)` here
-
-error[E0301]: expected a field or method name after `.`, found `)`
-   --> parser/recovery_many_errors.wolf:18:17
-   |
-18 |         print(b.)
-   |                 ^ expected a field or method name after `.`
-
 error[E0305]: comparison operators cannot be chained
-   --> parser/recovery_many_errors.wolf:22:15
+   --> parser/recovery_many_errors.wolf:16:15
    |
-22 |         1 < 2 < 3
+16 |         1 < 2 < 3
    |               ^ second comparison
    |
    = help: use `&&`: `a < b && b < c`
+
+error[E0302]: unclosed delimiter, expected `)`
+   --> parser/recovery_many_errors.wolf:20:17
+   |
+20 |         let a = (1 + 2
+   |                 ^ this delimiter is never closed
+21 |         let b = 3
+   |         - expected `)` here
+
+error[E0301]: expected a field or method name after `.`, found `)`
+   --> parser/recovery_many_errors.wolf:22:17
+   |
+22 |         print(b.)
+   |                 ^ expected a field or method name after `.`
 
 error: aborting due to 5 errors
