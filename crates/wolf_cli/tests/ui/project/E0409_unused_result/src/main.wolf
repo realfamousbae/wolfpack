@@ -1,0 +1,15 @@
+module main
+
+imports {
+    std.fs
+}
+
+functions {
+    fn main() {
+        fs.write_text("out.txt", "data")
+        if fs.exists("out.txt") {
+            fs.write_text("copy.txt", "data")
+        }
+        let _ = fs.write_text("ignored.txt", "data")
+    }
+}

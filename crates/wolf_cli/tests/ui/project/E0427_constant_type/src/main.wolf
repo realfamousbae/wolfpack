@@ -1,0 +1,11 @@
+module main
+
+config {
+    sizes: List<Int> = [1, 2]
+}
+
+functions {
+    fn main() {
+        print(sizes.len().to_string())
+    }
+}

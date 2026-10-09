@@ -1,0 +1,26 @@
+error[E0408]: `?` on a `Result` in a function that does not return `Result`
+   --> src/main.wolf:12:9
+   |
+12 |         parse(s)? + 1
+   |         ^^^^^^^^^ this can return an error
+   |
+   = note: the enclosing function returns `Int`
+
+error[E0408]: `?` on an `Option` in a function that does not return `Option`
+   --> src/main.wolf:16:20
+   |
+16 |         let last = items.pop()?
+   |                    ^^^^^^^^^^^^ this can return `None`
+   |
+   = help: turn the `Option` into a value with `match`
+   = note: the enclosing function returns `Result<Int, String>`
+
+error[E0408]: `?` cannot return the error `String` from a function whose error type is `Int`
+   --> src/main.wolf:21:17
+   |
+21 |         let n = parse(s)?
+   |                 ^^^^^^^^^ the error here is `String`
+   |
+   = note: `?` passes the error on unchanged, or converts it into an interface it implements, such as `Error`
+
+error: aborting due to 3 errors

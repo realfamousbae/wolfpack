@@ -1,0 +1,13 @@
+module main
+
+config {
+    width: Int = height * 2
+    height: Int = width / 2
+    depth: Int = depth + 1
+}
+
+functions {
+    fn main() {
+        print((width + height + depth).to_string())
+    }
+}

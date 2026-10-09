@@ -1,0 +1,29 @@
+error[E0422]: missing field `age` in `User`
+   --> src/main.wolf:12:17
+   |
+12 |         let a = User { name: "a" }
+   |                 ^^^^ every field must be given
+
+error[E0422]: `User` has no field `email`
+   --> src/main.wolf:13:43
+   |
+13 |         let b = User { name: "b", age: 2, email: "x" }
+   |                                           ^^^^^ unknown field
+
+error[E0422]: field `name` is given twice
+   --> src/main.wolf:14:35
+   |
+14 |         let c = User { name: "c", name: "d", age: 3 }
+   |                        ----       ^^^^ second value
+   |                        |           
+   |                        first value
+
+error[E0422]: the pattern does not mention field `age`
+   --> src/main.wolf:16:13
+   |
+16 |             User { name } => print(name)
+   |             ^^^^ `User` has more fields
+   |
+   = help: add `..` to ignore the other fields
+
+error: aborting due to 4 errors

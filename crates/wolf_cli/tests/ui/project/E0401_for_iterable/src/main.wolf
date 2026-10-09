@@ -1,0 +1,13 @@
+module main
+
+functions {
+    fn main() {
+        for c in "abc" {
+            print(c)
+        }
+        let ages: Map<String, Int> = [:]
+        for name in ages {
+            print(name)
+        }
+    }
+}

@@ -1,0 +1,29 @@
+module main
+
+types {
+    enum Value {
+        Number(Int)
+        Text(String)
+        Nothing
+    }
+}
+
+functions {
+    fn show(v: Value) -> String {
+        match v {
+            Value.Number(n) | Value.Nothing => n.to_string()
+            Value.Text(_) => "text"
+        }
+    }
+
+    fn mixed(v: Value) -> String {
+        match v {
+            Value.Number(x) | Value.Text(x) => x.to_string()
+            Value.Nothing => "none"
+        }
+    }
+
+    fn main() {
+        print(show(Value.Nothing) + mixed(Value.Nothing))
+    }
+}

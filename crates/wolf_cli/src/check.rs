@@ -112,8 +112,12 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
         kind: manifest.kind,
         config: &manifest.config,
     };
-    let resolved = wolf_resolve::resolve(&inputs, &info);
-    result.diagnostics.extend(resolved.diagnostics);
+    let mut resolved = wolf_resolve::resolve(&inputs, &info);
+    result
+        .diagnostics
+        .extend(std::mem::take(&mut resolved.diagnostics));
+    let typed = wolf_types::check(&inputs, &resolved, &info);
+    result.diagnostics.extend(typed.diagnostics);
 }
 
 /// Reads, lexes and parses one file. Returns `None` if it could not be read or decoded.

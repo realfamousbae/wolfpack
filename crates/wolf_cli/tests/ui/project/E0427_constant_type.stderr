@@ -1,0 +1,9 @@
+error[E0427]: a constant cannot have the type `List<Int>`
+  --> src/main.wolf:4:12
+  |
+4 |     sizes: List<Int> = [1, 2]
+  |            ^^^^^^^^^ not a type for constants
+  |
+  = note: constants are `Int`, `Float`, `Bool` or `String`, the types that `[config]` in `wolfpack.toml` can override
+
+error: aborting due to 1 error

@@ -1,0 +1,19 @@
+module main
+
+types {
+    struct Note {
+        text: String
+    }
+}
+
+functions {
+    fn show(e: Error) {
+        print(e.message())
+    }
+
+    fn main() {
+        show(Note { text: "x" })
+        let n = 5
+        n(1)
+    }
+}

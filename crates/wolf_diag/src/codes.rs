@@ -111,8 +111,63 @@ pub const E0612: Code = Code::new("E0612", "invalid project layout");
 /// Invalid config override.
 pub const E0613: Code = Code::new("E0613", "invalid config override");
 
+/// Type mismatch.
+pub const E0401: Code = Code::new("E0401", "type mismatch");
 /// Unknown type name.
 pub const E0402: Code = Code::new("E0402", "unknown type name");
+/// Wrong number of type arguments.
+pub const E0403: Code = Code::new("E0403", "wrong number of type arguments");
+/// A type does not implement an interface required by a bound.
+pub const E0404: Code = Code::new("E0404", "bound not satisfied");
+/// Operator not defined for these types.
+pub const E0405: Code = Code::new("E0405", "operator not defined for these types");
+/// Type is not `Equatable` or not `Copyable`.
+pub const E0406: Code = Code::new("E0406", "type is not `Equatable` or not `Copyable`");
+/// Map key type is not `Hashable`.
+pub const E0407: Code = Code::new("E0407", "map key type is not `Hashable`");
+/// `?` in a function with an incompatible result type.
+pub const E0408: Code = Code::new(
+    "E0408",
+    "`?` in a function with an incompatible result type",
+);
+/// A `Result` value is discarded.
+pub const E0409: Code = Code::new("E0409", "unhandled `Result` value");
+/// Non-exhaustive `match`.
+pub const E0410: Code = Code::new("E0410", "non-exhaustive `match`");
+/// Unreachable `match` arm.
+pub const E0411: Code = Code::new("E0411", "unreachable `match` arm");
+/// Alternatives in a pattern bind different names or types.
+pub const E0412: Code = Code::new("E0412", "alternatives bind different names or types");
+/// `impl` block outside the module of its type.
+pub const E0414: Code = Code::new("E0414", "`impl` outside the module of its type");
+/// Two functions with the same name on one type.
+pub const E0415: Code = Code::new("E0415", "two functions with the same name on one type");
+/// Struct that contains itself.
+pub const E0418: Code = Code::new("E0418", "infinitely sized struct");
+/// Cycle in type aliases or in `config` constants.
+pub const E0419: Code = Code::new("E0419", "cycle in type aliases or constants");
+/// Type cannot be inferred.
+pub const E0420: Code = Code::new("E0420", "type cannot be inferred");
+/// Function may end without a value.
+pub const E0421: Code = Code::new("E0421", "function may end without a value");
+/// Struct literal or pattern with a missing, unknown or duplicate field.
+pub const E0422: Code = Code::new("E0422", "wrong fields in a struct literal or pattern");
+/// Integer literal out of range, or a panic while evaluating a constant.
+pub const E0423: Code = Code::new("E0423", "integer out of range or constant evaluation panic");
+/// Unknown field or method.
+pub const E0424: Code = Code::new("E0424", "unknown field or method");
+/// Expression statement whose value is not used.
+pub const E0425: Code = Code::new("E0425", "expression value is not used");
+/// `config` initializer that is not a constant expression.
+pub const E0426: Code = Code::new("E0426", "not a constant expression");
+/// `config` constant whose type is not `Int`, `Float`, `Bool` or `String`.
+pub const E0427: Code = Code::new("E0427", "constant of a type that is not allowed");
+/// Wrong number of arguments, or a variant written in the wrong form.
+pub const E0428: Code = Code::new("E0428", "wrong number of arguments or wrong variant form");
+/// A type or a module used as a value.
+pub const E0429: Code = Code::new("E0429", "type or module used as a value");
+/// `break` or `continue` outside a loop.
+pub const E0430: Code = Code::new("E0430", "`break` or `continue` outside a loop");
 
 /// Name does not follow the naming style.
 pub const E0601: Code = Code::new("E0601", "name does not follow the naming style");
@@ -173,7 +228,9 @@ pub const ALL: &[Code] = &[
     E0001, E0002, E0003, E0004, E0101, E0102, E0103, E0104, E0105, E0106, E0107, E0108, E0109,
     E0110, E0111, E0112, E0113, E0201, E0202, E0203, E0204, E0205, E0206, E0207, E0208, E0209,
     E0210, E0211, E0212, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309, E0310,
-    E0311, E0312, E0313, E0314, E0402, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608,
+    E0311, E0312, E0313, E0314, E0401, E0402, E0403, E0404, E0405, E0406, E0407, E0408, E0409,
+    E0410, E0411, E0412, E0414, E0415, E0418, E0419, E0420, E0421, E0422, E0423, E0424, E0425,
+    E0426, E0427, E0428, E0429, E0430, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608,
     E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620, E0701,
 ];
 

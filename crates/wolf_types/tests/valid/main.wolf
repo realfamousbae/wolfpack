@@ -1,0 +1,195 @@
+module main
+
+imports {
+    std.list
+    std.fs
+}
+
+config {
+    limit: Int = 10 * 2
+    big: Int = -9223372036854775808
+    name: String = "a" + "b"
+    flag: Bool = limit > 5 && !false
+    ratio: Float = 1.5 * 2.0
+}
+
+types {
+    struct Point {
+        x: Int
+        y: Int
+    }
+
+    enum Shape {
+        Circle(Float)
+        Rect { w: Float, h: Float }
+        Empty
+    }
+
+    type Points = List<Point>
+
+    struct Job {
+        name: String
+        run: fn(Int) -> Int
+    }
+
+    enum AppError {
+        Missing(String)
+        Bad
+    }
+}
+
+impl {
+    Point {
+        fn new(x: Int, y: Int) -> Point {
+            Point { x, y }
+        }
+
+        fn sum(self) -> Int {
+            self.x + self.y
+        }
+
+        fn shift(mut self, d: Int) {
+            self.x += d
+            self.y = self.y - d
+        }
+    }
+
+    AppError: Error {
+        fn message(self) -> String {
+            match self {
+                AppError.Missing(what) => "missing " + what
+                AppError.Bad => "bad"
+            }
+        }
+    }
+}
+
+functions {
+    fn area(s: Shape) -> Float {
+        match s {
+            Shape.Circle(r) => r * r * 3.0
+            Shape.Rect { w, h } => w * h
+            Shape.Empty => 0.0
+        }
+    }
+
+    fn first_even(items: List<Int>) -> Option<Int> {
+        for x in items {
+            if x % 2 == 0 {
+                return Some(x)
+            }
+        }
+        None
+    }
+
+    fn parse(s: String) -> Result<Int, Error> {
+        let n = s.parse_int()?
+        if n < 0 {
+            return Err(AppError.Bad)
+        }
+        Ok(n)
+    }
+
+    fn load(path: String) -> Result<String, Error> {
+        let text = fs.read_text(path)?
+        Ok(text)
+    }
+
+    fn twice(o: Option<Int>) -> Option<Int> {
+        let v = o?
+        Some(v * 2)
+    }
+
+    fn forever() -> Int {
+        var i = 0
+        while true {
+            i += 1
+            if i > 10 {
+                return i
+            }
+        }
+    }
+
+    fn classify(n: Int) -> String {
+        match n {
+            0 => "zero"
+            1 | 2 | 3 => "small"
+            _ if n < 0 => "negative"
+            _ => "big"
+        }
+    }
+
+    fn flags(a: Bool, b: Bool) -> Int {
+        match a {
+            true => 1
+            false => if b { 2 } else { 3 }
+        }
+    }
+
+    fn opt(o: Option<Option<Int>>) -> Int {
+        match o {
+            Some(Some(x)) => x
+            Some(None) => 0
+            None => -1
+        }
+    }
+
+    fn main() {
+        var names = []
+        names.push("a")
+        let lens = names.map(|n| n.len())
+        print(list.sum(lens).to_string())
+        var m: Map<String, Int> = [:]
+        let _ = m.insert("k", 1)
+        m["k"] += 1
+        print(m["k"].to_string())
+        let p = Point.new(1, 2)
+        var q = p.copy()
+        q.shift(1)
+        print(q.sum().to_string())
+        let pts: Points = [p, q]
+        print(pts.len().to_string())
+        print(area(Shape.Rect { w: 1.0, h: 2.0 }).to_string())
+        let job = Job { name: "j", run: |x| x + 1 }
+        print((job.run)(2).to_string())
+        print(classify(5) + name)
+        let r = parse("12")
+        match r {
+            Ok(v) => print(v.to_string())
+            Err(e) => print(e.message())
+        }
+        let _ = load("x")
+        let o = twice(first_even([1, 2, 3]))
+        if o == None {
+            print("none")
+        }
+        list.sort_by(mut names, |a, b| a.compare(b))
+        let total = names.filter(|n| !n.is_empty()).count(|n| n.len() > 0)
+        print(total.to_string() + forever().to_string() + flags(true, false).to_string())
+        print(opt(Some(None)).to_string() + limit.to_string() + big.to_string())
+        if flag && ratio > 1.0 {
+            names.pop()
+        }
+        let s = "hello"
+        print(s[1..3] + s[0..=0])
+        let sub = lens[0..1]
+        print(sub.len().to_string())
+        for i in 0..3 {
+            if i == 1 {
+                continue
+            }
+            print(i.to_string())
+        }
+        let ord = 1.compare(2)
+        match ord {
+            Ordering.Less => print("less")
+            Ordering.Equal | Ordering.Greater => print("not less")
+        }
+        let maybe = list.get(lens, 0)
+        let shown = match maybe {
+            Some(v) => v.to_string()
+            None => panic("empty")
+        }
+        print(shown)
+    }
+}

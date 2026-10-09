@@ -1,0 +1,17 @@
+error[E0414]: an `impl` block for `Int` outside the module that declares it
+  --> src/main.wolf:8:5
+  |
+8 |     Int {
+  |     ^^^ this type is declared in another module
+  |
+  = note: every `impl` block must be in the module that declares its type, so that it maps onto Go methods
+
+error[E0414]: an interface implementation for `Circle` outside the module that declares it
+   --> src/main.wolf:14:5
+   |
+14 |     Circle: Error {
+   |     ^^^^^^ this type is declared in another module
+   |
+   = note: every `impl` block must be in the module that declares its type, so that it maps onto Go methods
+
+error: aborting due to 2 errors

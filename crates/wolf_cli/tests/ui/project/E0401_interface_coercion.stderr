@@ -1,0 +1,15 @@
+error[E0401]: expected `Error`, found `Note`
+   --> src/main.wolf:15:14
+   |
+15 |         show(Note { text: "x" })
+   |              ^^^^^^^^^^^^^^^^^^ this is `Note`
+   |
+   = note: `Note` does not implement `Error`
+
+error[E0401]: expected a function, found `Int`
+   --> src/main.wolf:17:9
+   |
+17 |         n(1)
+   |         ^ this is `Int`, it cannot be called
+
+error: aborting due to 2 errors

@@ -1,0 +1,43 @@
+module main
+
+types {
+    enum Shape {
+        Circle(Float)
+        Rect { w: Float, h: Float }
+        Empty
+    }
+}
+
+functions {
+    fn area(s: Shape) -> Float {
+        match s {
+            Shape.Circle(r) => r * r
+            Shape.Empty => 0.0
+        }
+    }
+
+    fn name(n: Int) -> String {
+        match n {
+            0 => "zero"
+            1 => "one"
+        }
+    }
+
+    fn inner(o: Option<Option<Int>>) -> Int {
+        match o {
+            Some(Some(x)) => x
+            None => 0
+        }
+    }
+
+    fn sign(n: Int) -> String {
+        match n {
+            x if x < 0 => "negative"
+            x if x >= 0 => "positive"
+        }
+    }
+
+    fn main() {
+        print(area(Shape.Empty).to_string() + name(1) + inner(None).to_string() + sign(1))
+    }
+}

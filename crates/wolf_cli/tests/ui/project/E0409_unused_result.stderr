@@ -1,0 +1,17 @@
+error[E0409]: this `Result` is not handled
+  --> src/main.wolf:9:9
+  |
+9 |         fs.write_text("out.txt", "data")
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this is `Result<Void, FsError>`
+  |
+  = help: handle the error with `match` or `?`, or discard it explicitly with `let _ = ...`
+
+error[E0409]: this `Result` is not handled
+   --> src/main.wolf:11:13
+   |
+11 |             fs.write_text("copy.txt", "data")
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this is `Result<Void, FsError>`
+   |
+   = help: handle the error with `match` or `?`, or discard it explicitly with `let _ = ...`
+
+error: aborting due to 2 errors

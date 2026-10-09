@@ -1,0 +1,14 @@
+module main
+
+functions {
+    fn double(n: Int) -> Int {
+        if n < 0 {
+            return "negative"
+        }
+        n.to_string()
+    }
+
+    fn main() {
+        print(double(2).to_string())
+    }
+}

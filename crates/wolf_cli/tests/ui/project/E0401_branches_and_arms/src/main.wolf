@@ -1,0 +1,16 @@
+module main
+
+functions {
+    fn label(n: Int) -> String {
+        let size = if n > 10 { "big" } else { n }
+        let kind = match n {
+            0 => "zero"
+            _ => false
+        }
+        size + kind
+    }
+
+    fn main() {
+        print(label(1))
+    }
+}

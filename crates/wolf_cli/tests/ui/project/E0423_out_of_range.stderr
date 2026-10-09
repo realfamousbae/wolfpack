@@ -1,0 +1,25 @@
+error[E0423]: evaluating this constant panics: integer overflow
+  --> src/main.wolf:5:20
+  |
+5 |     too_big: Int = max + 1
+  |                    ^^^^^^^ integer overflow
+  |
+  = note: constants are computed by the compiler, so a panic is a compile error
+
+error[E0423]: evaluating this constant panics: shift amount out of range
+  --> src/main.wolf:6:18
+  |
+6 |     shift: Int = 1 << 64
+  |                  ^^^^^^^ shift amount out of range
+  |
+  = note: constants are computed by the compiler, so a panic is a compile error
+
+error[E0423]: integer literal `9223372036854775808` is out of range
+   --> src/main.wolf:12:21
+   |
+12 |         let wrong = 9223372036854775808
+   |                     ^^^^^^^^^^^^^^^^^^^ the largest `Int` is 9223372036854775807
+   |
+   = note: `9223372036854775808` can only be written after a minus sign
+
+error: aborting due to 3 errors

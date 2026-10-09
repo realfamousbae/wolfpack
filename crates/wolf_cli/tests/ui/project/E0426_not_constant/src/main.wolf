@@ -1,0 +1,12 @@
+module main
+
+config {
+    width: Int = "abc".len()
+    names: String = [1].len().to_string()
+}
+
+functions {
+    fn main() {
+        print(width.to_string() + names)
+    }
+}

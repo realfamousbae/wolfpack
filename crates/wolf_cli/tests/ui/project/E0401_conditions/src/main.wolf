@@ -1,0 +1,13 @@
+module main
+
+functions {
+    fn main() {
+        let n = 3
+        if n {
+            print("yes")
+        }
+        while "go" {
+            print("loop")
+        }
+    }
+}

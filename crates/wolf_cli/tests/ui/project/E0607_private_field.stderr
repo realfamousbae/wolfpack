@@ -1,0 +1,15 @@
+error[E0607]: field `secret` of `User` is private
+   --> src/main.wolf:10:17
+   |
+10 |         print(u.secret)
+   |                 ^^^^^^ private field
+
+error[E0607]: cannot build `User` here: field `secret` is private
+   --> src/main.wolf:11:17
+   |
+11 |         let v = User { name: "b", secret: "s" }
+   |                 ^^^^ a struct with private fields is built only in its own module
+   |
+   = help: use a function of its module that returns the value
+
+error: aborting due to 2 errors

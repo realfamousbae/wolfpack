@@ -1,0 +1,39 @@
+error[E0424]: `Point` has no field `z`
+   --> src/main.wolf:25:17
+   |
+25 |         print(p.z.to_string())
+   |                 ^ unknown field
+   |
+   = help: did you mean `x`?
+
+error[E0424]: `Point` has no field `sum`
+   --> src/main.wolf:26:17
+   |
+26 |         print(p.sum.to_string())
+   |                 ^^^ unknown field
+   |
+   = help: `sum` is a method; call it: `.sum()`
+
+error[E0424]: `Point` has no method `total`
+   --> src/main.wolf:27:17
+   |
+27 |         print(p.total().to_string())
+   |                 ^^^^^ unknown method
+
+error[E0424]: `origin` is an associated function of `Point`, not a method
+   --> src/main.wolf:28:19
+   |
+28 |         let q = p.origin()
+   |                   ^^^^^^ it has no `self` parameter
+   |
+   = help: call it on the type: `Point.origin(...)`
+
+error[E0424]: `Point.sum` is a method, not an associated function
+   --> src/main.wolf:29:23
+   |
+29 |         let r = Point.sum(p)
+   |                       ^^^ methods are called on a value
+   |
+   = help: call it on a value: `x.sum(...)`
+
+error: aborting due to 5 errors

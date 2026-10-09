@@ -1,0 +1,15 @@
+module main
+
+config {
+    port: Port = 80
+}
+
+types {
+    type Port = Int
+}
+
+functions {
+    fn main() {
+        print(port.to_string())
+    }
+}

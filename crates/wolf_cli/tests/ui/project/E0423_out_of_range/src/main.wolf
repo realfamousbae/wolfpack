@@ -1,0 +1,15 @@
+module main
+
+config {
+    max: Int = 9223372036854775807
+    too_big: Int = max + 1
+    shift: Int = 1 << 64
+}
+
+functions {
+    fn main() {
+        let smallest = -9223372036854775808
+        let wrong = 9223372036854775808
+        print((smallest + wrong + too_big + shift).to_string())
+    }
+}

@@ -1,0 +1,21 @@
+error[E0401]: expected `Int`, found `String`
+   --> src/main.wolf:16:26
+   |
+16 |         let count: Int = "three"
+   |                          ^^^^^^^ this is `String`
+
+error[E0401]: expected `String`, found `Int`
+   --> src/main.wolf:17:15
+   |
+17 |         greet(42)
+   |               ^^ this is `Int`
+
+error[E0401]: expected `Int`, found `Float`
+   --> src/main.wolf:18:43
+   |
+18 |         let user = User { name: "a", age: 1.5 }
+   |                                           ^^^ this is `Float`
+   |
+   = note: there are no implicit conversions between `Int` and `Float`; use `to_float()` or `to_int()`
+
+error: aborting due to 3 errors

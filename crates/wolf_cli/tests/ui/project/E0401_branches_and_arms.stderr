@@ -1,0 +1,13 @@
+error[E0401]: expected `String`, found `Int`
+  --> src/main.wolf:5:47
+  |
+5 |         let size = if n > 10 { "big" } else { n }
+  |                                               ^ this is `Int`
+
+error[E0401]: expected `String`, found `Bool`
+  --> src/main.wolf:8:18
+  |
+8 |             _ => false
+  |                  ^^^^^ this is `Bool`
+
+error: aborting due to 2 errors

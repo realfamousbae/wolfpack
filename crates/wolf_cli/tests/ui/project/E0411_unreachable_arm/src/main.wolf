@@ -1,0 +1,22 @@
+module main
+
+functions {
+    fn name(n: Int) -> String {
+        match n {
+            _ => "any"
+            0 => "zero"
+        }
+    }
+
+    fn check(o: Option<Int>) -> Int {
+        match o {
+            Some(x) => x
+            None => 0
+            Some(1) => 1
+        }
+    }
+
+    fn main() {
+        print(name(1) + check(None).to_string())
+    }
+}

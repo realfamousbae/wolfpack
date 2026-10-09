@@ -1,0 +1,26 @@
+module main
+
+functions {
+    fn sign(n: Int) -> String {
+        if n < 0 {
+            return "negative"
+        }
+    }
+
+    fn count(limit: Int) -> Int {
+        var i = 0
+        while i < limit {
+            i += 1
+        }
+    }
+
+    fn forever() -> Int {
+        while true {
+            print("tick")
+        }
+    }
+
+    fn main() {
+        print(sign(1) + count(2).to_string() + forever().to_string())
+    }
+}

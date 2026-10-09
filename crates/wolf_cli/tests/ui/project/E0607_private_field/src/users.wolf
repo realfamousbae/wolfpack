@@ -1,0 +1,14 @@
+module users
+
+types {
+    pub struct User {
+        pub name: String
+        secret: String
+    }
+}
+
+functions {
+    pub fn make() -> User {
+        User { name: "a", secret: "s" }
+    }
+}

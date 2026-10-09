@@ -1,0 +1,9 @@
+module main
+
+functions {
+    fn main() {
+        let prices: Map<Float, String> = [:]
+        let groups = [[1]: "one"]
+        let _ = [prices.len(), groups.len()]
+    }
+}

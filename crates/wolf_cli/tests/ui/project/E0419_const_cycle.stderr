@@ -1,0 +1,17 @@
+error[E0419]: cycle in constants: `width` -> `height` -> `width`
+  --> src/main.wolf:4:5
+  |
+4 |     width: Int = height * 2
+  |     ^^^^^ this constant depends on itself
+  |
+  = note: a constant cannot depend on itself
+
+error[E0419]: cycle in constants: `depth` -> `depth`
+  --> src/main.wolf:6:5
+  |
+6 |     depth: Int = depth + 1
+  |     ^^^^^ this constant depends on itself
+  |
+  = note: a constant cannot depend on itself
+
+error: aborting due to 2 errors

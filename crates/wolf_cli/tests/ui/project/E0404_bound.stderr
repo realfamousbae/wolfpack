@@ -1,0 +1,17 @@
+error[E0404]: `Float` does not implement `Comparable`
+   --> src/main.wolf:16:14
+   |
+16 |         list.sort(mut prices)
+   |              ^^^^ required by `sort`
+   |
+   = note: `Float` has no total order because of NaN; sort floats with `list.sort_by` and a comparison function
+
+error[E0404]: `Point` does not implement `Comparable`
+   --> src/main.wolf:18:14
+   |
+18 |         list.sort(mut points)
+   |              ^^^^ required by `sort`
+   |
+   = help: implement `Comparable` for `Point` in an `impl` block
+
+error: aborting due to 2 errors

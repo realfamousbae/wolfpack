@@ -1,0 +1,25 @@
+error[E0425]: the value of this expression is not used
+  --> src/main.wolf:8:13
+  |
+8 |             - tax
+  |             ^^^^^ this computes a value that nobody uses
+  |
+  = help: if it continues the line above, put the operator at the end of that line
+
+error[E0425]: the value of this expression is not used
+  --> src/main.wolf:9:9
+  |
+9 |         total + 1
+  |         ^^^^^^^^^ this computes a value that nobody uses
+  |
+  = help: remove it, or store the value with `let`
+
+error[E0425]: the value of this expression is not used
+   --> src/main.wolf:10:9
+   |
+10 |         "done"
+   |         ^^^^^^ this computes a value that nobody uses
+   |
+   = help: remove it, or store the value with `let`
+
+error: aborting due to 3 errors

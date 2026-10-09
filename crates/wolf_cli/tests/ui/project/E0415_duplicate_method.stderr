@@ -1,0 +1,12 @@
+error[E0415]: `Job` has two functions named `message`
+   --> src/main.wolf:17:12
+   |
+11 |         fn message(self) -> String {
+   |            ------- first definition
+   .
+17 |         fn message(self) -> String {
+   |            ^^^^^^^ second definition
+   |
+   = note: a type has at most one function with a given name, across its inherent block and all its interface implementations
+
+error: aborting due to 1 error

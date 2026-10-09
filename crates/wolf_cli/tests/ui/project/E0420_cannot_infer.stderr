@@ -1,0 +1,17 @@
+error[E0420]: cannot infer the type of `names`
+  --> src/main.wolf:5:13
+  |
+5 |         var names = []
+  |             ^^^^^ the type is `List<_>` here
+  |
+  = help: write the type after the name: `names: List<...>`
+
+error[E0420]: cannot infer the type of `empty`
+  --> src/main.wolf:7:13
+  |
+7 |         let empty = None
+  |             ^^^^^ the type is `Option<_>` here
+  |
+  = help: write the type after the name: `empty: Option<...>`
+
+error: aborting due to 2 errors

@@ -1,0 +1,26 @@
+module main
+
+types {
+    struct Task {
+        name: String
+        on_done: fn(String)
+    }
+}
+
+functions {
+    fn same(a: Task, b: Task) -> Bool {
+        a == b
+    }
+
+    fn twice(f: fn(Int) -> Int) -> fn(Int) -> Int {
+        f.copy()
+    }
+
+    fn errors_equal(a: Error, b: Error) -> Bool {
+        a == b
+    }
+
+    fn main() {
+        print("hi")
+    }
+}

@@ -1,0 +1,7 @@
+module shapes
+
+types {
+    pub struct Circle {
+        pub r: Int
+    }
+}

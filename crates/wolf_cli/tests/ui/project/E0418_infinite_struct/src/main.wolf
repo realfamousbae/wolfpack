@@ -1,0 +1,27 @@
+module main
+
+types {
+    struct Node {
+        value: Int
+        next: Node
+    }
+
+    struct Left {
+        right: Right
+    }
+
+    struct Right {
+        left: Left
+    }
+
+    struct List2 {
+        items: List<List2>
+        next: Option<List2>
+    }
+}
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}

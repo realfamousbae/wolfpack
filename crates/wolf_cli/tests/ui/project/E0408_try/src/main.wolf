@@ -1,0 +1,30 @@
+module main
+
+functions {
+    fn parse(s: String) -> Result<Int, String> {
+        if s.is_empty() {
+            return Err("empty")
+        }
+        Ok(s.len())
+    }
+
+    fn total(s: String) -> Int {
+        parse(s)? + 1
+    }
+
+    fn first(items: List<Int>) -> Result<Int, String> {
+        let last = items.pop()?
+        Ok(last)
+    }
+
+    fn wrong_error(s: String) -> Result<Int, Int> {
+        let n = parse(s)?
+        Ok(n)
+    }
+
+    fn main() {
+        print(total("1").to_string())
+        let _ = first([1])
+        let _ = wrong_error("x")
+    }
+}

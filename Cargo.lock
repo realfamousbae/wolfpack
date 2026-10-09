@@ -464,6 +464,7 @@ dependencies = [
  "wolf_resolve",
  "wolf_span",
  "wolf_std",
+ "wolf_types",
 ]
 
 [[package]]
@@ -528,4 +529,18 @@ dependencies = [
  "wolf_lexer",
  "wolf_parser",
  "wolf_span",
+]
+
+[[package]]
+name = "wolf_types"
+version = "0.1.0"
+dependencies = [
+ "wolf_ast",
+ "wolf_diag",
+ "wolf_lexer",
+ "wolf_parser",
+ "wolf_project",
+ "wolf_resolve",
+ "wolf_span",
+ "wolf_std",
 ]

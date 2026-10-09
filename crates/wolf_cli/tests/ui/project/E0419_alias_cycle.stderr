@@ -1,0 +1,17 @@
+error[E0419]: cycle in type aliases: `A` -> `B` -> `A`
+  --> src/main.wolf:4:10
+  |
+4 |     type A = List<B>
+  |          ^ this alias refers to itself
+  |
+  = note: an alias is another name for a type, so it cannot contain itself; use a struct or an enum
+
+error[E0419]: cycle in type aliases: `C` -> `C`
+  --> src/main.wolf:8:10
+  |
+8 |     type C = C
+  |          ^ this alias refers to itself
+  |
+  = note: an alias is another name for a type, so it cannot contain itself; use a struct or an enum
+
+error: aborting due to 2 errors

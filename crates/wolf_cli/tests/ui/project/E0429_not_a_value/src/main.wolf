@@ -1,0 +1,20 @@
+module main
+
+imports {
+    std.io
+}
+
+types {
+    struct Point {
+        x: Int
+    }
+}
+
+functions {
+    fn main() {
+        let a = Int
+        let b = io
+        let c = Point
+        let _ = [a, b, c]
+    }
+}

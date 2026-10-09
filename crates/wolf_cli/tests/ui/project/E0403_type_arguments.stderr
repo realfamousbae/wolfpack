@@ -1,0 +1,19 @@
+error[E0403]: `List` takes 1 type argument, but 2 were given
+  --> src/main.wolf:4:18
+  |
+4 |     type Names = List<String, Int>
+  |                  ^^^^^^^^^^^^^^^^^ expected 1 type argument
+
+error[E0403]: `List` needs 1 type argument
+  --> src/main.wolf:7:16
+  |
+7 |         items: List
+  |                ^^^^ missing 1 type argument
+
+error[E0403]: `Int` takes no type arguments, but 1 was given
+  --> src/main.wolf:8:15
+  |
+8 |         size: Int<Int>
+  |               ^^^^^^^^ remove the type arguments
+
+error: aborting due to 3 errors

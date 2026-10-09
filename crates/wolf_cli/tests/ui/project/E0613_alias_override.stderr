@@ -1,0 +1,7 @@
+error[E0613]: constant `main.port` is `Int`, but the override is `String`
+  --> wolfpack.toml:7:8
+  |
+7 | port = "eighty"
+  |        ^^^^^^^^ expected a value of type `Int`
+
+error: aborting due to 1 error

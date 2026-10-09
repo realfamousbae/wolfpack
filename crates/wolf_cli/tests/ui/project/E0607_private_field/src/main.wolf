@@ -1,0 +1,14 @@
+module main
+
+imports {
+    users.{User, make}
+}
+
+functions {
+    fn main() {
+        let u = make()
+        print(u.secret)
+        let v = User { name: "b", secret: "s" }
+        print(v.name)
+    }
+}

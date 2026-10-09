@@ -1,0 +1,27 @@
+module main
+
+types {
+    struct Job {
+        name: String
+    }
+}
+
+impl {
+    Job {
+        fn message(self) -> String {
+            self.name
+        }
+    }
+
+    Job: Error {
+        fn message(self) -> String {
+            "job " + self.name
+        }
+    }
+}
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}

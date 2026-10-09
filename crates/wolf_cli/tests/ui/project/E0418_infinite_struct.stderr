@@ -1,0 +1,19 @@
+error[E0418]: struct `Node` contains itself
+  --> src/main.wolf:6:9
+  |
+6 |         next: Node
+  |         ^^^^ this field makes the struct infinitely large
+  |
+  = help: store it in an `Option<...>`, a `List<...>` or an enum variant
+  = note: `Node` contains field `next` of type `Node`
+
+error[E0418]: struct `Left` contains itself
+   --> src/main.wolf:10:9
+   |
+10 |         right: Right
+   |         ^^^^^ this field makes the struct infinitely large
+   |
+   = help: store it in an `Option<...>`, a `List<...>` or an enum variant
+   = note: `Left` contains field `right` of type `Right`, which contains field `left` of type `Left`
+
+error: aborting due to 2 errors

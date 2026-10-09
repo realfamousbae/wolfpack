@@ -1,0 +1,25 @@
+module main
+
+imports {
+    shapes.{Circle}
+}
+
+impl {
+    Int {
+        fn double(self) -> Int {
+            self * 2
+        }
+    }
+
+    Circle: Error {
+        fn message(self) -> String {
+            "circle"
+        }
+    }
+}
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}

@@ -1,0 +1,23 @@
+error[E0421]: this function may end without a value
+  --> src/main.wolf:8:5
+  |
+4 |     fn sign(n: Int) -> String {
+  |        ---- the function returns `String`
+  .
+8 |     }
+  |     ^ the end is reached without a value of type `String`
+  |
+  = help: end the body with a value, or `return` one on every path
+
+error[E0421]: this function may end without a value
+   --> src/main.wolf:15:5
+   |
+10 |     fn count(limit: Int) -> Int {
+   |        ----- the function returns `Int`
+   .
+15 |     }
+   |     ^ the end is reached without a value of type `Int`
+   |
+   = help: end the body with a value, or `return` one on every path
+
+error: aborting due to 2 errors

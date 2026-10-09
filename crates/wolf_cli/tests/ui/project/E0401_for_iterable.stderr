@@ -1,0 +1,17 @@
+error[E0401]: `for` needs a `List` or a range, found `String`
+  --> src/main.wolf:5:18
+  |
+5 |         for c in "abc" {
+  |                  ^^^^^ this is `String`
+  |
+  = help: iterate over the characters: `for c in s.chars()`
+
+error[E0401]: `for` needs a `List` or a range, found `Map<String, Int>`
+  --> src/main.wolf:9:21
+  |
+9 |         for name in ages {
+  |                     ^^^^ this is `Map<String, Int>`
+  |
+  = help: iterate over the keys: `for k in m.keys()`
+
+error: aborting due to 2 errors

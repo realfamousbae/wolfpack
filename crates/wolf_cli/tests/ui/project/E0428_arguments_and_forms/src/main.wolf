@@ -1,0 +1,29 @@
+module main
+
+types {
+    enum Shape {
+        Circle(Float)
+        Rect { w: Float, h: Float }
+        Empty
+    }
+}
+
+functions {
+    fn area(s: Shape) -> Float {
+        match s {
+            Shape.Circle(r, _) => r
+            Shape.Rect(w, h) => w * h
+            Shape.Empty => 0.0
+        }
+    }
+
+    fn main() {
+        print(area(Shape.Empty, 1).to_string())
+        let a = Shape.Empty()
+        let b = Shape.Rect(1.0, 2.0)
+        let c = Shape.Circle
+        let names = ["a"].map(Some)
+        let _ = [a, b, c]
+        let _ = names
+    }
+}
