@@ -681,12 +681,14 @@ pub enum ExprKind {
         /// `file:line:column`.
         location: String,
     },
-    /// `assert(cond)` with the source text of the condition.
+    /// `assert(cond)` with the source text of the condition and the location of the call.
     Assert {
         /// The condition.
         cond: Box<Expr>,
         /// Its source text.
         text: String,
+        /// `file:line:column`.
+        location: String,
     },
 }
 

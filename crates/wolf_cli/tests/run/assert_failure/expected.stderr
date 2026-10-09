@@ -1,0 +1,1 @@
+panic at src/main.wolf:7:9: assertion failed: total == 5

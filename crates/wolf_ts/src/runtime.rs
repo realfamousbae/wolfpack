@@ -135,9 +135,10 @@ export function unreachable(): Error {
     Piece {
         name: "assert",
         deps: &["WolfPanic"],
-        code: r#"export function assert(condition: boolean, text: string): void {
+        code: r#"/** `assert(condition)`: a panic at the location of the call. */
+export function assert(condition: boolean, text: string, location: string): void {
   if (!condition) {
-    throw new WolfPanic(`assertion failed: ${text}`);
+    throw new WolfPanic(`panic at ${location}: assertion failed: ${text}`);
   }
 }"#,
     },

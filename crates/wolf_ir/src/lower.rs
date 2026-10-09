@@ -1281,6 +1281,7 @@ impl<'a> Lowerer<'a> {
                 return Ok(ExprKind::Assert {
                     cond: self.boxed(ctx, &cond.value)?,
                     text: self.source_text(cond.value.span),
+                    location: self.location(e.span),
                 });
             }
             match self.resolved.def(def).map(|d| d.kind) {
