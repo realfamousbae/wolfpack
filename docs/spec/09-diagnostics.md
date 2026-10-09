@@ -77,7 +77,7 @@ Decisions taken by the author for this chapter (2026-10-07):
    12 |     print(user.name)
       |           ^^^^ value used here after the move
       |
-      = help: pass a copy instead: `archive(own user.copy())`
+      = help: pass a copy instead: `archive(user.copy())`
    ```
 
 6. After the diagnostics, human output ends with the line `error: aborting due to N errors`

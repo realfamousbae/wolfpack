@@ -149,6 +149,22 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
     result
         .diagnostics
         .extend(std::mem::take(&mut typed.diagnostics));
+    // Ownership (chapter 5) is checked on the IR of a program without other errors.
+    if result.diagnostics.is_empty() {
+        let meta = wolf_ir::ProjectMeta {
+            name: &manifest.name,
+            version: &manifest.version,
+            kind: manifest.kind,
+        };
+        match wolf_ir::lower(&inputs, &resolved, &typed, &result.map, &meta) {
+            Ok(program) => result.diagnostics.extend(wolf_own::check(&program)),
+            Err(e) => result.diagnostics.push(
+                Diagnostic::new(codes::E0003, "internal compiler error")
+                    .note(format!("the program cannot be lowered: {}", e.message))
+                    .help("this is a bug in wolf; please report it with the input that caused it"),
+            ),
+        }
+    }
     drop(inputs);
     result.project = Some(Project {
         root,
