@@ -387,10 +387,11 @@ impl<'p> Emitter<'p> {
         if let Some(alias) = self.imported.get(&def) {
             return alias.clone();
         }
+        // The name must not be hidden by a local of the function being emitted either.
         let mut alias = name.clone();
-        let mut n = 2;
-        while self.taken.contains(&alias) {
-            alias = format!("{name}${n}");
+        let mut n = 1;
+        while self.taken.contains(&alias) || self.f.used.contains(&alias) {
+            alias = format!("{name}$m{n}");
             n += 1;
         }
         self.taken.insert(alias.clone());
@@ -1805,9 +1806,16 @@ impl<'p> Emitter<'p> {
                 let m = self.expr(message, out)?;
                 tagged(self.rt_call("panic", vec![m, Expr::Str(location.clone())]))
             }
-            ExprKind::Assert { cond, text } => {
+            ExprKind::Assert {
+                cond,
+                text,
+                location,
+            } => {
                 let c = self.expr(cond, out)?;
-                tagged(self.rt_call("assert", vec![c, Expr::Str(text.clone())]))
+                tagged(self.rt_call(
+                    "assert",
+                    vec![c, Expr::Str(text.clone()), Expr::Str(location.clone())],
+                ))
             }
         }
     }

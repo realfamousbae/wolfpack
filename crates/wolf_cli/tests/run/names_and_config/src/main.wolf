@@ -1,0 +1,22 @@
+module main
+
+imports {
+    text.{shout}
+}
+
+config {
+    greeting: String = "hello"
+    loud: Bool = true
+}
+
+functions {
+    fn main() {
+        let shout = shout(greeting)
+        print(shout)
+        if loud {
+            let greeting = "inner"
+            print(greeting)
+        }
+        print(greeting)
+    }
+}

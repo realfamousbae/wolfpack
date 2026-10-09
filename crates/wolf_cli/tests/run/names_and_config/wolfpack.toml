@@ -1,0 +1,7 @@
+[package]
+name = "names-and-config"
+version = "0.1.0"
+kind = "cli"
+
+[config.main]
+greeting = "hi from wolfpack.toml"

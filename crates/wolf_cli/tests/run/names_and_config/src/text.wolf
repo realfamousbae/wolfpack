@@ -1,0 +1,7 @@
+module text
+
+functions {
+    pub fn shout(s: String) -> String {
+        s.to_upper_ascii() + "!"
+    }
+}
