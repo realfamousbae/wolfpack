@@ -35,7 +35,8 @@ Decisions taken by the author for this chapter (2026-10-07):
 
 3. Initial driver codes: E0001 cannot read a file or directory; E0002 invalid command-line usage;
    E0003 internal compiler error. **[PROPOSAL]** Added in M3: E0004 no `wolfpack.toml` found in the
-   current directory or its parents.
+   current directory or its parents. Backend and toolchain errors (E08xx, chapter 8, section 9) have no source
+   range either.
 4. **Internal compiler error.** The compiler never panics on user input **[PLAN]**. If an internal
    invariant breaks anyway, the driver catches it and reports E0003 with a request to file a bug,
    instead of a Rust panic trace. **[PROPOSAL]**

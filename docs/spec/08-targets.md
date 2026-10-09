@@ -246,7 +246,16 @@ copy defensively.
      converted with their `Display` text.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
-## 9. Decisions for the author
+## 9. Diagnostics
+
+Added in M6 (author, 2026-10-09). Like driver errors, these have no source range.
+
+| Code | Error |
+| --- | --- |
+| E0801 | A tool of the target is not installed (`node`, `tsc`, `go`, `cargo`); the hint says how to install it |
+| E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it |
+
+## 10. Decisions for the author
 
 | # | Decision | Recommendation |
 | --- | --- | --- |
