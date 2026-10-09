@@ -71,7 +71,9 @@ Rules:
 6. **Impl block head.** `Stack<T: Comparable> { ... }` declares the type parameters of the block
    and their bounds in the head. An `impl` for a specific instantiation (`Stack<Int> { }`) does not
    exist in v1. The interface after `:` may have arguments: `Stack<T>: Container<T> { }`.
-   **[PROPOSAL]** (see D3.2)
+   **[PROPOSAL]** (see D3.2) The bounds of the type's own declaration apply in the block without
+   being repeated: with `struct Sorted<T: Comparable>`, the head `Sorted<T> { }` has
+   `T: Comparable`. The head may add further bounds. (Author, 2026-10-09.)
 7. Interfaces in v1 contain only signatures: no default method bodies, no super-interfaces.
    **[PROPOSAL]** (see D3.3). Whether a signature without `self` is allowed in an interface is
    decided in chapter 4 together with register item 13.
