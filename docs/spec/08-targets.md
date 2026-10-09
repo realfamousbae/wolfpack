@@ -41,7 +41,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
 
 | Target | Layout of `out/<target>/` |
 | --- | --- |
-| TS | `package.json` (`"type": "module"`), `tsconfig.json` (strict, target ES2022, module NodeNext), `src/**/*.ts`, `src/wolf_rt.ts`. Built with `tsc` into `dist/`, run with `node dist/main.js` |
+| TS | `package.json` (`"type": "module"`), `tsconfig.json` (strict, target ES2022, module NodeNext), `src/**/*.ts`, `src/wolf_rt.ts`. Built with `tsc` into `dist/` (root `.`, so `src/` and `examples/` keep their paths), run with `node dist/src/main.js` |
 | Go | `go.mod` (module path = package name, `go 1.24`), `main.go` (package `main`) for `cli`, one directory per module, `wolfrt/` package |
 | Rust | `Cargo.toml` (edition 2024), `src/main.rs` or `src/lib.rs`, one file per module, `src/wolf_rt.rs` |
 
@@ -126,6 +126,10 @@ Added after approval, while writing the examples. **[INTERNAL]**
    `wolfrt.Result[T, E]` (small generic structs).
 3. Conversions between the two forms are generated where a value moves from one position to the
    other. **[INTERNAL]**
+4. Function **values** (closures, functions stored in variables or passed as arguments) return an
+   `Option` in the data form in TS, because what they return is usually stored (`list.map`). A
+   declared function used as a value is wrapped so that it returns the data form. (Author,
+   2026-10-09, ADR 0008.)
 
 ### 4.2 `Int` in TypeScript (G10)
 
@@ -199,8 +203,9 @@ gets (`Box<dyn Trait>` gets a `Clone` impl through it). **[INTERNAL]**
 ### 5.5 Equality and copies
 
 `==` and `.copy()` (chapter 4, section 9) map to `===` / native `==` / `PartialEq` and to nothing for
-copy types. For other types the backend generates `equals` and `copy` functions (TS, Go) or derives
-`PartialEq` and `Clone` (Rust). **[PLAN]**
+copy types. For other types TS uses the structural `eq` and `copy` of the generated runtime (author, 2026-10-09,
+ADR 0008), Go generates `equals` and `copy` functions, and Rust derives `PartialEq` and `Clone`.
+**[PLAN]**
 
 ## 6. Ownership
 
@@ -222,7 +227,9 @@ copy defensively.
 1. `if` and `match` used as expressions become statements assigning a temporary in TS and Go (both
    lack expression `if` and `switch`). A simple `if`/`else` of two plain values becomes a TS ternary.
    **[INTERNAL]**
-2. `match` becomes `switch` on `kind` with a `never` exhaustiveness check in TS, a type `switch` (or a
+2. `match` becomes an `if`/`else if` chain on `kind` in TS (a labeled block when an arm has a
+   guard), because a `switch` would catch the `break` of a surrounding loop and cannot express
+   nested patterns (author, 2026-10-09, ADR 0008); a type `switch` (or a
    value `switch` for payload-less enums) in Go, and `match` in Rust **[PLAN]**.
 3. `?` becomes an early `return` in TS, `if err != nil { return ..., err }` in Go and `?` in Rust
    **[PLAN]**. Coercion to `Error` (chapter 4) is emitted explicitly where needed.
