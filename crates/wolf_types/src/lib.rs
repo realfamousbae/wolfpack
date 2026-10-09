@@ -31,6 +31,7 @@ use wolf_project::ConfigValue;
 use wolf_resolve::{DefId, LocalId, ModuleInput, ProjectInfo, Resolved};
 use wolf_span::FileId;
 
+pub use env::{FieldInfo, Generic, ImplOf, Method, Shape, Sig, VariantInfo};
 pub use ty::{ParamId, Ty, VarId};
 
 /// The function a method call resolved to.
@@ -68,6 +69,31 @@ impl From<ConfigValue> for ConstValue {
     }
 }
 
+/// The types of all declarations, for the lowering to IR.
+#[derive(Debug, Default)]
+pub struct Decls {
+    /// The type parameters of every type declaration.
+    pub type_generics: BTreeMap<DefId, Vec<Generic>>,
+    /// The fields of every struct.
+    pub fields: BTreeMap<DefId, Vec<FieldInfo>>,
+    /// Every enum variant.
+    pub variants: BTreeMap<DefId, VariantInfo>,
+    /// The variants of every enum, in declaration order.
+    pub enum_variants: BTreeMap<DefId, Vec<DefId>>,
+    /// Free functions, extern functions and inherent functions by declaration.
+    pub fns: BTreeMap<DefId, Sig>,
+    /// Every function of every `impl` block.
+    pub methods: Vec<Method>,
+    /// The method signatures of each interface.
+    pub interface_methods: BTreeMap<DefId, BTreeMap<String, Sig>>,
+    /// The interfaces implemented by each type.
+    pub impls: BTreeMap<DefId, Vec<ImplOf>>,
+    /// The type of each constant.
+    pub consts: BTreeMap<DefId, Ty>,
+    /// The names of type parameters by the span of their declaration.
+    pub param_names: BTreeMap<wolf_span::Span, String>,
+}
+
 /// The result of type checking. Tables are keyed like the resolution table.
 #[derive(Debug, Default)]
 pub struct Typed {
@@ -82,6 +108,8 @@ pub struct Typed {
     pub coercions: BTreeMap<(FileId, NodeId), Ty>,
     /// The values of `config` constants, with overrides applied.
     pub consts: BTreeMap<DefId, ConstValue>,
+    /// The types of all declarations.
+    pub decls: Decls,
     /// Diagnostics of chapter 4.
     pub diagnostics: Vec<Diagnostic>,
 }

@@ -61,70 +61,91 @@ impl Builtins {
 
 /// A type parameter of a declaration.
 #[derive(Clone, Debug)]
-pub(crate) struct Generic {
-    pub(crate) span: Span,
-    pub(crate) bounds: Vec<Ty>,
+pub struct Generic {
+    /// The span of its name, which identifies it.
+    pub span: Span,
+    /// Its bounds.
+    pub bounds: Vec<Ty>,
 }
 
 /// A field of a struct or of a struct variant.
 #[derive(Clone, Debug)]
-pub(crate) struct FieldInfo {
-    pub(crate) name: String,
-    pub(crate) span: Span,
-    pub(crate) ty: Ty,
-    pub(crate) public: bool,
+pub struct FieldInfo {
+    /// The field name.
+    pub name: String,
+    /// The span of the name.
+    pub span: Span,
+    /// The field type.
+    pub ty: Ty,
+    /// `pub`.
+    pub public: bool,
 }
 
 /// The payload of a variant.
 #[derive(Clone, Debug)]
-pub(crate) enum Shape {
+pub enum Shape {
+    /// No payload.
     None,
+    /// Positional values.
     Tuple(Vec<Ty>),
+    /// Named fields.
     Struct(Vec<FieldInfo>),
 }
 
 /// A variant of an enum.
 #[derive(Clone, Debug)]
-pub(crate) struct VariantInfo {
-    pub(crate) parent: DefId,
-    pub(crate) shape: Shape,
+pub struct VariantInfo {
+    /// The enum.
+    pub parent: DefId,
+    /// The payload.
+    pub shape: Shape,
 }
 
 /// A function signature.
 #[derive(Clone, Debug)]
-pub(crate) struct Sig {
-    pub(crate) generics: Vec<Generic>,
+pub struct Sig {
+    /// The type parameters of the function itself.
+    pub generics: Vec<Generic>,
     /// The mode of `self`, for methods.
-    pub(crate) self_mode: Option<Mode>,
-    pub(crate) params: Vec<(Mode, Ty)>,
-    pub(crate) ret: Ty,
+    pub self_mode: Option<Mode>,
+    /// Parameter modes and types, without `self`.
+    pub params: Vec<(Mode, Ty)>,
+    /// The result type.
+    pub ret: Ty,
 }
 
 /// A function of an `impl` block.
 #[derive(Clone, Debug)]
-pub(crate) struct Method {
-    pub(crate) name: String,
-    pub(crate) span: Span,
-    pub(crate) owner: DefId,
-    pub(crate) module: ModuleId,
+pub struct Method {
+    /// The function name.
+    pub name: String,
+    /// The span of the name in its declaration.
+    pub span: Span,
+    /// The type of the `impl` block.
+    pub owner: DefId,
+    /// The module of the block.
+    pub module: ModuleId,
     /// The type parameters of the `impl` block, in the order of the type's parameters.
-    pub(crate) impl_generics: Vec<Span>,
+    pub impl_generics: Vec<Span>,
     /// The bounds of the `impl` block's type parameters, in the same order.
-    pub(crate) impl_bounds: Vec<Vec<Ty>>,
-    pub(crate) sig: Sig,
-    pub(crate) public: bool,
+    pub impl_bounds: Vec<Vec<Ty>>,
+    /// The signature.
+    pub sig: Sig,
+    /// Visible outside its module.
+    pub public: bool,
     /// The interface, for a function of an interface implementation.
-    pub(crate) interface: Option<DefId>,
+    pub interface: Option<DefId>,
 }
 
 /// An implementation of an interface by a type.
 #[derive(Clone, Debug)]
-pub(crate) struct ImplOf {
-    pub(crate) interface: DefId,
+pub struct ImplOf {
+    /// The interface.
+    pub interface: DefId,
     /// The interface's type arguments, in terms of the impl block's type parameters.
-    pub(crate) args: Vec<Ty>,
+    pub args: Vec<Ty>,
     /// The impl block's type parameters, in the order of the type's parameters.
-    pub(crate) generics: Vec<Span>,
+    pub generics: Vec<Span>,
 }
 
 /// A body to check.
@@ -261,7 +282,19 @@ impl<'a> Checker<'a> {
         }
     }
 
-    pub(crate) fn finish(self) -> Typed {
+    pub(crate) fn finish(mut self) -> Typed {
+        self.out.decls = crate::Decls {
+            type_generics: self.type_generics,
+            fields: self.fields,
+            variants: self.variants,
+            enum_variants: self.enum_variants,
+            fns: self.fns,
+            methods: self.methods,
+            interface_methods: self.interface_methods,
+            impls: self.impls,
+            consts: self.consts,
+            param_names: self.param_names,
+        };
         self.out
     }
 
