@@ -1855,7 +1855,9 @@ impl<'a> Checker<'a> {
                                     && iface != def =>
                             {
                                 if self.implements(&err_s, *iface) {
-                                    self.out.coercions.insert((b.file, e.id), target_s.clone());
+                                    self.out
+                                        .try_coercions
+                                        .insert((b.file, e.id), target_s.clone());
                                     true
                                 } else {
                                     false

@@ -104,8 +104,11 @@ pub struct Typed {
     /// The function each method call (the `Call` node) resolved to.
     pub method_calls: BTreeMap<(FileId, NodeId), MethodCall>,
     /// Expressions whose value is converted to an interface type, and that type: a concrete
-    /// value passed where an interface is expected, or the error of a `?` (chapter 4, 8.5).
+    /// value used where an interface is expected (chapter 4, 8.5). Shorthand fields of struct
+    /// literals are keyed by their field node.
     pub coercions: BTreeMap<(FileId, NodeId), Ty>,
+    /// `?` expressions whose error is converted to an interface type, and that type.
+    pub try_coercions: BTreeMap<(FileId, NodeId), Ty>,
     /// The values of `config` constants, with overrides applied.
     pub consts: BTreeMap<DefId, ConstValue>,
     /// The types of all declarations.
