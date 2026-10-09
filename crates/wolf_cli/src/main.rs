@@ -39,6 +39,23 @@ enum Command {
     Build(BuildArgs),
     /// Build the project and run it with the tools of the target.
     Run(RunArgs),
+    /// Run the tests of the project: `tests` sections and the modules under `tests/`.
+    Test(TestArgs),
+}
+
+/// Options of `wolf test`.
+#[derive(clap::Args)]
+struct TestArgs {
+    /// Run only the tests whose name contains this text.
+    filter: Option<String>,
+
+    /// The target; the default target of `wolfpack.toml` if absent.
+    #[arg(long, value_enum)]
+    target: Option<TargetArg>,
+
+    /// Build in this directory instead of `out/<target>/` (for tests).
+    #[arg(long, hide = true)]
+    out: Option<PathBuf>,
 }
 
 /// A target language.
@@ -204,6 +221,21 @@ fn run() -> ExitCode {
                 &cwd,
                 args.out.as_deref(),
                 build::Then::Nothing,
+                args.target.is_some(),
+            ))
+        }
+        Command::Test(args) => {
+            if let Some(code) = unsupported_target(args.target) {
+                return code;
+            }
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let then = build::Then::Test {
+                filter: args.filter.clone(),
+            };
+            finish(build::build(
+                &cwd,
+                args.out.as_deref(),
+                then,
                 args.target.is_some(),
             ))
         }

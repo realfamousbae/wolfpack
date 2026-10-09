@@ -1,0 +1,32 @@
+module util.math
+
+imports {
+    std.math
+}
+
+functions {
+    pub fn halve(n: Int) -> Int {
+        if n % 2 != 0 {
+            panic("odd number " + n.to_string())
+        }
+        n / 2
+    }
+}
+
+tests {
+    fn twice(n: Int) -> Int {
+        n * 2
+    }
+
+    test "twice and halve give the number back" {
+        assert(halve(twice(21)) == 21)
+    }
+
+    test "odd numbers panic" {
+        let _ = halve(3)
+    }
+
+    test "overflow is a panic too" {
+        let _ = twice(math.int_max)
+    }
+}

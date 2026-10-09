@@ -157,3 +157,99 @@ fn e0802_rejected_code() {
     assert_eq!(stderr, expected);
     assert_eq!(output.status.code(), Some(1));
 }
+
+fn wolf_test(project: &Path, out: &Path, extra: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .arg("test")
+        .args(extra)
+        .arg("--out")
+        .arg(out)
+        .current_dir(project)
+        .output()
+        .unwrap()
+}
+
+/// Milestone M7: the tests of every example pass.
+#[test]
+fn every_example_passes_its_tests() {
+    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+    let mut failures = Vec::new();
+    for entry in fs::read_dir(&examples).unwrap().flatten() {
+        let project = entry.path();
+        if !project.join("wolfpack.toml").is_file() {
+            continue;
+        }
+        let name = project.file_name().unwrap().to_string_lossy().into_owned();
+        let output = wolf_test(&project, &tmp(&format!("test-{name}")), &[]);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if output.status.code() != Some(0) || !stdout.contains("test result: ok.") {
+            failures.push(format!(
+                "--- {name}\n{stdout}{}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Projects under `tests/test/`: the report of `wolf test` (and of `wolf test <filter>` when
+/// `filter.txt` exists) with its exit code.
+#[test]
+fn test_reports_match_expected_output() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/test");
+    let bless = std::env::var_os("WOLF_BLESS").is_some();
+    let mut failures = Vec::new();
+    let mut dirs: Vec<PathBuf> = fs::read_dir(&root)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    dirs.sort();
+    for dir in dirs {
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let mut runs = vec![(None, "expected.txt")];
+        if let Ok(filter) = fs::read_to_string(dir.join("filter.txt")) {
+            runs.push((Some(filter.trim().to_string()), "expected_filtered.txt"));
+        }
+        for (filter, file) in runs {
+            let extra: Vec<&str> = filter.iter().map(String::as_str).collect();
+            let output = wolf_test(&dir, &tmp(&format!("t-{name}")), &extra);
+            let actual = format!(
+                "{}exit code: {}\n",
+                String::from_utf8_lossy(&output.stdout),
+                output.status.code().unwrap_or(-1)
+            );
+            if bless {
+                fs::write(dir.join(file), &actual).unwrap();
+                continue;
+            }
+            let expected = fs::read_to_string(dir.join(file)).unwrap_or_default();
+            if actual != expected {
+                failures.push(format!(
+                    "--- {name} ({file})\nexpected:\n{expected}\nactual:\n{actual}"
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// Tests and test helpers are not part of `wolf build`.
+#[test]
+fn tests_are_not_in_the_normal_build() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/test/mixed");
+    let out = tmp("build-mixed");
+    let output = Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .args(["build", "--out"])
+        .arg(&out)
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let math = fs::read_to_string(out.join("src/util/math.ts")).unwrap();
+    assert!(
+        !math.contains("twice") && !math.contains("$tests"),
+        "{math}"
+    );
+    assert!(!out.join("src/main.test.ts").exists());
+}

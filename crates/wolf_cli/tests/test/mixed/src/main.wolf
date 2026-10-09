@@ -1,0 +1,21 @@
+module main
+
+imports {
+    util.math.{halve}
+}
+
+functions {
+    fn main() {
+        print(halve(4).to_string())
+    }
+}
+
+tests {
+    test "halves an even number" {
+        assert(halve(4) == 2)
+    }
+
+    test "this assertion is wrong" {
+        assert(halve(4) == 3)
+    }
+}

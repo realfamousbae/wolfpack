@@ -1,0 +1,19 @@
+test src/main.wolf: halves an even number ... ok
+test src/main.wolf: this assertion is wrong ... FAILED
+test src/util/math.wolf: twice and halve give the number back ... ok
+test src/util/math.wolf: odd numbers panic ... FAILED
+test src/util/math.wolf: overflow is a panic too ... FAILED
+
+failures:
+
+  src/main.wolf: this assertion is wrong
+    panic at src/main.wolf:19:9: assertion failed: halve(4) == 3
+
+  src/util/math.wolf: odd numbers panic
+    panic at src/util/math.wolf:10:13: odd number 3
+
+  src/util/math.wolf: overflow is a panic too
+    panic: integer overflow
+
+test result: FAILED. 2 passed; 3 failed
+exit code: 1

@@ -85,6 +85,12 @@ export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };"#,
 }"#,
     },
     Piece {
+        name: "Test",
+        deps: &[],
+        code: r#"/** A test: its name (file and test name) and its body. */
+export type Test = { name: string; run: () => void };"#,
+    },
+    Piece {
         name: "Ref",
         deps: &[],
         code: r#"/** A place passed to a `mut` parameter. */

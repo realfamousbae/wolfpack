@@ -1,0 +1,9 @@
+test src/util/math.wolf: odd numbers panic ... FAILED
+
+failures:
+
+  src/util/math.wolf: odd numbers panic
+    panic at src/util/math.wolf:10:13: odd number 3
+
+test result: FAILED. 0 passed; 1 failed
+exit code: 1

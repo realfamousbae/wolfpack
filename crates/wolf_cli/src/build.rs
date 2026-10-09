@@ -20,6 +20,11 @@ pub(crate) enum Then {
         /// Arguments for the program.
         args: Vec<String>,
     },
+    /// Build with the tests and run them.
+    Test {
+        /// Only tests whose name contains this text.
+        filter: Option<String>,
+    },
 }
 
 /// The outcome of `wolf build` or `wolf run`.
@@ -78,7 +83,8 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, explicit: 
         Ok(p) => p,
         Err(e) => return internal(result, &e.message),
     };
-    let files = match wolf_ts::generate(&program, env!("CARGO_PKG_VERSION")) {
+    let tests = matches!(then, Then::Test { .. });
+    let files = match wolf_ts::generate(&program, env!("CARGO_PKG_VERSION"), tests) {
         Ok(f) => f,
         Err(e) => return internal(result, &e),
     };
@@ -94,6 +100,12 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, explicit: 
     }
     match then {
         Then::Nothing => Outcome::Built,
+        Then::Test { filter } => run_tests(
+            result,
+            &out,
+            &wolf_ts::test_entries(&files),
+            filter.as_deref(),
+        ),
         Then::Run { example, args } => {
             if example.is_none() && program.kind == wolf_ir::ProgramKind::Lib {
                 result.diagnostics.push(
@@ -172,6 +184,84 @@ fn missing_tool(mut result: CheckResult, tool: &str, help: &str) -> Outcome {
             .help(help.to_string()),
     );
     Outcome::Failed(Box::new(result), crate::EXIT_ERRORS)
+}
+
+/// `tsc` for the output project; `None` if it built, or the failure.
+fn compile(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Outcome> {
+    let Some(node) = find_tool("node", out) else {
+        return Err(missing_tool(
+            result,
+            "node",
+            "install Node.js 22 or later from https://nodejs.org",
+        ));
+    };
+    let Some(tsc) = find_tool("tsc", out) else {
+        return Err(missing_tool(
+            result,
+            "tsc",
+            "install TypeScript: `npm install -g typescript`",
+        ));
+    };
+    let mut result = result;
+    match Command::new(&tsc).arg("-p").arg(out).output() {
+        Ok(o) if o.status.success() => Ok((node, result)),
+        Ok(o) => {
+            let text = String::from_utf8_lossy(&o.stdout).into_owned()
+                + &String::from_utf8_lossy(&o.stderr);
+            result.diagnostics.push(
+                Diagnostic::new(codes::E0802, "TypeScript rejected the generated code")
+                    .note(text.trim_end().to_string())
+                    .help("this is a bug in wolf; please report it with the input that caused it"),
+            );
+            Err(Outcome::Failed(Box::new(result), crate::EXIT_ERRORS))
+        }
+        Err(e) => Err(missing_tool(
+            result,
+            "tsc",
+            &format!("`tsc` could not be started: {e}"),
+        )),
+    }
+}
+
+/// Runs the tests with `node:test` and the generated reporter (spec chapter 8, rule 2.7).
+fn run_tests(result: CheckResult, out: &Path, entries: &[String], filter: Option<&str>) -> Outcome {
+    let (node, _result) = match compile(result, out) {
+        Ok(ok) => ok,
+        Err(outcome) => return outcome,
+    };
+    if entries.is_empty() {
+        println!("test result: ok. 0 passed; 0 failed");
+        return Outcome::Ran(0);
+    }
+    let mut cmd = Command::new(&node);
+    cmd.current_dir(out)
+        .arg("--test")
+        .arg("--test-concurrency=1")
+        .arg("--test-reporter=./wolf_test_reporter.mjs");
+    if let Some(f) = filter {
+        cmd.arg(format!("--test-name-pattern={}", regex_escape(f)));
+    }
+    cmd.args(entries);
+    match cmd.status() {
+        Ok(s) if s.success() => Outcome::Ran(0),
+        Ok(_) => Outcome::Ran(1),
+        Err(e) => {
+            eprintln!("error[E0801]: `node` could not be started: {e}");
+            Outcome::Ran(1)
+        }
+    }
+}
+
+/// A text as a regular expression that matches it literally.
+fn regex_escape(text: &str) -> String {
+    let mut out = String::new();
+    for c in text.chars() {
+        if "\\^$.|?*+()[]{}/".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
 }
 
 fn run_ts(mut result: CheckResult, out: &Path, entry: &str, args: &[String]) -> Outcome {
