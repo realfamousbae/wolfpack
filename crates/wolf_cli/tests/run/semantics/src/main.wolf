@@ -1,0 +1,133 @@
+module main
+
+imports {
+    std.list
+    std.math
+}
+
+types {
+    struct Point {
+        x: Int
+        y: Int
+    }
+
+    enum Color {
+        Red
+        Green
+    }
+
+    enum Shape {
+        Circle(Float)
+        Square { side: Float }
+        Dot
+    }
+}
+
+impl {
+    Color: Error {
+        fn message(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+}
+
+functions {
+    fn bump(mut n: Int) {
+        n += 1
+    }
+
+    fn bump_twice(mut n: Int) {
+        bump(mut n)
+        bump(mut n)
+    }
+
+    fn reset(mut p: Point) {
+        p = Point { x: 0, y: 0 }
+    }
+
+    fn first_word(text: String) -> Option<String> {
+        let words = text.split(" ")
+        if words[0].is_empty() {
+            return None
+        }
+        Some(words[0].copy())
+    }
+
+    fn nested(o: Option<Option<Int>>) -> String {
+        match o {
+            Some(Some(v)) => "some " + v.to_string()
+            Some(None) => "some none"
+            None => "none"
+        }
+    }
+
+    fn show(e: Error) -> String {
+        e.message()
+    }
+
+    fn fail(c: Color) -> Result<Int, Error> {
+        let v: Result<Int, Color> = Err(c)
+        let n = v?
+        Ok(n)
+    }
+
+    fn area(s: Shape) -> Float {
+        match s {
+            Shape.Circle(r) => r * r * 3.0
+            Shape.Square { side } => side * side
+            Shape.Dot => 0.0
+        }
+    }
+
+    fn string_keys(m: Map<String, Int>) -> String {
+        var out = ""
+        for k in m.keys() {
+            out += k + "=" + m[k].to_string() + " "
+        }
+        out
+    }
+
+    fn main() {
+        var n = 1
+        bump_twice(mut n)
+        print("n = " + n.to_string())
+        var p = Point { x: 3, y: 4 }
+        let q = p.copy()
+        reset(mut p)
+        print("p = " + p.x.to_string() + ", q = " + q.x.to_string())
+        print("p == q: " + (p == q).to_string() + ", copy equal: " + (q == Point { x: 3, y: 4 }).to_string())
+        var numbers = [1, 2, 3]
+        for x in mut numbers {
+            x *= 10
+        }
+        print("numbers: " + numbers.map(|x| x.to_string()).len().to_string() + " " + numbers[2].to_string())
+        print(match first_word("hello world") {
+            Some(w) => w
+            None => "-"
+        })
+        print(nested(Some(Some(5))) + ", " + nested(Some(None)) + ", " + nested(None))
+        print(show(Color.Green))
+        match fail(Color.Red) {
+            Ok(_) => print("ok")
+            Err(e) => print("error: " + e.message())
+        }
+        let text = "añb😀c"
+        print(text.len().to_string() + " " + text[1..4] + " " + text[3..=3])
+        print((1.0).to_string() + " " + (0.1 + 0.2).to_string() + " " + (1.0 / 0.0).to_string() + " " + (2.5e-7).to_string() + " " + (1e21).to_string() + " " + (-0.0).to_string())
+        print((-7 / 2).to_string() + " " + (-7 % 2).to_string() + " " + (1 << 62).to_string() + " " + (-8 >> 1).to_string())
+        print(math.int_max.to_string() + " " + math.int_min.to_string())
+        var m: Map<String, Int> = [:]
+        let _ = m.insert("b", 1)
+        let _ = m.insert("a", 2)
+        let _ = m.insert("b", 3)
+        print(string_keys(m))
+        print(([1: "x", 2: "y"] == [2: "y", 1: "x"]).to_string())
+        var shapes = [Shape.Circle(1.0), Shape.Square { side: 2.0 }, Shape.Dot]
+        list.sort_by(mut shapes, |a, b| area(a).max(area(b)).to_int().compare(0))
+        print(area(shapes[1]).to_string())
+        print(("b" < "a").to_string() + " " + ("é" > "z").to_string())
+    }
+}

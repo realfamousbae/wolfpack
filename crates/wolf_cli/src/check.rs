@@ -18,12 +18,41 @@ use crate::{CheckArgs, Emit};
 pub(crate) struct CheckResult {
     pub(crate) map: SourceMap,
     pub(crate) diagnostics: Vec<Diagnostic>,
+    /// The checked project, if one was found and loaded.
+    pub(crate) project: Option<Project>,
+}
+
+/// A loaded and checked project.
+pub(crate) struct Project {
+    /// The directory of `wolfpack.toml`.
+    pub(crate) root: PathBuf,
+    pub(crate) manifest: wolf_project::Manifest,
+    /// Every module, std first: path, role, file and syntax tree.
+    pub(crate) parsed: Vec<(Vec<String>, wolf_resolve::Role, FileId, wolf_ast::File)>,
+    pub(crate) resolved: wolf_resolve::Resolved,
+    pub(crate) typed: wolf_types::Typed,
+}
+
+impl Project {
+    /// The modules as the resolver and the type checker take them.
+    pub(crate) fn inputs(&self) -> Vec<wolf_resolve::ModuleInput<'_>> {
+        self.parsed
+            .iter()
+            .map(|(path, role, file, ast)| wolf_resolve::ModuleInput {
+                path: path.clone(),
+                role: *role,
+                file: *file,
+                ast,
+            })
+            .collect()
+    }
 }
 
 pub(crate) fn run(args: &CheckArgs) -> CheckResult {
     let mut result = CheckResult {
         map: SourceMap::new(),
         diagnostics: Vec::new(),
+        project: None,
     };
     if args.paths.is_empty() {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -116,8 +145,29 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
     result
         .diagnostics
         .extend(std::mem::take(&mut resolved.diagnostics));
-    let typed = wolf_types::check(&inputs, &resolved, &info);
-    result.diagnostics.extend(typed.diagnostics);
+    let mut typed = wolf_types::check(&inputs, &resolved, &info);
+    result
+        .diagnostics
+        .extend(std::mem::take(&mut typed.diagnostics));
+    drop(inputs);
+    result.project = Some(Project {
+        root,
+        manifest,
+        parsed,
+        resolved,
+        typed,
+    });
+}
+
+/// Loads and checks the project around `start` (used by `wolf build` and `wolf run`).
+pub(crate) fn load(start: &Path, args: &CheckArgs) -> CheckResult {
+    let mut result = CheckResult {
+        map: SourceMap::new(),
+        diagnostics: Vec::new(),
+        project: None,
+    };
+    project(start, args, &mut result);
+    result
 }
 
 /// Reads, lexes and parses one file. Returns `None` if it could not be read or decoded.

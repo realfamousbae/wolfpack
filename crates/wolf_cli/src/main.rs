@@ -1,8 +1,9 @@
 //! The `wolf` command-line tool.
 //!
-//! `wolf check` lexes and parses `.wolf` files and reports their errors (milestone M2).
-//! Until project discovery arrives in M3, `wolf check` takes files or directories directly.
+//! `wolf check` checks a project, `wolf build` generates the target project in `out/<target>/`,
+//! `wolf run` builds and runs it with the tools of the target, and `wolf new` creates a project.
 
+mod build;
 mod check;
 
 use std::io::{self, IsTerminal, Write};
@@ -16,9 +17,9 @@ use wolf_diag::{Diagnostic, codes};
 use wolf_span::SourceMap;
 
 /// Exit codes of `wolf` (spec chapter 9, section 4).
-const EXIT_ERRORS: u8 = 1;
-const EXIT_USAGE: u8 = 2;
-const EXIT_INTERNAL: u8 = 3;
+pub(crate) const EXIT_ERRORS: u8 = 1;
+pub(crate) const EXIT_USAGE: u8 = 2;
+pub(crate) const EXIT_INTERNAL: u8 = 3;
 
 /// The Wolfpack compiler.
 #[derive(Parser)]
@@ -34,6 +35,55 @@ enum Command {
     Check(CheckArgs),
     /// Create a new project with the standard layout.
     New(NewArgs),
+    /// Generate the project for a target in `out/<target>/`.
+    Build(BuildArgs),
+    /// Build the project and run it with the tools of the target.
+    Run(RunArgs),
+}
+
+/// A target language.
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum TargetArg {
+    /// TypeScript for Node.js.
+    Ts,
+    /// Go.
+    Go,
+    /// Rust.
+    Rust,
+    /// Every enabled target.
+    All,
+}
+
+/// Options of `wolf build`.
+#[derive(clap::Args)]
+struct BuildArgs {
+    /// The target; the default target of `wolfpack.toml` if absent.
+    #[arg(long, value_enum)]
+    target: Option<TargetArg>,
+
+    /// Write the generated project here instead of `out/<target>/` (for tests).
+    #[arg(long, hide = true)]
+    out: Option<PathBuf>,
+}
+
+/// Options of `wolf run`.
+#[derive(clap::Args)]
+struct RunArgs {
+    /// The target; the default target of `wolfpack.toml` if absent.
+    #[arg(long, value_enum)]
+    target: Option<TargetArg>,
+
+    /// Run the example `examples/<name>.wolf` instead of the program.
+    #[arg(long)]
+    example: Option<String>,
+
+    /// Build in this directory instead of `out/<target>/` (for tests).
+    #[arg(long, hide = true)]
+    out: Option<PathBuf>,
+
+    /// Arguments for the program, after `--`.
+    #[arg(last = true)]
+    args: Vec<String>,
 }
 
 /// Options of `wolf new`.
@@ -145,6 +195,28 @@ fn run() -> ExitCode {
     };
     match cli.command {
         Command::New(args) => new_project(&args),
+        Command::Build(args) => {
+            if let Some(code) = unsupported_target(args.target) {
+                return code;
+            }
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            finish(build::build(
+                &cwd,
+                args.out.as_deref(),
+                build::Then::Nothing,
+            ))
+        }
+        Command::Run(args) => {
+            if let Some(code) = unsupported_target(args.target) {
+                return code;
+            }
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let then = build::Then::Run {
+                example: args.example.clone(),
+                args: args.args.clone(),
+            };
+            finish(build::build(&cwd, args.out.as_deref(), then))
+        }
         Command::Check(args) => {
             let result = check::run(&args);
             let mut map = result.map;
@@ -156,6 +228,43 @@ fn run() -> ExitCode {
             } else {
                 ExitCode::from(EXIT_ERRORS)
             }
+        }
+    }
+}
+
+/// Only the TypeScript backend exists before M9.
+fn unsupported_target(target: Option<TargetArg>) -> Option<ExitCode> {
+    let name = match target {
+        None | Some(TargetArg::Ts) => return None,
+        Some(TargetArg::Go) => "go",
+        Some(TargetArg::Rust) => "rust",
+        Some(TargetArg::All) => "all",
+    };
+    let _ = writeln!(
+        io::stderr(),
+        "error[{}]: the target `{name}` is not available yet; only `ts` can be built",
+        codes::E0002.id()
+    );
+    Some(ExitCode::from(EXIT_USAGE))
+}
+
+fn finish(outcome: build::Outcome) -> ExitCode {
+    match outcome {
+        build::Outcome::Built => ExitCode::SUCCESS,
+        build::Outcome::Ran(code) => ExitCode::from(u8::try_from(code).unwrap_or(1)),
+        build::Outcome::Failed(result, code) => {
+            let result = *result;
+            let mut map = result.map;
+            let mut diagnostics = result.diagnostics;
+            wolf_diag::sort(&mut diagnostics);
+            let args = CheckArgs {
+                paths: Vec::new(),
+                message_format: MessageFormat::Human,
+                color: Color::Auto,
+                emit: None,
+            };
+            report(&mut map, &diagnostics, &args);
+            ExitCode::from(code)
         }
     }
 }

@@ -139,6 +139,14 @@ fn every_code_has_a_ui_test() {
             .iter()
             .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())),
     );
+    // Toolchain errors (E08xx) are tested by `tests/run.rs` with projects in `tests/run/`.
+    let run = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run");
+    names.extend(
+        fs::read_dir(&run)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned()),
+    );
     for code in wolf_diag::codes::ALL {
         if !code.id().starts_with("E00") {
             assert!(

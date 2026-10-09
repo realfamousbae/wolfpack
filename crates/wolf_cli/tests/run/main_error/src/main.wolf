@@ -1,0 +1,28 @@
+module main
+
+types {
+    struct Problem {
+        what: String
+    }
+}
+
+impl {
+    Problem: Error {
+        fn message(self) -> String {
+            "problem with " + self.what
+        }
+    }
+}
+
+functions {
+    fn check() -> Result<Int, Problem> {
+        Err(Problem { what: "the disk" })
+    }
+
+    fn main() -> Result<Void, Error> {
+        print("start")
+        let n = check()?
+        print(n.to_string())
+        Ok(())
+    }
+}

@@ -1,0 +1,4 @@
+[package]
+name = "semantics"
+version = "0.1.0"
+kind = "cli"

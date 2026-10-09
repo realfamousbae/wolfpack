@@ -1,0 +1,5 @@
+error[E0802]: TypeScript rejected the generated code
+ = help: this is a bug in wolf; please report it with the input that caused it
+ = note: main.ts(1,1): error TS0000: simulated rejection
+
+error: aborting due to 1 error

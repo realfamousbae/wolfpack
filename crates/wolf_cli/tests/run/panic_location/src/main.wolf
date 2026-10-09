@@ -1,0 +1,11 @@
+module main
+
+functions {
+    fn main() {
+        let items = [1, 2]
+        assert(items.len() == 2)
+        if items.len() > 1 {
+            panic("too many items")
+        }
+    }
+}

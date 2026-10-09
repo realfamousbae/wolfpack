@@ -233,6 +233,11 @@ pub const E0620: Code = Code::new("E0620", "`pub` import outside `src/lib.wolf`"
 /// `intrinsic` outside std.
 pub const E0701: Code = Code::new("E0701", "`intrinsic` outside `std`");
 
+/// A tool of the target is not installed.
+pub const E0801: Code = Code::new("E0801", "target tool not installed");
+/// A tool of the target rejected the generated code.
+pub const E0802: Code = Code::new("E0802", "target tool rejected the generated code");
+
 /// Every code in use, in order.
 pub const ALL: &[Code] = &[
     E0001, E0002, E0003, E0004, E0101, E0102, E0103, E0104, E0105, E0106, E0107, E0108, E0109,
@@ -242,7 +247,7 @@ pub const ALL: &[Code] = &[
     E0409, E0410, E0411, E0412, E0413, E0414, E0415, E0416, E0417, E0418, E0419, E0420, E0421,
     E0422, E0423, E0424, E0425, E0426, E0427, E0428, E0429, E0430, E0431, E0601, E0602, E0603,
     E0604, E0605, E0606, E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616,
-    E0617, E0618, E0619, E0620, E0701,
+    E0617, E0618, E0619, E0620, E0701, E0801, E0802,
 ];
 
 /// Codes that were used once and must never be used again.
