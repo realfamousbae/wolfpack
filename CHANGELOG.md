@@ -16,6 +16,8 @@ All notable changes are recorded here at the end of each milestone.
   (E0431, new); object safety of interfaces used as types (E0416); interface members without
   `self` or with type parameters (E0417).
 - Closures: parameter types also come from a later use in the same body (`let f = |x| x.len()`).
+- `impl` blocks inherit the bounds of their type (spec, new); a `match` whose scrutinee type is
+  learned later in the body is still checked for exhaustiveness.
 - New language rule: `fn main` is the last function of `functions` (E0213).
 - All 10 examples type-check, including `generic_stack`, `shapes` and `textkit`.
 
