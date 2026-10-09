@@ -4,6 +4,27 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M4: Types, part 1 (2026-10-09)
+
+- `wolf_types`: the type checker of chapter 4. Declarations: aliases expanded (cycles E0419),
+  type argument counts (E0403), coherence of `impl` (E0414), one function per name on a type
+  (E0415), infinitely sized structs (E0418). Bodies: bidirectional checking with local inference
+  (E0401, E0420), operators (E0405), `Equatable`/`Copyable` derived with the offending field named
+  (E0406), map keys (E0407), bounds of std generics (E0404), `?` with coercion to interfaces
+  (E0408), struct literals and fields (E0422, E0424, E0607), calls and variant forms (E0428),
+  types used as values (E0429), loops (E0430, `while true` is Never), missing results (E0421),
+  discarded `Result` and useless statements (E0409, E0425).
+- Patterns and exhaustiveness with the usefulness algorithm: missing patterns with an example
+  (E0410), unreachable arms (E0411), alternatives (E0412).
+- `config` constants: allowed types (E0427), constant expressions (E0426), evaluation with the
+  integer rules of chapter 4 (E0423), overrides from `wolfpack.toml` (E0613 for alias types).
+- Scope per ADR 0006: the seven examples without user generics type-check; generic bodies wait
+  for M5.
+- Spec: Void blocks discard their final value, `while true` is Never, variant forms, `()` and
+  blocks as statements, codes E0426–E0430. std: `Bool.to_string`.
+- Tests: a UI project per type rule (E0401 per place where it occurs), std and a large valid
+  program type-check cleanly, inference cases, deep nesting through the checker.
+
 ## M3: Projects and modules (2026-10-08)
 
 - `wolf_project`: `wolfpack.toml` with exact key positions in errors (E0611), `[config.*]`
