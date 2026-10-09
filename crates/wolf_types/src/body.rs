@@ -42,7 +42,7 @@ pub(crate) struct Body {
 pub(crate) type PendingMatch = (Span, Ty, Vec<(ast::Pat, bool)>);
 
 /// The arguments (types and spans), the span and the node of a deferred method call.
-type DeferredCall = (Vec<(Ty, Span)>, Span, ast::NodeId);
+type DeferredCall = (Vec<(Ty, Span, ast::NodeId)>, Span, ast::NodeId);
 
 /// `x.f` or `x.m(...)` on a value whose type is learned later in the body.
 pub(crate) struct Member {
@@ -343,8 +343,8 @@ impl<'a> Checker<'a> {
                 ),
             );
         }
-        for ((arg, span), (_, param)) in arg_tys.iter().zip(&params) {
-            self.coerce(b, None, *span, arg, param);
+        for ((arg, span, node), (_, param)) in arg_tys.iter().zip(&params) {
+            self.coerce(b, Some(*node), *span, arg, param);
         }
         if let Some(call) = found.method {
             self.out.method_calls.insert((b.file, call_id), call);
@@ -1105,7 +1105,7 @@ impl<'a> Checker<'a> {
                                 }
                                 _ => Ty::Error,
                             };
-                            self.coerce(b, None, f.name.span, &local_ty, &field_ty);
+                            self.coerce(b, Some(f.id), f.name.span, &local_ty, &field_ty);
                         }
                     }
                 }
@@ -1635,9 +1635,9 @@ impl<'a> Checker<'a> {
             }
             Ty::Var(_) => {
                 // The type may be learned later in the body (chapter 4, rule 10.3).
-                let arg_tys: Vec<(Ty, Span)> = args
+                let arg_tys: Vec<(Ty, Span, ast::NodeId)> = args
                     .iter()
-                    .map(|a| (self.expr(b, &a.value, None), a.value.span))
+                    .map(|a| (self.expr(b, &a.value, None), a.value.span, a.value.id))
                     .collect();
                 let ty = self.infer.fresh();
                 b.members.push(Member {
