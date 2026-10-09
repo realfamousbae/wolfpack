@@ -435,8 +435,7 @@ impl<'a> Checker<'a> {
             let to_interface = self.def_kind(*iface) == Some(DefKind::Interface);
             let from_concrete = iface != def && self.def_kind(*def) != Some(DefKind::Interface);
             if to_interface && from_concrete {
-                if self.implements(&f, *iface) {
-                    self.unify_impl_args(&f, &x);
+                if self.implements(&f, *iface) && self.unify_impl_args(&f, &x) {
                     if let Some(node) = node {
                         self.out.coercions.insert((b.file, node), x.clone());
                     }
@@ -1502,6 +1501,12 @@ impl<'a> Checker<'a> {
                     name: name.to_string(),
                     interface: Some(def),
                 }),
+            };
+            let sig = Sig {
+                generics: Vec::new(),
+                self_mode: sig.self_mode,
+                params: found.params.clone(),
+                ret: found.ret.clone(),
             };
             return Some((found, sig));
         }

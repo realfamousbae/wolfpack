@@ -36,11 +36,11 @@ impl Checker<'_> {
 
     /// Unifies the type arguments of an interface type with those of the implementation of a
     /// concrete type: coercing `Stack<Int>` to `Container<T>` fixes `T` to `Int`.
-    pub(crate) fn unify_impl_args(&mut self, concrete: &Ty, interface: &Ty) {
+    pub(crate) fn unify_impl_args(&mut self, concrete: &Ty, interface: &Ty) -> bool {
         let (Ty::Named(def, args), Ty::Named(iface, iargs)) =
             (self.infer.resolve(concrete), self.infer.resolve(interface))
         else {
-            return;
+            return true;
         };
         let Some(imp) = self
             .impls
@@ -48,7 +48,7 @@ impl Checker<'_> {
             .and_then(|list| list.iter().find(|i| i.interface == iface))
             .cloned()
         else {
-            return;
+            return true;
         };
         let map: std::collections::BTreeMap<ParamId, Ty> = imp
             .generics
@@ -56,9 +56,11 @@ impl Checker<'_> {
             .map(|s| ParamId::Decl(*s))
             .zip(args)
             .collect();
+        let mut ok = true;
         for (a, b) in imp.args.iter().zip(&iargs) {
-            let _ = self.infer.unify(&a.subst(&map), b);
+            ok &= self.infer.unify(&a.subst(&map), b);
         }
+        ok
     }
 
     /// Whether the type parameter declared at `span` has the bound `interface`.

@@ -1,0 +1,32 @@
+module main
+
+types {
+    struct Box<T> {
+        item: T
+    }
+}
+
+interfaces {
+    interface Holder<T> {
+        fn get(self) -> T
+    }
+}
+
+impl {
+    Box<T>: Holder<T> {
+        fn get(self) -> T {
+            self.item
+        }
+    }
+}
+
+functions {
+    fn number(h: Holder<Int>) -> Int {
+        h.get()
+    }
+
+    fn main() {
+        print(number(Box { item: 1 }).to_string())
+        print(number(Box { item: "one" }).to_string())
+    }
+}
