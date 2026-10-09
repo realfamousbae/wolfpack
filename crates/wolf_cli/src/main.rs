@@ -204,6 +204,7 @@ fn run() -> ExitCode {
                 &cwd,
                 args.out.as_deref(),
                 build::Then::Nothing,
+                args.target.is_some(),
             ))
         }
         Command::Run(args) => {
@@ -215,7 +216,12 @@ fn run() -> ExitCode {
                 example: args.example.clone(),
                 args: args.args.clone(),
             };
-            finish(build::build(&cwd, args.out.as_deref(), then))
+            finish(build::build(
+                &cwd,
+                args.out.as_deref(),
+                then,
+                args.target.is_some(),
+            ))
         }
         Command::Check(args) => {
             let result = check::run(&args);

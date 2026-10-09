@@ -33,7 +33,8 @@ pub(crate) enum Outcome {
 }
 
 /// Checks, lowers and generates the project around `start`; with `Then::Run`, also runs it.
-pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then) -> Outcome {
+/// `explicit` is whether `--target ts` was given; otherwise the manifest's default is used.
+pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, explicit: bool) -> Outcome {
     let args = CheckArgs {
         paths: Vec::new(),
         message_format: MessageFormat::Human,
@@ -47,6 +48,20 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then) -> Outcome
     let Some(project) = result.project.take() else {
         return Outcome::Failed(Box::new(result), crate::EXIT_ERRORS);
     };
+    if !explicit && project.manifest.default_target != wolf_project::Target::Ts {
+        let name = match project.manifest.default_target {
+            wolf_project::Target::Go => "go",
+            _ => "rust",
+        };
+        result.diagnostics.push(
+            Diagnostic::new(
+                codes::E0002,
+                format!("the default target `{name}` of `wolfpack.toml` is not available yet"),
+            )
+            .help("only TypeScript can be built so far: pass `--target ts`"),
+        );
+        return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
+    }
     let inputs = project.inputs();
     let meta = wolf_ir::ProjectMeta {
         name: &project.manifest.name,

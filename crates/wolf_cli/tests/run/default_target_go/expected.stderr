@@ -1,0 +1,7 @@
+error[E0611]: unknown key `go` in `[targets]`
+  --> wolfpack.toml:7:1
+  |
+7 | go = true
+  | ^^ allowed here: default, enabled
+
+error: aborting due to 1 error
