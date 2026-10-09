@@ -21,6 +21,7 @@ wolf_project = { path = "crates/wolf_project" }
 wolf_resolve = { path = "crates/wolf_resolve" }
 wolf_types = { path = "crates/wolf_types" }
 wolf_ir = { path = "crates/wolf_ir" }
+wolf_ts = { path = "crates/wolf_ts" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
