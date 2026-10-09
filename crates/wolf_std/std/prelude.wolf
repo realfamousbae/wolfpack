@@ -66,6 +66,13 @@ interfaces {
     }
 }
 
+impl {
+    Bool {
+        /// `true` or `false`.
+        pub intrinsic fn to_string(self) -> String
+    }
+}
+
 functions {
     /// Stops the program with a message (chapter 7, section 3).
     pub intrinsic fn panic(message: String) -> Never
