@@ -458,12 +458,14 @@ dependencies = [
  "codespan-reporting",
  "wolf_ast",
  "wolf_diag",
+ "wolf_ir",
  "wolf_lexer",
  "wolf_parser",
  "wolf_project",
  "wolf_resolve",
  "wolf_span",
  "wolf_std",
+ "wolf_ts",
  "wolf_types",
 ]
 
@@ -473,6 +475,20 @@ version = "0.1.0"
 dependencies = [
  "codespan-reporting",
  "wolf_span",
+]
+
+[[package]]
+name = "wolf_ir"
+version = "0.1.0"
+dependencies = [
+ "wolf_ast",
+ "wolf_lexer",
+ "wolf_parser",
+ "wolf_project",
+ "wolf_resolve",
+ "wolf_span",
+ "wolf_std",
+ "wolf_types",
 ]
 
 [[package]]
@@ -529,6 +545,13 @@ dependencies = [
  "wolf_lexer",
  "wolf_parser",
  "wolf_span",
+]
+
+[[package]]
+name = "wolf_ts"
+version = "0.1.0"
+dependencies = [
+ "wolf_ir",
 ]
 
 [[package]]

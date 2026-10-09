@@ -1,0 +1,22 @@
+[package]
+name = "wolf_ir"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wolf_ast = { workspace = true }
+wolf_project = { workspace = true }
+wolf_resolve = { workspace = true }
+wolf_span = { workspace = true }
+wolf_types = { workspace = true }
+
+[dev-dependencies]
+wolf_lexer = { workspace = true }
+wolf_parser = { workspace = true }
+wolf_std = { workspace = true }
+
+[lints]
+workspace = true
