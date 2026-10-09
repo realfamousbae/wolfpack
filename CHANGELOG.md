@@ -4,6 +4,21 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M5: Types, part 2 (2026-10-09)
+
+- Bodies of generic functions, types and `impl` blocks are checked: a type parameter is a type
+  of its own whose operations come from its bounds (methods of the bound interfaces, `==` with
+  `Equatable`, `.copy()` with `Copyable`).
+- Bounds of user generics at every use, in calls and in written types (E0404); generic methods
+  in inherent `impl` blocks; interfaces with type parameters and coercion to them.
+- Interface implementations: missing, extra and mismatched methods (E0413); implementations that
+  cannot be written, such as `Rect: Circle`, `Circle: Equatable` or a second implementation
+  (E0431, new); object safety of interfaces used as types (E0416); interface members without
+  `self` or with type parameters (E0417).
+- Closures: parameter types also come from a later use in the same body (`let f = |x| x.len()`).
+- New language rule: `fn main` is the last function of `functions` (E0213).
+- All 10 examples type-check, including `generic_stack`, `shapes` and `textkit`.
+
 ## M4: Types, part 1 (2026-10-09)
 
 - `wolf_types`: the type checker of chapter 4. Declarations: aliases expanded (cycles E0419),
