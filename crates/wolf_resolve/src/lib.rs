@@ -243,4 +243,4 @@ pub fn resolve(modules: &[ModuleInput<'_>], project: &ProjectInfo<'_>) -> Resolv
     resolver.finish()
 }
 
-pub use names::{is_pascal_case, is_snake_case};
+pub use names::{is_pascal_case, is_snake_case, suggest};

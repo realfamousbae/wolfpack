@@ -46,7 +46,8 @@ pub(crate) fn to_pascal(name: &str) -> String {
 }
 
 /// The closest candidate to `name`, if it is close enough. Ties go to the alphabetically first.
-pub(crate) fn suggest<'a>(name: &str, candidates: impl Iterator<Item = &'a str>) -> Option<String> {
+/// The candidate closest to `name`, if one is close enough to be a likely typo.
+pub fn suggest<'a>(name: &str, candidates: impl Iterator<Item = &'a str>) -> Option<String> {
     let limit = (name.chars().count() / 3).max(1);
     let mut best: Option<(usize, &str)> = None;
     for candidate in candidates {
