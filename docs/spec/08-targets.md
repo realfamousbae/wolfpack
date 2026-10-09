@@ -65,6 +65,29 @@ Decisions already taken by the author for this chapter (2026-10-07):
    `dependencies`, `go.mod` `require` and `Cargo.toml` `[dependencies]` **[PLAN]**.
 6. **Tests** (milestone M7): TS uses `node:test` in `*.test.ts` files, Go uses `testing` in
    `*_test.go` files of the same package, Rust uses `#[cfg(test)] mod tests` **[PLAN]**.
+7. **`wolf test`** (author, 2026-10-09) builds the project with its tests (tests and test helpers
+   are never part of `wolf build`), runs them with the target's own framework, and prints the
+   same report on every target:
+
+   ```
+   test src/main.wolf: adds two numbers ... ok
+   test src/main.wolf: reports a bad token ... FAILED
+   test tests/basics.wolf: counts words ... ok
+
+   failures:
+
+     src/main.wolf: reports a bad token
+       panic at src/main.wolf:96:9: assertion failed: evaluate("1 a +") == Err(CalcError.BadToken("a"))
+
+   test result: FAILED. 2 passed; 1 failed
+   ```
+
+   A test is named by its file and its name. Tests run in the order of the files (sorted by path)
+   and of the tests in a file; a failing test does not stop the others. The failure text is the
+   panic message (chapter 7, section 3). `wolf test <text>` runs only the tests whose name
+   contains the text. The exit code is 0 if every test passed and 1 otherwise. In TypeScript,
+   `wolf test` reads the results of `node:test` through a generated reporter; `npm test` in the
+   generated project uses the default reporter of Node.js.
 
 ### 2.1 Re-exports, `tests/` and `examples/`
 
