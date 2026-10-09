@@ -35,6 +35,9 @@ pub(crate) struct Body {
     pub(crate) members: Vec<Member>,
 }
 
+/// The arguments (types and spans), the span and the node of a deferred method call.
+type DeferredCall = (Vec<(Ty, Span)>, Span, ast::NodeId);
+
 /// `x.f` or `x.m(...)` on a value whose type is learned later in the body.
 pub(crate) struct Member {
     recv: Ty,
@@ -42,7 +45,7 @@ pub(crate) struct Member {
     /// The receiver expression.
     span: Span,
     /// For a method call: the argument types with their spans, the call span and node.
-    call: Option<(Vec<(Ty, Span)>, Span, ast::NodeId)>,
+    call: Option<DeferredCall>,
     /// The type of the whole expression.
     ty: Ty,
 }
@@ -1196,13 +1199,13 @@ impl<'a> Checker<'a> {
                 }
             }
         }
-        let shown = self.show(&t);
+        let shown = self.show(t);
         let mut d = Diagnostic::new(
             codes::E0424,
             format!("`{shown}` has no field `{}`", name.name),
         )
         .primary(name.span, "unknown field");
-        if self.lookup_method(&t, &name.name).is_some() {
+        if self.lookup_method(t, &name.name).is_some() {
             d = d.help(format!(
                 "`{}` is a method; call it: `.{}()`",
                 name.name, name.name
