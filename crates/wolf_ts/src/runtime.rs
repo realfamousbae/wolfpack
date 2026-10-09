@@ -110,7 +110,7 @@ export class WolfPanic extends Error {}
 /** `std.process.exit`. */
 export class WolfExit extends Error {
   constructor(readonly code: number) {
-    super("exit");
+    super(`exit(${code}) was called`);
   }
 }"#,
     },
