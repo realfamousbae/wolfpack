@@ -4,6 +4,23 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M6: IR and the TypeScript backend (2026-10-09)
+
+- `wolf_ir`: the checked program lowered to a target-neutral IR: resolved calls and methods,
+  explicit interface coercions and `?` conversions, blocks that discard their final value,
+  patterns in declaration order, evaluated constants, `panic` with its source location and
+  `assert` with its source text.
+- `wolf_ts`: the TypeScript backend builds a tree and prints it. Structs and payload variants are
+  classes, payload-less enums are string unions, `Int` is checked `bigint` arithmetic, `Option`
+  uses the hybrid form of ADR 0002, `mut` parameters of value types get a `Ref`, `match mut` and
+  `for x in mut` write through to the place. The runtime `wolf_rt.ts` contains only the pieces a
+  program uses. `extern` functions for TypeScript (ADR 0007).
+- `wolf build` writes `out/ts/`; `wolf run` builds it with `tsc --strict` and runs it with Node.js,
+  `--example <name>` for examples. Toolchain errors E0801 and E0802 (new in the spec).
+- All 10 examples run and print exactly their `expected.txt`; further programs test overflow
+  and panics, exit codes, `Err` from `main`, Unicode slicing, the `Float` format, `Map` order and
+  the std functions. CI installs Node.js 22 and TypeScript 5.
+
 ## M5: Types, part 2 (2026-10-09)
 
 - Bodies of generic functions, types and `impl` blocks are checked: a type parameter is a type
