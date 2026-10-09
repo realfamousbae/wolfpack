@@ -2912,3 +2912,29 @@ pub(crate) fn runtime_file(used: &BTreeSet<&'static str>, version: &str) -> Stri
         runtime::file(used)
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::relative;
+
+    #[test]
+    fn import_paths_are_relative_and_end_in_js() {
+        assert_eq!(relative("src/main.ts", "src/wolf_rt.ts"), "./wolf_rt.js");
+        assert_eq!(
+            relative("src/todo/store.ts", "src/todo/model.ts"),
+            "./model.js"
+        );
+        assert_eq!(
+            relative("src/todo/store.ts", "src/wolf_rt.ts"),
+            "../wolf_rt.js"
+        );
+        assert_eq!(
+            relative("examples/demo.ts", "src/text/words.ts"),
+            "../src/text/words.js"
+        );
+        assert_eq!(
+            relative("src/std/string.ts", "src/std/prelude.ts"),
+            "./prelude.js"
+        );
+    }
+}

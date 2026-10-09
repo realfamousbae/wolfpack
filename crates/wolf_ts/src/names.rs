@@ -146,3 +146,23 @@ pub fn safe(name: String) -> String {
 pub fn type_name(name: &str) -> String {
     safe(name.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snake_case_becomes_camel_case() {
+        assert_eq!(camel("find_user"), "findUser");
+        assert_eq!(camel("a_b_1"), "aB_1");
+        assert_eq!(camel("x"), "x");
+    }
+
+    #[test]
+    fn reserved_names_get_a_suffix() {
+        assert_eq!(camel("new"), "new_");
+        assert_eq!(camel("default"), "default_");
+        assert_eq!(type_name("Error"), "Error_");
+        assert_eq!(type_name("User"), "User");
+    }
+}
