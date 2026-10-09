@@ -4,6 +4,19 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M7: Tests (2026-10-09)
+
+- `wolf test [text]` builds the project with its tests (`tests` sections, their helper functions
+  and the modules under `tests/`), runs them with `node:test`, and prints one report for every
+  target through a generated reporter: one line per test, the failures with their panic messages,
+  and a summary; exit code 0 or 1 (spec chapter 8, rule 2.7, new). `npm test` works in the
+  generated project.
+- Tests and helpers are never part of `wolf build`; in a test build `main` is not run.
+- A failed `assert` is a panic at the location of the call:
+  `panic at src/main.wolf:19:9: assertion failed: halve(4) == 3`.
+- Tests: the tests of all examples pass; a project with passing and failing tests (assertions,
+  panics, overflow, helpers, a nested module) checks the report, also with a filter.
+
 ## M6: IR and the TypeScript backend (2026-10-09)
 
 - `wolf_ir`: the checked program lowered to a target-neutral IR: resolved calls and methods,
