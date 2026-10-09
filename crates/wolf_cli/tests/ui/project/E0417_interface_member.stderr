@@ -1,0 +1,17 @@
+error[E0417]: interface member `create` has no `self`
+  --> src/main.wolf:5:12
+  |
+5 |         fn create() -> Int
+  |            ^^^^^^ every interface member is a method
+  |
+  = help: add a `self` parameter, or make it a free function
+
+error[E0417]: interface method `convert` cannot have type parameters
+  --> src/main.wolf:6:20
+  |
+6 |         fn convert<U>(self, value: U) -> U
+  |                    ^ type parameter of an interface method
+  |
+  = note: Go interfaces and Rust trait objects cannot have generic methods; put the type parameter on the interface or use an inherent `impl`
+
+error: aborting due to 2 errors

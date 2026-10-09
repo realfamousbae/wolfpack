@@ -1,0 +1,10 @@
+error[E0416]: `Comparable` cannot be used as a type
+  --> src/main.wolf:4:25
+  |
+4 |     fn best(items: List<Comparable>) -> Int {
+  |                         ^^^^^^^^^^ this interface is not object-safe
+  |
+  = help: use it as a bound instead: `<T: Comparable>`
+  = note: method `compare` mentions `Self` outside its receiver, so a value of type `Comparable` could not call it
+
+error: aborting due to 1 error

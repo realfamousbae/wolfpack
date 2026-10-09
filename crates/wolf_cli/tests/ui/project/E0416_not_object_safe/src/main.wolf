@@ -1,0 +1,11 @@
+module main
+
+functions {
+    fn best(items: List<Comparable>) -> Int {
+        items.len()
+    }
+
+    fn main() {
+        print(best([]).to_string())
+    }
+}

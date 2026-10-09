@@ -92,6 +92,8 @@ fn inference_flows_both_ways() {
         "        let o: Option<Int> = None\n        let m: Map<String, Int> = [:]\n        let _ = [o.is_none_or_zero(), m.len()]",
         // Operators fix the type of a closure parameter.
         "        let inc = |x| x + 1\n        print(inc(1).to_string())",
+        // A later call fixes the type of a closure parameter (chapter 4, rule 10.3).
+        "        let size = |s| s.trim().len()\n        print(size(\" a \").to_string())",
     ];
     for (i, body) in cases.iter().enumerate() {
         let out = check(&main_with(body));
@@ -122,5 +124,67 @@ fn deep_nesting_on_the_compiler_stack() {
         .spawn(move || check(&source))
         .unwrap();
     let out = handle.join().unwrap();
+    assert!(out.is_empty(), "{out}");
+}
+
+#[test]
+fn generic_code_type_checks_cleanly() {
+    let out = check(
+        "module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+}
+
+interfaces {
+    interface Container<T> {
+        fn add(mut self, own item: T)
+        fn size(self) -> Int
+    }
+}
+
+impl {
+    Stack<T> {
+        fn new() -> Stack<T> {
+            Stack { items: [] }
+        }
+
+        fn map<U>(self, f: fn(T) -> U) -> Stack<U> {
+            Stack { items: self.items.map(f) }
+        }
+    }
+
+    Stack<T>: Container<T> {
+        fn add(mut self, own item: T) {
+            self.items.push(own item)
+        }
+
+        fn size(self) -> Int {
+            self.items.len()
+        }
+    }
+}
+
+functions {
+    fn describe(c: Container<Int>) -> String {
+        c.size().to_string()
+    }
+
+    fn max_of<T: Comparable + Copyable>(a: T, b: T) -> T {
+        if a.compare(b) == Ordering.Less { b.copy() } else { a.copy() }
+    }
+
+    fn main() {
+        let s: Stack<Int> = Stack { items: [1, 2] }
+        let labels = s.map(|n| n.to_string())
+        print(describe(s) + labels.items[0] + max_of(\"a\", \"b\"))
+        let empty: Stack<String> = Stack.new()
+        let _ = empty
+    }
+}
+",
+    );
     assert!(out.is_empty(), "{out}");
 }

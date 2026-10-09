@@ -1,0 +1,25 @@
+error[E0431]: `Circle` is not an interface
+   --> src/main.wolf:14:11
+   |
+14 |     Rect: Circle {
+   |           ^^^^^^ expected an interface
+   |
+   = help: methods of `Rect` itself go into a block without `:`
+
+error[E0431]: `Equatable` cannot be implemented by hand
+   --> src/main.wolf:20:13
+   |
+20 |     Circle: Equatable {
+   |             ^^^^^^^^^ a built-in interface
+   |
+   = note: `Equatable` and `Copyable` are derived from the fields of a type, and `Hashable` is a fixed set of types
+
+error[E0431]: `Circle` implements `Error` twice
+   --> src/main.wolf:29:13
+   |
+29 |     Circle: Error {
+   |             ^^^^^ second implementation
+   |
+   = note: a type implements an interface at most once
+
+error: aborting due to 3 errors

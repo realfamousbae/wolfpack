@@ -1,0 +1,33 @@
+module main
+
+types {
+    struct Rect {
+        w: Float
+    }
+}
+
+interfaces {
+    interface Shape {
+        fn area(self) -> Float
+        fn name(self) -> String
+    }
+}
+
+impl {
+    Rect: Shape {
+        fn area(mut self) -> Float {
+            self.w
+        }
+
+        fn perimeter(self) -> Float {
+            self.w * 4.0
+        }
+    }
+}
+
+functions {
+    fn main() {
+        let r = Rect { w: 1.0 }
+        print(r.area().to_string())
+    }
+}

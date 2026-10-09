@@ -1,0 +1,14 @@
+module main
+
+interfaces {
+    interface Store {
+        fn create() -> Int
+        fn convert<U>(self, value: U) -> U
+    }
+}
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}

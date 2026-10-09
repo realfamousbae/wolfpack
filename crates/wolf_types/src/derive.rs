@@ -28,9 +28,46 @@ impl Checker<'_> {
                         .get(&def)
                         .is_some_and(|list| list.iter().any(|i| i.interface == interface))
             }
+            Ty::Param(ParamId::Decl(span)) => self.has_bound(span, interface),
             Ty::Error | Ty::Never => true,
             _ => false,
         }
+    }
+
+    /// Unifies the type arguments of an interface type with those of the implementation of a
+    /// concrete type: coercing `Stack<Int>` to `Container<T>` fixes `T` to `Int`.
+    pub(crate) fn unify_impl_args(&mut self, concrete: &Ty, interface: &Ty) {
+        let (Ty::Named(def, args), Ty::Named(iface, iargs)) =
+            (self.infer.resolve(concrete), self.infer.resolve(interface))
+        else {
+            return;
+        };
+        let Some(imp) = self
+            .impls
+            .get(&def)
+            .and_then(|list| list.iter().find(|i| i.interface == iface))
+            .cloned()
+        else {
+            return;
+        };
+        let map: std::collections::BTreeMap<ParamId, Ty> = imp
+            .generics
+            .iter()
+            .map(|s| ParamId::Decl(*s))
+            .zip(args)
+            .collect();
+        for (a, b) in imp.args.iter().zip(&iargs) {
+            let _ = self.infer.unify(&a.subst(&map), b);
+        }
+    }
+
+    /// Whether the type parameter declared at `span` has the bound `interface`.
+    pub(crate) fn has_bound(&self, span: Span, interface: DefId) -> bool {
+        self.param_bounds.get(&span).is_some_and(|bounds| {
+            bounds
+                .iter()
+                .any(|b| matches!(b, Ty::Named(d, _) if *d == interface))
+        })
     }
 
     /// Reports an error if `ty` does not satisfy the interface `interface`; `why` says what
@@ -45,11 +82,16 @@ impl Checker<'_> {
                 Derived::Copyable
             };
             if let Err(reason) = self.derived(ty, which, &mut BTreeSet::new()) {
-                self.report(
-                    Diagnostic::new(codes::E0406, format!("`{shown}` is not `{iface}`"))
-                        .primary(span, format!("{why} needs `{iface}`"))
-                        .note(format!("`{shown}` is not `{iface}` because {reason}")),
-                );
+                let d = Diagnostic::new(codes::E0406, format!("`{shown}` is not `{iface}`"))
+                    .primary(span, format!("{why} needs `{iface}`"));
+                let d = if matches!(self.infer.resolve(ty), Ty::Param(_)) {
+                    d.help(format!(
+                        "add the bound where `{shown}` is declared: `{shown}: {iface}`"
+                    ))
+                } else {
+                    d.note(format!("`{shown}` is not `{iface}` because {reason}"))
+                };
+                self.report(d);
             }
             return;
         }
@@ -89,8 +131,18 @@ impl Checker<'_> {
                 Derived::Copyable => "functions cannot be copied".to_string(),
             }),
             Ty::Param(ParamId::Decl(span)) => {
+                let bound = match which {
+                    Derived::Equatable => self.b.equatable,
+                    Derived::Copyable => self.b.copyable,
+                };
+                if bound.is_some_and(|b| self.has_bound(span, b)) {
+                    return Ok(());
+                }
                 let name = self.param_names.get(&span).cloned().unwrap_or_default();
-                Err(format!("the type parameter `{name}` has no such bound"))
+                let iface = bound.map(|b| self.def_name(b)).unwrap_or_default();
+                Err(format!(
+                    "the type parameter `{name}` has no bound `{iface}`; write `{name}: {iface}`"
+                ))
             }
             Ty::Param(ParamId::SelfType) => Err("`Self` has no such bound".to_string()),
             Ty::Named(def, args) => {
@@ -215,6 +267,9 @@ impl Checker<'_> {
     fn hashable(&self, ty: &Ty) -> bool {
         match self.infer.resolve(ty) {
             Ty::Error | Ty::Never | Ty::Var(_) => true,
+            Ty::Param(ParamId::Decl(span)) => {
+                self.b.hashable.is_some_and(|h| self.has_bound(span, h))
+            }
             Ty::Named(def, _) => {
                 if [self.b.int, self.b.string, self.b.bool].contains(&Some(def)) {
                     return true;

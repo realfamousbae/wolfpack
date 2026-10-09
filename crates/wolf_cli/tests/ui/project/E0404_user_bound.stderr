@@ -1,0 +1,17 @@
+error[E0404]: `Float` does not implement `Comparable`
+   --> src/main.wolf:13:17
+   |
+13 |         sorted: Sorted<Float>
+   |                 ^^^^^^^^^^^^^ required by a bound of this type
+   |
+   = note: `Float` has no total order because of NaN; sort floats with `list.sort_by` and a comparison function
+
+error[E0404]: `Point` does not implement `Comparable`
+   --> src/main.wolf:23:17
+   |
+23 |         let p = largest([Point { x: 1 }])
+   |                 ^^^^^^^ required by `largest`
+   |
+   = help: implement `Comparable` for `Point` in an `impl` block
+
+error: aborting due to 2 errors

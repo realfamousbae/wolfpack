@@ -121,6 +121,10 @@ pub(crate) struct Method {
 #[derive(Clone, Debug)]
 pub(crate) struct ImplOf {
     pub(crate) interface: DefId,
+    /// The interface's type arguments, in terms of the impl block's type parameters.
+    pub(crate) args: Vec<Ty>,
+    /// The impl block's type parameters, in the order of the type's parameters.
+    pub(crate) generics: Vec<Span>,
 }
 
 /// A body to check.
@@ -201,6 +205,13 @@ pub(crate) struct Checker<'a> {
     pub(crate) overrides: BTreeMap<DefId, ConstValue>,
     /// Bounds of type arguments in written types, waiting for [`Checker::check_pending_bounds`].
     pub(crate) pending_bounds: Vec<(Ty, DefId, Span)>,
+    /// The bounds of every type parameter, by the span of its name.
+    pub(crate) param_bounds: BTreeMap<Span, Vec<Ty>>,
+    /// Set while a bound or the interface of an implementation is lowered: there an interface
+    /// is not used as a value type.
+    in_bound: bool,
+    /// Interfaces used as value types, checked for object safety after collection.
+    pending_object: Vec<(DefId, Span)>,
 }
 
 impl<'a> Checker<'a> {
@@ -244,6 +255,9 @@ impl<'a> Checker<'a> {
             const_written: BTreeMap::new(),
             overrides: BTreeMap::new(),
             pending_bounds: Vec::new(),
+            param_bounds: BTreeMap::new(),
+            in_bound: false,
+            pending_object: Vec::new(),
         }
     }
 
@@ -451,6 +465,9 @@ impl<'a> Checker<'a> {
         if kind == DefKind::Alias {
             return self.expand_alias(def, args);
         }
+        if kind == DefKind::Interface && !self.in_bound {
+            self.pending_object.push((def, span));
+        }
         // Bounds of the type's parameters (`Map<K: Hashable, V>`), checked once all types are
         // known. Types that mention type parameters are checked with generics (M5).
         let bounds: Vec<Vec<Ty>> = self
@@ -470,8 +487,9 @@ impl<'a> Checker<'a> {
 
     /// Checks the bounds recorded while written types were lowered.
     pub(crate) fn check_pending_bounds(&mut self) {
+        self.check_object_safety();
         for (ty, interface, span) in std::mem::take(&mut self.pending_bounds) {
-            if ty.has_error() || has_param(&ty) {
+            if ty.has_error() || has_self(&ty) {
                 continue;
             }
             let why = if Some(interface) == self.b.hashable {
@@ -564,9 +582,13 @@ impl<'a> Checker<'a> {
             .iter()
             .map(|g| {
                 self.param_names.insert(g.name.span, g.name.name.clone());
+                let outer = std::mem::replace(&mut self.in_bound, true);
+                let bounds: Vec<Ty> = g.bounds.iter().map(|b| self.lower(b, scope)).collect();
+                self.in_bound = outer;
+                self.param_bounds.insert(g.name.span, bounds.clone());
                 Generic {
                     span: g.name.span,
-                    bounds: g.bounds.iter().map(|b| self.lower(b, scope)).collect(),
+                    bounds,
                 }
             })
             .collect()
@@ -721,6 +743,7 @@ impl<'a> Checker<'a> {
                             let mut sigs = BTreeMap::new();
                             for method in &decl.methods {
                                 let sig = self.lower_sig(&method.sig, &iscope);
+                                self.interface_member(&method.sig, &sig);
                                 sigs.entry(method.sig.name.name.clone()).or_insert(sig);
                             }
                             self.interface_methods.insert(def, sigs);
@@ -863,23 +886,71 @@ impl<'a> Checker<'a> {
         };
         let mut interface = None;
         let mut public_methods = None;
+        let mut interface_args = Vec::new();
         if let Some(iface) = &block.interface {
-            match self.lower(iface, &scope) {
-                Ty::Named(def, _) if self.def_kind(def) == Some(DefKind::Interface) => {
+            let outer = std::mem::replace(&mut self.in_bound, true);
+            let lowered = self.lower(iface, &scope);
+            self.in_bound = outer;
+            match lowered {
+                Ty::Named(def, args) if self.def_kind(def) == Some(DefKind::Interface) => {
+                    let name = self.def_name(def);
+                    let derived =
+                        [self.b.equatable, self.b.copyable, self.b.hashable].contains(&Some(def));
+                    if derived {
+                        self.report(
+                            Diagnostic::new(
+                                codes::E0431,
+                                format!("`{name}` cannot be implemented by hand"),
+                            )
+                            .primary(iface.span, "a built-in interface")
+                            .note("`Equatable` and `Copyable` are derived from the fields of a type, and `Hashable` is a fixed set of types"),
+                        );
+                        return;
+                    }
+                    let twice = self
+                        .impls
+                        .get(&owner)
+                        .is_some_and(|list| list.iter().any(|i| i.interface == def));
+                    if twice {
+                        self.report(
+                            Diagnostic::new(
+                                codes::E0431,
+                                format!("`{}` implements `{name}` twice", owner_def.name),
+                            )
+                            .primary(iface.span, "second implementation")
+                            .note("a type implements an interface at most once"),
+                        );
+                        return;
+                    }
                     interface = Some(def);
+                    interface_args = args.clone();
                     public_methods = self.resolved.def(def).map(|d| d.public);
-                    self.impls
-                        .entry(owner)
-                        .or_default()
-                        .push(ImplOf { interface: def });
+                    self.impls.entry(owner).or_default().push(ImplOf {
+                        interface: def,
+                        args,
+                        generics: impl_generics.clone(),
+                    });
                 }
-                // Not an interface: reported with interface implementations (M5).
-                _ => return,
+                Ty::Error => return,
+                other => {
+                    let shown = self.show(&other);
+                    self.report(
+                        Diagnostic::new(codes::E0431, format!("`{shown}` is not an interface"))
+                            .primary(iface.span, "expected an interface")
+                            .help(format!(
+                                "methods of `{}` itself go into a block without `:`",
+                                owner_def.name
+                            )),
+                    );
+                    return;
+                }
             }
         }
+        let mut implemented: Vec<(String, Span, Sig)> = Vec::new();
         for method in &block.methods {
             let sig = self.lower_sig(&method.decl.sig, &scope);
             let name = method.decl.sig.name.clone();
+            implemented.push((name.name.clone(), name.span, sig.clone()));
             let index = self.methods.len();
             self.methods.push(Method {
                 name: name.name.clone(),
@@ -926,6 +997,175 @@ impl<'a> Checker<'a> {
                     self_ty: Some(self_ty.clone()),
                     method: Some(index),
                 });
+            }
+        }
+        if let Some(iface) = interface {
+            self.conformance(iface, &interface_args, &self_ty, block, &implemented);
+        }
+    }
+
+    /// An implementation defines exactly the methods of its interface, with the same signatures
+    /// after `Self` is replaced (chapter 4, rule 8.3.1; E0413).
+    fn conformance(
+        &mut self,
+        iface: DefId,
+        args: &[Ty],
+        self_ty: &Ty,
+        block: &ast::ImplBlock,
+        implemented: &[(String, Span, Sig)],
+    ) {
+        let Some(required) = self.interface_methods.get(&iface).cloned() else {
+            return;
+        };
+        let mut map: BTreeMap<ParamId, Ty> = BTreeMap::new();
+        map.insert(ParamId::SelfType, self_ty.clone());
+        if let Some(g) = self.type_generics.get(&iface) {
+            for (g, a) in g.iter().zip(args) {
+                map.insert(ParamId::Decl(g.span), a.clone());
+            }
+        }
+        let iname = self.def_name(iface);
+        let owner = block.type_name.name.clone();
+        let missing: Vec<String> = required
+            .keys()
+            .filter(|n| !implemented.iter().any(|(name, _, _)| name == *n))
+            .map(|n| format!("`{n}`"))
+            .collect();
+        if !missing.is_empty() {
+            let word = if missing.len() == 1 {
+                "method"
+            } else {
+                "methods"
+            };
+            self.report(
+                Diagnostic::new(
+                    codes::E0413,
+                    format!("`{owner}` does not implement every method of `{iname}`"),
+                )
+                .primary(
+                    block.type_name.span,
+                    format!("missing {word} {}", missing.join(", ")),
+                ),
+            );
+        }
+        for (name, span, sig) in implemented {
+            let Some(req) = required.get(name) else {
+                self.report(
+                    Diagnostic::new(
+                        codes::E0413,
+                        format!("`{name}` is not a method of `{iname}`"),
+                    )
+                    .primary(*span, "not in the interface")
+                    .help(format!(
+                        "move it into a block `{owner} {{ ... }}` without an interface"
+                    )),
+                );
+                continue;
+            };
+            let expected = Sig {
+                generics: Vec::new(),
+                self_mode: req.self_mode,
+                params: req
+                    .params
+                    .iter()
+                    .map(|(m, t)| (*m, t.subst(&map)))
+                    .collect(),
+                ret: req.ret.subst(&map),
+            };
+            let same = sig.generics.is_empty()
+                && sig.self_mode == expected.self_mode
+                && sig.params == expected.params
+                && sig.ret == expected.ret;
+            if !same && !sig.params.iter().any(|(_, t)| t.has_error()) && !sig.ret.has_error() {
+                self.report(
+                    Diagnostic::new(
+                        codes::E0413,
+                        format!("`{name}` does not match its signature in `{iname}`"),
+                    )
+                    .primary(*span, "different signature")
+                    .note(format!("expected `{}`", self.show_sig(name, &expected)))
+                    .note(format!("found `{}`", self.show_sig(name, sig))),
+                );
+            }
+        }
+    }
+
+    fn show_sig(&self, name: &str, sig: &Sig) -> String {
+        let mut parts = Vec::new();
+        if let Some(mode) = sig.self_mode {
+            parts.push(format!("{}self", mode_prefix(mode)));
+        }
+        for (mode, t) in &sig.params {
+            parts.push(format!("{}{}", mode_prefix(*mode), self.show(t)));
+        }
+        let generics = if sig.generics.is_empty() {
+            String::new()
+        } else {
+            let names: Vec<String> = sig
+                .generics
+                .iter()
+                .map(|g| self.param_names.get(&g.span).cloned().unwrap_or_default())
+                .collect();
+            format!("<{}>", names.join(", "))
+        };
+        let ret = if self.is(&sig.ret, self.b.void) {
+            String::new()
+        } else {
+            format!(" -> {}", self.show(&sig.ret))
+        };
+        format!("fn {name}{generics}({}){ret}", parts.join(", "))
+    }
+
+    /// Members of an interface take `self` and have no type parameters (chapter 4, 8.2; E0417).
+    fn interface_member(&mut self, ast_sig: &ast::FnSig, sig: &Sig) {
+        if let Some(first) = ast_sig.generics.first() {
+            self.report(
+                Diagnostic::new(
+                    codes::E0417,
+                    format!("interface method `{}` cannot have type parameters", ast_sig.name.name),
+                )
+                .primary(first.name.span, "type parameter of an interface method")
+                .note("Go interfaces and Rust trait objects cannot have generic methods; put the type parameter on the interface or use an inherent `impl`"),
+            );
+        }
+        if sig.self_mode.is_none() {
+            self.report(
+                Diagnostic::new(
+                    codes::E0417,
+                    format!("interface member `{}` has no `self`", ast_sig.name.name),
+                )
+                .primary(ast_sig.name.span, "every interface member is a method")
+                .help("add a `self` parameter, or make it a free function"),
+            );
+        }
+    }
+
+    /// The first method of an interface that mentions `Self` outside its receiver.
+    fn not_object_safe(&self, iface: DefId) -> Option<String> {
+        self.interface_methods
+            .get(&iface)?
+            .iter()
+            .find_map(|(name, sig)| {
+                let mentions = sig.params.iter().any(|(_, t)| has_self(t)) || has_self(&sig.ret);
+                mentions.then(|| name.clone())
+            })
+    }
+
+    /// Interfaces used as value types must be object-safe (chapter 4, 8.5; E0416).
+    fn check_object_safety(&mut self) {
+        let mut seen = BTreeSet::new();
+        for (iface, span) in std::mem::take(&mut self.pending_object) {
+            if !seen.insert(span) {
+                continue;
+            }
+            if let Some(method) = self.not_object_safe(iface) {
+                let name = self.def_name(iface);
+                self.report(
+                    Diagnostic::new(codes::E0416, format!("`{name}` cannot be used as a type"))
+                        .primary(span, "this interface is not object-safe")
+                        .note(format!("method `{method}` mentions `Self` outside its receiver, so a value of type `{name}` could not call it"))
+                        .help(format!("use it as a bound instead: `<T: {name}>`")),
+                );
             }
         }
     }
@@ -1048,12 +1288,12 @@ pub(crate) fn given(n: usize) -> String {
     }
 }
 
-/// Whether a type mentions a type parameter.
-fn has_param(ty: &Ty) -> bool {
+/// Whether a type mentions `Self` of an interface.
+pub(crate) fn has_self(ty: &Ty) -> bool {
     match ty {
-        Ty::Param(_) => true,
-        Ty::Named(_, args) => args.iter().any(has_param),
-        Ty::Fn(params, ret) => params.iter().any(|(_, t)| has_param(t)) || has_param(ret),
+        Ty::Param(p) => *p == ParamId::SelfType,
+        Ty::Named(_, args) => args.iter().any(has_self),
+        Ty::Fn(params, ret) => params.iter().any(|(_, t)| has_self(t)) || has_self(ret),
         Ty::Var(_) | Ty::Never | Ty::Error => false,
     }
 }

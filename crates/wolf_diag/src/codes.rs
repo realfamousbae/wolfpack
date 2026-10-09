@@ -138,10 +138,16 @@ pub const E0410: Code = Code::new("E0410", "non-exhaustive `match`");
 pub const E0411: Code = Code::new("E0411", "unreachable `match` arm");
 /// Alternatives in a pattern bind different names or types.
 pub const E0412: Code = Code::new("E0412", "alternatives bind different names or types");
+/// Missing, extra or mismatched method in an interface implementation.
+pub const E0413: Code = Code::new("E0413", "wrong methods in an interface implementation");
 /// `impl` block outside the module of its type.
 pub const E0414: Code = Code::new("E0414", "`impl` outside the module of its type");
 /// Two functions with the same name on one type.
 pub const E0415: Code = Code::new("E0415", "two functions with the same name on one type");
+/// Interface that is not object-safe used as a type.
+pub const E0416: Code = Code::new("E0416", "interface is not object-safe");
+/// Generic method in an interface, or an interface member without `self`.
+pub const E0417: Code = Code::new("E0417", "invalid interface member");
 /// Struct that contains itself.
 pub const E0418: Code = Code::new("E0418", "infinitely sized struct");
 /// Cycle in type aliases or in `config` constants.
@@ -169,6 +175,8 @@ pub const E0429: Code = Code::new("E0429", "type or module used as a value");
 /// `break` or `continue` outside a loop.
 pub const E0430: Code = Code::new("E0430", "`break` or `continue` outside a loop");
 
+/// Implementation that cannot be written.
+pub const E0431: Code = Code::new("E0431", "implementation that cannot be written");
 /// Name does not follow the naming style.
 pub const E0601: Code = Code::new("E0601", "name does not follow the naming style");
 
@@ -229,9 +237,10 @@ pub const ALL: &[Code] = &[
     E0110, E0111, E0112, E0113, E0201, E0202, E0203, E0204, E0205, E0206, E0207, E0208, E0209,
     E0210, E0211, E0212, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309, E0310,
     E0311, E0312, E0313, E0314, E0401, E0402, E0403, E0404, E0405, E0406, E0407, E0408, E0409,
-    E0410, E0411, E0412, E0414, E0415, E0418, E0419, E0420, E0421, E0422, E0423, E0424, E0425,
-    E0426, E0427, E0428, E0429, E0430, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608,
-    E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620, E0701,
+    E0410, E0411, E0412, E0413, E0414, E0415, E0416, E0417, E0418, E0419, E0420, E0421, E0422,
+    E0423, E0424, E0425, E0426, E0427, E0428, E0429, E0430, E0431, E0601, E0602, E0603, E0604,
+    E0605, E0606, E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617,
+    E0618, E0619, E0620, E0701,
 ];
 
 /// Codes that were used once and must never be used again.

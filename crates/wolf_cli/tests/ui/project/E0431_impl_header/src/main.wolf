@@ -1,0 +1,40 @@
+module main
+
+types {
+    struct Circle {
+        r: Float
+    }
+
+    struct Rect {
+        w: Float
+    }
+}
+
+impl {
+    Rect: Circle {
+        fn area(self) -> Float {
+            self.w
+        }
+    }
+
+    Circle: Equatable {
+    }
+
+    Circle: Error {
+        fn message(self) -> String {
+            "circle"
+        }
+    }
+
+    Circle: Error {
+        fn message(self) -> String {
+            "again"
+        }
+    }
+}
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}

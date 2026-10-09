@@ -1,0 +1,24 @@
+error[E0413]: `Rect` does not implement every method of `Shape`
+   --> src/main.wolf:17:5
+   |
+17 |     Rect: Shape {
+   |     ^^^^ missing method `name`
+
+error[E0413]: `area` does not match its signature in `Shape`
+   --> src/main.wolf:18:12
+   |
+18 |         fn area(mut self) -> Float {
+   |            ^^^^ different signature
+   |
+   = note: expected `fn area(self) -> Float`
+   = note: found `fn area(mut self) -> Float`
+
+error[E0413]: `perimeter` is not a method of `Shape`
+   --> src/main.wolf:22:12
+   |
+22 |         fn perimeter(self) -> Float {
+   |            ^^^^^^^^^ not in the interface
+   |
+   = help: move it into a block `Rect { ... }` without an interface
+
+error: aborting due to 3 errors

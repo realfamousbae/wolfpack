@@ -31,6 +31,20 @@ pub(crate) struct Body {
     pub(crate) deferred: Vec<Deferred>,
     /// Expressions whose types were recorded, with their spans.
     pub(crate) recorded: Vec<(ast::NodeId, Span)>,
+    /// Fields and methods of values whose type was not known yet.
+    pub(crate) members: Vec<Member>,
+}
+
+/// `x.f` or `x.m(...)` on a value whose type is learned later in the body.
+pub(crate) struct Member {
+    recv: Ty,
+    name: ast::Ident,
+    /// The receiver expression.
+    span: Span,
+    /// For a method call: the argument types with their spans, the call span and node.
+    call: Option<(Vec<(Ty, Span)>, Span, ast::NodeId)>,
+    /// The type of the whole expression.
+    ty: Ty,
 }
 
 /// A check that runs at the end of a body.
@@ -110,6 +124,7 @@ impl<'a> Checker<'a> {
             locals: BTreeMap::new(),
             deferred: Vec::new(),
             recorded: Vec::new(),
+            members: Vec::new(),
         }
     }
 
@@ -134,13 +149,9 @@ impl<'a> Checker<'a> {
                 .and_then(|def| self.fns.get(def))
                 .map(|s| (s.clone(), false)),
         };
-        let Some((sig, generic_impl)) = sig else {
+        let Some((sig, _)) = sig else {
             return;
         };
-        // Generic bodies are checked with generics (M5, ADR 0006).
-        if generic_impl || !sig.generics.is_empty() {
-            return;
-        }
         let mut b = self.new_body(module, self_ty, sig.ret.clone());
         let mut param_types = sig.params.iter();
         for param in &decl.sig.params {
@@ -161,6 +172,7 @@ impl<'a> Checker<'a> {
 
     /// The end of a body: unknown types (E0420), then the deferred checks.
     pub(crate) fn finish_body(&mut self, mut b: Body) {
+        self.resolve_members(&mut b);
         let mut reported = false;
         let locals: Vec<(LocalId, Ty)> = b.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         for (id, ty) in locals {
@@ -220,6 +232,112 @@ impl<'a> Checker<'a> {
         for (id, ty) in b.locals {
             let resolved = self.infer.resolve(&ty);
             self.out.local_types.insert(id, resolved);
+        }
+    }
+
+    /// Resolves fields and methods whose receiver type became known, until nothing changes.
+    fn resolve_members(&mut self, b: &mut Body) {
+        loop {
+            let pending = std::mem::take(&mut b.members);
+            let before = pending.len();
+            for m in pending {
+                if matches!(self.infer.shallow(&m.recv), Ty::Var(_)) {
+                    b.members.push(m);
+                } else {
+                    self.resolve_member(b, m);
+                }
+            }
+            if b.members.is_empty() || b.members.len() == before {
+                break;
+            }
+        }
+        for m in std::mem::take(&mut b.members) {
+            let what = if m.call.is_some() {
+                format!("`.{}()`", m.name.name)
+            } else {
+                format!("`.{}`", m.name.name)
+            };
+            self.unknown_receiver(m.span, &what);
+            self.infer.poison(&m.recv);
+            self.infer.poison(&m.ty);
+        }
+    }
+
+    fn resolve_member(&mut self, b: &mut Body, m: Member) {
+        let recv = self.infer.shallow(&m.recv);
+        let Some((arg_tys, call_span, call_id)) = m.call else {
+            let ty = self.field_of(b, &recv, &m.name);
+            let _ = self.infer.unify(&ty, &m.ty);
+            return;
+        };
+        if matches!(recv, Ty::Error | Ty::Never) {
+            self.infer.poison(&m.ty);
+            return;
+        }
+        let Some((found, sig)) = self.lookup_method(&recv, &m.name.name) else {
+            if m.name.name == "copy" && arg_tys.is_empty() {
+                if let Some(copyable) = self.b.copyable {
+                    b.deferred.push(Deferred::Bound {
+                        ty: recv.clone(),
+                        interface: copyable,
+                        span: m.name.span,
+                        why: "`.copy()`".to_string(),
+                    });
+                }
+                let _ = self.infer.unify(&recv, &m.ty);
+                return;
+            }
+            let shown = self.show(&recv);
+            self.report(
+                Diagnostic::new(
+                    codes::E0424,
+                    format!("`{shown}` has no method `{}`", m.name.name),
+                )
+                .primary(m.name.span, "unknown method"),
+            );
+            self.infer.poison(&m.ty);
+            return;
+        };
+        if !found.public && found.module.is_some_and(|md| md != b.module) {
+            self.report(
+                Diagnostic::new(
+                    codes::E0607,
+                    format!(
+                        "method `{}` of `{}` is private",
+                        m.name.name,
+                        self.show(&recv)
+                    ),
+                )
+                .primary(m.name.span, "private method"),
+            );
+        }
+        let (params, ret) =
+            self.instantiate(b, &sig, BTreeMap::new(), &m.name.name, m.name.span, None);
+        if params.len() != arg_tys.len() {
+            self.report(
+                Diagnostic::new(
+                    codes::E0428,
+                    format!(
+                        "`{}` takes {}, but {} given",
+                        m.name.name,
+                        count(params.len(), "argument"),
+                        given(arg_tys.len())
+                    ),
+                )
+                .primary(
+                    call_span,
+                    format!("expected {}", count(params.len(), "argument")),
+                ),
+            );
+        }
+        for ((arg, span), (_, param)) in arg_tys.iter().zip(&params) {
+            self.coerce(b, None, *span, arg, param);
+        }
+        if let Some(call) = found.method {
+            self.out.method_calls.insert((b.file, call_id), call);
+        }
+        if !self.infer.unify(&ret, &m.ty) {
+            self.mismatch(call_span, &m.ty, &ret);
         }
     }
 
@@ -315,6 +433,7 @@ impl<'a> Checker<'a> {
             let from_concrete = iface != def && self.def_kind(*def) != Some(DefKind::Interface);
             if to_interface && from_concrete {
                 if self.implements(&f, *iface) {
+                    self.unify_impl_args(&f, &x);
                     if let Some(node) = node {
                         self.out.coercions.insert((b.file, node), x.clone());
                     }
@@ -1027,13 +1146,26 @@ impl<'a> Checker<'a> {
         match &t {
             Ty::Error | Ty::Never => return Ty::Error,
             Ty::Var(_) => {
-                self.unknown_receiver(base.span, &format!("`.{}`", name.name));
-                self.infer.poison(&t);
-                return Ty::Error;
+                // The type may be learned later in the body (chapter 4, rule 10.3).
+                let ty = self.infer.fresh();
+                b.members.push(Member {
+                    recv: t.clone(),
+                    name: name.clone(),
+                    span: base.span,
+                    call: None,
+                    ty: ty.clone(),
+                });
+                return ty;
             }
             _ => {}
         }
-        if let Ty::Named(def, args) = &t {
+        self.field_of(b, &t, name)
+    }
+
+    /// The type of the field `name` of a value of the known type `t`.
+    fn field_of(&mut self, b: &mut Body, t: &Ty, name: &ast::Ident) -> Ty {
+        let t = &self.infer.shallow(t);
+        if let Ty::Named(def, args) = t {
             if let Some(infos) = self.fields.get(def).cloned() {
                 if let Some(info) = infos.iter().find(|i| i.name == name.name) {
                     let module = self.resolved.def(*def).map(|d| d.module);
@@ -1336,7 +1468,11 @@ impl<'a> Checker<'a> {
 
     /// Finds a function of a type by name, with the type arguments of the receiver applied.
     fn lookup_method(&mut self, recv: &Ty, name: &str) -> Option<(Found, Sig)> {
-        let Ty::Named(def, args) = self.infer.shallow(recv) else {
+        let recv_s = self.infer.shallow(recv);
+        if let Ty::Param(ParamId::Decl(span)) = recv_s {
+            return self.bound_method(span, &recv_s, name);
+        }
+        let Ty::Named(def, args) = recv_s else {
             return None;
         };
         if self.def_kind(def) == Some(DefKind::Interface) {
@@ -1401,6 +1537,57 @@ impl<'a> Checker<'a> {
         Some((found, sig))
     }
 
+    /// A method of a type parameter, from the interfaces of its bounds (chapter 4, 8.4).
+    fn bound_method(&mut self, span: Span, recv: &Ty, name: &str) -> Option<(Found, Sig)> {
+        let bounds = self.param_bounds.get(&span).cloned().unwrap_or_default();
+        for bound in bounds {
+            let Ty::Named(iface, args) = bound else {
+                continue;
+            };
+            let Some(sig) = self
+                .interface_methods
+                .get(&iface)
+                .and_then(|m| m.get(name))
+                .cloned()
+            else {
+                continue;
+            };
+            let mut map: BTreeMap<ParamId, Ty> = BTreeMap::new();
+            map.insert(ParamId::SelfType, recv.clone());
+            if let Some(g) = self.type_generics.get(&iface) {
+                for (g, a) in g.iter().zip(args) {
+                    map.insert(ParamId::Decl(g.span), a);
+                }
+            }
+            let params: Vec<(Mode, Ty)> = sig
+                .params
+                .iter()
+                .map(|(m, t)| (*m, t.subst(&map)))
+                .collect();
+            let ret = sig.ret.subst(&map);
+            let found = Found {
+                params: params.clone(),
+                ret: ret.clone(),
+                has_self: sig.self_mode.is_some(),
+                public: true,
+                module: None,
+                method: Some(MethodCall {
+                    owner: iface,
+                    name: name.to_string(),
+                    interface: Some(iface),
+                }),
+            };
+            let sig = Sig {
+                generics: Vec::new(),
+                self_mode: sig.self_mode,
+                params,
+                ret,
+            };
+            return Some((found, sig));
+        }
+        None
+    }
+
     fn method_call(
         &mut self,
         b: &mut Body,
@@ -1429,10 +1616,21 @@ impl<'a> Checker<'a> {
                 return Ty::Error;
             }
             Ty::Var(_) => {
-                self.unknown_receiver(base.span, &format!("`.{}()`", name.name));
-                self.infer.poison(&recv);
-                check_args(self, b);
-                return Ty::Error;
+                // The type may be learned later in the body (chapter 4, rule 10.3).
+                let arg_tys: Vec<(Ty, Span)> = args
+                    .iter()
+                    .map(|a| (self.expr(b, &a.value, None), a.value.span))
+                    .collect();
+                let ty = self.infer.fresh();
+                b.members.push(Member {
+                    recv: recv.clone(),
+                    name: name.clone(),
+                    span: base.span,
+                    call: Some((arg_tys, e.span, e.id)),
+                    ty: ty.clone(),
+                });
+                let _ = callee;
+                return ty;
             }
             _ => {}
         }
