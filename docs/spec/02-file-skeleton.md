@@ -177,6 +177,9 @@ Only `fn` declarations, optionally `pub` **[PLAN]**. In `std` modules a function
 `intrinsic` and then has no body (chapter 7). In `src/main.wolf` of a `cli` project this section
 contains `fn main` **[PLAN]** (section 6; signature in chapter 6).
 
+`fn main`, in any file that declares it, is the **last** declaration of `functions`, so that the
+entry point is always easy to find at the end of the section (E0213; author, 2026-10-09).
+
 ### 3.8 `tests`
 
 ```
@@ -224,6 +227,7 @@ parser, which recovers and continues so that every skeleton error of a file is s
 | E0210 | Second inherent `impl` block for the same type | merge with the block at line N |
 | E0211 | Duplicate test name | |
 | E0212 | Doc comment in a position where it documents nothing | |
+| E0213 | `fn main` is not the last declaration of `functions` (added in M5) | move `main` to the end of `functions` |
 
 Recovery strategy for the parser **[PROPOSAL]**: on a skeleton error the parser still parses the
 contents of the offending section normally, so that errors inside it are also reported. An
