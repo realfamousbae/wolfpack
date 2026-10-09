@@ -33,7 +33,13 @@ pub(crate) struct Body {
     pub(crate) recorded: Vec<(ast::NodeId, Span)>,
     /// Fields and methods of values whose type was not known yet.
     pub(crate) members: Vec<Member>,
+    /// `match` expressions whose scrutinee type was not known yet: the scrutinee span, its type,
+    /// and the patterns with whether each arm has a guard.
+    pub(crate) matches: Vec<PendingMatch>,
 }
+
+/// See [`Body::matches`].
+pub(crate) type PendingMatch = (Span, Ty, Vec<(ast::Pat, bool)>);
 
 /// The arguments (types and spans), the span and the node of a deferred method call.
 type DeferredCall = (Vec<(Ty, Span)>, Span, ast::NodeId);
@@ -128,6 +134,7 @@ impl<'a> Checker<'a> {
             deferred: Vec::new(),
             recorded: Vec::new(),
             members: Vec::new(),
+            matches: Vec::new(),
         }
     }
 
@@ -176,6 +183,9 @@ impl<'a> Checker<'a> {
     /// The end of a body: unknown types (E0420), then the deferred checks.
     pub(crate) fn finish_body(&mut self, mut b: Body) {
         self.resolve_members(&mut b);
+        for (span, st, arms) in std::mem::take(&mut b.matches) {
+            self.exhaustiveness(span, &st, &arms);
+        }
         let mut reported = false;
         let locals: Vec<(LocalId, Ty)> = b.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         for (id, ty) in locals {

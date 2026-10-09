@@ -871,8 +871,24 @@ impl<'a> Checker<'a> {
             file,
             self_ty: None,
         };
-        let generics = self.lower_generics(&block.generics, &scope0);
+        let mut generics = self.lower_generics(&block.generics, &scope0);
         let impl_generics: Vec<Span> = generics.iter().map(|g| g.span).collect();
+        // The bounds of the type's declaration apply without being repeated (chapter 3, 5.6).
+        let declared = self.type_generics.get(&owner).cloned().unwrap_or_default();
+        let to_impl: BTreeMap<ParamId, Ty> = declared
+            .iter()
+            .zip(&impl_generics)
+            .map(|(d, s)| (ParamId::Decl(d.span), Ty::Param(ParamId::Decl(*s))))
+            .collect();
+        for (g, d) in generics.iter_mut().zip(&declared) {
+            for bound in &d.bounds {
+                let bound = bound.subst(&to_impl);
+                if !g.bounds.contains(&bound) {
+                    g.bounds.push(bound);
+                }
+            }
+            self.param_bounds.insert(g.span, g.bounds.clone());
+        }
         let self_ty = Ty::Named(
             owner,
             impl_generics

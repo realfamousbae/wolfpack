@@ -72,7 +72,16 @@ impl Checker<'_> {
         }
         // A pattern with an error says nothing reliable about what it covers.
         if !pattern_errors {
-            self.exhaustiveness(scrutinee, &st, arms);
+            let shapes: Vec<(ast::Pat, bool)> = arms
+                .iter()
+                .map(|a| (a.pattern.clone(), a.guard.is_some()))
+                .collect();
+            if self.infer.is_unknown(&st) {
+                // The type may be learned later in the body; check at its end.
+                b.matches.push((scrutinee.span, st.clone(), shapes));
+            } else {
+                self.exhaustiveness(scrutinee.span, &st, &shapes);
+            }
         }
         let _ = e;
         if all_never {
@@ -476,28 +485,27 @@ impl Checker<'_> {
 
     // ----- exhaustiveness ---------------------------------------------------------------------
 
-    fn exhaustiveness(&mut self, scrutinee: &ast::Expr, st: &Ty, arms: &[ast::Arm]) {
+    /// Exhaustiveness and unreachable arms; `arms` are the patterns and whether each arm has a
+    /// guard.
+    pub(crate) fn exhaustiveness(&mut self, span: Span, st: &Ty, arms: &[(ast::Pat, bool)]) {
         let st = self.infer.resolve(st);
         if st.has_error() || self.infer.is_unknown(&st) {
             return;
         }
-        let file = scrutinee.span.file;
+        let file = span.file;
         let mut rows: Vec<Vec<P>> = Vec::new();
         let mut guarded = false;
         let tys = vec![st.clone()];
-        for arm in arms {
-            let p = self.reduce(file, &arm.pattern, &st);
+        for (pattern, has_guard) in arms {
+            let p = self.reduce(file, pattern, &st);
             if self.useful(&rows, std::slice::from_ref(&p), &tys).is_none() {
                 self.report(
                     Diagnostic::new(codes::E0411, "unreachable `match` arm")
-                        .primary(
-                            arm.pattern.span,
-                            "the arms above already cover this pattern",
-                        )
+                        .primary(pattern.span, "the arms above already cover this pattern")
                         .help("remove this arm, or move it before the arm that covers it"),
                 );
             }
-            if arm.guard.is_some() {
+            if *has_guard {
                 guarded = true;
             } else {
                 rows.push(vec![p]);
@@ -514,13 +522,13 @@ impl Checker<'_> {
                     codes::E0410,
                     format!("`match` does not cover every value of `{shown}`"),
                 )
-                .primary(scrutinee.span, "some values are not covered")
+                .primary(span, "some values are not covered")
             } else {
                 Diagnostic::new(
                     codes::E0410,
                     format!("`match` does not cover every value: `{missing}` is missing"),
                 )
-                .primary(scrutinee.span, format!("`{missing}` is not covered"))
+                .primary(span, format!("`{missing}` is not covered"))
             };
             d = if missing == "_" {
                 d.help("add an arm `_ => ...` for the other values")

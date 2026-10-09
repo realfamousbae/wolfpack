@@ -188,3 +188,48 @@ functions {
     );
     assert!(out.is_empty(), "{out}");
 }
+
+#[test]
+fn match_on_a_type_learned_later_is_checked() {
+    let out = check(&main_with(
+        "        let pick = |s| match s.find(\"x\") {\n            Some(i) => i\n        }\n        print(pick(\"abc\").to_string())",
+    ));
+    assert!(
+        out.contains("E0410") && out.contains("`None` is missing"),
+        "{out}"
+    );
+}
+
+#[test]
+fn impl_blocks_inherit_the_bounds_of_their_type() {
+    let out = check(
+        "module main
+
+types {
+    struct Sorted<T: Comparable> {
+        items: List<T>
+    }
+}
+
+impl {
+    Sorted<T> {
+        fn new() -> Sorted<T> {
+            Sorted { items: [] }
+        }
+
+        fn better(self, a: T, b: T) -> Bool {
+            a.compare(b) == Ordering.Greater
+        }
+    }
+}
+
+functions {
+    fn main() {
+        let s: Sorted<Int> = Sorted.new()
+        print(s.better(1, 2).to_string())
+    }
+}
+",
+    );
+    assert!(out.is_empty(), "{out}");
+}
