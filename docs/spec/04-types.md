@@ -361,6 +361,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0428 | Wrong number of arguments in a call or a pattern, or a variant written in the wrong form |
 | E0429 | A type or a module used as a value (`let x = Int`) |
 | E0430 | `break` or `continue` outside a loop |
+| E0431 | Implementation that cannot be written: not an interface, a derived built-in interface (`Equatable`, `Copyable`, `Hashable`), or an interface implemented twice (added in M5) |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
