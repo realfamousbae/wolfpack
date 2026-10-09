@@ -569,7 +569,11 @@ impl<'a> Lowerer<'a> {
                 // Built-in types have no declaration in the output; their functions are intrinsic
                 // except for the few with bodies in std.
                 if let Some(def) = def_of(self, &decl.name) {
-                    let _ = methods.remove(&def);
+                    out.push(Item::Builtin(Builtin {
+                        def: Lowerer::dref(def),
+                        name: decl.name.name.clone(),
+                        methods: methods.remove(&def).unwrap_or_default(),
+                    }));
                 }
             }
             ItemKind::Interface(decl) => {
@@ -895,6 +899,7 @@ impl<'a> Lowerer<'a> {
                 let to = self.ty(to);
                 Expr {
                     ty: to.clone(),
+                    span: value.span,
                     kind: ExprKind::Coerce {
                         value: Box::new(value),
                         to,
@@ -1077,7 +1082,11 @@ impl<'a> Lowerer<'a> {
             AstExpr::Continue => ExprKind::Continue,
             AstExpr::Error => return Err(unsupported("an expression with an error")),
         };
-        Ok(Expr { kind, ty })
+        Ok(Expr {
+            kind,
+            ty,
+            span: e.span,
+        })
     }
 
     /// What a name or a dotted path names, if it is a path rather than a field access.
@@ -1172,6 +1181,7 @@ impl<'a> Lowerer<'a> {
                     let value = Expr {
                         kind: self.path(res)?,
                         ty,
+                        span: f.name.span,
                     };
                     self.coerced(ctx, f.id, value)
                 }

@@ -352,6 +352,11 @@ impl<'p> Emitter<'p> {
                     ir::Item::ExternType(x) => {
                         self.names.insert(x.def, type_name(&x.name));
                     }
+                    ir::Item::Builtin(b) => {
+                        for f in &b.methods {
+                            self.fns.insert(f.def, info(f));
+                        }
+                    }
                     ir::Item::Test(_) => {}
                 }
             }
@@ -778,7 +783,7 @@ impl<'p> Emitter<'p> {
                 Ok(())
             }
             ir::Item::ExternFn(x) => self.extern_fn(x, out),
-            ir::Item::ExternType(_) | ir::Item::Test(_) => Ok(()),
+            ir::Item::ExternType(_) | ir::Item::Test(_) | ir::Item::Builtin(_) => Ok(()),
         }
     }
 

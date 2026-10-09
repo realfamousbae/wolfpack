@@ -173,6 +173,19 @@ pub enum Item {
     ExternType(ExternType),
     /// A test.
     Test(Test),
+    /// A built-in type of std with its (intrinsic) functions.
+    Builtin(Builtin),
+}
+
+/// A built-in type of std (`List`, `String`...) and the functions declared for it.
+#[derive(Clone, Debug)]
+pub struct Builtin {
+    /// The declaration.
+    pub def: DefRef,
+    /// Its name.
+    pub name: String,
+    /// Its functions, usually intrinsic.
+    pub methods: Vec<Function>,
 }
 
 /// A type parameter.
@@ -496,6 +509,8 @@ pub struct Expr {
     pub kind: ExprKind,
     /// Its type.
     pub ty: Type,
+    /// Where it is in the source.
+    pub span: wolf_span::Span,
 }
 
 /// A call argument.
