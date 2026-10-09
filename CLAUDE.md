@@ -12,8 +12,8 @@ commit messages and compiler diagnostics. `PLAN.md` stays in Russian as the auth
 ## Order of work
 
 1. Work on one milestone at a time (see section 11 of `PLAN.md`). Do not jump ahead.
-2. **M4 is current.** Approved: M0 (specification) 2026-10-07, M1 (lexer) and M2 (parser)
-   2026-10-08, M3 (modules and name resolution) 2026-10-09.
+2. **M5 is current.** Approved: M0 (specification) 2026-10-07, M1 (lexer) and M2 (parser)
+   2026-10-08, M3 (modules and name resolution) and M4 (types, part 1) 2026-10-09.
 3. M0 is done chapter by chapter: draft one chapter of `docs/spec/`, the author reviews, then the next.
 4. At the end of a milestone show the result: what works, which tests were added, what was deferred.
 5. After each milestone briefly explain to the author how the result is built and why. Learning is
