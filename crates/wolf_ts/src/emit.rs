@@ -77,8 +77,9 @@ struct FnState {
     locals: BTreeMap<LocalRef, Local>,
     used: BTreeSet<String>,
     temps: u32,
-    /// Result types of the function and the closures around the current point, innermost last.
-    rets: Vec<IrType>,
+    /// Result types of the function and the closures around the current point, innermost last,
+    /// with whether an `Option` result may be `T | undefined` (only for declared functions).
+    rets: Vec<(IrType, bool)>,
     /// `mut` parameters passed by reference (lists, maps, structs).
     by_reference: BTreeSet<LocalRef>,
     self_expr: Option<Expr>,
@@ -475,7 +476,11 @@ impl<'p> Emitter<'p> {
                     .enumerate()
                     .map(|(i, (m, t))| (format!("p{i}"), self.param_ty(*m, t)))
                     .collect();
-                Type::Fn(params, Box::new(self.ret_ty(ret)))
+                let ret = match ret.as_ref() {
+                    IrType::Void => Type::name("void"),
+                    other => self.ty(other),
+                };
+                Type::Fn(params, Box::new(ret))
             }
             IrType::Param(n) => Type::name(n),
             IrType::SelfType => Type::name("this"),
@@ -1114,7 +1119,7 @@ impl<'p> Emitter<'p> {
     > {
         let saved = std::mem::take(&mut self.f);
         self.f.self_expr = this;
-        self.f.rets.push(f.ret.clone());
+        self.f.rets.push((f.ret.clone(), true));
         let generics = self.generics(&f.generics);
         let mut params = Vec::new();
         for p in &f.params {
@@ -1158,7 +1163,7 @@ impl<'p> Emitter<'p> {
 
     fn ret_repr(&self) -> Repr {
         match self.f.rets.last() {
-            Some(t) if undef_result(t) => Repr::Undef,
+            Some((t, true)) if undef_result(t) => Repr::Undef,
             _ => Repr::Tagged,
         }
     }
@@ -1558,7 +1563,26 @@ impl<'p> Emitter<'p> {
                         let o = self.def_name(owner);
                         tagged(member(ident(&o), &camel(&d.name)))
                     }
-                    _ => tagged(ident(&self.def_name(*def))),
+                    _ => {
+                        let name = ident(&self.def_name(*def));
+                        // A declared function returning `T | undefined` used as a function value.
+                        match self.fns.get(def).cloned() {
+                            Some(info) if undef_result(&info.ret) => {
+                                let params: Vec<(String, Option<Type>)> = info
+                                    .params
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, (m, t))| {
+                                        (format!("p{i}"), Some(self.param_ty(*m, t)))
+                                    })
+                                    .collect();
+                                let args = params.iter().map(|(n, _)| ident(n)).collect();
+                                let body = self.rt_call("tagged", vec![call(name, args)]);
+                                tagged(Expr::Arrow(params, None, ArrowBody::Expr(Box::new(body))))
+                            }
+                            _ => tagged(name),
+                        }
+                    }
                 }
             }
             ExprKind::Const(def) => tagged(ident(&self.def_name(*def))),
@@ -1816,7 +1840,8 @@ impl<'p> Emitter<'p> {
         body: &'p Block,
         ret: &IrType,
     ) -> Result<Expr, Error> {
-        self.f.rets.push(ret.clone());
+        // Function values return `Option` as data, so that they can be stored and passed on.
+        self.f.rets.push((ret.clone(), false));
         let mut ps = Vec::new();
         for p in params {
             let name = self.local_name(p.local);
@@ -1828,7 +1853,10 @@ impl<'p> Emitter<'p> {
             }
             ps.push((name, Some(ty)));
         }
-        let ret_ty = self.ret_ty(ret);
+        let ret_ty = match ret {
+            IrType::Void => Type::name("void"),
+            other => self.ty(other),
+        };
         let result = if body.stmts.is_empty()
             && body
                 .tail
@@ -2157,6 +2185,7 @@ impl<'p> Emitter<'p> {
             .map(|v| v.unwrap_or_else(|| evaluated.next().unwrap_or(Expr::Undefined)))
             .collect();
         let ret_repr = match &info {
+            _ if matches!(callee, Callee::Value(_)) => Repr::Tagged,
             Some(f)
                 if undef_result(&f.ret)
                     || (intrinsic.is_some() && matches!(f.ret, IrType::Option(_))) =>

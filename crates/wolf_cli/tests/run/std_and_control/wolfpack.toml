@@ -1,0 +1,4 @@
+[package]
+name = "std-and-control"
+version = "0.1.0"
+kind = "cli"
