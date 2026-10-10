@@ -4,6 +4,20 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M8: Ownership (2026-10-10)
+
+- `wolf_own`: the ownership rules of chapter 5, checked on the IR after type checking, as part of
+  `wolf check`. A flow-sensitive walk of each body tracks moved variables through branches and
+  loops: use after a move (E0501), use after a move on some paths or in a previous iteration
+  (E0502), moves of fields and elements (E0503), moves out of borrowed values (E0504), changes of
+  immutable bindings (E0505), `mut` arguments that are not places (E0506), call-site markers
+  (E0507), overlapping places in one call (E0508), access to places borrowed by `for` and `match`
+  (E0509), closures capturing borrowed values (E0510) or changing captured ones (E0511).
+- The IR carries source spans and the functions of built-in types.
+- Spec: `own` is never written before a temporary; the example of chapter 9 is fixed.
+- Tests: a pair for every rule, a project with the error and a correct project
+  (`tests/valid/`); all examples and run programs still check and run.
+
 ## M7: Tests (2026-10-09)
 
 - `wolf test [text]` builds the project with its tests (`tests` sections, their helper functions
