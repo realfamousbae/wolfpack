@@ -1,0 +1,11 @@
+error[E0501]: use of moved value `u`
+   --> src/main.wolf:26:15
+   |
+25 |         print(take(own u).to_string())
+   |                        - value moved here
+26 |         print(u.name)
+   |               ^^^^^^ value used here after the move
+   |
+   = help: pass a copy instead of moving it: `u.copy()`
+
+error: aborting due to 1 error

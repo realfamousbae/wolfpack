@@ -1,0 +1,20 @@
+error[E0502]: use of `u`, which may have been moved
+   --> src/main.wolf:28:15
+   |
+26 |             let _ = take(own u)
+   |                              - moved here on some paths
+27 |         }
+28 |         print(u.name)
+   |               ^^^^^^ used here
+   |
+   = help: pass a copy instead of moving it: `u.copy()`
+
+error[E0502]: `w` is moved in one iteration and used in the next
+   --> src/main.wolf:31:28
+   |
+31 |             print(take(own w).to_string())
+   |                            ^ moved here, inside the loop
+   |
+   = help: assign `w` a new value before the next iteration, move a copy (`w.copy()`), or leave the loop after the move
+
+error: aborting due to 2 errors

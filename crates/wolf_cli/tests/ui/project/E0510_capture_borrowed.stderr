@@ -1,0 +1,10 @@
+error[E0510]: the closure captures the borrowed value `u`
+   --> src/main.wolf:24:19
+   |
+24 |         ["x"].map(|s| s + u.name)
+   |                   ^^^^^^^^^^^^^^ this closure would take it
+   |
+   = help: copy it into a local first: `let u_copy = u.copy()`
+   = note: closures capture by move, and a borrowed value cannot be moved
+
+error: aborting due to 1 error

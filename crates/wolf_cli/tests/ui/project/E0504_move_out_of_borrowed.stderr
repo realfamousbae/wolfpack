@@ -1,0 +1,10 @@
+error[E0504]: cannot move out of borrowed `u`
+   --> src/main.wolf:24:9
+   |
+24 |         u.name
+   |         ^^^^^^ `u.name` is moved here
+   |
+   = help: move a copy: `u.name.copy()`
+   = note: the value is only borrowed here; its owner keeps it
+
+error: aborting due to 1 error

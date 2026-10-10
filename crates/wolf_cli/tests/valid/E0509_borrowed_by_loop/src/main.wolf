@@ -1,0 +1,38 @@
+module main
+
+types {
+    struct User {
+        name: String
+        tags: List<String>
+    }
+}
+
+functions {
+    fn take(own u: User) -> Int {
+        u.tags.len()
+    }
+
+    fn change(mut u: User) {
+        u.name = "changed"
+    }
+
+    fn make() -> User {
+        User { name: "a", tags: ["t"] }
+    }
+
+    fn main() {
+        var u = make()
+        var extra: List<String> = []
+        for t in u.tags {
+            extra.push(t.copy())
+        }
+        u.tags.append(own extra)
+        let rename = match u.name {
+            "a" => true
+            _ => false
+        }
+        if rename {
+            change(mut u)
+        }
+    }
+}

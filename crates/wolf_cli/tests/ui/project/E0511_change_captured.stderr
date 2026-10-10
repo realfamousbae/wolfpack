@@ -1,0 +1,9 @@
+error[E0511]: cannot change the captured value `total`
+   --> src/main.wolf:26:13
+   |
+26 |             total += n
+   |             ^^^^^ changed inside the closure
+   |
+   = note: values captured by a closure cannot be changed inside it
+
+error: aborting due to 1 error

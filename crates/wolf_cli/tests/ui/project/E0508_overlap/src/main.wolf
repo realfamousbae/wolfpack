@@ -1,0 +1,40 @@
+module main
+
+types {
+    struct User {
+        name: String
+        tags: List<String>
+    }
+}
+
+functions {
+    fn take(own u: User) -> Int {
+        u.tags.len()
+    }
+
+    fn change(mut u: User) {
+        u.name = "changed"
+    }
+
+    fn make() -> User {
+        User { name: "a", tags: ["t"] }
+    }
+
+    fn swap_names(mut x: User, mut y: User) {
+        let n = x.name.copy()
+        x.name = y.name.copy()
+        y.name = n
+    }
+
+    fn merge(mut into: List<String>, from: List<String>) {
+        for f in from {
+            into.push(f.copy())
+        }
+    }
+
+    fn main() {
+        var a = make()
+        swap_names(mut a, mut a)
+        merge(mut a.tags, a.tags)
+    }
+}

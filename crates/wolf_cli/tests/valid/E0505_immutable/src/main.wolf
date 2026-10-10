@@ -1,0 +1,32 @@
+module main
+
+types {
+    struct User {
+        name: String
+        tags: List<String>
+    }
+}
+
+functions {
+    fn take(own u: User) -> Int {
+        u.tags.len()
+    }
+
+    fn change(mut u: User) {
+        u.name = "changed"
+    }
+
+    fn make() -> User {
+        User { name: "a", tags: ["t"] }
+    }
+
+    fn main() {
+        var u = make()
+        u.name = "b"
+        change(mut u)
+        for t in mut u.tags {
+            t = "x"
+        }
+        print(u.name)
+    }
+}

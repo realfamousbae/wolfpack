@@ -1,0 +1,36 @@
+module main
+
+types {
+    struct User {
+        name: String
+        tags: List<String>
+    }
+}
+
+functions {
+    fn take(own u: User) -> Int {
+        u.tags.len()
+    }
+
+    fn change(mut u: User) {
+        u.name = "changed"
+    }
+
+    fn make() -> User {
+        User { name: "a", tags: ["t"] }
+    }
+
+    fn main() {
+        var u = make()
+        if u.tags.len() > 0 {
+            let _ = take(own u)
+            u = make()
+        }
+        print(u.name)
+        var w = make()
+        for i in 0..2 {
+            print(take(own w).to_string())
+            w = make()
+        }
+    }
+}

@@ -1,0 +1,23 @@
+error[E0508]: `a` and `a` overlap in one call
+   --> src/main.wolf:37:31
+   |
+37 |         swap_names(mut a, mut a)
+   |                        -      ^ `a` is passed `mut` here
+   |                        |       
+   |                        `a` is passed `mut` here
+   |
+   = help: pass a copy of one of them, or make two calls
+   = note: while a place is changed or moved by a call, the same call cannot use it elsewhere
+
+error[E0508]: `a.tags` and `a.tags` overlap in one call
+   --> src/main.wolf:38:27
+   |
+38 |         merge(mut a.tags, a.tags)
+   |                   ------  ^^^^^^ `a.tags` is read here
+   |                   |        
+   |                   `a.tags` is passed `mut` here
+   |
+   = help: pass a copy of one of them, or make two calls
+   = note: while a place is changed or moved by a call, the same call cannot use it elsewhere
+
+error: aborting due to 2 errors

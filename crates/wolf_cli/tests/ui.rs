@@ -353,3 +353,23 @@ fn emit_tokens_prints_the_token_stream() {
     );
     assert!(stdout.contains("Str \"Hello, Wolfpack!\""), "{stdout}");
 }
+
+/// The valid half of each ownership rule (spec chapter 5, section 10): projects under
+/// `tests/valid/` check without errors.
+#[test]
+fn valid_projects_check_cleanly() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/valid");
+    let mut failures = Vec::new();
+    for entry in fs::read_dir(&root).unwrap().flatten() {
+        let dir = entry.path();
+        let output = wolf(&dir, &["check", "--color", "never"]);
+        if output.status.code() != Some(0) {
+            failures.push(format!(
+                "--- {}\n{}",
+                dir.display(),
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
