@@ -592,6 +592,7 @@ impl<'a> Lowerer<'a> {
                         docs: docs(&m.docs),
                         public: decl.public,
                         generics: Vec::new(),
+                        impl_bounds: Vec::new(),
                         self_mode: sig.self_mode,
                         params: self.params(&m.sig, sig),
                         ret: self.ty(&sig.ret),
@@ -626,6 +627,7 @@ impl<'a> Lowerer<'a> {
                     docs: docs(&item.docs),
                     public: decl.public,
                     generics: self.generics(&sig.generics),
+                    impl_bounds: Vec::new(),
                     self_mode: None,
                     params: self.params(&decl.sig, sig),
                     ret: self.ty(&sig.ret),
@@ -771,6 +773,11 @@ impl<'a> Lowerer<'a> {
             docs: docs(method_docs),
             public: m.public,
             generics: self.generics(&m.sig.generics),
+            impl_bounds: m
+                .impl_bounds
+                .iter()
+                .map(|bounds| bounds.iter().map(|b| self.ty(b)).collect())
+                .collect(),
             self_mode: m.sig.self_mode,
             params: self.params(&decl.sig, &m.sig),
             ret,

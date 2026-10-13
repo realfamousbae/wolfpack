@@ -335,6 +335,9 @@ pub struct Function {
     pub public: bool,
     /// Type parameters of the function itself.
     pub generics: Vec<Generic>,
+    /// For a method: the bounds of the `impl` block on the type's parameters, in the order of
+    /// the type's parameters (they include the bounds of the type's declaration).
+    pub impl_bounds: Vec<Vec<Type>>,
     /// The mode of `self`, for methods.
     pub self_mode: Option<Mode>,
     /// Parameters without `self`.
