@@ -4,6 +4,28 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M9: The Go backend (2026-10-13)
+
+- `wolf_go`: the Go backend builds a tree and prints it as `gofmt` formats it. Each module is a
+  package; std and the runtime are the package `wolfrt`, which holds only the pieces a program
+  uses. `wolf build`, `wolf run` and `wolf test` take `--target go`, and `go` is the default when
+  `wolfpack.toml` says so.
+- Idiomatic results: `Option<T>` is `(T, bool)` or `*T`, `Result<T, E>` is `(T, error)` or
+  `error` when `E` implements `Error`; `?` becomes `if err != nil { return ..., err }`, and a
+  `match` on such a result becomes `if v, ok := f(); ok`. Everywhere else the data forms
+  `wolfrt.Option[T]` and `wolfrt.Result[T, E]` are used.
+- Structs with pointer receivers when a method takes `mut self`, `mut` parameters as pointers,
+  enums without payloads as constants, enums with payloads as sealed interfaces with a pointer to
+  a struct per variant, `match` as type switches, value switches or `if` chains (a `break` inside
+  a `switch` gets a label), generic functions with dictionaries for `Equatable`, `Copyable` and
+  `Comparable`, generated `Equal` and `Copy` where they are used, checked integer arithmetic.
+- `wolf test` on Go runs `go vet` and `go test -json` and prints the same report as on
+  TypeScript. E0801 and E0802 name `go`.
+- The IR keeps the bounds of `impl` blocks on the type's parameters.
+- Decisions: ADR 0009.
+- Tests: every example and every run program gives on Go the output it gives on TypeScript, with
+  `gofmt -l` and `go vet` clean; the test reports match; E0801 and E0802 for `go`.
+
 ## M8: Ownership (2026-10-10)
 
 - `wolf_own`: the ownership rules of chapter 5, checked on the IR after type checking, as part of
