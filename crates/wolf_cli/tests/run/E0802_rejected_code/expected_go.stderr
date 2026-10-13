@@ -1,0 +1,5 @@
+error[E0802]: Go rejected the generated code
+ = help: this is a bug in wolf; please report it with the input that caused it
+ = note: ./main.go:1:1: simulated rejection
+
+error: aborting due to 1 error

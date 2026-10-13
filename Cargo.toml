@@ -23,6 +23,7 @@ wolf_types = { path = "crates/wolf_types" }
 wolf_ir = { path = "crates/wolf_ir" }
 wolf_own = { path = "crates/wolf_own" }
 wolf_ts = { path = "crates/wolf_ts" }
+wolf_go = { path = "crates/wolf_go" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

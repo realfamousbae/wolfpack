@@ -4,5 +4,5 @@ version = "0.1.0"
 kind = "cli"
 
 [targets]
-enabled = ["ts", "go"]
-default = "go"
+enabled = ["ts", "rust"]
+default = "rust"

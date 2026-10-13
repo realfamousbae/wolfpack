@@ -1,10 +1,13 @@
-//! `wolf build` and `wolf run`: lowering to IR, code generation and the tools of the target.
+//! `wolf build`, `wolf run` and `wolf test`: lowering to IR, code generation and the tools of
+//! the target.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use wolf_diag::{Diagnostic, codes};
+use wolf_project::Target;
 
 use crate::check::{self, CheckResult};
 use crate::{CheckArgs, Color, MessageFormat};
@@ -38,8 +41,13 @@ pub(crate) enum Outcome {
 }
 
 /// Checks, lowers and generates the project around `start`; with `Then::Run`, also runs it.
-/// `explicit` is whether `--target ts` was given; otherwise the manifest's default is used.
-pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, explicit: bool) -> Outcome {
+/// `explicit` is the target of `--target`; otherwise the manifest's default is used.
+pub(crate) fn build(
+    start: &Path,
+    out_dir: Option<&Path>,
+    then: Then,
+    explicit: Option<Target>,
+) -> Outcome {
     let args = CheckArgs {
         paths: Vec::new(),
         message_format: MessageFormat::Human,
@@ -53,18 +61,19 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, explicit: 
     let Some(project) = result.project.take() else {
         return Outcome::Failed(Box::new(result), crate::EXIT_ERRORS);
     };
-    if !explicit && project.manifest.default_target != wolf_project::Target::Ts {
-        let name = match project.manifest.default_target {
-            wolf_project::Target::Go => "go",
-            _ => "rust",
-        };
-        result.diagnostics.push(
+    let target = explicit.unwrap_or(project.manifest.default_target);
+    if target == Target::Rust {
+        let diagnostic = if explicit.is_some() {
+            Diagnostic::new(codes::E0002, "the target `rust` is not available yet")
+        } else {
             Diagnostic::new(
                 codes::E0002,
-                format!("the default target `{name}` of `wolfpack.toml` is not available yet"),
+                "the default target `rust` of `wolfpack.toml` is not available yet",
             )
-            .help("only TypeScript can be built so far: pass `--target ts`"),
-        );
+        };
+        result.diagnostics.push(diagnostic.help(
+            "only TypeScript and Go can be built so far: pass `--target ts` or `--target go`",
+        ));
         return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
     }
     let inputs = project.inputs();
@@ -81,86 +90,87 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, explicit: 
         &meta,
     ) {
         Ok(p) => p,
-        Err(e) => return internal(result, &e.message),
+        Err(e) => return internal(result, target, &e.message),
     };
-    let tests = matches!(then, Then::Test { .. });
-    let files = match wolf_ts::generate(&program, env!("CARGO_PKG_VERSION"), tests) {
-        Ok(f) => f,
-        Err(e) => return internal(result, &e),
-    };
+    if let Then::Run { example: None, .. } = &then {
+        if program.kind == wolf_ir::ProgramKind::Lib {
+            result.diagnostics.push(
+                Diagnostic::new(codes::E0002, "a library cannot be run")
+                    .help("run one of its examples: `wolf run --example <name>`"),
+            );
+            return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
+        }
+    }
+    if let Then::Run {
+        example: Some(name),
+        ..
+    } = &then
+    {
+        let exists = program.modules.iter().any(|m| {
+            m.role == wolf_ir::ModuleRole::Example && m.path.get(1..) == Some(&[name.clone()][..])
+        });
+        if !exists {
+            result.diagnostics.push(Diagnostic::new(
+                codes::E0002,
+                format!("there is no example `{name}` in `examples/`"),
+            ));
+            return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
+        }
+    }
     let out = out_dir
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| project.root.join("out").join("ts"));
-    if let Err(e) = write(&out, &files) {
-        result.diagnostics.push(Diagnostic::new(
-            codes::E0001,
-            format!("cannot write `{}`: {e}", out.display()),
-        ));
-        return Outcome::Failed(Box::new(result), crate::EXIT_ERRORS);
-    }
-    match then {
-        Then::Nothing => Outcome::Built,
-        Then::Test { filter } => run_tests(
-            result,
-            &out,
-            &wolf_ts::test_entries(&files),
-            filter.as_deref(),
-        ),
-        Then::Run { example, args } => {
-            if example.is_none() && program.kind == wolf_ir::ProgramKind::Lib {
-                result.diagnostics.push(
-                    Diagnostic::new(codes::E0002, "a library cannot be run")
-                        .help("run one of its examples: `wolf run --example <name>`"),
-                );
-                return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
-            }
-            if let Some(name) = &example {
-                if !files
-                    .iter()
-                    .any(|f| f.path == format!("examples/{name}.ts"))
-                {
-                    result.diagnostics.push(Diagnostic::new(
-                        codes::E0002,
-                        format!("there is no example `{name}` in `examples/`"),
-                    ));
-                    return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
-                }
-            }
-            run_ts(
-                result,
-                &out,
-                &wolf_ts::entry_file(&program, example.as_deref()),
-                &args,
-            )
-        }
+        .unwrap_or_else(|| project.root.join("out").join(target.name()));
+    match target {
+        Target::Go => go(result, &program, &out, then),
+        _ => ts(result, &program, &out, then),
     }
 }
 
-fn internal(mut result: CheckResult, message: &str) -> Outcome {
+/// The name of a target's backend in messages.
+fn backend(target: Target) -> &'static str {
+    match target {
+        Target::Ts => "TypeScript",
+        Target::Go => "Go",
+        Target::Rust => "Rust",
+    }
+}
+
+fn internal(mut result: CheckResult, target: Target, message: &str) -> Outcome {
     result.diagnostics.push(
         Diagnostic::new(codes::E0003, "internal compiler error")
             .note(format!(
-                "the TypeScript backend does not support this yet: {message}"
+                "the {} backend does not support this yet: {message}",
+                backend(target)
             ))
             .help("this is a bug or a gap in wolf; please report it with the input that caused it"),
     );
     Outcome::Failed(Box::new(result), crate::EXIT_INTERNAL)
 }
 
-/// Writes the generated files, removing older generated sources first.
-fn write(out: &Path, files: &[wolf_ts::OutFile]) -> std::io::Result<()> {
-    for dir in ["src", "examples", "dist"] {
+fn write_failed(mut result: CheckResult, out: &Path, e: &std::io::Error) -> Outcome {
+    result.diagnostics.push(Diagnostic::new(
+        codes::E0001,
+        format!("cannot write `{}`: {e}", out.display()),
+    ));
+    Outcome::Failed(Box::new(result), crate::EXIT_ERRORS)
+}
+
+/// Writes generated files under `out`, after removing the listed generated directories.
+fn write(out: &Path, clean: &[&str], files: &[(String, &str)]) -> std::io::Result<()> {
+    for dir in clean {
         let path = out.join(dir);
-        if path.exists() {
+        if path.is_dir() {
             fs::remove_dir_all(&path)?;
+        } else if path.is_file() {
+            fs::remove_file(&path)?;
         }
     }
-    for f in files {
-        let path = out.join(&f.path);
+    for (rel, contents) in files {
+        let path = out.join(rel);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        fs::write(&path, &f.contents)?;
+        fs::write(&path, contents)?;
     }
     Ok(())
 }
@@ -177,20 +187,83 @@ fn find_tool(name: &str, out: &Path) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-fn missing_tool(mut result: CheckResult, tool: &str, help: &str) -> Outcome {
+fn missing_tool(mut result: CheckResult, target: Target, tool: &str, help: &str) -> Outcome {
+    let note = match target {
+        Target::Go => "`wolf run --target go` builds and runs with Go",
+        _ => "`wolf run --target ts` builds with TypeScript and runs with Node.js",
+    };
     result.diagnostics.push(
         Diagnostic::new(codes::E0801, format!("`{tool}` is not installed"))
-            .note("`wolf run --target ts` builds with TypeScript and runs with Node.js")
+            .note(note)
             .help(help.to_string()),
     );
     Outcome::Failed(Box::new(result), crate::EXIT_ERRORS)
 }
 
-/// `tsc` for the output project; `None` if it built, or the failure.
-fn compile(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Outcome> {
+fn rejected(mut result: CheckResult, target: Target, output: &std::process::Output) -> Outcome {
+    let text = String::from_utf8_lossy(&output.stdout).into_owned()
+        + &String::from_utf8_lossy(&output.stderr);
+    result.diagnostics.push(
+        Diagnostic::new(
+            codes::E0802,
+            format!("{} rejected the generated code", backend(target)),
+        )
+        .note(text.trim_end().to_string())
+        .help("this is a bug in wolf; please report it with the input that caused it"),
+    );
+    Outcome::Failed(Box::new(result), crate::EXIT_ERRORS)
+}
+
+/// A text as a regular expression that matches it literally.
+fn regex_escape(text: &str) -> String {
+    let mut out = String::new();
+    for c in text.chars() {
+        if "\\^$.|?*+()[]{}/".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
+// ----- TypeScript ---------------------------------------------------------------------------------
+
+fn ts(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -> Outcome {
+    let tests = matches!(then, Then::Test { .. });
+    let files = match wolf_ts::generate(program, env!("CARGO_PKG_VERSION"), tests) {
+        Ok(f) => f,
+        Err(e) => return internal(result, Target::Ts, &e),
+    };
+    let list: Vec<(String, &str)> = files
+        .iter()
+        .map(|f| (f.path.clone(), f.contents.as_str()))
+        .collect();
+    if let Err(e) = write(out, &["src", "examples", "dist"], &list) {
+        return write_failed(result, out, &e);
+    }
+    match then {
+        Then::Nothing => Outcome::Built,
+        Then::Test { filter } => run_ts_tests(
+            result,
+            out,
+            &wolf_ts::test_entries(&files),
+            filter.as_deref(),
+        ),
+        Then::Run { example, args } => run_ts(
+            result,
+            out,
+            &wolf_ts::entry_file(program, example.as_deref()),
+            &args,
+        ),
+    }
+}
+
+/// `tsc` for the output project; `node` if it built, or the failure.
+fn compile_ts(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Outcome> {
     let Some(node) = find_tool("node", out) else {
         return Err(missing_tool(
             result,
+            Target::Ts,
             "node",
             "install Node.js 22 or later from https://nodejs.org",
         ));
@@ -198,25 +271,17 @@ fn compile(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Ou
     let Some(tsc) = find_tool("tsc", out) else {
         return Err(missing_tool(
             result,
+            Target::Ts,
             "tsc",
             "install TypeScript: `npm install -g typescript`",
         ));
     };
-    let mut result = result;
     match Command::new(&tsc).arg("-p").arg(out).output() {
         Ok(o) if o.status.success() => Ok((node, result)),
-        Ok(o) => {
-            let text = String::from_utf8_lossy(&o.stdout).into_owned()
-                + &String::from_utf8_lossy(&o.stderr);
-            result.diagnostics.push(
-                Diagnostic::new(codes::E0802, "TypeScript rejected the generated code")
-                    .note(text.trim_end().to_string())
-                    .help("this is a bug in wolf; please report it with the input that caused it"),
-            );
-            Err(Outcome::Failed(Box::new(result), crate::EXIT_ERRORS))
-        }
+        Ok(o) => Err(rejected(result, Target::Ts, &o)),
         Err(e) => Err(missing_tool(
             result,
+            Target::Ts,
             "tsc",
             &format!("`tsc` could not be started: {e}"),
         )),
@@ -224,8 +289,13 @@ fn compile(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Ou
 }
 
 /// Runs the tests with `node:test` and the generated reporter (spec chapter 8, rule 2.7).
-fn run_tests(result: CheckResult, out: &Path, entries: &[String], filter: Option<&str>) -> Outcome {
-    let (node, _result) = match compile(result, out) {
+fn run_ts_tests(
+    result: CheckResult,
+    out: &Path,
+    entries: &[String],
+    filter: Option<&str>,
+) -> Outcome {
+    let (node, _result) = match compile_ts(result, out) {
         Ok(ok) => ok,
         Err(outcome) => return outcome,
     };
@@ -252,53 +322,277 @@ fn run_tests(result: CheckResult, out: &Path, entries: &[String], filter: Option
     }
 }
 
-/// A text as a regular expression that matches it literally.
-fn regex_escape(text: &str) -> String {
-    let mut out = String::new();
-    for c in text.chars() {
-        if "\\^$.|?*+()[]{}/".contains(c) {
-            out.push('\\');
-        }
-        out.push(c);
-    }
-    out
-}
-
-fn run_ts(mut result: CheckResult, out: &Path, entry: &str, args: &[String]) -> Outcome {
-    let Some(node) = find_tool("node", out) else {
-        return missing_tool(
-            result,
-            "node",
-            "install Node.js 22 or later from https://nodejs.org",
-        );
+fn run_ts(result: CheckResult, out: &Path, entry: &str, args: &[String]) -> Outcome {
+    let (node, result) = match compile_ts(result, out) {
+        Ok(ok) => ok,
+        Err(outcome) => return outcome,
     };
-    let Some(tsc) = find_tool("tsc", out) else {
-        return missing_tool(
-            result,
-            "tsc",
-            "install TypeScript: `npm install -g typescript`",
-        );
-    };
-    let built = Command::new(&tsc).arg("-p").arg(out).output();
-    match built {
-        Ok(o) if o.status.success() => {}
-        Ok(o) => {
-            let text = String::from_utf8_lossy(&o.stdout).into_owned()
-                + &String::from_utf8_lossy(&o.stderr);
-            result.diagnostics.push(
-                Diagnostic::new(codes::E0802, "TypeScript rejected the generated code")
-                    .note(text.trim_end().to_string())
-                    .help("this is a bug in wolf; please report it with the input that caused it"),
-            );
-            return Outcome::Failed(Box::new(result), crate::EXIT_ERRORS);
-        }
-        Err(e) => {
-            return missing_tool(result, "tsc", &format!("`tsc` could not be started: {e}"));
-        }
-    }
     let status = Command::new(&node).arg(out.join(entry)).args(args).status();
     match status {
         Ok(s) => Outcome::Ran(s.code().unwrap_or(1)),
-        Err(e) => missing_tool(result, "node", &format!("`node` could not be started: {e}")),
+        Err(e) => missing_tool(
+            result,
+            Target::Ts,
+            "node",
+            &format!("`node` could not be started: {e}"),
+        ),
+    }
+}
+
+// ----- Go -----------------------------------------------------------------------------------------
+
+fn go(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -> Outcome {
+    let tests = matches!(then, Then::Test { .. });
+    let project = match wolf_go::generate(program, env!("CARGO_PKG_VERSION"), tests) {
+        Ok(p) => p,
+        Err(e) => return internal(result, Target::Go, &e),
+    };
+    let list: Vec<(String, &str)> = project
+        .files
+        .iter()
+        .map(|f| (f.path.clone(), f.contents.as_str()))
+        .collect();
+    // Every generated file is removed first, so that no stale package stays behind.
+    let mut clean: Vec<String> = Vec::new();
+    if let Ok(entries) = fs::read_dir(out) {
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if name != "bin" {
+                clean.push(name);
+            }
+        }
+    }
+    let clean: Vec<&str> = if out.join("go.mod").is_file() {
+        clean.iter().map(String::as_str).collect()
+    } else {
+        Vec::new()
+    };
+    if let Err(e) = write(out, &clean, &list) {
+        return write_failed(result, out, &e);
+    }
+    match then {
+        Then::Nothing => Outcome::Built,
+        Then::Test { filter } => run_go_tests(result, out, &project.tests, filter.as_deref()),
+        Then::Run { example, args } => {
+            let Some(package) = wolf_go::main_package(program, example.as_deref()) else {
+                return Outcome::Built;
+            };
+            let name = example.unwrap_or_else(|| program.name.clone());
+            run_go(result, out, &package, &name, &args)
+        }
+    }
+}
+
+/// `go` with the environment that keeps it local and away from the user's workspace.
+fn go_command(go: &Path, out: &Path) -> Command {
+    let mut cmd = Command::new(go);
+    cmd.current_dir(out)
+        .env("GOTOOLCHAIN", "local")
+        .env("GOWORK", "off")
+        .env("GOFLAGS", "-mod=mod");
+    cmd
+}
+
+fn find_go(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Outcome> {
+    match find_tool("go", out) {
+        Some(go) => Ok((go, result)),
+        None => Err(missing_tool(
+            result,
+            Target::Go,
+            "go",
+            "install Go 1.24 or later from https://go.dev/dl",
+        )),
+    }
+}
+
+fn run_go(result: CheckResult, out: &Path, package: &str, name: &str, args: &[String]) -> Outcome {
+    let (go, result) = match find_go(result, out) {
+        Ok(ok) => ok,
+        Err(outcome) => return outcome,
+    };
+    let binary = out.join("bin").join(name);
+    let built = go_command(&go, out)
+        .arg("build")
+        .arg("-o")
+        .arg(&binary)
+        .arg(package)
+        .output();
+    match built {
+        Ok(o) if o.status.success() => {}
+        Ok(o) => return rejected(result, Target::Go, &o),
+        Err(e) => {
+            return missing_tool(
+                result,
+                Target::Go,
+                "go",
+                &format!("`go` could not be started: {e}"),
+            );
+        }
+    }
+    match Command::new(&binary).args(args).status() {
+        Ok(s) => Outcome::Ran(s.code().unwrap_or(1)),
+        Err(e) => {
+            eprintln!("error: `{}` could not be started: {e}", binary.display());
+            Outcome::Ran(1)
+        }
+    }
+}
+
+/// Runs the tests with `go test -json` and prints the report of `wolf test` (spec chapter 8,
+/// rule 2.7).
+fn run_go_tests(
+    result: CheckResult,
+    out: &Path,
+    tests: &[wolf_go::TestEntry],
+    filter: Option<&str>,
+) -> Outcome {
+    let (go, result) = match find_go(result, out) {
+        Ok(ok) => ok,
+        Err(outcome) => return outcome,
+    };
+    // `go vet` builds every package with its tests: a failure is a bug of the backend.
+    match go_command(&go, out).arg("vet").arg("./...").output() {
+        Ok(o) if o.status.success() => {}
+        Ok(o) => return rejected(result, Target::Go, &o),
+        Err(e) => {
+            return missing_tool(
+                result,
+                Target::Go,
+                "go",
+                &format!("`go` could not be started: {e}"),
+            );
+        }
+    }
+    let selected: Vec<&wolf_go::TestEntry> = tests
+        .iter()
+        .filter(|t| {
+            let name = t
+                .name
+                .split_once(".wolf: ")
+                .map_or(t.name.as_str(), |(_, n)| n);
+            filter.is_none_or(|f| name.contains(f))
+        })
+        .collect();
+    let mut outcomes: BTreeMap<(String, String), (bool, Option<String>)> = BTreeMap::new();
+    if !selected.is_empty() {
+        let names: Vec<&str> = selected.iter().map(|t| t.go_name.as_str()).collect();
+        let output = go_command(&go, out)
+            .arg("test")
+            .arg("-json")
+            .arg("-count=1")
+            .arg("-p=1")
+            .arg(format!("-run=^({})$", names.join("|")))
+            .arg("./...")
+            .output();
+        let output = match output {
+            Ok(o) => o,
+            Err(e) => {
+                return missing_tool(
+                    result,
+                    Target::Go,
+                    "go",
+                    &format!("`go` could not be started: {e}"),
+                );
+            }
+        };
+        let text = String::from_utf8_lossy(&output.stdout);
+        for line in text.lines() {
+            let (Some(action), Some(package)) =
+                (json_field(line, "Action"), json_field(line, "Package"))
+            else {
+                continue;
+            };
+            let Some(test) = json_field(line, "Test") else {
+                continue;
+            };
+            let entry = outcomes.entry((package, test)).or_insert((false, None));
+            match action.as_str() {
+                "pass" => entry.0 = true,
+                "output" => {
+                    if let Some(m) = json_field(line, "Output")
+                        .and_then(|o| o.strip_prefix("--- wolf failure: ").map(str::to_string))
+                    {
+                        entry.1 = Some(m.trim_end().to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    if tests.is_empty() {
+        println!("test result: ok. 0 passed; 0 failed");
+        return Outcome::Ran(0);
+    }
+    let mut passed = 0;
+    let mut failures = Vec::new();
+    for t in &selected {
+        let (ok, message) = outcomes
+            .get(&(t.package.clone(), t.go_name.clone()))
+            .cloned()
+            .unwrap_or((false, None));
+        if ok {
+            passed += 1;
+            println!("test {} ... ok", t.name);
+        } else {
+            println!("test {} ... FAILED", t.name);
+            failures.push((
+                t.name.clone(),
+                message.unwrap_or_else(|| "test failed".to_string()),
+            ));
+        }
+    }
+    if !failures.is_empty() {
+        println!("\nfailures:");
+        for (name, message) in &failures {
+            println!("\n  {name}\n    {message}");
+        }
+    }
+    let status = if failures.is_empty() { "ok" } else { "FAILED" };
+    println!(
+        "\ntest result: {status}. {passed} passed; {} failed",
+        failures.len()
+    );
+    Outcome::Ran(if failures.is_empty() { 0 } else { 1 })
+}
+
+/// The string value of a field of a one-line JSON object, such as an event of `go test -json`.
+fn json_field(line: &str, key: &str) -> Option<String> {
+    let start = line.find(&format!("\"{key}\":\""))? + key.len() + 4;
+    let mut out = String::new();
+    let mut chars = line.get(start..)?.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' => return Some(out),
+            '\\' => match chars.next()? {
+                'n' => out.push('\n'),
+                't' => out.push('\t'),
+                'r' => out.push('\r'),
+                'u' => {
+                    let hex: String = chars.by_ref().take(4).collect();
+                    let code = u32::from_str_radix(&hex, 16).ok()?;
+                    out.push(char::from_u32(code).unwrap_or('\u{fffd}'));
+                }
+                other => out.push(other),
+            },
+            c => out.push(c),
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::json_field;
+
+    #[test]
+    fn fields_of_go_test_events() {
+        let line = r#"{"Time":"t","Action":"output","Package":"calc","Test":"TestAdds","Output":"--- wolf failure: panic at a \"b\"\n"}"#;
+        assert_eq!(json_field(line, "Action").as_deref(), Some("output"));
+        assert_eq!(json_field(line, "Test").as_deref(), Some("TestAdds"));
+        assert_eq!(
+            json_field(line, "Output").as_deref(),
+            Some("--- wolf failure: panic at a \"b\"\n")
+        );
+        assert_eq!(json_field(line, "Elapsed"), None);
     }
 }

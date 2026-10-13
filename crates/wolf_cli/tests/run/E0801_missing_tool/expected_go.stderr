@@ -1,0 +1,5 @@
+error[E0801]: `go` is not installed
+ = help: install Go 1.24 or later from https://go.dev/dl
+ = note: `wolf run --target go` builds and runs with Go
+
+error: aborting due to 1 error

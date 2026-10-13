@@ -213,47 +213,40 @@ fn run() -> ExitCode {
     match cli.command {
         Command::New(args) => new_project(&args),
         Command::Build(args) => {
-            if let Some(code) = unsupported_target(args.target) {
-                return code;
-            }
+            let target = match target(args.target) {
+                Ok(t) => t,
+                Err(code) => return code,
+            };
             let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
             finish(build::build(
                 &cwd,
                 args.out.as_deref(),
                 build::Then::Nothing,
-                args.target.is_some(),
+                target,
             ))
         }
         Command::Test(args) => {
-            if let Some(code) = unsupported_target(args.target) {
-                return code;
-            }
+            let target = match target(args.target) {
+                Ok(t) => t,
+                Err(code) => return code,
+            };
             let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
             let then = build::Then::Test {
                 filter: args.filter.clone(),
             };
-            finish(build::build(
-                &cwd,
-                args.out.as_deref(),
-                then,
-                args.target.is_some(),
-            ))
+            finish(build::build(&cwd, args.out.as_deref(), then, target))
         }
         Command::Run(args) => {
-            if let Some(code) = unsupported_target(args.target) {
-                return code;
-            }
+            let target = match target(args.target) {
+                Ok(t) => t,
+                Err(code) => return code,
+            };
             let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
             let then = build::Then::Run {
                 example: args.example.clone(),
                 args: args.args.clone(),
             };
-            finish(build::build(
-                &cwd,
-                args.out.as_deref(),
-                then,
-                args.target.is_some(),
-            ))
+            finish(build::build(&cwd, args.out.as_deref(), then, target))
         }
         Command::Check(args) => {
             let result = check::run(&args);
@@ -270,20 +263,21 @@ fn run() -> ExitCode {
     }
 }
 
-/// Only the TypeScript backend exists before M9.
-fn unsupported_target(target: Option<TargetArg>) -> Option<ExitCode> {
+/// The target of `--target`. The Rust backend and `all` come with milestone M10.
+fn target(target: Option<TargetArg>) -> Result<Option<wolf_project::Target>, ExitCode> {
     let name = match target {
-        None | Some(TargetArg::Ts) => return None,
-        Some(TargetArg::Go) => "go",
+        None => return Ok(None),
+        Some(TargetArg::Ts) => return Ok(Some(wolf_project::Target::Ts)),
+        Some(TargetArg::Go) => return Ok(Some(wolf_project::Target::Go)),
         Some(TargetArg::Rust) => "rust",
         Some(TargetArg::All) => "all",
     };
     let _ = writeln!(
         io::stderr(),
-        "error[{}]: the target `{name}` is not available yet; only `ts` can be built",
+        "error[{}]: the target `{name}` is not available yet; only `ts` and `go` can be built",
         codes::E0002.id()
     );
-    Some(ExitCode::from(EXIT_USAGE))
+    Err(ExitCode::from(EXIT_USAGE))
 }
 
 fn finish(outcome: build::Outcome) -> ExitCode {
