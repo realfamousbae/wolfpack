@@ -150,9 +150,9 @@ Added after approval, while writing the examples. **[INTERNAL]**
 3. Conversions between the two forms are generated where a value moves from one position to the
    other. **[INTERNAL]**
 4. Function **values** (closures, functions stored in variables or passed as arguments) return an
-   `Option` in the data form in TS, because what they return is usually stored (`list.map`). A
-   declared function used as a value is wrapped so that it returns the data form. (Author,
-   2026-10-09, ADR 0008.)
+   `Option` (and in Go a `Result`) in the data form in TS and Go, because what they return is
+   usually stored (`list.map`). A declared function used as a value is wrapped so that it returns
+   the data form. (Author, 2026-10-09, ADR 0008; Go: 2026-10-13, ADR 0009.)
 
 ### 4.2 `Int` in TypeScript (G10)
 
@@ -169,7 +169,7 @@ Added after approval, while writing the examples. **[INTERNAL]**
 | `+ - *` | `wolf_rt` helpers | `wolfrt.Add(a, b)` etc. (Go wraps silently) | native operators with `overflow-checks = true` in every Cargo profile |
 | `/ %` | helpers (zero, `MIN / -1`) | helpers (`MIN / -1` wraps in Go) | native (panics already) |
 | shifts | helpers | helpers | helpers (Rust masks the amount) |
-| index | helper with range check | native (Go panics), message translated | native, message translated |
+| index | helper with range check | helper with range check (ADR 0009) | native, message translated |
 
 The panic hook (Rust) and `recover` (Go) translate the target's own panic message into the canonical
 message of chapter 7, for example Rust's `attempt to add with overflow` becomes
