@@ -169,7 +169,7 @@ Added after approval, while writing the examples. **[INTERNAL]**
 | `+ - *` | `wolf_rt` helpers | `wolfrt.Add(a, b)` etc. (Go wraps silently) | native operators with `overflow-checks = true` in every Cargo profile |
 | `/ %` | helpers (zero, `MIN / -1`) | helpers (`MIN / -1` wraps in Go) | native (panics already) |
 | shifts | helpers | helpers | helpers (Rust masks the amount) |
-| index | helper with range check | helper with range check (ADR 0009) | native, message translated |
+| index | helper with range check | helper with range check (ADR 0009) | helper with range check (`items.at(i)`; author, 2026-10-13) |
 
 The panic hook (Rust) and `recover` (Go) translate the target's own panic message into the canonical
 message of chapter 7, for example Rust's `attempt to add with overflow` becomes
