@@ -213,7 +213,7 @@ fn run() -> ExitCode {
     match cli.command {
         Command::New(args) => new_project(&args),
         Command::Build(args) => {
-            let target = match target(args.target) {
+            let target = match target(args.target, true) {
                 Ok(t) => t,
                 Err(code) => return code,
             };
@@ -226,7 +226,7 @@ fn run() -> ExitCode {
             ))
         }
         Command::Test(args) => {
-            let target = match target(args.target) {
+            let target = match target(args.target, false) {
                 Ok(t) => t,
                 Err(code) => return code,
             };
@@ -237,7 +237,7 @@ fn run() -> ExitCode {
             finish(build::build(&cwd, args.out.as_deref(), then, target))
         }
         Command::Run(args) => {
-            let target = match target(args.target) {
+            let target = match target(args.target, false) {
                 Ok(t) => t,
                 Err(code) => return code,
             };
@@ -263,21 +263,24 @@ fn run() -> ExitCode {
     }
 }
 
-/// The target of `--target`. The Rust backend and `all` come with milestone M10.
-fn target(target: Option<TargetArg>) -> Result<Option<wolf_project::Target>, ExitCode> {
-    let name = match target {
-        None => return Ok(None),
-        Some(TargetArg::Ts) => return Ok(Some(wolf_project::Target::Ts)),
-        Some(TargetArg::Go) => return Ok(Some(wolf_project::Target::Go)),
-        Some(TargetArg::Rust) => "rust",
-        Some(TargetArg::All) => "all",
-    };
-    let _ = writeln!(
-        io::stderr(),
-        "error[{}]: the target `{name}` is not available yet; only `ts` and `go` can be built",
-        codes::E0002.id()
-    );
-    Err(ExitCode::from(EXIT_USAGE))
+/// The targets of `--target`; `all` only for `wolf build` (`build` is set).
+fn target(target: Option<TargetArg>, build: bool) -> Result<build::Targets, ExitCode> {
+    use wolf_project::Target;
+    Ok(match target {
+        None => build::Targets::Default,
+        Some(TargetArg::Ts) => build::Targets::One(Target::Ts),
+        Some(TargetArg::Go) => build::Targets::One(Target::Go),
+        Some(TargetArg::Rust) => build::Targets::One(Target::Rust),
+        Some(TargetArg::All) if build => build::Targets::All,
+        Some(TargetArg::All) => {
+            let _ = writeln!(
+                io::stderr(),
+                "error[{}]: `--target all` works only with `wolf build`; pass one target",
+                codes::E0002.id()
+            );
+            return Err(ExitCode::from(EXIT_USAGE));
+        }
+    })
 }
 
 fn finish(outcome: build::Outcome) -> ExitCode {

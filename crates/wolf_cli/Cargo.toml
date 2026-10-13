@@ -20,6 +20,7 @@ wolf_ir = { workspace = true }
 wolf_own = { workspace = true }
 wolf_ts = { workspace = true }
 wolf_go = { workspace = true }
+wolf_rs = { workspace = true }
 wolf_span = { workspace = true }
 wolf_std = { workspace = true }
 

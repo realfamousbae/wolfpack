@@ -40,14 +40,19 @@ pub(crate) enum Outcome {
     Built,
 }
 
+/// The targets of a command.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Targets {
+    /// The default target of `wolfpack.toml`.
+    Default,
+    /// `--target <name>`
+    One(Target),
+    /// `--target all`: every enabled target (`wolf build` only).
+    All,
+}
+
 /// Checks, lowers and generates the project around `start`; with `Then::Run`, also runs it.
-/// `explicit` is the target of `--target`; otherwise the manifest's default is used.
-pub(crate) fn build(
-    start: &Path,
-    out_dir: Option<&Path>,
-    then: Then,
-    explicit: Option<Target>,
-) -> Outcome {
+pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: Targets) -> Outcome {
     let args = CheckArgs {
         paths: Vec::new(),
         message_format: MessageFormat::Human,
@@ -61,21 +66,10 @@ pub(crate) fn build(
     let Some(project) = result.project.take() else {
         return Outcome::Failed(Box::new(result), crate::EXIT_ERRORS);
     };
-    let target = explicit.unwrap_or(project.manifest.default_target);
-    if target == Target::Rust {
-        let diagnostic = if explicit.is_some() {
-            Diagnostic::new(codes::E0002, "the target `rust` is not available yet")
-        } else {
-            Diagnostic::new(
-                codes::E0002,
-                "the default target `rust` of `wolfpack.toml` is not available yet",
-            )
-        };
-        result.diagnostics.push(diagnostic.help(
-            "only TypeScript and Go can be built so far: pass `--target ts` or `--target go`",
-        ));
-        return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
-    }
+    let target = match targets {
+        Targets::One(t) => t,
+        _ => project.manifest.default_target,
+    };
     let inputs = project.inputs();
     let meta = wolf_ir::ProjectMeta {
         name: &project.manifest.name,
@@ -117,12 +111,40 @@ pub(crate) fn build(
             return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
         }
     }
+    if targets == Targets::All {
+        for t in project.manifest.enabled.clone() {
+            let out = match out_dir {
+                Some(d) => d.join(t.name()),
+                None => project.root.join("out").join(t.name()),
+            };
+            result = match generate_for(result, t, &program, &out, Then::Nothing) {
+                Outcome::Failed(r, code) => return Outcome::Failed(r, code),
+                _ => CheckResult {
+                    map: wolf_span::SourceMap::new(),
+                    diagnostics: Vec::new(),
+                    project: None,
+                },
+            };
+        }
+        return Outcome::Built;
+    }
     let out = out_dir
         .map(Path::to_path_buf)
         .unwrap_or_else(|| project.root.join("out").join(target.name()));
+    generate_for(result, target, &program, &out, then)
+}
+
+fn generate_for(
+    result: CheckResult,
+    target: Target,
+    program: &wolf_ir::Program,
+    out: &Path,
+    then: Then,
+) -> Outcome {
     match target {
-        Target::Go => go(result, &program, &out, then),
-        _ => ts(result, &program, &out, then),
+        Target::Go => go(result, program, out, then),
+        Target::Rust => rust(result, program, out, then),
+        Target::Ts => ts(result, program, out, then),
     }
 }
 
@@ -190,6 +212,7 @@ fn find_tool(name: &str, out: &Path) -> Option<PathBuf> {
 fn missing_tool(mut result: CheckResult, target: Target, tool: &str, help: &str) -> Outcome {
     let note = match target {
         Target::Go => "`wolf run --target go` builds and runs with Go",
+        Target::Rust => "`wolf run --target rust` builds and runs with Cargo",
         _ => "`wolf run --target ts` builds with TypeScript and runs with Node.js",
     };
     result.diagnostics.push(
@@ -573,6 +596,226 @@ fn json_field(line: &str, key: &str) -> Option<String> {
         }
     }
     None
+}
+
+// ----- Rust ---------------------------------------------------------------------------------------
+
+fn rust(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -> Outcome {
+    let tests = matches!(then, Then::Test { .. });
+    let project = match wolf_rs::generate(program, env!("CARGO_PKG_VERSION"), tests) {
+        Ok(p) => p,
+        Err(e) => return internal(result, Target::Rust, &e),
+    };
+    let list: Vec<(String, &str)> = project
+        .files
+        .iter()
+        .map(|f| (f.path.clone(), f.contents.as_str()))
+        .collect();
+    // Every generated file is removed first; the build cache in `target/` stays.
+    let mut clean: Vec<String> = Vec::new();
+    if out.join("Cargo.toml").is_file() {
+        if let Ok(entries) = fs::read_dir(out) {
+            for e in entries.flatten() {
+                let name = e.file_name().to_string_lossy().into_owned();
+                if name != "target" && name != "Cargo.lock" {
+                    clean.push(name);
+                }
+            }
+        }
+    }
+    let clean: Vec<&str> = clean.iter().map(String::as_str).collect();
+    if let Err(e) = write(out, &clean, &list) {
+        return write_failed(result, out, &e);
+    }
+    match then {
+        Then::Nothing => Outcome::Built,
+        Then::Test { filter } => {
+            run_rust_tests(result, out, program, &project.tests, filter.as_deref())
+        }
+        Then::Run { example, args } => run_rust(result, out, program, example.as_deref(), &args),
+    }
+}
+
+/// `cargo` for the generated project, with its own target directory.
+fn cargo_command(cargo: &Path, out: &Path) -> Command {
+    let mut cmd = Command::new(cargo);
+    cmd.current_dir(out)
+        .env("CARGO_TARGET_DIR", out.join("target"))
+        .env_remove("RUSTFLAGS")
+        .env_remove("CARGO_BUILD_TARGET");
+    cmd
+}
+
+fn find_cargo(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Outcome> {
+    match find_tool("cargo", out) {
+        Some(cargo) => Ok((cargo, result)),
+        None => Err(missing_tool(
+            result,
+            Target::Rust,
+            "cargo",
+            "install Rust 1.85 or later from https://rustup.rs",
+        )),
+    }
+}
+
+fn run_rust(
+    result: CheckResult,
+    out: &Path,
+    program: &wolf_ir::Program,
+    example: Option<&str>,
+    args: &[String],
+) -> Outcome {
+    let (cargo, result) = match find_cargo(result, out) {
+        Ok(ok) => ok,
+        Err(outcome) => return outcome,
+    };
+    let mut cmd = cargo_command(&cargo, out);
+    cmd.arg("build").arg("--quiet");
+    let binary = match example {
+        Some(name) => {
+            cmd.arg("--example").arg(name);
+            out.join("target").join("debug").join("examples").join(name)
+        }
+        None => out.join("target").join("debug").join(&program.name),
+    };
+    match cmd.output() {
+        Ok(o) if o.status.success() => {}
+        Ok(o) => return rejected(result, Target::Rust, &o),
+        Err(e) => {
+            return missing_tool(
+                result,
+                Target::Rust,
+                "cargo",
+                &format!("`cargo` could not be started: {e}"),
+            );
+        }
+    }
+    match Command::new(&binary).args(args).status() {
+        Ok(s) => Outcome::Ran(s.code().unwrap_or(1)),
+        Err(e) => {
+            eprintln!("error: `{}` could not be started: {e}", binary.display());
+            Outcome::Ran(1)
+        }
+    }
+}
+
+/// Runs the tests with the test harness of Rust, one Cargo target at a time, and prints the
+/// report of `wolf test` (spec chapter 8, rule 2.7).
+fn run_rust_tests(
+    result: CheckResult,
+    out: &Path,
+    program: &wolf_ir::Program,
+    tests: &[wolf_rs::TestEntry],
+    filter: Option<&str>,
+) -> Outcome {
+    let (cargo, result) = match find_cargo(result, out) {
+        Ok(ok) => ok,
+        Err(outcome) => return outcome,
+    };
+    if tests.is_empty() {
+        println!("test result: ok. 0 passed; 0 failed");
+        return Outcome::Ran(0);
+    }
+    let selected: Vec<&wolf_rs::TestEntry> = tests
+        .iter()
+        .filter(|t| filter.is_none_or(|f| t.name.contains(f)))
+        .collect();
+    let mut targets: Vec<&str> = selected.iter().map(|t| t.target.as_str()).collect();
+    targets.sort();
+    targets.dedup();
+    // (target, path) to passed and the failure message.
+    let mut outcomes: BTreeMap<(String, String), (bool, Option<String>)> = BTreeMap::new();
+    for target in targets {
+        let paths: Vec<&str> = selected
+            .iter()
+            .filter(|t| t.target == target)
+            .map(|t| t.path.as_str())
+            .collect();
+        // Not `--quiet`: that makes the test harness print dots instead of a line per test.
+        let mut cmd = cargo_command(&cargo, out);
+        cmd.arg("test");
+        match target {
+            "lib" => {
+                cmd.arg("--lib");
+            }
+            "bin" => {
+                cmd.arg("--bin").arg(&program.name);
+            }
+            name => {
+                cmd.arg("--test").arg(name);
+            }
+        }
+        cmd.arg("--")
+            .arg("--exact")
+            .arg("--test-threads=1")
+            .args(&paths);
+        let output = match cmd.output() {
+            Ok(o) => o,
+            Err(e) => {
+                return missing_tool(
+                    result,
+                    Target::Rust,
+                    "cargo",
+                    &format!("`cargo` could not be started: {e}"),
+                );
+            }
+        };
+        let text = String::from_utf8_lossy(&output.stdout).into_owned();
+        if !text.contains("test result:") {
+            return rejected(result, Target::Rust, &output);
+        }
+        let mut current: Option<String> = None;
+        for line in text.lines() {
+            if let Some(rest) = line.strip_prefix("test ") {
+                if let Some((name, status)) = rest.rsplit_once(" ... ") {
+                    let ok = status == "ok";
+                    outcomes
+                        .entry((target.to_string(), name.to_string()))
+                        .or_insert((false, None))
+                        .0 = ok;
+                }
+            } else if let Some(rest) = line.strip_prefix("---- ") {
+                current = rest.strip_suffix(" stdout ----").map(str::to_string);
+            } else if let Some(m) = line.strip_prefix("--- wolf failure: ") {
+                if let Some(name) = &current {
+                    outcomes
+                        .entry((target.to_string(), name.clone()))
+                        .or_insert((false, None))
+                        .1 = Some(m.to_string());
+                }
+            }
+        }
+    }
+    let mut passed = 0;
+    let mut failures = Vec::new();
+    for t in &selected {
+        let (ok, message) = outcomes
+            .get(&(t.target.clone(), t.path.clone()))
+            .cloned()
+            .unwrap_or((false, None));
+        if ok {
+            passed += 1;
+            println!("test {} ... ok", t.name);
+        } else {
+            println!("test {} ... FAILED", t.name);
+            failures.push((
+                t.name.clone(),
+                message.unwrap_or_else(|| "test failed".to_string()),
+            ));
+        }
+    }
+    if !failures.is_empty() {
+        println!("\nfailures:");
+        for (name, message) in &failures {
+            println!("\n  {name}\n    {message}");
+        }
+    }
+    let status = if failures.is_empty() { "ok" } else { "FAILED" };
+    println!(
+        "\ntest result: {status}. {passed} passed; {} failed",
+        failures.len()
+    );
+    Outcome::Ran(if failures.is_empty() { 0 } else { 1 })
 }
 
 #[cfg(test)]
