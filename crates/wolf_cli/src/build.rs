@@ -465,13 +465,8 @@ fn run_go_tests(
     }
     let selected: Vec<&wolf_go::TestEntry> = tests
         .iter()
-        .filter(|t| {
-            let name = t
-                .name
-                .split_once(".wolf: ")
-                .map_or(t.name.as_str(), |(_, n)| n);
-            filter.is_none_or(|f| name.contains(f))
-        })
+        // A test is named by its file and its name, as in the report.
+        .filter(|t| filter.is_none_or(|f| t.name.contains(f)))
         .collect();
     let mut outcomes: BTreeMap<(String, String), (bool, Option<String>)> = BTreeMap::new();
     if !selected.is_empty() {

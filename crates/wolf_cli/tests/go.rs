@@ -194,6 +194,28 @@ fn test_reports_on_go_match_typescript() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
+/// `wolf test <text>` selects the same tests on both targets: the text may be part of the file
+/// or of the test name.
+#[test]
+fn test_filters_select_the_same_tests_on_both_targets() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/test/mixed");
+    for filter in ["util", "halve", "nothing matches this"] {
+        let go = wolf("test", &dir, &tmp("filter-go"), &[filter], None);
+        let ts = Command::new(env!("CARGO_BIN_EXE_wolf"))
+            .args(["test", filter, "--out"])
+            .arg(tmp("filter-ts"))
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&go.stdout),
+            String::from_utf8_lossy(&ts.stdout),
+            "filter {filter}"
+        );
+        assert_eq!(go.status.code(), ts.status.code(), "filter {filter}");
+    }
+}
+
 /// Tests and test helpers are not part of `wolf build --target go`.
 #[test]
 fn tests_are_not_in_the_normal_go_build() {
