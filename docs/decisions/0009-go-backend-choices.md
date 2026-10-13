@@ -1,7 +1,7 @@
 # 0009: Choices of the Go backend
 
-Status: proposed (2026-10-13). Items 1 and 2 deviate from the text of chapter 8 and wait for the
-author; the other items are [INTERNAL] choices recorded so that the author can object.
+Status: accepted (author, 2026-10-13). Items 1 and 2 changed the text of chapter 8; the other
+items are [INTERNAL] choices recorded so that the author can object.
 
 ## Decision
 
