@@ -401,6 +401,18 @@ func Exit(code int64) {
 }"#,
     },
     Piece {
+        name: "extern",
+        deps: &["Panic"],
+        imports: &["math"],
+        code: r#"// FromTargetInt is an integer returned by extern code as an Int.
+func FromTargetInt[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](value T) int64 {
+	if value > 0 && uint64(value) > math.MaxInt64 {
+		Fail("integer overflow")
+	}
+	return int64(value)
+}"#,
+    },
+    Piece {
         name: "int",
         deps: &["Panic"],
         imports: &["math"],

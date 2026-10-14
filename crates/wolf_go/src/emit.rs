@@ -1778,7 +1778,8 @@ impl<'p> Emitter<'p> {
                 Ok(())
             }
             ir::Item::ExternFn(x) => self.extern_fn(x, out),
-            ir::Item::ExternType(_) | ir::Item::Test(_) | ir::Item::Builtin(_) => Ok(()),
+            ir::Item::ExternType(x) => self.extern_type(x, out),
+            ir::Item::Test(_) | ir::Item::Builtin(_) => Ok(()),
         }
     }
 
@@ -2475,10 +2476,6 @@ impl<'p> Emitter<'p> {
         let Some(path) = x.paths.get("go") else {
             return Ok(());
         };
-        let (pkg, func) = path
-            .rsplit_once('.')
-            .ok_or_else(|| format!("the Go path `{path}` of `{}`", x.name))?;
-        self.file.imports.insert(pkg.to_string());
         let mut params = Vec::new();
         let mut args = Vec::new();
         for (i, (m, t)) in x.params.iter().enumerate() {
@@ -2486,13 +2483,25 @@ impl<'p> Emitter<'p> {
             params.push((n.clone(), self.param_ty(*m, t)?));
             args.push(id(&n));
         }
-        let results = self.results(&x.ret)?;
-        let c = call(Expr::Qual(pkg.to_string(), func.to_string()), args);
-        let body = if results.is_empty() {
-            vec![Stmt::Expr(c)]
-        } else {
-            vec![Stmt::Return(vec![c])]
+        // A method expression, `(*pkg.Type).Method` or `pkg.Type.Method`, is called on the first
+        // parameter (spec chapter 7, section 8.2).
+        let c = match go_target(path) {
+            Some(GoTarget::Method(method)) => {
+                let mut rest = args.into_iter();
+                let recv = rest
+                    .next()
+                    .ok_or_else(|| format!("the extern method `{}` has no receiver", x.name))?;
+                call(sel(recv, &method), rest.collect())
+            }
+            Some(GoTarget::Func(import, name)) => {
+                self.file.imports.insert(import.clone());
+                call(Expr::Qual(import, name), args)
+            }
+            None => return Err(format!("the Go path `{path}` of `{}`", x.name)),
         };
+        let results = self.results(&x.ret)?;
+        let form = self.ret_form(&x.ret);
+        let body = self.extern_body(c, &x.ret, form, results.len());
         out.push(Decl::Func(Func {
             docs: Vec::new(),
             recv: None,
@@ -2502,6 +2511,68 @@ impl<'p> Emitter<'p> {
             results,
             body,
         }));
+        Ok(())
+    }
+
+    /// The body of an extern function: the call, with an integer result of any Go integer type
+    /// converted to `int64` (spec chapter 8, section 8).
+    fn extern_body(&mut self, c: Expr, ret: &IrType, form: Form, count: usize) -> Vec<Stmt> {
+        if count == 0 {
+            return vec![Stmt::Expr(c)];
+        }
+        let int_value = match (ret, form) {
+            (IrType::Int, _) => Some(false),
+            (IrType::Option(a), Form::OptPair) | (IrType::Result(a, _), Form::ResPair)
+                if matches!(**a, IrType::Int) =>
+            {
+                Some(true)
+            }
+            _ => None,
+        };
+        match int_value {
+            Some(false) => vec![Stmt::Return(vec![self.rt_call(
+                "extern",
+                "FromTargetInt",
+                vec![c],
+            )])],
+            Some(true) => {
+                let second = if form == Form::OptPair { "ok" } else { "err" };
+                vec![
+                    Stmt::Define(vec!["v".to_string(), second.to_string()], vec![c]),
+                    Stmt::Return(vec![
+                        self.rt_call("extern", "FromTargetInt", vec![id("v")]),
+                        id(second),
+                    ]),
+                ]
+            }
+            None => vec![Stmt::Return(vec![c])],
+        }
+    }
+
+    /// `type pattern = *regexp.Regexp` for an opaque type.
+    fn extern_type(&mut self, x: &'p ir::ExternType, out: &mut Vec<Decl>) -> Result<(), Error> {
+        let Some(path) = x.paths.get("go") else {
+            return Ok(());
+        };
+        let (ptr, rest) = match path.strip_prefix('*') {
+            Some(rest) => (true, rest),
+            None => (false, path.as_str()),
+        };
+        let Some(GoTarget::Func(import, name)) = go_target(rest) else {
+            return Err(format!("the Go type path `{path}` of `{}`", x.name));
+        };
+        self.file.imports.insert(import.clone());
+        let mut ty = Type::Name(Some(import), name, Vec::new());
+        if ptr {
+            ty = Type::Ptr(Box::new(ty));
+        }
+        out.push(Decl::TypeDef {
+            docs: Vec::new(),
+            name: self.name_of(x.def),
+            tparams: Vec::new(),
+            ty,
+            alias: true,
+        });
         Ok(())
     }
 
@@ -5098,5 +5169,28 @@ impl Emitter<'_> {
         } else {
             first
         }
+    }
+}
+
+/// What an extern path of Go names.
+enum GoTarget {
+    /// A function or type of a package: import path and name.
+    Func(String, String),
+    /// A method, called on the first parameter.
+    Method(String),
+}
+
+/// Splits a Go path: the package is everything before the first `.` after the last `/`.
+fn go_target(path: &str) -> Option<GoTarget> {
+    if let Some(rest) = path.strip_prefix('(') {
+        let (_, method) = rest.split_once(").")?;
+        return Some(GoTarget::Method(method.to_string()));
+    }
+    let start = path.rfind('/').map_or(0, |i| i + 1);
+    let dot = path.get(start..)?.find('.')? + start;
+    let (import, rest) = (path.get(..dot)?, path.get(dot + 1..)?);
+    match rest.split_once('.') {
+        Some((_, method)) => Some(GoTarget::Method(method.to_string())),
+        None => Some(GoTarget::Func(import.to_string(), rest.to_string())),
     }
 }
