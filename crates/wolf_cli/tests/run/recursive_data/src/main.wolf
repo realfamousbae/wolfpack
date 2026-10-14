@@ -1,0 +1,63 @@
+module main
+
+imports {
+    std.string
+}
+
+types {
+    /// Recursive through `Option` (spec chapter 4, section 7.4).
+    struct Node {
+        value: Int
+        next: Option<Node>
+    }
+
+    enum Status {
+        Active
+        Snoozed(Int)
+        Done { note: String }
+    }
+}
+
+functions {
+    fn length(n: Node) -> Int {
+        match n.next {
+            Some(rest) => 1 + length(rest)
+            None => 1
+        }
+    }
+
+    fn push_front(own n: Node, value: Int) -> Node {
+        Node { value: value, next: Some(n) }
+    }
+
+    fn bump_all(mut items: List<Status>) {
+        for s in mut items {
+            match mut s {
+                Status.Snoozed(left) => { left += 10 }
+                Status.Done { note } => { note += "?" }
+                Status.Active => ()
+            }
+        }
+    }
+
+    fn describe(s: Status) -> String {
+        match s {
+            Status.Active => "active"
+            Status.Snoozed(n) => "snoozed " + n.to_string()
+            Status.Done { note } => "done " + note
+        }
+    }
+
+    fn main() {
+        var list = Node { value: 3, next: None }
+        list = push_front(own list, 2)
+        list = push_front(own list, 1)
+        let copy = list.copy()
+        print(length(list).to_string() + " " + (copy == list).to_string())
+        list.next = None
+        print(length(list).to_string() + " " + length(copy).to_string() + " " + (copy == list).to_string())
+        var items = [Status.Active, Status.Snoozed(1), Status.Done { note: "x" }]
+        bump_all(mut items)
+        print(string.join(items.map(|s| describe(s)), ", "))
+    }
+}

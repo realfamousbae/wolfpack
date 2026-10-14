@@ -1,0 +1,4 @@
+[package]
+name = "recursive-data"
+version = "0.1.0"
+kind = "cli"
