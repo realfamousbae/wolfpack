@@ -1,0 +1,4 @@
+[package]
+name = "interface-values"
+version = "0.1.0"
+kind = "cli"

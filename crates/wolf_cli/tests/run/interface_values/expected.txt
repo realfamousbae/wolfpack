@@ -1,0 +1,9 @@
+42 r
+10 60
+42
+3 x!,y
+9 c
+-3
+vec 4; green; vec 2 | vec 1; green; vec 2
+3 5
+15
