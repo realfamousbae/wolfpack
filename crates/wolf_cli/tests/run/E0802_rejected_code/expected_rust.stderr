@@ -1,0 +1,5 @@
+error[E0802]: Rust rejected the generated code
+ = help: this is a bug in wolf; please report it with the input that caused it
+ = note: error[E0425]: simulated rejection
+
+error: aborting due to 1 error
