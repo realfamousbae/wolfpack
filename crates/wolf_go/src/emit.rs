@@ -163,6 +163,9 @@ pub(crate) struct Emitter<'p> {
     pkgs: Vec<Option<Pkg>>,
     /// Types whose methods take a pointer receiver.
     ptr_recv: BTreeSet<DefRef>,
+    /// Fields that make a struct recursive through `Option` or `Result` (`next: Option<Node>`):
+    /// they hold a pointer, `*wolfrt.Option[Node]` (struct, field index).
+    boxed: BTreeSet<(DefRef, usize)>,
     /// Types that implement `Error`.
     error_types: BTreeSet<DefRef>,
     error_iface: Option<DefRef>,
@@ -647,6 +650,7 @@ impl<'p> Emitter<'p> {
             reexported: BTreeMap::new(),
             pkgs: Vec::new(),
             ptr_recv: BTreeSet::new(),
+            boxed: BTreeSet::new(),
             error_types: BTreeSet::new(),
             error_iface: None,
             comparable: None,
@@ -892,6 +896,7 @@ impl<'p> Emitter<'p> {
                 }
             }
         }
+        self.recursion();
         for (def, index, name) in derived {
             let set = taken.entry(index).or_default();
             let mut n = name;
@@ -1831,15 +1836,87 @@ impl<'p> Emitter<'p> {
 
     // ----- types and their methods ------------------------------------------------------------
 
+    /// Structs a type holds by value: itself as a struct, or inside `Option` and `Result`.
+    /// Enums with payloads and lists are already indirect in Go.
+    fn held(&self, t: &IrType, out: &mut Vec<DefRef>) {
+        match t {
+            IrType::Named(d, _) if self.structs.contains_key(d) => out.push(*d),
+            IrType::Option(a) => self.held(a, out),
+            IrType::Result(a, b) => {
+                self.held(a, out);
+                self.held(b, out);
+            }
+            _ => {}
+        }
+    }
+
+    /// Finds the fields that make a struct contain itself (spec chapter 4, section 7.4).
+    fn recursion(&mut self) {
+        let defs: Vec<DefRef> = self.structs.keys().copied().collect();
+        let mut reach: BTreeMap<DefRef, BTreeSet<DefRef>> = BTreeMap::new();
+        for d in &defs {
+            let mut seen = BTreeSet::new();
+            let mut stack = vec![*d];
+            while let Some(x) = stack.pop() {
+                let Some(s) = self.structs.get(&x) else {
+                    continue;
+                };
+                for f in &s.fields {
+                    let mut held = Vec::new();
+                    self.held(&f.ty, &mut held);
+                    for y in held {
+                        if seen.insert(y) {
+                            stack.push(y);
+                        }
+                    }
+                }
+            }
+            reach.insert(*d, seen);
+        }
+        for d in &defs {
+            let Some(s) = self.structs.get(d) else {
+                continue;
+            };
+            for (i, f) in s.fields.iter().enumerate() {
+                if matches!(f.ty, IrType::Named(..)) {
+                    continue;
+                }
+                let mut held = Vec::new();
+                self.held(&f.ty, &mut held);
+                if held
+                    .iter()
+                    .any(|t| t == d || reach.get(t).is_some_and(|r| r.contains(d)))
+                {
+                    self.boxed.insert((*d, i));
+                }
+            }
+        }
+    }
+
+    /// Whether the field `name` of a struct of type `base` holds a pointer.
+    fn field_boxed(&self, base: &IrType, name: &str) -> bool {
+        let IrType::Named(d, _) = base else {
+            return false;
+        };
+        self.structs
+            .get(d)
+            .and_then(|s| s.fields.iter().position(|f| f.name == name))
+            .is_some_and(|i| self.boxed.contains(&(*d, i)))
+    }
+
     fn struct_item(&mut self, s: &'p ir::Struct, out: &mut Vec<Decl>) -> Result<(), Error> {
         let name = self.name_of(s.def);
         let tparams = self.tparams(&s.generics)?;
         let mut fields = Vec::new();
-        for f in &s.fields {
+        for (i, f) in s.fields.iter().enumerate() {
+            let mut ty = self.ty(&f.ty)?;
+            if self.boxed.contains(&(s.def, i)) {
+                ty = Type::Ptr(Box::new(ty));
+            }
             fields.push(Field {
                 docs: f.docs.clone(),
                 name: value_name(&f.name, f.public),
-                ty: self.ty(&f.ty)?,
+                ty,
             });
         }
         out.push(Decl::Struct {
@@ -1888,9 +1965,13 @@ impl<'p> Emitter<'p> {
             let mut conds = Vec::new();
             self.f = FnState::default();
             let dict_params = self.type_dicts(&s.generics, Dict::Eq)?;
-            for f in &s.fields {
+            for (i, f) in s.fields.iter().enumerate() {
                 let n = value_name(&f.name, f.public);
-                let c = self.eq_expr(sel(id("a"), &n), sel(id("b"), &n), &f.ty)?;
+                let (mut a, mut b) = (sel(id("a"), &n), sel(id("b"), &n));
+                if self.boxed.contains(&(s.def, i)) {
+                    (a, b) = (star(a), star(b));
+                }
+                let c = self.eq_expr(a, b, &f.ty)?;
                 conds.push(c);
             }
             self.f = FnState::default();
@@ -1913,10 +1994,18 @@ impl<'p> Emitter<'p> {
             let dict_params = self.type_dicts(&s.generics, Dict::Copy)?;
             let mut elems = Vec::new();
             let mut all_plain = true;
-            for f in &s.fields {
+            for (i, f) in s.fields.iter().enumerate() {
                 let n = value_name(&f.name, f.public);
-                let c = self.copy_expr(sel(id("a"), &n), &f.ty)?;
-                if !self.primitive(&f.ty) {
+                let boxed = self.boxed.contains(&(s.def, i));
+                let mut c = if boxed {
+                    self.copy_expr(star(sel(id("a"), &n)), &f.ty)?
+                } else {
+                    self.copy_expr(sel(id("a"), &n), &f.ty)?
+                };
+                if boxed {
+                    c = self.ptr_to(c);
+                }
+                if boxed || !self.primitive(&f.ty) {
                     all_plain = false;
                 }
                 elems.push((Some(n), c));
@@ -2910,7 +2999,11 @@ impl<'p> Emitter<'p> {
             ExprKind::Field { base, name } => {
                 let b = self.place_expr(base, out)?;
                 let f = self.field_name(&base.ty, name);
-                sel(unstar(b), &f)
+                if self.field_boxed(&base.ty, name) {
+                    star(sel(unstar(b), &f))
+                } else {
+                    sel(unstar(b), &f)
+                }
             }
             ExprKind::Index { base, index } => {
                 let b = self.place_expr(base, out)?;
@@ -3098,7 +3191,11 @@ impl<'p> Emitter<'p> {
             ExprKind::Field { base, name } => {
                 let b = self.expr(base, out)?;
                 let f = self.field_name(&base.ty, name);
-                data(sel(unstar(b), &f))
+                if self.field_boxed(&base.ty, name) {
+                    data(star(sel(unstar(b), &f)))
+                } else {
+                    data(sel(unstar(b), &f))
+                }
             }
             ExprKind::Index { base, index } => {
                 let v = self.seq(&[base, index], out)?;
@@ -3157,6 +3254,11 @@ impl<'p> Emitter<'p> {
                 let mut elems = Vec::new();
                 for ((n, _), v) in fields.iter().zip(values) {
                     let f = self.field_name(&e.ty, n);
+                    let v = if self.field_boxed(&e.ty, n) {
+                        self.ptr_to(v)
+                    } else {
+                        v
+                    };
                     elems.push((Some(f), v));
                 }
                 let ty = self.ty(&e.ty)?;
