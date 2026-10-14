@@ -30,3 +30,14 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      # The generated Rust promises `rust-version = "1.85"` (spec chapter 8): build the examples
+      # and the run programs with that toolchain.
+      - run: rustup toolchain install 1.85.0 --profile minimal
+      - name: Build the generated Rust with Rust 1.85
+        run: |
+          for project in examples/*/ crates/wolf_cli/tests/run/*/; do
+            name=$(basename "$project")
+            out="$RUNNER_TEMP/rust-1.85/$name"
+            (cd "$project" && "$GITHUB_WORKSPACE/target/debug/wolf" build --target rust --out "$out")
+            cargo +1.85.0 build --quiet --all-targets --manifest-path "$out/Cargo.toml"
+          done
