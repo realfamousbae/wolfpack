@@ -832,10 +832,10 @@ impl Printer {
         }
         // The last argument may overflow: a closure, a block or a struct literal.
         if let Some((last, rest)) = args.split_last() {
-            let overflow = matches!(
-                last,
-                Expr::Closure(..) | Expr::Block(_) | Expr::Struct(..) | Expr::Match(..)
-            ) || matches!(last, Expr::Macro(n, _) if n == "vec")
+            // A `match` overflows only as the only argument.
+            let overflow = matches!(last, Expr::Closure(..) | Expr::Block(_) | Expr::Struct(..))
+                || (rest.is_empty() && matches!(last, Expr::Match(..)))
+                || matches!(last, Expr::Macro(n, _) if n == "vec")
                 || matches!(last, Expr::Unary("&", x) if matches!(x.as_ref(), Expr::Array(_)));
             let rest_flat: Option<Vec<String>> = rest.iter().map(|a| self.flat(a)).collect();
             if overflow {
@@ -924,8 +924,10 @@ impl Printer {
                 _ => {}
             }
         }
-        // A chain of one call keeps the call on the line of its root.
-        if elems.len() == 1 {
+        // A chain of one call keeps the call on the line of its root, unless the root is written
+        // over several lines; then the elements start at the indentation of the root.
+        let multi = root.contains('\n');
+        if elems.len() == 1 && !multi {
             if let Some(Expr::Method(_, name, targs, args)) = elems.first() {
                 let head = format!("{root}.{name}{}", turbofish(self, targs));
                 let c = col + width(last_line(&head));
@@ -933,7 +935,7 @@ impl Printer {
             }
         }
         let mut s = root;
-        let inner = ind + 1;
+        let inner = if multi { ind } else { ind + 1 };
         for el in elems {
             let start = inner * 4;
             match el {
@@ -1076,28 +1078,38 @@ impl Printer {
     }
 
     /// The right side of `=` (with the leading space): on the same line, or on the next line
-    /// if it fits there on one line and does not on the first.
+    /// when that is better, by the rules of rustfmt (`choose_rhs`).
     fn rhs(&self, v: &Expr, ind: usize, col: usize, reserve: usize) -> String {
         let same = self.expr(v, ind, col, reserve);
-        let first_fits = same
-            .lines()
-            .next()
-            .is_some_and(|l| col + width(l) <= MAX_WIDTH);
-        if !same.contains('\n') && first_fits {
+        let fits = |s: &str, first: usize| {
+            s.lines().enumerate().all(|(i, l)| {
+                let c = if i == 0 { first } else { 0 };
+                c + width(l) <= MAX_WIDTH
+            }) && s.lines().last().is_some_and(|l| {
+                let c = if s.contains('\n') { 0 } else { first };
+                c + width(l) + reserve <= MAX_WIDTH
+            })
+        };
+        if !same.contains('\n') && fits(&same, col) {
             return format!(" {same}");
         }
-        if let Some(flat) = self.flat(v) {
-            let c = (ind + 1) * 4;
-            if c + width(&flat) + reserve <= MAX_WIDTH && !block_like(v) {
-                let next_is_better =
-                    !matches!(v, Expr::Call(..) | Expr::Macro(..) | Expr::Struct(..))
-                        || !first_fits;
-                if next_is_better || matches!(v, Expr::Binary(..)) {
-                    return format!("\n{}{flat}", spaces(ind + 1));
-                }
-            }
+        let c = (ind + 1) * 4;
+        let next = self.expr(v, ind + 1, c, reserve);
+        if !fits(&next, c) {
+            return format!(" {same}");
         }
-        format!(" {same}")
+        let ends = |s: &str, ch: char| s.lines().next().is_some_and(|l| l.ends_with(ch));
+        let newlines = |s: &str| s.matches('\n').count();
+        let prefer_next = !next.contains('\n')
+            || newlines(&same) > newlines(&next) + 1
+            || ['(', '{', '[']
+                .iter()
+                .any(|&ch| ends(&same, ch) && !ends(&next, ch));
+        if prefer_next {
+            format!("\n{}{next}", spaces(ind + 1))
+        } else {
+            format!(" {same}")
+        }
     }
 
     // ----- items ------------------------------------------------------------------------------

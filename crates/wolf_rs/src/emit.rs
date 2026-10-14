@@ -2624,6 +2624,19 @@ impl<'p> Emitter<'p> {
             let f = if op == B::Shl { "shl" } else { "shr" };
             return Ok(self.rt_call("int", f, vec![l, r]));
         }
+        if matches!(op, B::Eq | B::NotEq) {
+            // `x == None` is `x.is_none()`.
+            let other = match (&lhs.kind, &rhs.kind) {
+                (_, ExprKind::None) => Some(lhs),
+                (ExprKind::None, _) => Some(rhs),
+                _ => None,
+            };
+            if let Some(x) = other {
+                let x = self.expr(x, Want::Op)?;
+                let f = if op == B::Eq { "is_none" } else { "is_some" };
+                return Ok(method(x, f, Vec::new()));
+            }
+        }
         let mut l = self.expr(lhs, Want::Op)?;
         let mut r = self.expr(rhs, Want::Op)?;
         if matches!(op, B::Eq | B::NotEq | B::Lt | B::Le | B::Gt | B::Ge) && !self.copy(ty) {
@@ -2921,7 +2934,7 @@ impl<'p> Emitter<'p> {
             )
         };
         let iter = |x: Expr, copy: bool| {
-            let i = method(x, "iter", Vec::new());
+            let i = method(iter_recv(x), "iter", Vec::new());
             if copy {
                 method(i, "copied", Vec::new())
             } else {
@@ -2970,11 +2983,11 @@ impl<'p> Emitter<'p> {
                 method(a, "compare", vec![read(self, 1)?])
             }
             "math.Float.to_string" => {
-                let x = op(self, 0)?;
+                let x = unparen(op(self, 0)?);
                 self.rt_call("float_to_string", "float_to_string", vec![x])
             }
             "math.Float.to_int" => {
-                let x = op(self, 0)?;
+                let x = unparen(op(self, 0)?);
                 self.rt_call("float_to_int", "float_to_int", vec![x])
             }
             "math.Float.pow" => {
@@ -3157,7 +3170,7 @@ impl<'p> Emitter<'p> {
             "list.sum" => {
                 let l = op(self, 0)?;
                 Expr::Method(
-                    Box::new(method(l, "iter", Vec::new())),
+                    Box::new(method(iter_recv(l), "iter", Vec::new())),
                     "sum".to_string(),
                     vec![Type::name("i64")],
                     Vec::new(),
@@ -3224,7 +3237,7 @@ impl<'p> Emitter<'p> {
     fn print_macro(&mut self, name: &str, e: &'p IrExpr) -> Result<Expr, Error> {
         let args = match &e.kind {
             ExprKind::Str(s) => vec![Expr::Str(s.replace('{', "{{").replace('}', "}}"))],
-            _ => match self.expr(e, Want::Op)? {
+            _ => match self.expr(displayed(e).unwrap_or(e), Want::Op)? {
                 Expr::Macro(n, args) if n == "format" => args,
                 Expr::Path(n) if !n.contains("::") && !n.starts_with("r#") => {
                     vec![Expr::Str(format!("{{{n}}}"))]
@@ -3519,6 +3532,22 @@ fn owned_copy(e: Expr, t: &IrType) -> Expr {
 }
 
 /// The value of `x.to_string()` for an `Int` or a `Bool`, which `format!` writes the same way.
+/// A list literal that is only iterated is an array: `[1, 2, 3].iter()`.
+fn iter_recv(e: Expr) -> Expr {
+    match e {
+        Expr::Macro(n, items) if n == "vec" && !items.is_empty() => Expr::Array(items),
+        other => other,
+    }
+}
+
+/// An argument needs no parentheses that a receiver needs: `f(-0.0_f64)`.
+fn unparen(e: Expr) -> Expr {
+    match e {
+        Expr::Paren(x) => *x,
+        other => other,
+    }
+}
+
 fn displayed(e: &IrExpr) -> Option<&IrExpr> {
     let ExprKind::Call {
         callee: Callee::Method { recv, .. },
