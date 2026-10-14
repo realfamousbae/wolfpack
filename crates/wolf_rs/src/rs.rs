@@ -832,11 +832,7 @@ impl Printer {
         }
         // The last argument may overflow: a closure, a block or a struct literal.
         if let Some((last, rest)) = args.split_last() {
-            // A `match` overflows only as the only argument.
-            let overflow = matches!(last, Expr::Closure(..) | Expr::Block(_) | Expr::Struct(..))
-                || (rest.is_empty() && matches!(last, Expr::Match(..)))
-                || matches!(last, Expr::Macro(n, _) if n == "vec")
-                || matches!(last, Expr::Unary("&", x) if matches!(x.as_ref(), Expr::Array(_)));
+            let overflow = overflows(last, args.len());
             let rest_flat: Option<Vec<String>> = rest.iter().map(|a| self.flat(a)).collect();
             if overflow {
                 if let Some(list) = rest_flat {
@@ -1324,6 +1320,27 @@ fn turbofish(p: &Printer, targs: &[Type]) -> String {
         String::new()
     } else {
         format!("::<{}>", p.types(targs))
+    }
+}
+
+/// Whether the last of `count` arguments may overflow: start on the line of the call and end on
+/// the line of its closing parenthesis (rustfmt's `can_be_overflowed_expr`).
+fn overflows(e: &Expr, count: usize) -> bool {
+    match e {
+        Expr::Closure(..) | Expr::Block(_) => true,
+        Expr::Match(..)
+        | Expr::If(..)
+        | Expr::IfLet(..)
+        | Expr::Struct(..)
+        | Expr::Array(_)
+        | Expr::Macro(..)
+        | Expr::Call(..)
+        | Expr::Method(..)
+        | Expr::Tuple(_) => count == 1,
+        // `&(|a| ...)` is in parentheses, which do not overflow.
+        Expr::Unary(_, x) if matches!(x.as_ref(), Expr::Closure(..)) => false,
+        Expr::Unary(_, x) | Expr::Try(x) | Expr::Cast(x, _) => overflows(x, count),
+        _ => false,
     }
 }
 

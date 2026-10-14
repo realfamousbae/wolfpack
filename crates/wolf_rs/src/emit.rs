@@ -685,11 +685,13 @@ impl<'p> Emitter<'p> {
         }
         for d in &defs {
             for (i, t) in self.field_types(*d).iter().enumerate() {
-                let IrType::Named(target, _) = t else {
-                    continue;
-                };
-                let back = target == d || reach.get(target).is_some_and(|r| r.contains(d));
-                if back && reach.get(d).is_some_and(|r| r.contains(target)) {
+                // `next: Option<Node>` is boxed as a whole: `Box<Option<Node>>`.
+                let mut targets = Vec::new();
+                self.contained(t, &mut targets);
+                let cycle = targets
+                    .iter()
+                    .any(|target| target == d || reach.get(target).is_some_and(|r| r.contains(d)));
+                if cycle {
                     self.boxed.insert((*d, i));
                 }
             }
@@ -1278,7 +1280,10 @@ impl<'p> Emitter<'p> {
             m.role,
             ModuleRole::Entry | ModuleRole::Example | ModuleRole::Test
         ) {
-            vec!["#![allow(arithmetic_overflow, unconditional_panic)]".to_string()]
+            vec![
+                "#![allow(arithmetic_overflow, unconditional_panic, clippy::type_complexity)]"
+                    .to_string(),
+            ]
         } else {
             Vec::new()
         };
@@ -2064,6 +2069,13 @@ impl<'p> Emitter<'p> {
             return Ok(bin(place, "=", v));
         };
         if matches!(ty, IrType::String) && op == BinaryOp::Add {
+            // One character is pushed as a `char`: `s.push('?')`.
+            if let ExprKind::Str(text) = &value.kind {
+                let mut chars = text.chars();
+                if let (Some(c), None) = (chars.next(), chars.next()) {
+                    return Ok(method(place, "push", vec![lit(&format!("{c:?}"))]));
+                }
+            }
             let v = self.expr(value, Want::Read(true))?;
             return Ok(method(place, "push_str", vec![v]));
         }
@@ -2103,7 +2115,12 @@ impl<'p> Emitter<'p> {
             },
             ExprKind::Field { base, name } => {
                 let b = self.place_base(base)?;
-                Expr::Field(Box::new(b), value(name))
+                let f = Expr::Field(Box::new(b), value(name));
+                if self.field_boxed(&base.ty, name) {
+                    deref(f)
+                } else {
+                    f
+                }
             }
             ExprKind::Index { base, index } => {
                 let b = self.place_base(base)?;
@@ -2255,6 +2272,13 @@ impl<'p> Emitter<'p> {
                 let boxed = self.field_boxed(&base.ty, name);
                 if boxed && want == Want::Own {
                     deref(f)
+                } else if boxed && !matches!(t, IrType::Named(..)) && want != Want::Op {
+                    // A pattern does not see through `Box<Option<Node>>`: `&*n.next`.
+                    let inner = Expr::Unary("*", Box::new(f));
+                    match want {
+                        Want::Mut => Expr::Unary("&mut ", Box::new(inner)),
+                        _ => Expr::Unary("&", Box::new(inner)),
+                    }
                 } else {
                     self.shape(f, t, want, true)
                 }
@@ -2607,6 +2631,21 @@ impl<'p> Emitter<'p> {
             } if stmts.is_empty() => *t,
             other => Expr::Block(other),
         };
+        // `|s| describe(s)` is `describe`, unless a parameter reaches the function through a
+        // coercion (`&String` to `&str`, `&Box<dyn T>` to `&dyn T`).
+        if let Expr::Call(f, args) = &body {
+            let plain = params.iter().all(|p| {
+                !matches!(p.ty, IrType::String | IrType::List(_) | IrType::Fn(..))
+                    && !matches!(&p.ty, IrType::Named(d, _) if self.ifaces.contains_key(d))
+            });
+            let same = args.len() == ps.len()
+                && ps.iter().zip(args).all(|((pat, _), a)| {
+                    matches!((pat, a), (Pat::Bind(n, false), Expr::Path(m)) if n == m)
+                });
+            if plain && same && matches!(f.as_ref(), Expr::Path(_)) {
+                return Ok(*f.clone());
+            }
+        }
         Ok(Expr::Closure(ps, Box::new(body), captures))
     }
 
@@ -3284,7 +3323,14 @@ impl<'p> Emitter<'p> {
             }
             Mode::Own => (self.expr(scrutinee, Want::Own)?, BindKind::Val),
             Mode::Read if place => {
-                let v = self.expr(scrutinee, Want::Op)?;
+                let mut v = self.expr(scrutinee, Want::Op)?;
+                if let ExprKind::Field { base, name } = &scrutinee.kind {
+                    if self.field_boxed(&base.ty, name)
+                        && !matches!(scrutinee.ty, IrType::Named(..))
+                    {
+                        v = Expr::Unary("&", Box::new(Expr::Unary("*", Box::new(v))));
+                    }
+                }
                 if self.copy(&scrutinee.ty) {
                     (v, BindKind::Val)
                 } else if is_ref_local(&v, &self.f.locals) || is_ref(&v) {
