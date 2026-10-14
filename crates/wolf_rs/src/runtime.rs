@@ -365,6 +365,42 @@ impl<E: Error + 'static> From<E> for Box<dyn Error> {
 }"#,
     },
     Piece {
+        name: "extern_int",
+        deps: &["Panic"],
+        code: r#"/// An `Int` passed to extern code as the integer type it takes.
+pub fn to_target_int<T: TryFrom<i64>>(value: i64) -> T {
+    match T::try_from(value) {
+        Ok(v) => v,
+        Err(_) => fail("integer too large for extern code"),
+    }
+}
+
+/// An integer returned by extern code as an `Int`.
+pub fn from_target_int<T: TryInto<i64>>(value: T) -> i64 {
+    match value.try_into() {
+        Ok(v) => v,
+        Err(_) => fail("integer overflow"),
+    }
+}"#,
+    },
+    Piece {
+        name: "ExternError",
+        deps: &["Error"],
+        code: r#"/// An error of extern code, with the text the target gives it.
+pub struct ExternError(pub String);
+
+impl Error for ExternError {
+    fn message(&self) -> String {
+        self.0.clone()
+    }
+}
+
+/// An error of extern code as an `Error`.
+pub fn extern_error<E: std::fmt::Display>(error: E) -> Box<dyn Error> {
+    Box::new(ExternError(error.to_string()))
+}"#,
+    },
+    Piece {
         name: "ParseError",
         deps: &["Error"],
         code: r#"/// The error of `parse_int` and `parse_float`.

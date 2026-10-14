@@ -769,6 +769,9 @@ impl<'p> Emitter<'p> {
                     clone && Some(*d) != self.error_iface
                 } else if self.std_names.contains_key(d) {
                     true
+                } else if matches!(self.p.def(*d).map(|x| x.kind), Some(DefKind::ExternType)) {
+                    // An opaque type has neither `.copy()` nor `==` (chapter 7, section 8.3).
+                    false
                 } else {
                     set.contains(d) || !(self.structs.contains_key(d) || self.enums.contains_key(d))
                 };
@@ -1358,6 +1361,10 @@ impl<'p> Emitter<'p> {
                 Ok(())
             }
             ir::Item::ExternFn(x) => self.extern_fn(x, out),
+            ir::Item::ExternType(x) => {
+                self.extern_type(x, out);
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
@@ -1856,13 +1863,25 @@ impl<'p> Emitter<'p> {
         for (i, (m, t)) in x.params.iter().enumerate() {
             let n = format!("p{i}");
             params.push((Pat::Bind(n.clone(), false), self.param_ty(*m, t)?));
-            args.push(path(&n));
+            // An `Int` may be any integer type of the target (spec chapter 8, section 8).
+            let a = if matches!(t, IrType::Int) {
+                self.rt_call("extern_int", "to_target_int", vec![path(&n)])
+            } else {
+                path(&n)
+            };
+            args.push(a);
         }
         let ret = self.ret_ty(&x.ret)?;
-        let body = call(path(target), args);
+        let body = self.extern_result(call(path(target), args), &x.ret);
+        let converts = needs_conversion(&x.ret);
         out.push(Item::Fn(rs::Fn {
             docs: Vec::new(),
-            attrs: Vec::new(),
+            // The target's result is converted whatever its type; for some it is already right.
+            attrs: if converts {
+                vec!["#[allow(clippy::useless_conversion)]".to_string()]
+            } else {
+                Vec::new()
+            },
             vis: self.vis(x.public),
             name: self.name_of(x.def),
             generics: Vec::new(),
@@ -1872,6 +1891,63 @@ impl<'p> Emitter<'p> {
             body: Some(block(Vec::new(), Some(body))),
         }));
         Ok(())
+    }
+
+    /// The result of extern code as a value of type `t`: strings, integers and errors of the
+    /// target's own types become Wolfpack's.
+    fn extern_result(&mut self, e: Expr, t: &IrType) -> Expr {
+        match t {
+            IrType::Int => self.rt_call("extern_int", "from_target_int", vec![e]),
+            IrType::String => method(e, "into", Vec::new()),
+            IrType::List(inner) => {
+                let items = method(e, "into_iter", Vec::new());
+                let items = if needs_conversion(inner) {
+                    let f = self.extern_fn_of(inner);
+                    method(items, "map", vec![f])
+                } else {
+                    items
+                };
+                method(items, "collect", Vec::new())
+            }
+            IrType::Option(inner) if needs_conversion(inner) => {
+                let f = self.extern_fn_of(inner);
+                method(e, "map", vec![f])
+            }
+            IrType::Result(ok, _) => {
+                let e = if needs_conversion(ok) {
+                    let f = self.extern_fn_of(ok);
+                    method(e, "map", vec![f])
+                } else {
+                    e
+                };
+                let err = self.rt_path("ExternError", "extern_error");
+                method(e, "map_err", vec![err])
+            }
+            _ => e,
+        }
+    }
+
+    /// A function that converts one value of type `t` returned by extern code.
+    fn extern_fn_of(&mut self, t: &IrType) -> Expr {
+        match t {
+            IrType::Int => self.rt_path("extern_int", "from_target_int"),
+            IrType::String => path("String::from"),
+            _ => {
+                let body = self.extern_result(path("x"), t);
+                Expr::Closure(
+                    vec![(Pat::Bind("x".to_string(), false), None)],
+                    Box::new(body),
+                    false,
+                )
+            }
+        }
+    }
+
+    fn extern_type(&mut self, x: &'p ir::ExternType, out: &mut Vec<Item>) {
+        if let Some(target) = x.paths.get("rust") {
+            let name = self.name_of(x.def);
+            out.push(Item::Raw(format!("pub type {name} = {target};")));
+        }
     }
 
     // ----- statements -------------------------------------------------------------------------
@@ -3641,6 +3717,16 @@ fn owned_copy(e: Expr, t: &IrType) -> Expr {
 }
 
 /// The value of `x.to_string()` for an `Int` or a `Bool`, which `format!` writes the same way.
+/// Whether a result of extern code of type `t` is converted (`Int`, `String` and what holds them).
+fn needs_conversion(t: &IrType) -> bool {
+    match t {
+        IrType::Int | IrType::String | IrType::Result(..) => true,
+        IrType::List(_) => true,
+        IrType::Option(a) => needs_conversion(a),
+        _ => false,
+    }
+}
+
 /// A list literal that is only iterated is an array: `[1, 2, 3].iter()`.
 fn iter_recv(e: Expr) -> Expr {
     match e {
