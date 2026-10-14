@@ -1,7 +1,7 @@
 # 0010: Choices of the Rust backend
 
-Status: proposed. Items 1 to 3 are open questions for the author; the other items are [INTERNAL]
-choices recorded so that the author can object. Items 12 to 15 change backends of earlier
+Status: accepted (author, 2026-10-14). The author chose items 1 to 3 as written; the other items
+are [INTERNAL] choices recorded so that the author can object. Items 12 to 15 change backends of earlier
 milestones; ADR 0009 stays as accepted.
 
 ## Decision
