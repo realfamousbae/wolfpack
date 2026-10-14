@@ -41,7 +41,7 @@ pub fn generate(program: &Program, wolf_version: &str, tests: bool) -> Result<Pr
     let mut files: Vec<OutFile>;
     let mut rounds = 0;
     loop {
-        let before = (e.need_eq.len(), e.need_copy.len());
+        let before = (e.need_eq.len(), e.need_copy.len(), e.need_copy_iface.len());
         e.test_list.clear();
         e.reset_tests();
         files = Vec::new();
@@ -59,7 +59,7 @@ pub fn generate(program: &Program, wolf_version: &str, tests: bool) -> Result<Pr
             }
         }
         rounds += 1;
-        if (e.need_eq.len(), e.need_copy.len()) == before || rounds > 64 {
+        if (e.need_eq.len(), e.need_copy.len(), e.need_copy_iface.len()) == before || rounds > 64 {
             break;
         }
     }

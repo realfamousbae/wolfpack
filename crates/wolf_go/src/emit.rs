@@ -178,6 +178,8 @@ pub(crate) struct Emitter<'p> {
     /// Types whose generated `Equal` and `Copy` are used.
     pub(crate) need_eq: BTreeSet<DefRef>,
     pub(crate) need_copy: BTreeSet<DefRef>,
+    /// Interfaces whose values are copied: they get a `Copy<Name>` method.
+    pub(crate) need_copy_iface: BTreeSet<DefRef>,
     /// Tests of the test build, in order.
     pub(crate) test_list: Vec<TestEntry>,
     test_names: BTreeSet<String>,
@@ -660,6 +662,7 @@ impl<'p> Emitter<'p> {
             rt: BTreeSet::new(),
             need_eq: BTreeSet::new(),
             need_copy: BTreeSet::new(),
+            need_copy_iface: BTreeSet::new(),
             test_list: Vec::new(),
             test_names: BTreeSet::new(),
             module: 0,
@@ -1444,6 +1447,11 @@ impl<'p> Emitter<'p> {
                 }
                 call(sel(x, "Copy"), dicts)
             }
+            IrType::Named(def, args) if args.is_empty() => {
+                self.need_copy_iface.insert(*def);
+                let m = self.iface_copy_name(*def);
+                call(sel(x, &m), Vec::new())
+            }
             other => return Err(format!(".copy() of {other:?} in Go")),
         })
     }
@@ -1467,6 +1475,13 @@ impl<'p> Emitter<'p> {
                 }
                 let ty = self.ty(t)?;
                 Ok(sel(Expr::Type(ty), "Copy"))
+            }
+            IrType::Named(def, args) if args.is_empty() => {
+                // A method expression of the interface: `Animal.CopyAnimal`.
+                self.need_copy_iface.insert(*def);
+                let m = self.iface_copy_name(*def);
+                let ty = self.ty(t)?;
+                Ok(sel(Expr::Type(ty), &m))
             }
             _ => {
                 let ty = self.ty(t)?;
@@ -1836,6 +1851,70 @@ impl<'p> Emitter<'p> {
 
     // ----- types and their methods ------------------------------------------------------------
 
+    /// The method that copies the value behind an interface: `CopyAnimal`.
+    fn iface_copy_name(&self, iface: DefRef) -> String {
+        let name = self
+            .p
+            .def(iface)
+            .map(|d| d.name.clone())
+            .unwrap_or_default();
+        format!("Copy{}", case(&camel(&name), true))
+    }
+
+    /// `CopyAnimal` methods of a type for the copied interfaces it implements, by `Copy`.
+    fn iface_copies(
+        &mut self,
+        def: DefRef,
+        methods: &[ir::Function],
+        generic: bool,
+        recv_ty: &Type,
+        plain: bool,
+        out: &mut Vec<Decl>,
+    ) -> Result<(), Error> {
+        let ifaces: BTreeSet<DefRef> = methods.iter().filter_map(|f| f.interface).collect();
+        for iface in ifaces {
+            if !self.need_copy_iface.contains(&iface) {
+                continue;
+            }
+            if generic {
+                return Err("a generic type as a copied interface value".to_string());
+            }
+            // A plain enum is an integer: the value is its own copy.
+            let copy = if plain && self.ptr_recv.contains(&def) {
+                star(id("a"))
+            } else if plain {
+                id("a")
+            } else {
+                self.need_copy.insert(def);
+                call(sel(id("a"), "Copy"), Vec::new())
+            };
+            let name = self.iface_copy_name(iface);
+            let ity = self.ty(&IrType::Named(iface, Vec::new()))?;
+            let ptr = self.ptr_recv.contains(&def);
+            let (recv, body) = if ptr {
+                (
+                    Type::Ptr(Box::new(recv_ty.clone())),
+                    vec![
+                        Stmt::Define(vec!["c".to_string()], vec![copy]),
+                        Stmt::Return(vec![addr(id("c"))]),
+                    ],
+                )
+            } else {
+                (recv_ty.clone(), vec![Stmt::Return(vec![copy])])
+            };
+            out.push(Decl::Func(Func {
+                docs: vec![format!("{name} is .copy() behind the interface.")],
+                recv: Some(("a".to_string(), recv)),
+                name,
+                tparams: Vec::new(),
+                params: Vec::new(),
+                results: vec![ity],
+                body,
+            }));
+        }
+        Ok(())
+    }
+
     /// Structs a type holds by value: itself as a struct, or inside `Option` and `Result`.
     /// Enums with payloads and lists are already indirect in Go.
     fn held(&self, t: &IrType, out: &mut Vec<DefRef>) {
@@ -1961,6 +2040,14 @@ impl<'p> Emitter<'p> {
         if self.error_types.contains(&s.def) {
             out.push(self.error_method(recv_ty.clone(), &s.generics));
         }
+        self.iface_copies(
+            s.def,
+            &s.methods,
+            !s.generics.is_empty(),
+            &recv_ty,
+            false,
+            out,
+        )?;
         if self.need_eq.contains(&s.def) {
             let mut conds = Vec::new();
             self.f = FnState::default();
@@ -2094,6 +2181,15 @@ impl<'p> Emitter<'p> {
                 results,
             ));
         }
+        if self.need_copy_iface.contains(&i.def) {
+            let ity = self.ty(&IrType::Named(i.def, Vec::new()))?;
+            elems.push(IfaceElem::Method(
+                vec!["A copy of the value (`.copy()`).".to_string()],
+                self.iface_copy_name(i.def),
+                Vec::new(),
+                vec![ity],
+            ));
+        }
         out.push(Decl::Interface {
             docs: i.docs.clone(),
             name: self.name_of(i.def),
@@ -2162,10 +2258,18 @@ impl<'p> Emitter<'p> {
                 };
                 out.push(Decl::Func(func));
             }
+            self.iface_copies(e.def, &e.methods, false, &enum_ty, true, out)?;
             if self.error_types.contains(&e.def) {
                 out.push(self.error_method(enum_ty, &e.generics));
             }
             return Ok(());
+        }
+        if e.methods
+            .iter()
+            .filter_map(|f| f.interface)
+            .any(|i| self.need_copy_iface.contains(&i))
+        {
+            return Err("an enum with payloads as a copied interface value".to_string());
         }
         // A sealed interface with a struct per variant.
         let marker = format!("is{}", e.name);
@@ -3430,6 +3534,10 @@ impl<'p> Emitter<'p> {
                 if let IrType::Named(d, _) = &value.ty {
                     if self.ptr_recv.contains(d) && self.structs.contains_key(d) {
                         return data(self.ptr_to(v));
+                    }
+                    // A plain enum is a copy type and may be a constant: a pointer to a copy.
+                    if self.ptr_recv.contains(d) {
+                        return data(self.rt_call("Option", "Ptr", vec![v]));
                     }
                 }
                 data(v)
