@@ -1,0 +1,59 @@
+//! `own self` methods of an interface: on interface values, concrete values and type parameters.
+
+module main
+
+types {
+    struct Ticket {
+        id: Int
+        title: String
+    }
+
+    enum Task {
+        Open(String)
+        Done
+    }
+}
+
+interfaces {
+    interface Closable {
+        fn close(own self) -> String
+    }
+}
+
+impl {
+    Ticket: Closable {
+        fn close(own self) -> String { "closed " + self.title + " #" + self.id.to_string() }
+    }
+
+    Task: Closable {
+        fn close(own self) -> String {
+            match own self {
+                Task.Open(name) => "closed " + name
+                Task.Done => "already done"
+            }
+        }
+    }
+}
+
+functions {
+    fn finish(own c: Closable) -> String {
+        c.close()
+    }
+
+    fn finish_any<T: Closable>(own c: T) -> String {
+        c.close()
+    }
+
+    fn main() {
+        let t: Closable = Ticket { id: 1, title: "bug" }
+        print(finish(own t))
+        let u = Ticket { id: 2, title: "feature" }
+        print(u.close())
+        print(finish_any(Task.Open("docs")))
+        print(finish_any(Task.Done))
+        let all: List<Closable> = [Task.Open("x"), Ticket { id: 3, title: "y" }]
+        for c in own all {
+            print(c.close())
+        }
+    }
+}

@@ -1,0 +1,6 @@
+closed bug #1
+closed feature #2
+closed docs
+already done
+closed x
+closed y #3
