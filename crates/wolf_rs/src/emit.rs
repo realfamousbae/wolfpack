@@ -113,6 +113,8 @@ pub(crate) struct Emitter<'p> {
     hashable: Option<DefRef>,
     /// Methods that take `mut self`.
     mut_methods: BTreeSet<DefRef>,
+    /// Interface methods that take `mut self`.
+    mut_iface: BTreeSet<(DefRef, String)>,
     pub(crate) rt: BTreeSet<&'static str>,
     pub(crate) test_list: Vec<TestEntry>,
     // State of the module being emitted.
@@ -248,6 +250,7 @@ fn float_lit(v: f64) -> Expr {
 struct Scan<'a> {
     /// Methods that take `mut self`.
     mut_methods: Option<&'a BTreeSet<DefRef>>,
+    mut_iface: Option<&'a BTreeSet<(DefRef, String)>>,
     reads: BTreeSet<LocalRef>,
     mutated: BTreeSet<LocalRef>,
     /// Locals that are used inside closures.
@@ -331,7 +334,17 @@ impl Scan<'_> {
                         }
                         self.expr(recv);
                     }
-                    Callee::Interface { recv, .. } => self.expr(recv),
+                    Callee::Interface {
+                        recv,
+                        interface,
+                        name,
+                    } => {
+                        let key = (*interface, name.clone());
+                        if self.mut_iface.is_some_and(|m| m.contains(&key)) {
+                            self.change(recv);
+                        }
+                        self.expr(recv)
+                    }
                     Callee::Value(f) => self.expr(f),
                     Callee::Fn(_) => {}
                 }
@@ -450,6 +463,7 @@ impl<'p> Emitter<'p> {
             copyable: None,
             hashable: None,
             mut_methods: BTreeSet::new(),
+            mut_iface: BTreeSet::new(),
             rt: BTreeSet::new(),
             test_list: Vec::new(),
             module: 0,
@@ -615,6 +629,12 @@ impl<'p> Emitter<'p> {
             .iter()
             .filter(|(_, f)| f.self_mode == Some(Mode::Mut))
             .map(|(d, _)| *d)
+            .collect();
+        self.mut_iface = self
+            .iface_fns
+            .iter()
+            .filter(|(_, f)| f.self_mode == Some(Mode::Mut))
+            .map(|(k, _)| k.clone())
             .collect();
         self.recursion();
         self.derives();
@@ -1366,6 +1386,7 @@ impl<'p> Emitter<'p> {
         self.f = FnState::default();
         let mut scan = Scan {
             mut_methods: Some(&self.mut_methods),
+            mut_iface: Some(&self.mut_iface),
             ..Scan::default()
         };
         if let Some(b) = &f.body {
@@ -1407,6 +1428,11 @@ impl<'p> Emitter<'p> {
                 self.f.unsized_params.insert(p.local);
             }
             self.f.locals.insert(p.local, l);
+            // A parameter the body never uses is `_name`, as Rust expects.
+            let unused = f.body.is_some()
+                && !self.f.reads.contains(&p.local)
+                && !self.f.mutated.contains(&p.local);
+            let n = if unused { format!("_{n}") } else { n };
             params.push((Pat::Bind(n, mutable), t));
         }
         let ret = self.ret_ty(&f.ret)?;
@@ -1460,6 +1486,7 @@ impl<'p> Emitter<'p> {
         self.f = FnState::default();
         let mut scan = Scan {
             mut_methods: Some(&self.mut_methods),
+            mut_iface: Some(&self.mut_iface),
             ..Scan::default()
         };
         scan.block(&t.body);
@@ -1623,7 +1650,11 @@ impl<'p> Emitter<'p> {
                                 Vec::new(),
                                 Some(call(
                                     path("Box::new"),
-                                    vec![method(path("self"), "clone", Vec::new())],
+                                    vec![if self.copy(self_ty) {
+                                        deref(path("self"))
+                                    } else {
+                                        method(path("self"), "clone", Vec::new())
+                                    }],
                                 )),
                             )),
                         });
