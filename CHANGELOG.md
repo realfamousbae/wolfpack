@@ -4,6 +4,34 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M10: The Rust backend (2026-10-14)
+
+- `wolf_rs`: the Rust backend builds a tree and prints it as rustfmt formats it. Each module is a
+  file (`src/users/storage.rs` with `pub mod` declarations in `src/users.rs`); std and the
+  runtime are the module `wolf_rt`, which holds only the pieces a program uses. `wolf build`,
+  `wolf run` and `wolf test` take `--target rust`, and `rust` is the default when `wolfpack.toml`
+  says so. `wolf build --target all` builds every enabled target.
+- Borrowing follows the modes: read parameters are `&T`, `&str`, `&[T]`, `&dyn Trait` or
+  `&dyn Fn`, `mut` parameters `&mut T`, `own` parameters `T`; locals are `let mut` only where they
+  change. Recursive fields are boxed, interface values are `Box<dyn Trait>` with a `copy_dyn`
+  method for `.copy()`, `own self` interface methods take `self: Box<Self>`.
+- Native `Option`, `Result` and `?`, `match` with `if let` and `while let` where they fit,
+  `format!` for string concatenation, derives of `Clone` and `PartialEq` where the fields allow
+  them, checked arithmetic through `overflow-checks = true`, indexing through `items.at(i)`, the
+  canonical panic messages through a panic hook.
+- `wolf test` on Rust runs `cargo test` per Cargo target and prints the same report as on
+  TypeScript. E0801 and E0802 name `cargo`.
+- Fixes in the earlier backends: Go holds fields recursive through `Option` by pointer, copies
+  interface values through a generated `Copy<Name>` method, and puts plain enums with `mut`
+  methods behind pointers as interface values; TypeScript narrows `match mut` on list elements;
+  `--out` is resolved against the current directory.
+- Decisions: ADR 0010.
+- Tests: every example and every run program gives on Rust the output it gives on TypeScript,
+  with `cargo fmt --check` and `cargo clippy -- -D warnings` clean; the test reports and filters
+  match; tests stay out of the normal build; the output is deterministic; E0801 and E0802 for
+  `cargo`; new run programs for recursive data, interface values and `own self` interface
+  methods; CI builds the generated Rust with Rust 1.85.
+
 ## M9: The Go backend (2026-10-13)
 
 - `wolf_go`: the Go backend builds a tree and prints it as `gofmt` formats it. Each module is a
