@@ -113,6 +113,8 @@ pub enum Stmt {
     Labeled(String, Box<Stmt>),
     /// `{ ... }`
     Block(Vec<Stmt>),
+    /// `try { ... } catch (e) { ... }`
+    Try(Vec<Stmt>, String, Vec<Stmt>),
 }
 
 /// A class member function.
@@ -566,6 +568,13 @@ impl Printer {
             Stmt::Block(body) => {
                 self.line("{");
                 self.block_body(body);
+                self.line("}");
+            }
+            Stmt::Try(body, name, handler) => {
+                self.line("try {");
+                self.block_body(body);
+                self.line(&format!("}} catch ({name}) {{"));
+                self.block_body(handler);
                 self.line("}");
             }
         }

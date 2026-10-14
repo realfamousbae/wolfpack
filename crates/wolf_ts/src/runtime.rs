@@ -937,6 +937,23 @@ export function toNumber(value: bigint): number {
 }"#,
     },
     Piece {
+        name: "externError",
+        deps: &[],
+        code: r#"/** An exception of extern code as an `Error`, with its text. */
+export function externError(e: unknown): { message(): string } {
+  const text = e instanceof Error ? e.message : String(e);
+  return { message: () => text };
+}"#,
+    },
+    Piece {
+        name: "fromNullable",
+        deps: &[],
+        code: r#"/** An optional value of extern code: `null` and `undefined` are `None`. */
+export function fromNullable<T, U>(value: T | null | undefined, f: (v: T) => U): U | undefined {
+  return value === null || value === undefined ? undefined : f(value);
+}"#,
+    },
+    Piece {
         name: "fromNumber",
         deps: &["int", "fail"],
         code: r#"/** A `number` returned by extern code as an `Int`. */

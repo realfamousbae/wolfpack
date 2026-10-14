@@ -783,7 +783,11 @@ impl<'p> Emitter<'p> {
                 Ok(())
             }
             ir::Item::ExternFn(x) => self.extern_fn(x, out),
-            ir::Item::ExternType(_) | ir::Item::Test(_) | ir::Item::Builtin(_) => Ok(()),
+            ir::Item::ExternType(x) => {
+                self.extern_type(x, out);
+                Ok(())
+            }
+            ir::Item::Test(_) | ir::Item::Builtin(_) => Ok(()),
         }
     }
 
@@ -1063,13 +1067,8 @@ impl<'p> Emitter<'p> {
         } else {
             call(ident(path), args)
         };
-        let result = self.extern_result(callee_call, &x.ret)?;
         let ret = self.ret_ty(&x.ret);
-        let body = if matches!(x.ret, IrType::Void) {
-            vec![Stmt::Expr(result)]
-        } else {
-            vec![Stmt::Return(Some(result))]
-        };
+        let body = self.extern_body(callee_call, &x.ret)?;
         out.push(Item::Function {
             docs: Vec::new(),
             export: x.public,
@@ -1082,11 +1081,82 @@ impl<'p> Emitter<'p> {
         Ok(())
     }
 
+    /// The body of an extern function: an exception becomes `Err` when the result is a
+    /// `Result`, `null` and `undefined` become `None` (spec chapter 7, section 8.4).
+    fn extern_body(&mut self, c: Expr, ret: &IrType) -> Result<Vec<Stmt>, Error> {
+        Ok(match ret {
+            IrType::Void => vec![Stmt::Expr(c)],
+            IrType::Result(ok, _) => {
+                let mut body = Vec::new();
+                let value = if matches!(**ok, IrType::Void) {
+                    body.push(Stmt::Expr(c));
+                    Expr::Undefined
+                } else {
+                    self.extern_result(c, ok)?
+                };
+                body.push(Stmt::Return(Some(self.rt_call("ok", vec![value]))));
+                let error = self.rt_call("externError", vec![ident("e")]);
+                let handler = vec![Stmt::Return(Some(self.rt_call("err", vec![error])))];
+                vec![Stmt::Try(body, "e".to_string(), handler)]
+            }
+            IrType::Option(inner) if undef_result(ret) => {
+                let v = if matches!(**inner, IrType::Float | IrType::Bool | IrType::String)
+                    || self.opaque(inner)
+                {
+                    Expr::Binary(Box::new(c), "??", Box::new(Expr::Undefined))
+                } else {
+                    let x = self.extern_result(ident("v"), inner)?;
+                    let f = Expr::Arrow(
+                        vec![("v".to_string(), None)],
+                        None,
+                        ArrowBody::Expr(Box::new(x)),
+                    );
+                    self.rt_call("fromNullable", vec![c, f])
+                };
+                vec![Stmt::Return(Some(v))]
+            }
+            other => vec![Stmt::Return(Some(self.extern_result(c, other)?))],
+        })
+    }
+
+    fn opaque(&self, t: &IrType) -> bool {
+        matches!(t, IrType::Named(d, _) if matches!(self.p.def(*d).map(|x| x.kind), Some(DefKind::ExternType)))
+    }
+
+    /// `type Pattern = RegExp`, with an import for a module export.
+    fn extern_type(&mut self, x: &'p ir::ExternType, out: &mut Vec<Item>) {
+        let Some(path) = x.paths.get("ts") else {
+            return;
+        };
+        let name = self.def_name(x.def);
+        let target = match path.split_once('#') {
+            Some((module, export)) => {
+                if export == name {
+                    self.externs
+                        .push((format!("type {export}"), module.to_string()));
+                    return;
+                }
+                self.externs
+                    .push((format!("type {export}"), module.to_string()));
+                export.to_string()
+            }
+            None => path.clone(),
+        };
+        out.push(Item::TypeAlias {
+            docs: Vec::new(),
+            export: true,
+            name,
+            generics: Vec::new(),
+            ty: Type::name(&target),
+        });
+    }
+
     /// A value passed to extern code (spec chapter 8, section 8).
     fn extern_arg(&mut self, e: Expr, t: &IrType) -> Result<Expr, Error> {
         Ok(match t {
             IrType::Int => self.rt_call("toNumber", vec![e]),
             IrType::Float | IrType::Bool | IrType::String | IrType::Void => e,
+            t if self.opaque(t) => e,
             IrType::List(inner)
                 if matches!(**inner, IrType::Float | IrType::Bool | IrType::String) =>
             {
@@ -1104,6 +1174,7 @@ impl<'p> Emitter<'p> {
         Ok(match t {
             IrType::Int => self.rt_call("fromNumber", vec![e]),
             IrType::Float | IrType::Bool | IrType::String | IrType::Void => e,
+            t if self.opaque(t) => e,
             IrType::List(inner)
                 if matches!(**inner, IrType::Float | IrType::Bool | IrType::String) =>
             {
