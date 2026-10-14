@@ -2615,7 +2615,13 @@ impl<'p> Emitter<'p> {
             scrutinee.kind,
             ExprKind::Local(_) | ExprKind::Field { .. } | ExprKind::SelfValue
         );
-        let subject = if pure(&raw) || (mode == Mode::Mut && is_place) {
+        // `match mut` changes the place itself, unless the place is an object whose payload the
+        // arms change: then a temporary names the same object and lets TypeScript narrow it
+        // (`(items[$i] as Status)` is not narrowed).
+        let object = matches!(&scrutinee.ty, IrType::Named(d, _)
+            if self.structs.contains_key(d) || self.enums.contains_key(d));
+        let whole = arms.iter().any(|a| matches!(a.pattern, Pattern::Bind(_)));
+        let subject = if pure(&raw) || (mode == Mode::Mut && is_place && (whole || !object)) {
             raw
         } else {
             let t = self.temp("m");
