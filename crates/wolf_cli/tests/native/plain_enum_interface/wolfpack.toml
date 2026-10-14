@@ -1,0 +1,4 @@
+[package]
+name = "plain-enum-interface"
+version = "0.1.0"
+kind = "cli"

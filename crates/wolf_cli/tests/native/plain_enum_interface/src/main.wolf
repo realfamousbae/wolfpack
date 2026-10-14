@@ -1,0 +1,64 @@
+//! A plain enum with a `mut self` method used as an interface value, and copies of such values.
+//! Not in `tests/run/`: TypeScript does not support `self = ...` of an enum yet.
+
+module main
+
+imports {
+    std.string
+}
+
+types {
+    enum Color {
+        Red
+        Green
+    }
+
+    struct Dog {
+        name: String
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+}
+
+impl {
+    Color: Named {
+        fn name(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+
+    Color {
+        fn flip(mut self) {
+            self = match self {
+                Color.Red => Color.Green
+                Color.Green => Color.Red
+            }
+        }
+    }
+
+    Dog: Named {
+        fn name(self) -> String { self.name.copy() }
+    }
+}
+
+functions {
+    fn names(items: List<Named>) -> String {
+        string.join(items.map(|n| n.name()), ",")
+    }
+
+    fn main() {
+        var c = Color.Red
+        c.flip()
+        let items: List<Named> = [c, Dog { name: "rex" }, Color.Red]
+        let copy = items.copy()
+        c.flip()
+        print(names(items) + " " + names(copy) + " " + c.name())
+    }
+}

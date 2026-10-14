@@ -291,3 +291,23 @@ fn relative_out_directory_on_go() {
     );
     assert!(project.join("build/out").is_dir());
 }
+
+/// Programs that only Go and Rust support yet give their expected output.
+#[test]
+fn native_programs_on_go() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/native");
+    for entry in fs::read_dir(&root).unwrap().flatten() {
+        let dir = entry.path();
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let out = tmp(&format!("native-{name}"));
+        let output = wolf("run", &dir, &out, &[], None);
+        let expected = fs::read_to_string(dir.join("expected.txt")).unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            expected,
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(go_checks(&out), None, "{name}");
+    }
+}
