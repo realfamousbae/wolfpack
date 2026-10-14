@@ -325,3 +325,22 @@ fn e0802_rejected_by_cargo() {
     assert_eq!(stderr, expected);
     assert_eq!(output.status.code(), Some(1));
 }
+
+/// `--out` is relative to the current directory, although the tools run elsewhere.
+#[test]
+fn relative_out_directory_on_rust() {
+    let hello = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/hello");
+    let project = tmp("relative");
+    let _ = fs::remove_dir_all(&project);
+    fs::create_dir_all(project.join("src")).unwrap();
+    fs::copy(hello.join("wolfpack.toml"), project.join("wolfpack.toml")).unwrap();
+    fs::copy(hello.join("src/main.wolf"), project.join("src/main.wolf")).unwrap();
+    let output = wolf("run", &project, Path::new("build/out"), &[], None);
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Hello, Wolfpack!\n",
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(project.join("build/out").is_dir());
+}

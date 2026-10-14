@@ -8,7 +8,7 @@ mod check;
 
 use std::io::{self, IsTerminal, Write};
 use std::panic;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -220,7 +220,7 @@ fn run() -> ExitCode {
             let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
             finish(build::build(
                 &cwd,
-                args.out.as_deref(),
+                out_dir(&cwd, args.out.as_deref()).as_deref(),
                 build::Then::Nothing,
                 target,
             ))
@@ -234,7 +234,12 @@ fn run() -> ExitCode {
             let then = build::Then::Test {
                 filter: args.filter.clone(),
             };
-            finish(build::build(&cwd, args.out.as_deref(), then, target))
+            finish(build::build(
+                &cwd,
+                out_dir(&cwd, args.out.as_deref()).as_deref(),
+                then,
+                target,
+            ))
         }
         Command::Run(args) => {
             let target = match target(args.target, false) {
@@ -246,7 +251,12 @@ fn run() -> ExitCode {
                 example: args.example.clone(),
                 args: args.args.clone(),
             };
-            finish(build::build(&cwd, args.out.as_deref(), then, target))
+            finish(build::build(
+                &cwd,
+                out_dir(&cwd, args.out.as_deref()).as_deref(),
+                then,
+                target,
+            ))
         }
         Command::Check(args) => {
             let result = check::run(&args);
@@ -281,6 +291,11 @@ fn target(target: Option<TargetArg>, build: bool) -> Result<build::Targets, Exit
             return Err(ExitCode::from(EXIT_USAGE));
         }
     })
+}
+
+/// `--out` relative to the current directory: the tools run in other directories.
+fn out_dir(cwd: &Path, out: Option<&Path>) -> Option<PathBuf> {
+    out.map(|o| cwd.join(o))
 }
 
 fn finish(outcome: build::Outcome) -> ExitCode {
