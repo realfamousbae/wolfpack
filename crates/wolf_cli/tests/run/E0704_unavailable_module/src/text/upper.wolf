@@ -1,0 +1,11 @@
+module text.upper
+
+extern {
+    go {
+        pub fn upper(s: String) -> String from "strings.ToUpper"
+        pub fn lower(s: String) -> String from "strings.ToLower"
+    }
+    rust {
+        pub fn upper(s: String) -> String from "str::to_uppercase"
+    }
+}

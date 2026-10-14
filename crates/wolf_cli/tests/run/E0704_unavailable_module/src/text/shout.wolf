@@ -1,0 +1,11 @@
+module text.shout
+
+imports {
+    text.upper.{upper}
+}
+
+functions {
+    pub fn shout(s: String) -> String {
+        upper(s) + "!"
+    }
+}

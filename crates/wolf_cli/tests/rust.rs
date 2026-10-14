@@ -115,7 +115,8 @@ fn run_programs_match_expected_output_on_rust() {
     dirs.sort();
     for dir in dirs {
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
-        if name.starts_with("E08") || name.starts_with("default_target") {
+        if name.starts_with("E07") || name.starts_with("E08") || name.starts_with("default_target")
+        {
             continue;
         }
         let out = tmp(&format!("run-{name}"));

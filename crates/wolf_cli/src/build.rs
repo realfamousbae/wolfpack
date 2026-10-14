@@ -71,6 +71,23 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
         _ => project.manifest.default_target,
     };
     let inputs = project.inputs();
+    // Every module of the build must be available for each target (chapter 7, section 8.5).
+    let tests = matches!(then, Then::Test { .. });
+    let checked: Vec<Target> = match targets {
+        Targets::All => project.manifest.enabled.clone(),
+        _ => vec![target],
+    };
+    for t in checked {
+        let found = wolf_resolve::check_target(&inputs, t.name(), |role| match role {
+            wolf_resolve::Role::Example => !tests,
+            wolf_resolve::Role::Test => tests,
+            _ => true,
+        });
+        result.diagnostics.extend(found);
+    }
+    if !result.diagnostics.is_empty() {
+        return Outcome::Failed(Box::new(result), crate::EXIT_ERRORS);
+    }
     let meta = wolf_ir::ProjectMeta {
         name: &project.manifest.name,
         version: &project.manifest.version,
