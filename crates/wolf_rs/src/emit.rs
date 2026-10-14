@@ -68,6 +68,8 @@ struct FnInfo {
     ret: IrType,
     owner: Option<DefRef>,
     self_mode: Option<Mode>,
+    /// An `own self` method of an interface: it takes `self: Box<Self>` (spec chapter 4, 8.4).
+    boxed_self: bool,
 }
 
 #[derive(Default)]
@@ -115,6 +117,8 @@ pub(crate) struct Emitter<'p> {
     mut_methods: BTreeSet<DefRef>,
     /// Interface methods that take `mut self`.
     mut_iface: BTreeSet<(DefRef, String)>,
+    /// Whether the functions being emitted are the declarations of an interface.
+    in_iface_decl: bool,
     pub(crate) rt: BTreeSet<&'static str>,
     pub(crate) test_list: Vec<TestEntry>,
     // State of the module being emitted.
@@ -300,7 +304,8 @@ impl Scan<'_> {
             IrStmt::ForList {
                 list, body, mode, ..
             } => {
-                if *mode != Mode::Read {
+                // `for x in own xs` consumes the list without changing it.
+                if *mode == Mode::Mut {
                     self.change(list);
                 }
                 self.expr(list);
@@ -464,6 +469,7 @@ impl<'p> Emitter<'p> {
             hashable: None,
             mut_methods: BTreeSet::new(),
             mut_iface: BTreeSet::new(),
+            in_iface_decl: false,
             rt: BTreeSet::new(),
             test_list: Vec::new(),
             module: 0,
@@ -483,6 +489,7 @@ impl<'p> Emitter<'p> {
             ret: f.ret.clone(),
             owner,
             self_mode: f.self_mode,
+            boxed_self: f.self_mode == Some(Mode::Own) && f.interface.is_some(),
         };
         for m in &p.modules {
             let path = match m.role {
@@ -517,8 +524,9 @@ impl<'p> Emitter<'p> {
                         self.names.insert(i.def, type_name(&i.name));
                         self.ifaces.insert(i.def, i);
                         for f in &i.methods {
-                            self.iface_fns
-                                .insert((i.def, f.name.clone()), info(f, None));
+                            let mut x = info(f, None);
+                            x.boxed_self = f.self_mode == Some(Mode::Own);
+                            self.iface_fns.insert((i.def, f.name.clone()), x);
                         }
                         if std {
                             match i.name.as_str() {
@@ -547,6 +555,7 @@ impl<'p> Emitter<'p> {
                                 ret: x.ret.clone(),
                                 owner: None,
                                 self_mode: None,
+                                boxed_self: false,
                             },
                         );
                     }
@@ -1405,6 +1414,10 @@ impl<'p> Emitter<'p> {
                     self.f.self_local = Some(Local::Mut("self".to_string()));
                     "&mut self"
                 }
+                Mode::Own if f.interface.is_some() || self.in_iface_decl => {
+                    self.f.self_local = Some(Local::Boxed("self".to_string()));
+                    "self: Box<Self>"
+                }
                 Mode::Own => {
                     self.f.self_local = Some(Local::Val("self".to_string()));
                     "self"
@@ -1771,11 +1784,20 @@ impl<'p> Emitter<'p> {
         }
         let generics = self.generics(&i.generics)?;
         let mut methods = Vec::new();
+        self.in_iface_decl = true;
         for f in &i.methods {
-            let mut func = self.function(f, value(&f.name), None)?;
+            let func = self.function(f, value(&f.name), None);
+            let mut func = match func {
+                Ok(func) => func,
+                Err(e) => {
+                    self.in_iface_decl = false;
+                    return Err(e);
+                }
+            };
             func.body = None;
             methods.push(func);
         }
+        self.in_iface_decl = false;
         let name = self.name_of(i.def);
         let copyable = self.dyn_ifaces.contains(&i.def) && self.implementors_clone(i.def);
         if copyable {
@@ -2274,6 +2296,7 @@ impl<'p> Emitter<'p> {
                     Want::Op if !self.copy(t) => path(&n),
                     _ => self.shape(deref(path(&n)), t, want, true),
                 },
+                Some(Local::Boxed(n)) if want == Want::Own => deref(path(&n)),
                 Some(Local::Val(n)) | Some(Local::Boxed(n)) => self.shape(path(&n), t, want, true),
                 None => return Err("`self` outside a method".to_string()),
             },
@@ -2836,6 +2859,7 @@ impl<'p> Emitter<'p> {
                     ret: (**ret).clone(),
                     owner: None,
                     self_mode: None,
+                    boxed_self: false,
                 }),
                 _ => None,
             },
@@ -2871,7 +2895,10 @@ impl<'p> Emitter<'p> {
                 }
             }
             Callee::Method { method: m, recv } => {
-                let r = self.receiver(recv, info.self_mode.unwrap_or(Mode::Read))?;
+                let mut r = self.receiver(recv, info.self_mode.unwrap_or(Mode::Read))?;
+                if info.boxed_self {
+                    r = call(path("Box::new"), vec![r]);
+                }
                 if let Some(owner) = info.owner {
                     self.trait_in_scope(*m, owner);
                 }
@@ -2896,6 +2923,11 @@ impl<'p> Emitter<'p> {
                 } else {
                     let _ = self.def_path(*interface);
                 }
+                let r = if info.boxed_self && !dyn_value {
+                    call(path("Box::new"), vec![r])
+                } else {
+                    r
+                };
                 Expr::Method(Box::new(r), value(name), Vec::new(), argv)
             }
             Callee::Value(f) => {
