@@ -272,6 +272,9 @@ For a **method** path (a Go method expression, a TS path through `.prototype.`, 
 function taking `self`), the first Wolfpack parameter becomes the receiver. A path that does not fit
 the target's form is an error (E0705).
 
+The path of a Go **opaque type** may start with `*` for a pointer type (author, 2026-10-14):
+`type Regex from "*regexp.Regexp"`.
+
 ### 8.3 Opaque types
 
 `type Hasher from "hash.Hash"` (Go) declares an **opaque type** (author):

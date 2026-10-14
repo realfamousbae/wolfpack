@@ -62,7 +62,9 @@ Decisions already taken by the author for this chapter (2026-10-07):
    `src/lib.rs`, crate name with `_` instead of `-`. Only the library API (chapter 6, section 4.6) is
    exported. **[PROPOSAL]**
 5. **Dependencies** from `[extern.<target>.dependencies]` are copied into `package.json`
-   `dependencies`, `go.mod` `require` and `Cargo.toml` `[dependencies]` **[PLAN]**.
+   `dependencies`, `go.mod` `require` and `Cargo.toml` `[dependencies]` **[PLAN]**. `wolf run` and
+   `wolf test` fetch them: they run `npm install` in a TS project with dependencies, and Go and
+   Cargo download modules and crates themselves (author, 2026-10-14).
 6. **Tests** (milestone M7): TS uses `node:test` in `*.test.ts` files, Go uses `testing` in
    `*_test.go` files of the same package, Rust uses `#[cfg(test)] mod tests` **[PLAN]**.
 7. **`wolf test`** (author, 2026-10-09) builds the project with its tests (tests and test helpers
@@ -266,14 +268,19 @@ copy defensively.
 
 1. Imports are generated from the path strings of chapter 7: `import { parse } from "some-lib"`,
    `import "crypto/sha256"`, `use sha2::Sha256;`.
-2. Boundary conversions **[PROPOSAL]**:
+2. Boundary conversions (author, 2026-10-14):
    - TS: `Int` is passed to extern code as a `number` and checked to be a safe integer (otherwise a
      panic); returned numbers must be integers and become `bigint`. Exceptions become `Err` or a
      panic (chapter 7).
-   - Go: values are passed with the Go types of section 4. The Go function must have exactly these
-     parameter and result types; otherwise `go build` reports the mismatch.
-   - Rust: read `String` and `List` parameters are passed as `&str` and `&[T]`; `Result` errors are
-     converted with their `Display` text.
+   - Go: values are passed with the Go types of section 4, and `Int` parameters are `int64`. An
+     `Int` result may be of any Go integer type (`int`, `uint32`, ...) and is converted with a
+     check. Otherwise the Go function must have exactly these parameter and result types, and
+     `go build` reports a mismatch.
+   - Rust: read `String` and `List` parameters are passed as `&str` and `&[T]`; `Int` parameters
+     and results may be of any Rust integer type (`usize`, `u32`, ...) and are converted with a
+     check; `Result` errors are converted with their `Display` text.
+   - A checked conversion that fails is a panic: `integer too large for extern code` for a
+     parameter, `integer overflow` for a result, on every target.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
 ## 9. Diagnostics
