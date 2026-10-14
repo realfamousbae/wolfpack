@@ -77,6 +77,19 @@ impl Checker<'_> {
     pub(crate) fn require(&mut self, ty: &Ty, interface: DefId, span: Span, why: &str) {
         let shown = self.show(ty);
         let iface = self.def_name(interface);
+        if self.opaque(ty) {
+            self.report(
+                Diagnostic::new(
+                    codes::E0707,
+                    format!("`{shown}` is an extern type and is not `{iface}`"),
+                )
+                .primary(span, format!("{why} needs `{iface}`"))
+                .note(
+                    "an extern type is used only through extern functions (chapter 7, section 8.3)",
+                ),
+            );
+            return;
+        }
         if Some(interface) == self.b.equatable || Some(interface) == self.b.copyable {
             let which = if Some(interface) == self.b.equatable {
                 Derived::Equatable
@@ -124,6 +137,11 @@ impl Checker<'_> {
         }
     }
 
+    /// Whether the type is an opaque extern type.
+    pub(crate) fn opaque(&self, ty: &Ty) -> bool {
+        matches!(self.infer.resolve(ty), Ty::Named(d, _) if self.def_kind(d) == Some(DefKind::ExternType))
+    }
+
     /// `Equatable` or `Copyable`: the reason it fails, if it does.
     fn derived(&self, ty: &Ty, which: Derived, seen: &mut BTreeSet<DefId>) -> Result<(), String> {
         match self.infer.resolve(ty) {
@@ -161,11 +179,7 @@ impl Checker<'_> {
                         }
                     }
                     Some(DefKind::ExternType) => {
-                        if which == Derived::Equatable {
-                            Err(format!("`{}` is an extern type", self.def_name(def)))
-                        } else {
-                            Ok(())
-                        }
+                        Err(format!("`{}` is an extern type", self.def_name(def)))
                     }
                     Some(DefKind::IntrinsicType) => {
                         if Some(def) == self.b.list {

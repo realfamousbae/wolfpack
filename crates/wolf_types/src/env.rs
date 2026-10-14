@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use wolf_ast::{self as ast, ExternDeclKind, ItemKind, Mode, ParamKind, TyKind, VariantPayload};
+use wolf_ast::{self as ast, ItemKind, Mode, ParamKind, TyKind, VariantPayload};
 use wolf_diag::{Diagnostic, codes};
 use wolf_resolve::{DefId, DefKind, ModuleId, ModuleInput, ProjectInfo, Res, Resolved};
 use wolf_span::{FileId, Span};
@@ -29,6 +29,7 @@ pub(crate) struct Builtins {
     pub(crate) equatable: Option<DefId>,
     pub(crate) copyable: Option<DefId>,
     pub(crate) hashable: Option<DefId>,
+    pub(crate) error: Option<DefId>,
 }
 
 impl Builtins {
@@ -55,6 +56,7 @@ impl Builtins {
             equatable: get("std.prelude", "Equatable"),
             copyable: get("std.prelude", "Copyable"),
             hashable: get("std.prelude", "Hashable"),
+            error: get("std.prelude", "Error"),
         }
     }
 }
@@ -727,6 +729,7 @@ impl<'a> Checker<'a> {
         // Impl blocks are collected after all other items, so their signatures may name any
         // function type; the order is still deterministic.
         let mut impl_blocks = Vec::new();
+        let mut first_extern = BTreeMap::new();
         for (m, input) in inputs.iter().enumerate() {
             let scope = Scope {
                 file: input.file,
@@ -808,14 +811,7 @@ impl<'a> Checker<'a> {
                             }
                         }
                         ItemKind::ExternTarget(target) => {
-                            for decl in &target.decls {
-                                if let ExternDeclKind::Fn(sig) = &decl.kind {
-                                    if let Some(def) = self.item_def(&sig.name) {
-                                        let sig = self.lower_sig(sig, &scope);
-                                        self.fns.entry(def).or_insert(sig);
-                                    }
-                                }
-                            }
+                            self.extern_block(m, target, &scope, &mut first_extern);
                         }
                         ItemKind::Test(test) => bodies.push(BodyRef::Test { module: m, test }),
                         ItemKind::Impl(block) => impl_blocks.push((m, s, i, block)),

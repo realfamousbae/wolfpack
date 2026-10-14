@@ -1,0 +1,20 @@
+module main
+
+extern {
+    ts {
+        fn a() -> Int from "#parse"
+    }
+    go {
+        fn a() -> Int from "ToUpper"
+        type Buf from "**bytes.Buffer"
+    }
+    rust {
+        fn a() -> Int from "std:cmp::max"
+    }
+}
+
+functions {
+    fn main() {
+        print(a().to_string())
+    }
+}

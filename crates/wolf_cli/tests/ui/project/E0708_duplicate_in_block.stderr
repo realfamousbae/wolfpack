@@ -1,0 +1,9 @@
+error[E0708]: `now` is declared twice in the `ts` block
+  --> src/main.wolf:6:12
+  |
+6 |         fn now() -> Int from "Date.now"
+  |            ^^^ declared again here
+  |
+  = help: remove one of the declarations
+
+error: aborting due to 1 error

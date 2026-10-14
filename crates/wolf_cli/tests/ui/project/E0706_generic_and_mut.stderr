@@ -1,0 +1,17 @@
+error[E0706]: the extern function `first` is generic
+  --> src/main.wolf:5:18
+  |
+5 |         fn first<T>(items: List<T>) -> Int from "lib#first"
+  |                  ^ type parameters are not allowed here
+  |
+  = note: extern functions are not generic: declare one function per type
+
+error[E0706]: the extern function `push` has a `mut` parameter
+  --> src/main.wolf:6:17
+  |
+6 |         fn push(mut items: List<Int>) from "lib#push"
+  |                 ^^^^^^^^^^^^^^^^^^^^ `mut` parameter
+  |
+  = note: extern code cannot change Wolfpack values: return the new value instead
+
+error: aborting due to 2 errors

@@ -255,6 +255,20 @@ pub const E0620: Code = Code::new("E0620", "`pub` import outside `src/lib.wolf`"
 
 /// `intrinsic` outside std.
 pub const E0701: Code = Code::new("E0701", "`intrinsic` outside `std`");
+/// A type that cannot cross the extern boundary.
+pub const E0702: Code = Code::new("E0702", "type not allowed at the extern boundary");
+/// One extern name with different signatures in different target blocks.
+pub const E0703: Code = Code::new("E0703", "different signatures for one extern name");
+/// A module that is not available for the target.
+pub const E0704: Code = Code::new("E0704", "module not available for the target");
+/// A path string that does not fit the target's form.
+pub const E0705: Code = Code::new("E0705", "malformed extern path");
+/// A generic extern function or one with a `mut` parameter.
+pub const E0706: Code = Code::new("E0706", "generic extern function or `mut` parameter");
+/// An operation that an opaque type does not have.
+pub const E0707: Code = Code::new("E0707", "operation not available on an opaque type");
+/// An extern name declared twice in one target block.
+pub const E0708: Code = Code::new("E0708", "extern name declared twice in one target block");
 
 /// A tool of the target is not installed.
 pub const E0801: Code = Code::new("E0801", "target tool not installed");
@@ -271,7 +285,7 @@ pub const ALL: &[Code] = &[
     E0422, E0423, E0424, E0425, E0426, E0427, E0428, E0429, E0430, E0431, E0501, E0502, E0503,
     E0504, E0505, E0506, E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605,
     E0606, E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618,
-    E0619, E0620, E0701, E0801, E0802,
+    E0619, E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0801, E0802,
 ];
 
 /// Codes that were used once and must never be used again.

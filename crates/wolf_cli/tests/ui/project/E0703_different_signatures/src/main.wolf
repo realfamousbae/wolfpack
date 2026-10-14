@@ -1,0 +1,19 @@
+module main
+
+extern {
+    ts {
+        fn upper(s: String) -> String from "String.prototype.toUpperCase"
+    }
+    go {
+        fn upper(s: String, n: Int) -> String from "strings.Repeat"
+    }
+    rust {
+        fn upper(s: String) -> Int from "str::len"
+    }
+}
+
+functions {
+    fn main() {
+        print(upper("a"))
+    }
+}

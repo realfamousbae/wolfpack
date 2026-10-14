@@ -1,0 +1,19 @@
+module main
+
+extern {
+    go {
+        type Regex from "*regexp.Regexp"
+        fn compile(pattern: String) -> Regex from "regexp.MustCompile"
+    }
+}
+
+functions {
+    fn main() {
+        let r = compile("a+")
+        let s = r.copy()
+        let _ = r == s
+        print(r.source)
+        r.find("aa")
+        let _: Map<Regex, Int> = [:]
+    }
+}

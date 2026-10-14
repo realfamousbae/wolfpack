@@ -1,0 +1,33 @@
+error[E0705]: `#parse` is not a function path of TypeScript
+  --> src/main.wolf:5:28
+  |
+5 |         fn a() -> Int from "#parse"
+  |                            ^^^^^^^^ malformed path
+  |
+  = help: write `module#export`, `module#default`, or a global path such as `Math.max`
+
+error[E0705]: `ToUpper` is not a function path of Go
+  --> src/main.wolf:8:28
+  |
+8 |         fn a() -> Int from "ToUpper"
+  |                            ^^^^^^^^^ malformed path
+  |
+  = help: write `import/path.Name`, or a method expression: `(*bytes.Buffer).WriteString`
+
+error[E0705]: `**bytes.Buffer` is not a type path of Go
+  --> src/main.wolf:9:23
+  |
+9 |         type Buf from "**bytes.Buffer"
+  |                       ^^^^^^^^^^^^^^^^ malformed path
+  |
+  = help: write `import/path.Name`, or `*import/path.Name` for a pointer
+
+error[E0705]: `std:cmp::max` is not a function path of Rust
+   --> src/main.wolf:12:28
+   |
+12 |         fn a() -> Int from "std:cmp::max"
+   |                            ^^^^^^^^^^^^^^ malformed path
+   |
+   = help: write a Rust path such as `std::cmp::max` or `str::to_uppercase`
+
+error: aborting due to 4 errors

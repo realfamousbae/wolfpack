@@ -1,0 +1,41 @@
+error[E0707]: `Regex` is an extern type and is not `Copyable`
+   --> src/main.wolf:13:19
+   |
+13 |         let s = r.copy()
+   |                   ^^^^ `.copy()` needs `Copyable`
+   |
+   = note: an extern type is used only through extern functions (chapter 7, section 8.3)
+
+error[E0707]: `Regex` is an extern type and is not `Equatable`
+   --> src/main.wolf:14:17
+   |
+14 |         let _ = r == s
+   |                 ^^^^^^ `==` needs `Equatable`
+   |
+   = note: an extern type is used only through extern functions (chapter 7, section 8.3)
+
+error[E0707]: `Regex` is an extern type and has no fields
+   --> src/main.wolf:15:17
+   |
+15 |         print(r.source)
+   |                 ^^^^^^ no field
+   |
+   = note: an extern type is used only through extern functions (chapter 7, section 8.3)
+
+error[E0707]: `Regex` is an extern type and has no methods
+   --> src/main.wolf:16:11
+   |
+16 |         r.find("aa")
+   |           ^^^^ no method
+   |
+   = help: declare an extern function that takes the value as its first parameter
+
+error[E0707]: `Regex` is an extern type and is not `Hashable`
+   --> src/main.wolf:17:16
+   |
+17 |         let _: Map<Regex, Int> = [:]
+   |                ^^^^^^^^^^^^^^^ a map key needs `Hashable`
+   |
+   = note: an extern type is used only through extern functions (chapter 7, section 8.3)
+
+error: aborting due to 5 errors

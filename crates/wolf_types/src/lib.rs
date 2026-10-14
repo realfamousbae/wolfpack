@@ -20,6 +20,7 @@ mod body;
 mod consts;
 mod derive;
 mod env;
+mod externs;
 mod pat;
 mod ty;
 

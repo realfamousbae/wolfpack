@@ -1,0 +1,14 @@
+module main
+
+extern {
+    ts {
+        fn now() -> Int from "Date.now"
+        fn now() -> Int from "Date.now"
+    }
+}
+
+functions {
+    fn main() {
+        print(now().to_string())
+    }
+}

@@ -1,0 +1,15 @@
+module main
+
+extern {
+    ts {
+        fn first<T>(items: List<T>) -> Int from "lib#first"
+        fn push(mut items: List<Int>) from "lib#push"
+    }
+}
+
+functions {
+    fn main() {
+        var items = [1]
+        push(mut items)
+    }
+}

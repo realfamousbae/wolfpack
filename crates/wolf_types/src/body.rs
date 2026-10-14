@@ -1209,6 +1209,19 @@ impl<'a> Checker<'a> {
             }
         }
         let shown = self.show(t);
+        if self.opaque(t) {
+            self.report(
+                Diagnostic::new(
+                    codes::E0707,
+                    format!("`{shown}` is an extern type and has no fields"),
+                )
+                .primary(name.span, "no field")
+                .note(
+                    "an extern type is used only through extern functions (chapter 7, section 8.3)",
+                ),
+            );
+            return Ty::Error;
+        }
         let mut d = Diagnostic::new(
             codes::E0424,
             format!("`{shown}` has no field `{}`", name.name),
@@ -1677,6 +1690,18 @@ impl<'a> Checker<'a> {
                 return recv;
             }
             let shown = self.show(&recv);
+            if self.opaque(&recv) {
+                self.report(
+                    Diagnostic::new(
+                        codes::E0707,
+                        format!("`{shown}` is an extern type and has no methods"),
+                    )
+                    .primary(name.span, "no method")
+                    .help("declare an extern function that takes the value as its first parameter"),
+                );
+                check_args(self, b);
+                return Ty::Error;
+            }
             let mut d = Diagnostic::new(
                 codes::E0424,
                 format!("`{shown}` has no method `{}`", name.name),

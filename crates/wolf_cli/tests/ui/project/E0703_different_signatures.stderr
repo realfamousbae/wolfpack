@@ -1,0 +1,23 @@
+error[E0703]: `upper` has different signatures for `ts` and `go`
+  --> src/main.wolf:8:9
+  |
+5 |         fn upper(s: String) -> String from "String.prototype.toUpperCase"
+  |         ----------------------------- `ts`: fn upper(String) -> String
+  .
+8 |         fn upper(s: String, n: Int) -> String from "strings.Repeat"
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `go`: fn upper(String, Int) -> String
+  |
+  = help: declare the same parameter and result types in every target block
+
+error[E0703]: `upper` has different signatures for `ts` and `rust`
+   --> src/main.wolf:11:9
+   |
+ 5 |         fn upper(s: String) -> String from "String.prototype.toUpperCase"
+   |         ----------------------------- `ts`: fn upper(String) -> String
+   .
+11 |         fn upper(s: String) -> Int from "str::len"
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ `rust`: fn upper(String) -> Int
+   |
+   = help: declare the same parameter and result types in every target block
+
+error: aborting due to 2 errors
