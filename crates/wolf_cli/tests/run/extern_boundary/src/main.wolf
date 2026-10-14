@@ -1,0 +1,68 @@
+//! The extern boundary on every target (spec chapter 8, section 8): strings returned as `&str`,
+//! integers of other sizes, lists, opaque types, method paths and errors. The functions differ
+//! between the targets; the inputs are chosen so that the results agree.
+
+module main
+
+imports {
+    std.string
+}
+
+extern {
+    ts {
+        fn trim(s: String) -> String from "String.prototype.trim"
+        fn size(s: String) -> Int from "parseInt"
+        fn split(s: String, sep: String) -> List<String> from "String.prototype.split"
+        fn decode(s: String) -> Result<String, Error> from "decodeURIComponent"
+        type Pattern from "RegExp"
+        fn pattern(text: String) -> Pattern from "RegExp"
+        fn matches(p: Pattern, s: String) -> Bool from "RegExp.prototype.test"
+    }
+    go {
+        fn trim(s: String) -> String from "strings.TrimSpace"
+        fn size(s: String) -> Int from "unicode/utf8.RuneCountInString"
+        fn split(s: String, sep: String) -> List<String> from "strings.Split"
+        fn decode(s: String) -> Result<String, Error> from "net/url.PathUnescape"
+        type Pattern from "*regexp.Regexp"
+        fn pattern(text: String) -> Pattern from "regexp.MustCompile"
+        fn matches(p: Pattern, s: String) -> Bool from "(*regexp.Regexp).MatchString"
+    }
+    rust {
+        fn trim(s: String) -> String from "str::trim"
+        fn size(s: String) -> Int from "str::len"
+        fn split(s: String, sep: String) -> List<String> from "str::split"
+        fn decode(s: String) -> Result<String, Error> from "std::env::var"
+        type Pattern from "std::path::PathBuf"
+        fn pattern(text: String) -> Pattern from "std::path::PathBuf::from"
+        fn matches(p: Pattern, s: String) -> Bool from "std::path::Path::starts_with"
+    }
+}
+
+types {
+    /// An opaque value stored in a field.
+    struct Rule {
+        name: String
+        pattern: Pattern
+    }
+}
+
+functions {
+    fn check(rule: Rule, text: String) -> String {
+        rule.name + ": " + matches(rule.pattern, text).to_string()
+    }
+
+    fn main() {
+        print("[" + trim("  padded  ") + "]")
+        print(size("1").to_string())
+        let parts = split("a,b,c", ",")
+        print(parts.len().to_string() + " " + string.join(parts, "+"))
+        match decode("%zz") {
+            Ok(v) => print("decoded " + v)
+            Err(_) => print("not decoded")
+        }
+        let rule = Rule { name: "ab", pattern: pattern("ab") }
+        print(check(rule, "ab") + ", " + check(rule, "x"))
+        let rules = [rule]
+        print(rules.len().to_string())
+    }
+}
