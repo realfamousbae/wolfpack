@@ -4,6 +4,27 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M11: `extern` (2026-10-16)
+
+- Checks of extern declarations: types at the boundary (E0702), one signature per name across
+  target blocks (E0703), path strings in the form of each target (E0705), no generic functions,
+  `self` or `mut` parameters (E0706), no operations on opaque types besides extern functions
+  (E0707), no duplicates in a block (E0708).
+- Target binding: a build rejects every module whose extern names are not declared for the
+  target, with the import chain (E0704).
+- All three backends: opaque types as type aliases (also Go pointers), method paths called on the
+  first parameter, checked integer conversions, `Result` and `Option` results (TS exceptions
+  become `Err`, `null` becomes `None`; Rust errors keep their `Display` text), string and list
+  results of the target's own types in Rust.
+- `[extern.<target>.dependencies]` goes into `package.json`, `go.mod` and `Cargo.toml`;
+  `wolf run` and `wolf test` install TS packages with `npm install` (E0803 when it fails).
+- New example `fuzzy` with a package of each target language.
+- Spec: integer conversions at the boundary, pointer types in Go paths, fetching dependencies,
+  E0803.
+- Decisions: ADR 0011.
+- Tests: a UI test for each new code, run programs for the extern boundary and for E0704 and
+  E0803, `fuzzy` runs and passes its tests on every target.
+
 ## M10: The Rust backend (2026-10-14)
 
 - `wolf_rs`: the Rust backend builds a tree and prints it as rustfmt formats it. Each module is a
