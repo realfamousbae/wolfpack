@@ -291,7 +291,7 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | --- | --- |
 | E0801 | A tool of the target is not installed (`node`, `tsc`, `go`, `cargo`); the hint says how to install it |
 | E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it |
-| E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown **[PROPOSAL]** (M11) |
+| E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16) |
 
 ## 10. Decisions for the author
 
