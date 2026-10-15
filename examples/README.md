@@ -1,8 +1,8 @@
 # Examples
 
-Ten example projects written against the specification in `docs/spec/`. They are the acceptance
+Eleven example projects written against the specification in `docs/spec/`. They are the acceptance
 tests of the milestones in `PLAN.md`: every example must pass `wolf check` (M5), run on every target
-and print exactly `expected.txt` (M6, M9, M10), and run its `tests` sections (M7).
+and print exactly `expected.txt` (M6, M9, M10, M11), and run its `tests` sections (M7).
 
 `expected.txt` is the standard output of `wolf run` with exit code 0. For the library `textkit` it
 is the output of `wolf run --example demo`.
@@ -19,6 +19,7 @@ is the output of `wolf run --example demo`.
 | `binary_tree` | cli | a recursive enum, `own self`, `match own` | no | yes |
 | `bank` | cli | `mut` and `own` parameters, moves, errors | no | yes |
 | `textkit` | lib | re-exports in `lib.wolf`, `extern` for all three targets, `tests/`, `examples/` | no | yes |
+| `fuzzy` | cli | `extern` with a package of each target in `[extern.<target>.dependencies]`, `config` | no | yes |
 
 Coverage of the matrix in `docs/spec/00-overview.md`, section 4:
 
@@ -29,5 +30,6 @@ Coverage of the matrix in `docs/spec/00-overview.md`, section 4:
 | `tests` sections (M7), at least 3 | fizzbuzz, calculator, generic_stack, binary_tree, bank, textkit |
 | ownership (M8), at least 2 | todo, bank, binary_tree |
 | generics, interfaces, closures (M5), at least 3 | word_count, shapes, generic_stack |
-| `extern` for all three targets (M11) | textkit |
+| `extern` for all three targets (M11) | textkit, fuzzy |
+| packages of the target languages (M11) | fuzzy |
 | kind `lib` (M3) | textkit |

@@ -1,0 +1,61 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " Suggests a command for a mistyped one. The edit distance comes from a package of each target"
+  doc! " language, declared in `wolfpack.toml` (chapter 7, section 8.6)."
+  module main
+  section extern
+    extern ts
+      (fn distance (params (a String) (b String)) (-> Int) from "fastest-levenshtein#distance")
+    extern go
+      fn
+        distance
+        (params (a String) (b String))
+        (-> Int)
+        from "github.com/agnivade/levenshtein.ComputeDistance"
+    (extern rust (fn distance (params (a String) (b String)) (-> Int) from "strsim::levenshtein"))
+  (section config (const doc " Words farther than this get no suggestion." max_distance Int 2))
+  section functions
+    fn
+      doc " The closest command to `word`, if it is close enough; the first one wins a tie."
+      suggest
+      (params (word String) (commands (List String)))
+      (-> (Option String))
+      block
+        (var best (Option String) None)
+        (var best_distance (+ max_distance 1))
+        for
+          command
+          commands
+          block
+            (let d (call distance word command))
+            if
+              (< d best_distance)
+              (block (= best (call Some (call (. command copy)))) (= best_distance d))
+        best
+    fn
+      main
+      ()
+      block
+        (let commands (list "build" "check" "run" "test" "fmt" "explain"))
+        for
+          word
+          (list "biuld" "tset" "chek" "rnu" "format")
+          block
+            match
+              (call suggest word commands)
+              (=> (Some command) (call print (+ (+ (+ word ": did you mean `") command) "`?")))
+              (=> None (call print (+ word ": no suggestion")))
+  section tests
+    test
+      "distance counts single edits"
+      block
+        (call assert (== (call distance "kitten" "sitting") 3))
+        (call assert (== (call distance "same" "same") 0))
+    test
+      "far words get no suggestion"
+      block
+        (call assert (== (call suggest "format" (list "fmt")) None))
+        (call assert (== (call suggest "tst" (list "test")) (call Some "test")))

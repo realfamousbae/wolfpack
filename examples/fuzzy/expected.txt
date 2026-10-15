@@ -1,0 +1,5 @@
+biuld: did you mean `build`?
+tset: did you mean `test`?
+chek: did you mean `check`?
+rnu: did you mean `run`?
+format: no suggestion

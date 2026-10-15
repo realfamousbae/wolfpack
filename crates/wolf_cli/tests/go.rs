@@ -71,7 +71,7 @@ fn examples() -> Vec<PathBuf> {
 #[test]
 fn every_example_runs_on_go() {
     let projects = examples();
-    assert_eq!(projects.len(), 10);
+    assert_eq!(projects.len(), 11);
     let mut failures = Vec::new();
     for project in projects {
         let name = project.file_name().unwrap().to_string_lossy().into_owned();
