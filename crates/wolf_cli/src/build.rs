@@ -747,7 +747,10 @@ fn run_rust(
             cmd.arg("--example").arg(name);
             out.join("target").join("debug").join("examples").join(name)
         }
-        None => out.join("target").join("debug").join(&program.name),
+        None => out
+            .join("target")
+            .join("debug")
+            .join(wolf_rs::bin_name(program)),
     };
     match cmd.output() {
         Ok(o) if o.status.success() => {}
@@ -810,7 +813,7 @@ fn run_rust_tests(
                 cmd.arg("--lib");
             }
             "bin" => {
-                cmd.arg("--bin").arg(&program.name);
+                cmd.arg("--bin").arg(wolf_rs::bin_name(program));
             }
             name => {
                 cmd.arg("--test").arg(name);

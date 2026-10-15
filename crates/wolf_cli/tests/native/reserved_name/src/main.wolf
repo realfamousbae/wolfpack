@@ -1,0 +1,9 @@
+//! A package whose name Cargo reserves for a build directory.
+
+module main
+
+functions {
+    fn main() {
+        print("hi")
+    }
+}
