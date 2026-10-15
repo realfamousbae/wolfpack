@@ -1044,16 +1044,19 @@ impl<'p> Emitter<'p> {
             args.push(self.extern_arg(ident(n), t)?);
         }
         let callee_call = if let Some((module, export)) = path.split_once('#') {
+            // The wrapper has the Wolfpack name; an export of the same name gets another one.
             let local = if export == "default" {
                 camel(&x.name) + "$default"
+            } else if export == camel(&x.name) {
+                format!("{export}$extern")
             } else {
                 export.to_string()
             };
             self.externs.push((
-                if export == "default" {
-                    format!("default as {local}")
-                } else {
+                if local == export {
                     export.to_string()
+                } else {
+                    format!("{export} as {local}")
                 },
                 module.to_string(),
             ));
