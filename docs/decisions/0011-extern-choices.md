@@ -1,8 +1,7 @@
 # 0011: Choices of `extern` (M11)
 
-Status: proposed. Items 1 to 4 were decided by the author on 2026-10-14 and changed chapters 7 and
-8; item 5 is a proposal; the other items are [INTERNAL] choices recorded so that the author can
-object.
+Status: accepted (author, 2026-10-16). Items 1 to 5 were decided by the author and changed
+chapters 7 and 8; the other items are [INTERNAL] choices recorded so that the author can object.
 
 ## Decision
 
@@ -17,8 +16,7 @@ object.
 4. **The example of M11 is `fuzzy`**, with `fastest-levenshtein` (npm),
    `github.com/agnivade/levenshtein` (Go) and `strsim` (crates.io). Its end-to-end tests fetch the
    packages, locally and in CI.
-5. **E0803** reports a failed `npm install` with the output of npm (chapter 8, section 9,
-   **[PROPOSAL]**).
+5. **E0803** reports a failed `npm install` with the output of npm (chapter 8, section 9).
 6. **Each extern function is a wrapper** in the generated code: a function with the Wolfpack name
    that converts the arguments, calls the target and converts the result. Calls in user code
    stay ordinary calls.
