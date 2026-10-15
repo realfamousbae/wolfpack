@@ -19,6 +19,8 @@ All notable changes are recorded here at the end of each milestone.
 - `[extern.<target>.dependencies]` goes into `package.json`, `go.mod` and `Cargo.toml`;
   `wolf run` and `wolf test` install TS packages with `npm install` (E0803 when it fails).
 - New example `fuzzy` with a package of each target language.
+- Fix: a package named `deps`, `examples`, `build` or `incremental` gets a Rust binary named
+  `<name>-bin`, since Cargo reserves these names.
 - Spec: integer conversions at the boundary, pointer types in Go paths, fetching dependencies,
   E0803.
 - Decisions: ADR 0011.
