@@ -38,6 +38,8 @@ pub struct Program {
     pub defs: BTreeMap<DefRef, DefInfo>,
     /// Every local, by [`LocalRef`].
     pub locals: BTreeMap<LocalRef, LocalInfo>,
+    /// The packages of each target from the manifest: name and version.
+    pub dependencies: BTreeMap<String, Vec<(String, String)>>,
 }
 
 impl Program {

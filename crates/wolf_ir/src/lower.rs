@@ -23,6 +23,9 @@ pub struct ProjectMeta<'a> {
     pub version: &'a str,
     /// `cli` or `lib`.
     pub kind: Kind,
+    /// The packages of each target (`ts`, `go`, `rust`) from `[extern.<target>.dependencies]`:
+    /// name and version.
+    pub dependencies: BTreeMap<String, Vec<(String, String)>>,
 }
 
 /// A construct the IR cannot express yet. The driver reports it as an internal error.
@@ -53,6 +56,7 @@ pub fn lower(
         modules: Vec::new(),
         defs: BTreeMap::new(),
         locals: BTreeMap::new(),
+        dependencies: meta.dependencies.clone(),
     };
     for (index, input) in modules.iter().enumerate() {
         let module = l.module(index, input)?;

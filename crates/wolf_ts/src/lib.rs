@@ -143,10 +143,36 @@ fn package_json(program: &Program) -> String {
         ProgramKind::Lib => "  \"exports\": \"./dist/src/lib.js\",\n",
         ProgramKind::Cli => "",
     };
+    // `[extern.ts.dependencies]`, copied verbatim (spec chapter 8, section 2, rule 5).
+    let dependencies = match program.dependencies.get("ts") {
+        Some(list) if !list.is_empty() => {
+            let entries: Vec<String> = list
+                .iter()
+                .map(|(name, version)| format!("    {}: {}", json(name), json(version)))
+                .collect();
+            format!("  \"dependencies\": {{\n{}\n  }},\n", entries.join(",\n"))
+        }
+        _ => String::new(),
+    };
     format!(
-        "{{\n  \"name\": \"{}\",\n  \"version\": \"{}\",\n  \"private\": true,\n  \"type\": \"module\",\n{exports}  \"scripts\": {{\n    \"build\": \"tsc\",\n    \"test\": \"tsc && node --test\"\n  }},\n  \"devDependencies\": {{\n    \"typescript\": \"^5.0.0\"\n  }}\n}}\n",
+        "{{\n  \"name\": \"{}\",\n  \"version\": \"{}\",\n  \"private\": true,\n  \"type\": \"module\",\n{exports}  \"scripts\": {{\n    \"build\": \"tsc\",\n    \"test\": \"tsc && node --test\"\n  }},\n{dependencies}  \"devDependencies\": {{\n    \"typescript\": \"^5.0.0\"\n  }}\n}}\n",
         program.name, program.version
     )
+}
+
+/// A JSON string.
+fn json(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// The part of `node:test` that generated tests use (there are no Node.js type packages).

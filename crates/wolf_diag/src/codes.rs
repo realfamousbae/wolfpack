@@ -274,6 +274,8 @@ pub const E0708: Code = Code::new("E0708", "extern name declared twice in one ta
 pub const E0801: Code = Code::new("E0801", "target tool not installed");
 /// A tool of the target rejected the generated code.
 pub const E0802: Code = Code::new("E0802", "target tool rejected the generated code");
+/// The packages of `[extern.<target>.dependencies]` could not be fetched.
+pub const E0803: Code = Code::new("E0803", "target dependencies could not be fetched");
 
 /// Every code in use, in order.
 pub const ALL: &[Code] = &[
@@ -285,7 +287,7 @@ pub const ALL: &[Code] = &[
     E0422, E0423, E0424, E0425, E0426, E0427, E0428, E0429, E0430, E0431, E0501, E0502, E0503,
     E0504, E0505, E0506, E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605,
     E0606, E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618,
-    E0619, E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0801, E0802,
+    E0619, E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0801, E0802, E0803,
 ];
 
 /// Codes that were used once and must never be used again.

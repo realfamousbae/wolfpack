@@ -1,0 +1,5 @@
+error[E0803]: the dependencies of the target could not be fetched
+ = help: check the names and versions in `[extern.ts.dependencies]` and the network connection
+ = note: npm error 404 Not Found - no-such-package
+
+error: aborting due to 1 error

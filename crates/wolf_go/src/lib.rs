@@ -69,7 +69,7 @@ pub fn generate(program: &Program, wolf_version: &str, tests: bool) -> Result<Pr
     });
     files.push(OutFile {
         path: "go.mod".to_string(),
-        contents: format!("module {}\n\ngo 1.24\n", program.name),
+        contents: go_mod(program),
     });
     files.sort_by(|a, b| a.path.cmp(&b.path));
     let mut list = e.test_list.clone();
@@ -78,6 +78,23 @@ pub fn generate(program: &Program, wolf_version: &str, tests: bool) -> Result<Pr
         file(a).cmp(&file(b))
     });
     Ok(Project { files, tests: list })
+}
+
+/// `go.mod`, with the modules of `[extern.go.dependencies]` as requirements.
+fn go_mod(program: &Program) -> String {
+    let mut out = format!("module {}\n\ngo 1.24\n", program.name);
+    match program.dependencies.get("go").map(Vec::as_slice) {
+        None | Some([]) => {}
+        Some([(name, version)]) => out.push_str(&format!("\nrequire {name} {version}\n")),
+        Some(list) => {
+            out.push_str("\nrequire (\n");
+            for (name, version) in list {
+                out.push_str(&format!("\t{name} {version}\n"));
+            }
+            out.push_str(")\n");
+        }
+    }
+    out
 }
 
 /// The package to build for `wolf run`: the root package or an example.

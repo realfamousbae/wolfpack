@@ -5,6 +5,7 @@
 //! `.wolf` file argument is checked on its own, without a project: lexing and parsing only. That
 //! mode is a tool for tests and debugging.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -155,6 +156,7 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
             name: &manifest.name,
             version: &manifest.version,
             kind: manifest.kind,
+            dependencies: BTreeMap::new(),
         };
         match wolf_ir::lower(&inputs, &resolved, &typed, &result.map, &meta) {
             Ok(program) => result.diagnostics.extend(wolf_own::check(&program)),

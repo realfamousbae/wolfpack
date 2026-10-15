@@ -92,6 +92,12 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
         name: &project.manifest.name,
         version: &project.manifest.version,
         kind: project.manifest.kind,
+        dependencies: project
+            .manifest
+            .dependencies
+            .iter()
+            .map(|(t, d)| (t.name().to_string(), d.clone()))
+            .collect(),
     };
     let program = match wolf_ir::lower(
         &inputs,
@@ -281,6 +287,20 @@ fn ts(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -
     if let Err(e) = write(out, &["src", "examples", "dist"], &list) {
         return write_failed(result, out, &e);
     }
+    // Packages of `[extern.ts.dependencies]` are installed before the project is compiled.
+    let needs_install = !matches!(then, Then::Nothing)
+        && program
+            .dependencies
+            .get("ts")
+            .is_some_and(|d| !d.is_empty());
+    let result = if needs_install {
+        match npm_install(result, out) {
+            Ok(r) => r,
+            Err(outcome) => return outcome,
+        }
+    } else {
+        result
+    };
     match then {
         Then::Nothing => Outcome::Built,
         Then::Test { filter } => run_ts_tests(
@@ -295,6 +315,40 @@ fn ts(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -
             &wolf_ts::entry_file(program, example.as_deref()),
             &args,
         ),
+    }
+}
+
+/// `npm install` in the output project (spec chapter 8, section 2, rule 5).
+fn npm_install(mut result: CheckResult, out: &Path) -> Result<CheckResult, Outcome> {
+    let Some(npm) = find_tool("npm", out) else {
+        return Err(missing_tool(
+            result,
+            Target::Ts,
+            "npm",
+            "install Node.js 22 or later from https://nodejs.org; it includes npm",
+        ));
+    };
+    let output = Command::new(&npm)
+        .args(["install", "--no-audit", "--no-fund", "--loglevel=error"])
+        .current_dir(out)
+        .output();
+    match output {
+        Ok(o) if o.status.success() => Ok(result),
+        Ok(o) => {
+            let text = String::from_utf8_lossy(&o.stderr).trim().to_string();
+            result.diagnostics.push(
+                Diagnostic::new(codes::E0803, "the dependencies of the target could not be fetched")
+                    .note(text)
+                    .help("check the names and versions in `[extern.ts.dependencies]` and the network connection"),
+            );
+            Err(Outcome::Failed(Box::new(result), crate::EXIT_ERRORS))
+        }
+        Err(e) => Err(missing_tool(
+            result,
+            Target::Ts,
+            "npm",
+            &format!("`npm` could not be started: {e}"),
+        )),
     }
 }
 

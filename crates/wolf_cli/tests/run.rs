@@ -45,7 +45,7 @@ fn every_example_runs_and_prints_expected_output() {
         .filter(|p| p.join("wolfpack.toml").is_file())
         .collect();
     projects.sort();
-    assert_eq!(projects.len(), 10);
+    assert_eq!(projects.len(), 11);
     let mut failures = Vec::new();
     for project in projects {
         let name = project.file_name().unwrap().to_string_lossy().into_owned();
@@ -152,6 +152,33 @@ fn e0802_rejected_code() {
     }
     let path = format!("{}:{}", fake.display(), tool_dir("node").display());
     let output = wolf_run(&dir, &tmp("E0802"), &[], Some(&path));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let expected = fs::read_to_string(dir.join("expected.stderr")).unwrap();
+    assert_eq!(stderr, expected);
+    assert_eq!(output.status.code(), Some(1));
+}
+
+/// E0803: the packages of `[extern.ts.dependencies]` cannot be fetched (simulated by a fake
+/// `npm`).
+#[test]
+fn e0803_dependencies_not_fetched() {
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run/E0803_dependencies_not_fetched");
+    let fake = tmp("fake_npm");
+    fs::create_dir_all(&fake).unwrap();
+    let npm = fake.join("npm");
+    fs::write(
+        &npm,
+        "#!/bin/sh\necho \"npm error 404 Not Found - no-such-package\" >&2\nexit 1\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&npm, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let path = fake.display().to_string();
+    let output = wolf_run(&dir, &tmp("E0803"), &[], Some(&path));
     let stderr = String::from_utf8_lossy(&output.stderr);
     let expected = fs::read_to_string(dir.join("expected.stderr")).unwrap();
     assert_eq!(stderr, expected);
