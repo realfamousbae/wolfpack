@@ -114,7 +114,7 @@ functions {
 }
 ```
 
-Write `names[0].copy()` instead. These rules are the core of Wolfpack's ownership, which chapter 8
+Write `names[0].copy()` instead. These rules are the core of wolfpack's ownership, which chapter 8
 covers in full. They are what lets the compiler emit plain code in all three targets: borrowed
 references in Rust, and no defensive copies in Go and TypeScript.
 

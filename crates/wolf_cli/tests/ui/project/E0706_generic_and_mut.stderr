@@ -12,6 +12,6 @@ error[E0706]: the extern function `push` has a `mut` parameter
 6 |         fn push(mut items: List<Int>) from "lib#push"
   |                 ^^^^^^^^^^^^^^^^^^^^ `mut` parameter
   |
-  = note: extern code cannot change Wolfpack values: return the new value instead
+  = note: extern code cannot change wolfpack values: return the new value instead
 
 error: aborting due to 2 errors

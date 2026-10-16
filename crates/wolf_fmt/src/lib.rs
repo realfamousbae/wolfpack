@@ -1,4 +1,4 @@
-//! `wolf fmt`: the canonical layout of Wolfpack source (spec chapter 3, section 8a).
+//! `wolf fmt`: the canonical layout of wolfpack source (spec chapter 3, section 8a).
 //!
 //! The formatter parses a file, builds a [`doc::Doc`] from the syntax tree and prints it within
 //! 100 columns. Literals, doc comments and ordinary comments are copied from the source text. The

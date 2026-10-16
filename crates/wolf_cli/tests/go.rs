@@ -286,7 +286,7 @@ fn relative_out_directory_on_go() {
     let output = wolf("run", &project, Path::new("build/out"), &[], None);
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "Hello, Wolfpack!\n",
+        "Hello, wolfpack!\n",
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );

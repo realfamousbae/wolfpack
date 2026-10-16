@@ -1,4 +1,4 @@
-//! Word helpers written in portable Wolfpack.
+//! Word helpers written in portable wolfpack.
 
 module text.words
 

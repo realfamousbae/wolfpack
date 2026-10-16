@@ -1,6 +1,6 @@
-# The Wolfpack playground
+# The wolfpack playground
 
-A static page that compiles Wolfpack in the browser: edit `src/main.wolf`, see errors as you
+A static page that compiles wolfpack in the browser: edit `src/main.wolf`, see errors as you
 type, run the program, and read the TypeScript, Go and Rust it compiles to. The compiler is the
 crate `crates/wolf_wasm` compiled to WebAssembly; programs run as their generated TypeScript in a
 worker (ADR 0012).

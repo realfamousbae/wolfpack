@@ -3,6 +3,6 @@ module main
 
 functions {
     fn main() {
-        print("Hello, Wolfpack!")
+        print("Hello, wolfpack!")
     }
 }

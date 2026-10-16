@@ -351,7 +351,7 @@ fn emit_tokens_prints_the_token_stream() {
         stdout.starts_with("== src/main.wolf\n0..6 module\n"),
         "{stdout}"
     );
-    assert!(stdout.contains("Str \"Hello, Wolfpack!\""), "{stdout}");
+    assert!(stdout.contains("Str \"Hello, wolfpack!\""), "{stdout}");
 }
 
 /// The valid half of each ownership rule (spec chapter 5, section 10): projects under

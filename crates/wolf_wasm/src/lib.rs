@@ -1,4 +1,4 @@
-//! The Wolfpack compiler for the browser playground (`playground/`), compiled to WebAssembly.
+//! The wolfpack compiler for the browser playground (`playground/`), compiled to WebAssembly.
 //!
 //! The playground edits one file, `src/main.wolf` of a `cli` project. Every function takes the
 //! source and returns a JSON object as a string, so the JavaScript side needs no bindings for Rust

@@ -39,7 +39,7 @@ functions {
 
 This program prints the same output on all three targets.
 
-What makes Wolfpack different:
+What makes wolfpack different:
 
 - **Every file has the same shape.** A file is a list of sections in a fixed order (`imports`,
   `types`, `impl`, `functions`, `tests`, ...), so you always know where to look.
@@ -59,7 +59,7 @@ What makes Wolfpack different:
 You need [Rust](https://rustup.rs) 1.85 or later to build `wolf` itself:
 
 ```bash
-cargo install --locked --git https://github.com/realfamousbae/Wolfpack wolfpack-lang
+cargo install --locked --git https://github.com/realfamousbae/wolfpack wolfpack-lang
 ```
 
 This installs the `wolf` command into `~/.cargo/bin`. To run programs, install the tools of the
@@ -78,11 +78,11 @@ $ wolf new hello
 created project `hello`
 $ cd hello
 $ wolf run
-Hello, Wolfpack!
+Hello, wolfpack!
 $ wolf run --target go
-Hello, Wolfpack!
+Hello, wolfpack!
 $ wolf run --target rust
-Hello, Wolfpack!
+Hello, wolfpack!
 ```
 
 `wolf new` creates a project with `src/main.wolf`, and `wolf run` builds and runs it. Edit

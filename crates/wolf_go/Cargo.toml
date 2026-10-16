@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The Go backend of the Wolfpack compiler"
+description = "The Go backend of the wolfpack compiler"
 
 [lib]
 name = "wolf_go"

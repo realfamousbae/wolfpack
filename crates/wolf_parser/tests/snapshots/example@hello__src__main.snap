@@ -2,4 +2,4 @@
 source: crates/wolf_parser/tests/parser.rs
 expression: result.dump
 ---
-(file module main (section functions (fn main () (block (call print "Hello, Wolfpack!")))))
+(file module main (section functions (fn main () (block (call print "Hello, wolfpack!")))))

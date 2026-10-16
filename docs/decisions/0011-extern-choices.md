@@ -17,7 +17,7 @@ chapters 7 and 8; the other items are [INTERNAL] choices recorded so that the au
    `github.com/agnivade/levenshtein` (Go) and `strsim` (crates.io). Its end-to-end tests fetch the
    packages, locally and in CI.
 5. **E0803** reports a failed `npm install` with the output of npm (chapter 8, section 9).
-6. **Each extern function is a wrapper** in the generated code: a function with the Wolfpack name
+6. **Each extern function is a wrapper** in the generated code: a function with the wolfpack name
    that converts the arguments, calls the target and converts the result. Calls in user code
    stay ordinary calls.
 7. **Opaque types are type aliases**: `export type Pattern = RegExp`, `type Pattern =
@@ -38,7 +38,7 @@ chapters 7 and 8; the other items are [INTERNAL] choices recorded so that the au
 ## Reasons
 
 1. Libraries return `int` and `usize`; a Go conversion of a parameter needs the parameter's type,
-   which Wolfpack does not know.
+   which wolfpack does not know.
 2. Many Go constructors return pointers.
 3. A project with dependencies cannot build without them.
 4. Levenshtein distance is one function from two strings to an integer in all three ecosystems.

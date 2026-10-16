@@ -23,9 +23,9 @@ pub(crate) const EXIT_ERRORS: u8 = 1;
 pub(crate) const EXIT_USAGE: u8 = 2;
 pub(crate) const EXIT_INTERNAL: u8 = 3;
 
-/// The Wolfpack compiler.
+/// The wolfpack compiler.
 #[derive(Parser)]
-#[command(name = "wolf", version, about = "The Wolfpack compiler")]
+#[command(name = "wolf", version, about = "The wolfpack compiler")]
 struct Cli {
     #[command(subcommand)]
     command: Command,

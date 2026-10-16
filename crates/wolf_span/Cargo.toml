@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Source files, spans and line positions of the Wolfpack compiler"
+description = "Source files, spans and line positions of the wolfpack compiler"
 
 [lib]
 name = "wolf_span"

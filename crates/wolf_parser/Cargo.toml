@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The parser of Wolfpack"
+description = "The parser of wolfpack"
 
 [lib]
 name = "wolf_parser"

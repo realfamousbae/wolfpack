@@ -1,4 +1,4 @@
-//! The syntax tree of Wolfpack (spec chapters 2 and 3).
+//! The syntax tree of wolfpack (spec chapters 2 and 3).
 //!
 //! The tree mirrors the source closely: it keeps sections in written order, doc comments and
 //! spans, and it may contain [`ExprKind::Error`] and similar nodes where the parser recovered from

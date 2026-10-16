@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The lexer of Wolfpack"
+description = "The lexer of wolfpack"
 
 [lib]
 name = "wolf_lexer"

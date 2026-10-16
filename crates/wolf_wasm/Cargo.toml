@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 publish = false
-description = "The Wolfpack compiler for the browser playground"
+description = "The wolfpack compiler for the browser playground"
 
 [lib]
 name = "wolf_wasm"

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The intermediate representation of Wolfpack and the lowering into it"
+description = "The intermediate representation of wolfpack and the lowering into it"
 
 [lib]
 name = "wolf_ir"

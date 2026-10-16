@@ -60,7 +60,7 @@ pub enum ConfigValue {
 }
 
 impl ConfigValue {
-    /// The Wolfpack type a constant must have to take this value.
+    /// The wolfpack type a constant must have to take this value.
     pub fn type_name(&self) -> &'static str {
         match self {
             ConfigValue::Int(_) => "Int",

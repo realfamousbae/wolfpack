@@ -846,7 +846,7 @@ impl Parser<'_> {
                 let span = p.peek_span();
                 p.report(
                     Diagnostic::new(codes::E0301, "expected `)`, found `,`")
-                        .primary(span, "there are no tuples in Wolfpack")
+                        .primary(span, "there are no tuples in wolfpack")
                         .help("use a struct with named fields"),
                 );
                 p.recover();

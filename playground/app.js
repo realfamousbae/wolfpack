@@ -1,4 +1,4 @@
-// The Wolfpack playground: the compiler runs in WebAssembly (`pkg/`, built from `crates/wolf_wasm`),
+// The wolfpack playground: the compiler runs in WebAssembly (`pkg/`, built from `crates/wolf_wasm`),
 // and programs run as the generated TypeScript, transpiled in the browser and run in a worker.
 
 import init, * as wolf from "./pkg/wolf_wasm.js";

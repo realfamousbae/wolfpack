@@ -103,7 +103,7 @@ module main
 
 functions {
     fn main() {
-        let name = "Wolfpack"
+        let name = "wolfpack"
         var count = 1
         count += 1
         count = count * 10
@@ -114,7 +114,7 @@ functions {
 ```
 
 ```output
-Wolfpack 20
+wolfpack 20
 ```
 
 The type of a variable is inferred from its value; it can also be written after the name, as for

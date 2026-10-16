@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Modules, imports and name resolution of Wolfpack"
+description = "Modules, imports and name resolution of wolfpack"
 
 [lib]
 name = "wolf_resolve"

@@ -94,7 +94,7 @@ impl Checker<'_> {
                             format!("the extern function `{}` has a `mut` parameter", sig.name.name),
                         )
                         .primary(p.span, "`mut` parameter")
-                        .note("extern code cannot change Wolfpack values: return the new value instead"),
+                        .note("extern code cannot change wolfpack values: return the new value instead"),
                     );
                 }
             }

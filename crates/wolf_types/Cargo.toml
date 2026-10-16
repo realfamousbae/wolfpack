@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The type checker of Wolfpack"
+description = "The type checker of wolfpack"
 
 [lib]
 name = "wolf_types"

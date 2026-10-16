@@ -1,6 +1,6 @@
-# The Wolfpack guide
+# The wolfpack guide
 
-This guide teaches Wolfpack step by step, for readers who already know another programming
+This guide teaches wolfpack step by step, for readers who already know another programming
 language. The specification in [`docs/spec/`](../spec/) is the precise definition of the language;
 the guide explains the same rules with examples and links to the spec where the details are.
 

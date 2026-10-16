@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The syntax tree of Wolfpack"
+description = "The syntax tree of wolfpack"
 
 [lib]
 name = "wolf_ast"

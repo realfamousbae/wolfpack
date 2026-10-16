@@ -1,4 +1,4 @@
-//! The Wolfpack lexer: source text to tokens (spec chapter 1).
+//! The wolfpack lexer: source text to tokens (spec chapter 1).
 //!
 //! The lexer is written by hand. It never stops at an error: every problem becomes a
 //! diagnostic, the offending text becomes an [`TokenKind::Error`] token, and lexing continues.

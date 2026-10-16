@@ -3,7 +3,7 @@ source: crates/wolf_parser/tests/parser.rs
 expression: result.dump
 ---
 file
-  doc! " Word helpers written in portable Wolfpack."
+  doc! " Word helpers written in portable wolfpack."
   module text.words
   (section imports (import std.string))
   section functions

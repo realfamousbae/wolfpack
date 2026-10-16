@@ -1,12 +1,12 @@
 # 12. Using target libraries
 
-The standard library of Wolfpack is small. Everything else is reached through the `extern` section:
-it declares functions and types of the target languages, with Wolfpack signatures, and the compiler
+The standard library of wolfpack is small. Everything else is reached through the `extern` section:
+it declares functions and types of the target languages, with wolfpack signatures, and the compiler
 calls them from the generated code.
 
 ## Declaring extern functions
 
-`extern` holds one block per target, `ts`, `go` and `rust`. Each declaration has a Wolfpack
+`extern` holds one block per target, `ts`, `go` and `rust`. Each declaration has a wolfpack
 signature and, after `from`, the path of the item in the notation of that target:
 
 ```wolf
@@ -50,13 +50,13 @@ declared for several targets, the signatures must be the same in every block; on
 | Rust | a path, methods in function form | `"std::cmp::max"`, `"str::to_uppercase"` |
 
 For a method path, such as `String.prototype.toUpperCase` or `str::to_uppercase`, the first
-Wolfpack parameter becomes the receiver.
+wolfpack parameter becomes the receiver.
 
 ## What crosses the boundary
 
 Only types that every target can convert are allowed in extern signatures: `Int`, `Float`, `Bool`,
 `String`, `Void`, `List` and `Option` of these, `Result<T, Error>`, and opaque types. Maps,
-structs, enums and interfaces are converted by Wolfpack code around the extern call.
+structs, enums and interfaces are converted by wolfpack code around the extern call.
 
 - Integers are checked when they cross: a Go `int32` or a Rust `usize` that does not fit, for
   example, is a panic, not a silent change of the value.
@@ -64,12 +64,12 @@ structs, enums and interfaces are converted by Wolfpack code around the extern c
   TypeScript or a Rust `Err` becomes `Err(e)`, and `e.message()` is the target's text. Without a
   `Result`, such a failure is a panic.
 - Extern functions are not generic and take no `mut` parameters: extern code cannot change
-  Wolfpack values. Read parameters are passed without a copy, and the extern code must not keep or
+  wolfpack values. Read parameters are passed without a copy, and the extern code must not keep or
   change them; the compiler cannot check that, so it is a promise of the declaration.
 
 ## Opaque types
 
-`type Name from "path"` declares a type of the target that Wolfpack knows nothing about. Such a
+`type Name from "path"` declares a type of the target that wolfpack knows nothing about. Such a
 value can be stored, moved and passed to extern functions, but it has no fields, no methods, no
 `==` and no `.copy()`:
 

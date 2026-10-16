@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The standard library of Wolfpack, as Wolfpack source"
+description = "The standard library of wolfpack, as wolfpack source"
 
 [lib]
 name = "wolf_std"

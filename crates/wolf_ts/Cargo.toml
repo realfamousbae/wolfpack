@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The TypeScript backend of the Wolfpack compiler"
+description = "The TypeScript backend of the wolfpack compiler"
 
 [lib]
 name = "wolf_ts"

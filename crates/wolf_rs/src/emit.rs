@@ -1894,7 +1894,7 @@ impl<'p> Emitter<'p> {
     }
 
     /// The result of extern code as a value of type `t`: strings, integers and errors of the
-    /// target's own types become Wolfpack's.
+    /// target's own types become wolfpack's.
     fn extern_result(&mut self, e: Expr, t: &IrType) -> Expr {
         match t {
             IrType::Int => self.rt_call("extern_int", "from_target_int", vec![e]),

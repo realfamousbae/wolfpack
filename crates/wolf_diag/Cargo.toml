@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Diagnostics of the Wolfpack compiler: codes, messages, rendering and explanations"
+description = "Diagnostics of the wolfpack compiler: codes, messages, rendering and explanations"
 
 [lib]
 name = "wolf_diag"

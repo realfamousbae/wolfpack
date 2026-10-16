@@ -2,7 +2,7 @@
 
 ## A new project
 
-Every Wolfpack program lives in a project. `wolf new` creates one:
+Every wolfpack program lives in a project. `wolf new` creates one:
 
 ```text
 $ wolf new hello
@@ -46,16 +46,16 @@ module main
 
 functions {
     fn main() {
-        print("Hello, Wolfpack!")
+        print("Hello, wolfpack!")
     }
 }
 ```
 
 ```output
-Hello, Wolfpack!
+Hello, wolfpack!
 ```
 
-Even this small file shows how every Wolfpack file is built:
+Even this small file shows how every wolfpack file is built:
 
 - It starts with a `module` line that names the module. A module is one file, and its name is its
   path below `src/`: `src/main.wolf` is `main`, `src/users/model.wolf` would be `users.model`.
@@ -68,7 +68,7 @@ Even this small file shows how every Wolfpack file is built:
 
 ```text
 $ wolf run
-Hello, Wolfpack!
+Hello, wolfpack!
 ```
 
 `wolf run` translates the program into the default target language, TypeScript, builds it with the
@@ -76,9 +76,9 @@ tools of that language and runs it. Pick another target with `--target`:
 
 ```text
 $ wolf run --target go
-Hello, Wolfpack!
+Hello, wolfpack!
 $ wolf run --target rust
-Hello, Wolfpack!
+Hello, wolfpack!
 ```
 
 Each target needs its own tools: Node.js 22 and TypeScript for `ts`, Go 1.24 for `go`, Rust 1.85 for
@@ -113,7 +113,7 @@ module main
 
 functions {
     fn main() {
-        prnt("Hello, Wolfpack!")
+        prnt("Hello, wolfpack!")
     }
 }
 ```
@@ -123,7 +123,7 @@ $ wolf check
 error[E0609]: unknown name `prnt`
   --> src/main.wolf:5:9
   |
-5 |         prnt("Hello, Wolfpack!")
+5 |         prnt("Hello, wolfpack!")
   |         ^^^^ not found in this scope
   |
   = help: did you mean `print`?

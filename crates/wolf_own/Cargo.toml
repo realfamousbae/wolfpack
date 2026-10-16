@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The ownership checker of Wolfpack"
+description = "The ownership checker of wolfpack"
 
 [lib]
 name = "wolf_own"

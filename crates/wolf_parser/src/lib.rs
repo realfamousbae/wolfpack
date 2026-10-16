@@ -1,4 +1,4 @@
-//! The Wolfpack parser: tokens to a syntax tree (spec chapters 2 and 3).
+//! The wolfpack parser: tokens to a syntax tree (spec chapters 2 and 3).
 //!
 //! Recursive descent for declarations and statements, a Pratt parser for expressions. The parser
 //! checks the file skeleton (chapter 2) while it reads the sections. It never stops at an error:

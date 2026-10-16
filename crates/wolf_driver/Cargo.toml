@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The in-memory compiler pipeline of Wolfpack"
+description = "The in-memory compiler pipeline of wolfpack"
 
 [lib]
 name = "wolf_driver"

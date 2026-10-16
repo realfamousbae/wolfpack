@@ -6,9 +6,9 @@ refines section 6 (Go "packages by folders").
 
 ## Decision
 
-1. **TypeScript**: a Wolfpack `struct` becomes a TS `class`; each variant of an enum with payloads
+1. **TypeScript**: a wolfpack `struct` becomes a TS `class`; each variant of an enum with payloads
    becomes a class with a `kind` field, and the enum is the union of these classes.
-2. **Go**: every Wolfpack module becomes its own Go package in its own directory:
+2. **Go**: every wolfpack module becomes its own Go package in its own directory:
    `src/users/storage.wolf` becomes `out/go/users/storage/storage.go`, package `storage`.
 3. **Runtime**: support code (checked arithmetic, ordered map, float formatting, panics, std
    intrinsics) is generated into each output project instead of being published as packages.
@@ -18,8 +18,8 @@ refines section 6 (Go "packages by folders").
 1. Values of an interface type (`List<Shape>`) need dynamic method calls. Plain objects with
    module-level functions have no methods, so each coercion would need a wrapper object. Classes
    give methods, `implements` and readable code.
-2. Two Wolfpack modules in one directory may have private names that are equal. In one Go package
-   they would collide. A package per module also makes Wolfpack `pub` match Go export exactly.
+2. Two wolfpack modules in one directory may have private names that are equal. In one Go package
+   they would collide. A package per module also makes wolfpack `pub` match Go export exactly.
 3. A generated runtime keeps every output project self-contained: no network access, no published
    packages to keep in sync, and the runtime always matches the compiler version.
 
