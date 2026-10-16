@@ -3,11 +3,11 @@
 //! - A ```` ```wolf ```` block is a complete project (see `common`). It must check without errors,
 //!   be formatted as `wolf fmt` writes it, and build for every target.
 //! - An ```` ```output ```` block belongs to the `wolf` block before it: that program is run on
-//!   TypeScript and must print exactly this text.
+//!   TypeScript, Go and Rust and must print exactly this text on each.
 //! - A ```` ```wolf error E0501 ```` block must report that code first.
 //! - A ```` ```wolf fragment ```` block is a piece of code that is not checked.
 //!
-//! These tests need `node` and `tsc` on `PATH`, like the other end-to-end tests.
+//! These tests need `node`, `tsc`, `go` and `cargo` on `PATH`, like the other end-to-end tests.
 
 // Test helpers may fail loudly.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -127,48 +127,70 @@ fn program(dir: &Path, source: &str, output: Option<&str>) -> Vec<String> {
         ));
     }
     if let Some(expected) = output {
-        let run_out = dir.with_extension("run");
-        let run = wolf(
-            dir,
-            &["run", "--target", "ts", "--out", run_out.to_str().unwrap()],
-        );
-        let stdout = String::from_utf8_lossy(&run.stdout);
-        if stdout != expected || !run.status.success() {
-            problems.push(format!(
-                "prints\n{stdout}\nexpected\n{expected}\n{}",
-                String::from_utf8_lossy(&run.stderr)
-            ));
+        for target in ["ts", "go", "rust"] {
+            let run_out = dir.with_extension(format!("run-{target}"));
+            let run = wolf(
+                dir,
+                &[
+                    "run",
+                    "--target",
+                    target,
+                    "--out",
+                    run_out.to_str().unwrap(),
+                ],
+            );
+            let stdout = String::from_utf8_lossy(&run.stdout);
+            if stdout != expected || !run.status.success() {
+                problems.push(format!(
+                    "prints on {target}\n{stdout}\nexpected\n{expected}\n{}",
+                    String::from_utf8_lossy(&run.stderr)
+                ));
+            }
         }
     }
     problems
 }
 
-#[test]
-fn guide_examples_check_build_and_print_their_output() {
+/// Checks every block of one guide file; the problems found.
+fn check_file(path: &Path) -> Vec<String> {
     let mut failures = Vec::new();
-    let files = guide_files();
-    assert!(!files.is_empty());
-    for path in files {
-        let name = path.file_stem().unwrap().to_string_lossy().into_owned();
-        let text = fs::read_to_string(&path).unwrap();
-        for (n, block) in blocks(&text, &mut failures, &name).iter().enumerate() {
-            let dir = tmp(&format!("{name}-{n}"));
-            match block {
-                Block::Program { source, output } => {
-                    for problem in program(&dir, source, output.as_deref()) {
-                        failures.push(format!("{name}, block {n}: {problem}"));
-                    }
+    let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+    let text = fs::read_to_string(path).unwrap();
+    for (n, block) in blocks(&text, &mut failures, &name).iter().enumerate() {
+        let dir = tmp(&format!("{name}-{n}"));
+        match block {
+            Block::Program { source, output } => {
+                for problem in program(&dir, source, output.as_deref()) {
+                    failures.push(format!("{name}, block {n}: {problem}"));
                 }
-                Block::Error { code, source } => {
-                    let (codes, stderr) = check(&dir, source);
-                    if codes.first() != Some(code) {
-                        failures.push(format!(
-                            "{name}, block {n}: expected {code}, reports {codes:?}\n{stderr}"
-                        ));
-                    }
+            }
+            Block::Error { code, source } => {
+                let (codes, stderr) = check(&dir, source);
+                if codes.first() != Some(code) {
+                    failures.push(format!(
+                        "{name}, block {n}: expected {code}, reports {codes:?}\n{stderr}"
+                    ));
                 }
             }
         }
     }
+    failures
+}
+
+#[test]
+fn guide_examples_check_build_and_print_their_output() {
+    let files = guide_files();
+    assert!(!files.is_empty());
+    // One thread per chapter: running the programs on three targets is slow.
+    let failures: Vec<String> = std::thread::scope(|scope| {
+        let handles: Vec<_> = files
+            .iter()
+            .map(|path| scope.spawn(move || check_file(path)))
+            .collect();
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect()
+    });
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
