@@ -77,10 +77,11 @@ Download the installer from the [latest release](https://github.com/realfamousba
 Then open a new terminal. `wolf setup --check` shows which tools are installed and where; if a
 download failed, `wolf setup` installs what is missing.
 
-To build `wolf` from source instead, you need [Rust](https://rustup.rs) 1.85 or later:
+To build `wolf` from source instead, you need [Rust](https://rustup.rs) 1.85 or later. The
+package on [crates.io](https://crates.io/crates/wolfpack-lang) is `wolfpack-lang`:
 
 ```bash
-cargo install --locked --git https://github.com/realfamousbae/wolfpack wolfpack-lang
+cargo install --locked wolfpack-lang
 ```
 
 `wolf setup` works the same way afterwards. You can also use tools you installed yourself:
