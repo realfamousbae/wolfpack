@@ -2,7 +2,7 @@
 
 Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
-This chapter defines ownership in Wolfpack: which values are copied and which are moved, the three
+This chapter defines ownership in wolfpack: which values are copied and which are moved, the three
 parameter modes, exclusive access, and closures. The model is "ownership without lifetimes"
 **[PLAN]** (section 4): references exist only for the duration of a call, a loop or a `match` arm,
 and can never be stored or returned, so no lifetime annotations are needed. This is the approach

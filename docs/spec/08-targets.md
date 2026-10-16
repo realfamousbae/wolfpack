@@ -2,7 +2,7 @@
 
 Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** and **[INTERNAL]** item in this chapter is accepted.
 
-This chapter says how each construct of Wolfpack becomes TypeScript, Go and Rust, and what the
+This chapter says how each construct of wolfpack becomes TypeScript, Go and Rust, and what the
 generated projects in `out/` look like. The observable behaviour is already fixed by chapters 1–7;
 this chapter must implement it exactly on every target.
 
@@ -12,7 +12,7 @@ are written down so the author can see them and object.
 
 Decisions already taken by the author for this chapter (2026-10-07):
 
-- Go: **one package per Wolfpack module**.
+- Go: **one package per wolfpack module**.
 - TypeScript: structs and enum variants become **classes**.
 - Runtime support code is **generated into each output project**, not published as packages.
 - Toolchains: **Node 22+, TypeScript 5.x (strict), Go 1.24+, Rust edition 2024 (1.85+)**.
@@ -120,7 +120,7 @@ Added after approval, while writing the examples. **[INTERNAL]**
    (`type_`, `default_`, `len_`) and is written as a raw identifier in Rust (`r#type`).
    **[INTERNAL]**
 3. Names that the backend generates (copy and equality helpers, temporaries) use prefixes that a
-   Wolfpack name cannot produce. If a generated helper would collide with a user name, the helper is
+   wolfpack name cannot produce. If a generated helper would collide with a user name, the helper is
    renamed, never the user name. **[INTERNAL]**
 
 ## 4. Types

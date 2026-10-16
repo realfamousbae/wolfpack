@@ -69,11 +69,11 @@ fn find_user(users: List<User>, id: Int) -> Option<User> {
    | types, enum variants, interfaces, type parameters | `PascalCase` | `[A-Z][A-Za-z0-9]*` |
 
    The strict `snake_case` pattern forbids `__`, a leading or a trailing `_`. That way two different
-   Wolfpack names can never collapse into the same `camelCase` name.
+   wolfpack names can never collapse into the same `camelCase` name.
    The lexer itself does not check style. The check runs during name resolution because it depends
    on what kind of name it is.
 5. A name that is a keyword in a target language (`type`, `func`, `default`, `chan`, ...) is a valid
-   Wolfpack identifier. Backends rename it. The rules are in chapter 8.
+   wolfpack identifier. Backends rename it. The rules are in chapter 8.
 
 ## 4. Keywords
 

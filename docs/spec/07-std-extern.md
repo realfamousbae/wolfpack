@@ -20,7 +20,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
    follow every rule of this specification.
 2. A function or method marked `intrinsic` has no body; each backend provides its implementation
    **[PLAN]**. `intrinsic` is allowed only in modules under `std` (E0701).
-3. Some std functions may be written in Wolfpack itself, with a body. That is invisible to users.
+3. Some std functions may be written in wolfpack itself, with a body. That is invisible to users.
 4. **Built-in types are declared in std** with an `intrinsic type` declaration in the `types`
    section, which has no body: `pub intrinsic type List<T>` (author, 2026-10-08). The backends know
    their representation (chapter 8). `std.string` declares `String`, `std.list` declares `List`,
@@ -33,7 +33,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
    through the type of the receiver (chapter 4, section 8.4). Importing `std.list` is needed only for
    its free functions.
 
-Notation below: signatures are written as in Wolfpack. `self` is a read receiver unless marked.
+Notation below: signatures are written as in wolfpack. `self` is a read receiver unless marked.
 
 ## 2. Errors
 
@@ -269,7 +269,7 @@ The string after `from` is the full path in the notation of the target (author):
 | Rust | a Rust path; methods in function form | `"std::cmp::max"`, `"str::to_uppercase"`, `"sha2::Sha256::new"` |
 
 For a **method** path (a Go method expression, a TS path through `.prototype.`, a Rust associated
-function taking `self`), the first Wolfpack parameter becomes the receiver. A path that does not fit
+function taking `self`), the first wolfpack parameter becomes the receiver. A path that does not fit
 the target's form is an error (E0705).
 
 The path of a Go **opaque type** may start with `*` for a pointer type (author, 2026-10-14):
@@ -294,7 +294,7 @@ The path of a Go **opaque type** may start with `*` for a pointer type (author, 
    value thrown in TS, or a Rust `E: Display` becomes an `Error` whose `message()` is the target's
    text.
 3. If the declared result is not a `Result`, a Go non-nil error, a TS exception or a Rust panic in the
-   extern call becomes a Wolfpack panic.
+   extern call becomes a wolfpack panic.
 4. Read parameters are passed without copying. The extern code must not change or keep them; this is
    a contract that the compiler cannot check. **[PROPOSAL]** (see D7.8)
 5. The exact conversions (`Int` to `bigint`, `Option` to `*T`, and so on) are in chapter 8.

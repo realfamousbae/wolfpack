@@ -2,7 +2,7 @@
 
 Status: **APPROVED** (author, 2026-10-07). Every **[PROPOSAL]** item in this chapter is accepted.
 
-This chapter defines the types of Wolfpack, how expressions are typed, generics, interfaces, the
+This chapter defines the types of wolfpack, how expressions are typed, generics, interfaces, the
 built-in interfaces and the exhaustiveness of `match`. Ownership (moves, parameter modes) is in
 chapter 5; the methods of built-in types are in chapter 7.
 
@@ -296,7 +296,7 @@ bounds. Associated functions are called as `Type.f(args)`.
 4. A type parameter has no built-in interfaces unless they are in its bounds:
    `fn dedup<T: Equatable + Copyable>(items: List<T>) -> List<T>`.
 5. Name note: G7 called the copy interface `Copy`. It is named `Copyable` to avoid confusion with
-   Rust's `Copy` (implicit copies), which in Wolfpack applies only to `Int`, `Float`, `Bool`
+   Rust's `Copy` (implicit copies), which in wolfpack applies only to `Int`, `Float`, `Bool`
    (chapter 5).
 
 ## 10. Type inference
