@@ -4,6 +4,8 @@
 //!   be formatted as `wolf fmt` writes it, and build for every target.
 //! - An ```` ```output ```` block belongs to the `wolf` block before it: that program is run on
 //!   TypeScript, Go and Rust and must print exactly this text on each.
+//! - A ```` ```ts generated src/main.ts ```` block (or `go`, `rust`) belongs to the `wolf` block
+//!   before it: the build of that program for the target must produce exactly this file.
 //! - A ```` ```wolf error E0501 ```` block must report that code first.
 //! - A ```` ```wolf fragment ```` block is a piece of code that is not checked.
 //!
@@ -24,6 +26,8 @@ enum Block {
     Program {
         source: String,
         output: Option<String>,
+        /// Generated files shown in the guide: target, path in `out/<target>/`, text.
+        generated: Vec<(String, String, String)>,
     },
     Error {
         code: String,
@@ -48,6 +52,7 @@ fn blocks(text: &str, failures: &mut Vec<String>, file: &str) -> Vec<Block> {
                     "wolf" => found.push(Block::Program {
                         source: body,
                         output: None,
+                        generated: Vec::new(),
                     }),
                     "output" => match found.last_mut() {
                         Some(Block::Program {
@@ -56,6 +61,16 @@ fn blocks(text: &str, failures: &mut Vec<String>, file: &str) -> Vec<Block> {
                         _ => failures.push(format!("{file}: `output` without a program before it")),
                     },
                     "wolf fragment" => {}
+                    _ if generated(&info).is_some() => {
+                        let (target, path) = generated(&info).unwrap();
+                        match found.last_mut() {
+                            Some(Block::Program { generated: g, .. }) => {
+                                g.push((target, path, body))
+                            }
+                            _ => failures
+                                .push(format!("{file}: `{info}` without a program before it")),
+                        }
+                    }
                     _ if info.starts_with("wolf error E")
                         && info.len() == "wolf error E0000".len() =>
                     {
@@ -82,6 +97,17 @@ fn blocks(text: &str, failures: &mut Vec<String>, file: &str) -> Vec<Block> {
     found
 }
 
+/// `ts generated src/main.ts` gives the target and the path.
+fn generated(info: &str) -> Option<(String, String)> {
+    let mut words = info.split(' ');
+    let target = words.next()?;
+    if !["ts", "go", "rust"].contains(&target) || words.next()? != "generated" {
+        return None;
+    }
+    let path = words.next()?;
+    Some((target.to_string(), path.to_string()))
+}
+
 fn guide_files() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/guide");
     let mut files: Vec<PathBuf> = fs::read_dir(dir)
@@ -101,7 +127,12 @@ fn tmp(name: &str) -> PathBuf {
 }
 
 /// Checks a program block; the problems found.
-fn program(dir: &Path, source: &str, output: Option<&str>) -> Vec<String> {
+fn program(
+    dir: &Path,
+    source: &str,
+    output: Option<&str>,
+    generated: &[(String, String, String)],
+) -> Vec<String> {
     let (codes, stderr) = check(dir, source);
     if !codes.is_empty() {
         return vec![format!("reports {codes:?}\n{stderr}")];
@@ -125,6 +156,12 @@ fn program(dir: &Path, source: &str, output: Option<&str>) -> Vec<String> {
             "does not build\n{}",
             String::from_utf8_lossy(&build.stderr)
         ));
+    }
+    for (target, path, expected) in generated {
+        let actual = fs::read_to_string(out.join(target).join(path)).unwrap_or_default();
+        if &actual != expected {
+            problems.push(format!("generates another {target} {path}:\n{actual}"));
+        }
     }
     if let Some(expected) = output {
         for target in ["ts", "go", "rust"] {
@@ -159,8 +196,12 @@ fn check_file(path: &Path) -> Vec<String> {
     for (n, block) in blocks(&text, &mut failures, &name).iter().enumerate() {
         let dir = tmp(&format!("{name}-{n}"));
         match block {
-            Block::Program { source, output } => {
-                for problem in program(&dir, source, output.as_deref()) {
+            Block::Program {
+                source,
+                output,
+                generated,
+            } => {
+                for problem in program(&dir, source, output.as_deref(), generated) {
                     failures.push(format!("{name}, block {n}: {problem}"));
                 }
             }
