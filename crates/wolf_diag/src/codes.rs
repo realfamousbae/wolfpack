@@ -1,7 +1,8 @@
 //! The list of all diagnostic codes.
 //!
 //! This is the only place where codes are defined (spec chapter 9). A code is never reused: when an
-//! error is removed, its code moves to [`RETIRED`]. Every code listed in [`ALL`] has a UI test.
+//! error is removed, its code moves to [`RETIRED`]. Every code listed in [`ALL`] has a UI test and
+//! a text for `wolf explain` in `explain/`.
 
 use crate::Code;
 

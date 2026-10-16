@@ -151,3 +151,20 @@ fn explain_rejects_unknown_codes() {
         );
     }
 }
+
+#[test]
+fn every_code_has_a_text() {
+    let ids: Vec<&str> = wolf_diag::codes::ALL.iter().map(|c| c.id()).collect();
+    for id in &ids {
+        assert!(
+            explain::text(id).is_some(),
+            "{id} has no text in `explain/`"
+        );
+    }
+    for (id, _) in explain::texts() {
+        assert!(
+            ids.contains(id),
+            "{id} has a text but is not in `codes::ALL`"
+        );
+    }
+}
