@@ -52,11 +52,17 @@ heading. The repository is `wolfpack`; the crates are `wolfpack-lang` (the `wolf
 
 - Commits and pull requests are authored by the user only. Never add `Co-Authored-By`, "Generated
   with", or any other attribution to Claude in commits, PRs, issues or contributor lists.
-- The author granted standing permission (2026-10-07) to commit and push to the private GitHub
-  repository `Wolfpack` (`origin`, branch `main`). One logical change per commit; spec edits in
+- Branches (author, 2026-10-17): `master` is the main branch; it holds what is released and what
+  GitHub Pages publishes. `night` is the integration branch: all current work is committed to
+  `night`, directly or through short feature branches merged into `night`. `night` is merged into
+  `master` only when the author says so (the end of a milestone, a release). Tags `v*` are made on
+  `master`.
+- The author granted standing permission (2026-10-07, moved to `night` on 2026-10-17) to commit and
+  push to the GitHub repository `wolfpack` (`origin`, branch `night` and feature branches). Pushing
+  to `master` needs the author's word each time. One logical change per commit; spec edits in
   their own commits. Do not change repository visibility, and do not push anywhere else.
 - Never put personal or sensitive data of the user into files or commits: this repository is
-  planned to be public.
+  public.
 
 ## Repository documents
 
