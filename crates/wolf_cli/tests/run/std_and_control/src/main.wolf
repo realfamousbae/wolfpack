@@ -23,7 +23,11 @@ interfaces {
 impl {
     Pair<T: Comparable + Copyable> {
         fn larger(self) -> T {
-            if self.first.compare(self.second) == Ordering.Less { self.second.copy() } else { self.first.copy() }
+            if self.first.compare(self.second) == Ordering.Less {
+                self.second.copy()
+            } else {
+                self.first.copy()
+            }
         }
     }
 }
@@ -80,7 +84,10 @@ functions {
         var sorted = nums.copy()
         list.sort(mut sorted)
         print(string.join(sorted.map(|n| n.to_string()), ","))
-        print(list.contains(nums, 9).to_string() + " " + list.sum(nums).to_string() + " " + list.range(2, 5).len().to_string())
+        print(
+            list.contains(nums, 9).to_string() + " " + list.sum(nums).to_string() + " " +
+                list.range(2, 5).len().to_string(),
+        )
         match list.min(nums) {
             Some(m) => print("min " + m.to_string())
             None => print("empty")
@@ -105,7 +112,10 @@ functions {
             Ok(n) => print(n.to_string())
             Err(e) => print(e.message())
         }
-        print(" a b ".trim() + "|" + "a,b,,c".split(",").len().to_string() + "|" + "Hello".to_upper_ascii() + "|" + "ab".repeat(3))
+        print(
+            " a b ".trim() + "|" + "a,b,,c".split(",").len().to_string() + "|" +
+                "Hello".to_upper_ascii() + "|" + "ab".repeat(3),
+        )
         print(match "hello".find("ll") {
             Some(i) => i.to_string()
             None => "-"
@@ -122,7 +132,10 @@ functions {
             total += n
         }
         print(total.to_string())
-        print((2.5).round().to_string() + " " + (-2.5).round().to_string() + " " + (7.9).to_int().to_string() + " " + (3).pow(4).to_string())
+        print(
+            (2.5).round().to_string() + " " + (-2.5).round().to_string() + " " +
+                (7.9).to_int().to_string() + " " + (3).pow(4).to_string(),
+        )
         process.exit(3)
     }
 }

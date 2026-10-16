@@ -98,12 +98,18 @@ functions {
         let q = p.copy()
         reset(mut p)
         print("p = " + p.x.to_string() + ", q = " + q.x.to_string())
-        print("p == q: " + (p == q).to_string() + ", copy equal: " + (q == Point { x: 3, y: 4 }).to_string())
+        print(
+            "p == q: " + (p == q).to_string() + ", copy equal: " +
+                (q == Point { x: 3, y: 4 }).to_string(),
+        )
         var numbers = [1, 2, 3]
         for x in mut numbers {
             x *= 10
         }
-        print("numbers: " + numbers.map(|x| x.to_string()).len().to_string() + " " + numbers[2].to_string())
+        print(
+            "numbers: " + numbers.map(|x| x.to_string()).len().to_string() + " " +
+                numbers[2].to_string(),
+        )
         print(match first_word("hello world") {
             Some(w) => w
             None => "-"
@@ -116,8 +122,14 @@ functions {
         }
         let text = "añb😀c"
         print(text.len().to_string() + " " + text[1..4] + " " + text[3..=3])
-        print((1.0).to_string() + " " + (0.1 + 0.2).to_string() + " " + (1.0 / 0.0).to_string() + " " + (2.5e-7).to_string() + " " + (1e21).to_string() + " " + (-0.0).to_string())
-        print((-7 / 2).to_string() + " " + (-7 % 2).to_string() + " " + (1 << 62).to_string() + " " + (-8 >> 1).to_string())
+        print(
+            (1.0).to_string() + " " + (0.1 + 0.2).to_string() + " " + (1.0 / 0.0).to_string() +
+                " " + (2.5e-7).to_string() + " " + (1e21).to_string() + " " + (-0.0).to_string(),
+        )
+        print(
+            (-7 / 2).to_string() + " " + (-7 % 2).to_string() + " " + (1 << 62).to_string() + " " +
+                (-8 >> 1).to_string(),
+        )
         print(math.int_max.to_string() + " " + math.int_min.to_string())
         var m: Map<String, Int> = [:]
         let _ = m.insert("b", 1)

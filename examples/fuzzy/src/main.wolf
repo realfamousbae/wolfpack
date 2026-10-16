@@ -8,7 +8,10 @@ extern {
         fn distance(a: String, b: String) -> Int from "fastest-levenshtein#distance"
     }
     go {
-        fn distance(a: String, b: String) -> Int from "github.com/agnivade/levenshtein.ComputeDistance"
+        fn distance(
+            a: String,
+            b: String,
+        ) -> Int from "github.com/agnivade/levenshtein.ComputeDistance"
     }
     rust {
         fn distance(a: String, b: String) -> Int from "strsim::levenshtein"

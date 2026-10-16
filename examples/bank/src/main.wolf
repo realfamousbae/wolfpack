@@ -50,7 +50,8 @@ impl {
     BankError: Error {
         fn message(self) -> String {
             match self {
-                BankError.InsufficientFunds(missing) => "insufficient funds, missing " + missing.to_string()
+                BankError.InsufficientFunds(missing) => "insufficient funds, missing " +
+                    missing.to_string()
                 BankError.InvalidAmount(amount) => "invalid amount " + amount.to_string()
             }
         }
