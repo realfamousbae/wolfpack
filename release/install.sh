@@ -120,12 +120,14 @@ pick_asset() {
             ;;
     esac
 
-    if ls /lib/ld-musl-* >/dev/null 2>&1 || { has ldd && ldd --version 2>&1 | grep -qi musl; }; then
-        fail "this Linux uses musl (Alpine?); the builds of wolf need glibc. Build it from source: cargo install --locked --git https://github.com/realfamousbae/wolfpack wolfpack-lang"
-    fi
+    # glibc first: a glibc system may have the musl package installed too.
     glibc=$(getconf GNU_LIBC_VERSION 2>/dev/null | sed -n 's/^glibc \([0-9]*\.[0-9]*\).*/\1/p')
-    if [ -n "$glibc" ] && ! version_at_least "$glibc" "$min_glibc"; then
-        fail "wolf needs glibc $min_glibc or newer, this system has $glibc; update the system or build wolf from source"
+    if [ -n "$glibc" ]; then
+        if ! version_at_least "$glibc" "$min_glibc"; then
+            fail "wolf needs glibc $min_glibc or newer, this system has $glibc; update the system or build wolf from source"
+        fi
+    elif ls /lib/ld-musl-* >/dev/null 2>&1 || { has ldd && ldd --version 2>&1 | grep -qi musl; }; then
+        fail "this Linux uses musl (Alpine?); the builds of wolf need glibc. Build it from source: cargo install --locked --git https://github.com/realfamousbae/wolfpack wolfpack-lang"
     fi
 
     case "$arch" in
