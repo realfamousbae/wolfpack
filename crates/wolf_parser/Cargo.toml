@@ -1,10 +1,14 @@
 [package]
-name = "wolf_parser"
+name = "wolfpack-parser"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "The parser of Wolfpack"
+
+[lib]
+name = "wolf_parser"
 
 [dependencies]
 wolf_ast = { workspace = true }
@@ -17,5 +21,5 @@ workspace = true
 
 [dev-dependencies]
 insta = "1.49.0"
-wolf_diag = { path = "../wolf_diag" }
-wolf_lexer = { path = "../wolf_lexer" }
+wolf_diag = { workspace = true }
+wolf_lexer = { workspace = true }

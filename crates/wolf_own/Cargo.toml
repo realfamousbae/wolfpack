@@ -1,10 +1,14 @@
 [package]
-name = "wolf_own"
+name = "wolfpack-own"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "The ownership checker of Wolfpack"
+
+[lib]
+name = "wolf_own"
 
 [dependencies]
 wolf_diag = { workspace = true }

@@ -13,11 +13,11 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-wolf_span = { path = "../crates/wolf_span" }
-wolf_diag = { path = "../crates/wolf_diag" }
-wolf_lexer = { path = "../crates/wolf_lexer" }
-wolf_parser = { path = "../crates/wolf_parser" }
-wolf_ast = { path = "../crates/wolf_ast" }
+wolf_span = { package = "wolfpack-span", path = "../crates/wolf_span" }
+wolf_diag = { package = "wolfpack-diag", path = "../crates/wolf_diag" }
+wolf_lexer = { package = "wolfpack-lexer", path = "../crates/wolf_lexer" }
+wolf_parser = { package = "wolfpack-parser", path = "../crates/wolf_parser" }
+wolf_ast = { package = "wolfpack-ast", path = "../crates/wolf_ast" }
 
 [[bin]]
 name = "lexer"

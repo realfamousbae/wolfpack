@@ -32,7 +32,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       # The compiler of the playground builds for WebAssembly, and its page is valid JavaScript.
-      - run: cargo build --release -p wolf_wasm --target wasm32-unknown-unknown
+      - run: cargo build --release -p wolfpack-wasm --target wasm32-unknown-unknown
       - run: node --check playground/app.js
       # The generated Rust promises `rust-version = "1.85"` (spec chapter 8): build the examples
       # and the run programs with that toolchain.

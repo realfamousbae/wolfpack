@@ -1,10 +1,14 @@
 [package]
-name = "wolf_rs"
+name = "wolfpack-rs"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "The Rust backend of the Wolfpack compiler"
+
+[lib]
+name = "wolf_rs"
 
 [dependencies]
 wolf_ir = { workspace = true }

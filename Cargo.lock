@@ -501,199 +501,199 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
-name = "wolf_ast"
+name = "wolfpack-ast"
 version = "0.1.0"
 dependencies = [
- "wolf_span",
+ "wolfpack-span",
 ]
 
 [[package]]
-name = "wolf_cli"
+name = "wolfpack-diag"
+version = "0.1.0"
+dependencies = [
+ "codespan-reporting",
+ "wolfpack-span",
+]
+
+[[package]]
+name = "wolfpack-driver"
+version = "0.1.0"
+dependencies = [
+ "wolfpack-ast",
+ "wolfpack-diag",
+ "wolfpack-go",
+ "wolfpack-ir",
+ "wolfpack-lexer",
+ "wolfpack-own",
+ "wolfpack-parser",
+ "wolfpack-project",
+ "wolfpack-resolve",
+ "wolfpack-rs",
+ "wolfpack-span",
+ "wolfpack-std",
+ "wolfpack-ts",
+ "wolfpack-types",
+]
+
+[[package]]
+name = "wolfpack-fmt"
+version = "0.1.0"
+dependencies = [
+ "wolfpack-ast",
+ "wolfpack-diag",
+ "wolfpack-lexer",
+ "wolfpack-parser",
+ "wolfpack-span",
+]
+
+[[package]]
+name = "wolfpack-go"
+version = "0.1.0"
+dependencies = [
+ "wolfpack-ir",
+]
+
+[[package]]
+name = "wolfpack-ir"
+version = "0.1.0"
+dependencies = [
+ "wolfpack-ast",
+ "wolfpack-lexer",
+ "wolfpack-parser",
+ "wolfpack-project",
+ "wolfpack-resolve",
+ "wolfpack-span",
+ "wolfpack-std",
+ "wolfpack-types",
+]
+
+[[package]]
+name = "wolfpack-lang"
 version = "0.1.0"
 dependencies = [
  "clap",
  "codespan-reporting",
- "wolf_ast",
- "wolf_diag",
- "wolf_driver",
- "wolf_fmt",
- "wolf_go",
- "wolf_ir",
- "wolf_lexer",
- "wolf_own",
- "wolf_parser",
- "wolf_project",
- "wolf_resolve",
- "wolf_rs",
- "wolf_span",
- "wolf_std",
- "wolf_ts",
- "wolf_types",
+ "wolfpack-ast",
+ "wolfpack-diag",
+ "wolfpack-driver",
+ "wolfpack-fmt",
+ "wolfpack-go",
+ "wolfpack-ir",
+ "wolfpack-lexer",
+ "wolfpack-own",
+ "wolfpack-parser",
+ "wolfpack-project",
+ "wolfpack-resolve",
+ "wolfpack-rs",
+ "wolfpack-span",
+ "wolfpack-std",
+ "wolfpack-ts",
+ "wolfpack-types",
 ]
 
 [[package]]
-name = "wolf_diag"
-version = "0.1.0"
-dependencies = [
- "codespan-reporting",
- "wolf_span",
-]
-
-[[package]]
-name = "wolf_driver"
-version = "0.1.0"
-dependencies = [
- "wolf_ast",
- "wolf_diag",
- "wolf_go",
- "wolf_ir",
- "wolf_lexer",
- "wolf_own",
- "wolf_parser",
- "wolf_project",
- "wolf_resolve",
- "wolf_rs",
- "wolf_span",
- "wolf_std",
- "wolf_ts",
- "wolf_types",
-]
-
-[[package]]
-name = "wolf_fmt"
-version = "0.1.0"
-dependencies = [
- "wolf_ast",
- "wolf_diag",
- "wolf_lexer",
- "wolf_parser",
- "wolf_span",
-]
-
-[[package]]
-name = "wolf_go"
-version = "0.1.0"
-dependencies = [
- "wolf_ir",
-]
-
-[[package]]
-name = "wolf_ir"
-version = "0.1.0"
-dependencies = [
- "wolf_ast",
- "wolf_lexer",
- "wolf_parser",
- "wolf_project",
- "wolf_resolve",
- "wolf_span",
- "wolf_std",
- "wolf_types",
-]
-
-[[package]]
-name = "wolf_lexer"
+name = "wolfpack-lexer"
 version = "0.1.0"
 dependencies = [
  "insta",
- "wolf_diag",
- "wolf_span",
+ "wolfpack-diag",
+ "wolfpack-span",
 ]
 
 [[package]]
-name = "wolf_own"
+name = "wolfpack-own"
 version = "0.1.0"
 dependencies = [
- "wolf_diag",
- "wolf_ir",
- "wolf_span",
+ "wolfpack-diag",
+ "wolfpack-ir",
+ "wolfpack-span",
 ]
 
 [[package]]
-name = "wolf_parser"
+name = "wolfpack-parser"
 version = "0.1.0"
 dependencies = [
  "insta",
- "wolf_ast",
- "wolf_diag",
- "wolf_lexer",
- "wolf_span",
+ "wolfpack-ast",
+ "wolfpack-diag",
+ "wolfpack-lexer",
+ "wolfpack-span",
 ]
 
 [[package]]
-name = "wolf_project"
+name = "wolfpack-project"
 version = "0.1.0"
 dependencies = [
  "toml",
- "wolf_diag",
- "wolf_span",
+ "wolfpack-diag",
+ "wolfpack-span",
 ]
 
 [[package]]
-name = "wolf_resolve"
+name = "wolfpack-resolve"
 version = "0.1.0"
 dependencies = [
- "wolf_ast",
- "wolf_diag",
- "wolf_lexer",
- "wolf_parser",
- "wolf_project",
- "wolf_span",
- "wolf_std",
+ "wolfpack-ast",
+ "wolfpack-diag",
+ "wolfpack-lexer",
+ "wolfpack-parser",
+ "wolfpack-project",
+ "wolfpack-span",
+ "wolfpack-std",
 ]
 
 [[package]]
-name = "wolf_rs"
+name = "wolfpack-rs"
 version = "0.1.0"
 dependencies = [
- "wolf_ir",
+ "wolfpack-ir",
 ]
 
 [[package]]
-name = "wolf_span"
+name = "wolfpack-span"
 version = "0.1.0"
 
 [[package]]
-name = "wolf_std"
-version = "0.1.0"
-dependencies = [
- "wolf_diag",
- "wolf_lexer",
- "wolf_parser",
- "wolf_span",
-]
-
-[[package]]
-name = "wolf_ts"
+name = "wolfpack-std"
 version = "0.1.0"
 dependencies = [
- "wolf_ir",
+ "wolfpack-diag",
+ "wolfpack-lexer",
+ "wolfpack-parser",
+ "wolfpack-span",
 ]
 
 [[package]]
-name = "wolf_types"
+name = "wolfpack-ts"
 version = "0.1.0"
 dependencies = [
- "wolf_ast",
- "wolf_diag",
- "wolf_lexer",
- "wolf_parser",
- "wolf_project",
- "wolf_resolve",
- "wolf_span",
- "wolf_std",
+ "wolfpack-ir",
 ]
 
 [[package]]
-name = "wolf_wasm"
+name = "wolfpack-types"
+version = "0.1.0"
+dependencies = [
+ "wolfpack-ast",
+ "wolfpack-diag",
+ "wolfpack-lexer",
+ "wolfpack-parser",
+ "wolfpack-project",
+ "wolfpack-resolve",
+ "wolfpack-span",
+ "wolfpack-std",
+]
+
+[[package]]
+name = "wolfpack-wasm"
 version = "0.1.0"
 dependencies = [
  "wasm-bindgen",
- "wolf_diag",
- "wolf_driver",
- "wolf_fmt",
- "wolf_ir",
- "wolf_project",
- "wolf_resolve",
- "wolf_span",
+ "wolfpack-diag",
+ "wolfpack-driver",
+ "wolfpack-fmt",
+ "wolfpack-ir",
+ "wolfpack-project",
+ "wolfpack-resolve",
+ "wolfpack-span",
 ]

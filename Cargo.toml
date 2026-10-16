@@ -11,22 +11,22 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/realfamousbae/Wolfpack"
 
 [workspace.dependencies]
-wolf_span = { path = "crates/wolf_span" }
-wolf_diag = { path = "crates/wolf_diag" }
-wolf_lexer = { path = "crates/wolf_lexer" }
-wolf_ast = { path = "crates/wolf_ast" }
-wolf_parser = { path = "crates/wolf_parser" }
-wolf_std = { path = "crates/wolf_std" }
-wolf_project = { path = "crates/wolf_project" }
-wolf_resolve = { path = "crates/wolf_resolve" }
-wolf_types = { path = "crates/wolf_types" }
-wolf_ir = { path = "crates/wolf_ir" }
-wolf_own = { path = "crates/wolf_own" }
-wolf_ts = { path = "crates/wolf_ts" }
-wolf_go = { path = "crates/wolf_go" }
-wolf_rs = { path = "crates/wolf_rs" }
-wolf_fmt = { path = "crates/wolf_fmt" }
-wolf_driver = { path = "crates/wolf_driver" }
+wolf_span = { package = "wolfpack-span", path = "crates/wolf_span", version = "0.1.0" }
+wolf_diag = { package = "wolfpack-diag", path = "crates/wolf_diag", version = "0.1.0" }
+wolf_lexer = { package = "wolfpack-lexer", path = "crates/wolf_lexer", version = "0.1.0" }
+wolf_ast = { package = "wolfpack-ast", path = "crates/wolf_ast", version = "0.1.0" }
+wolf_parser = { package = "wolfpack-parser", path = "crates/wolf_parser", version = "0.1.0" }
+wolf_std = { package = "wolfpack-std", path = "crates/wolf_std", version = "0.1.0" }
+wolf_project = { package = "wolfpack-project", path = "crates/wolf_project", version = "0.1.0" }
+wolf_resolve = { package = "wolfpack-resolve", path = "crates/wolf_resolve", version = "0.1.0" }
+wolf_types = { package = "wolfpack-types", path = "crates/wolf_types", version = "0.1.0" }
+wolf_ir = { package = "wolfpack-ir", path = "crates/wolf_ir", version = "0.1.0" }
+wolf_own = { package = "wolfpack-own", path = "crates/wolf_own", version = "0.1.0" }
+wolf_ts = { package = "wolfpack-ts", path = "crates/wolf_ts", version = "0.1.0" }
+wolf_go = { package = "wolfpack-go", path = "crates/wolf_go", version = "0.1.0" }
+wolf_rs = { package = "wolfpack-rs", path = "crates/wolf_rs", version = "0.1.0" }
+wolf_fmt = { package = "wolfpack-fmt", path = "crates/wolf_fmt", version = "0.1.0" }
+wolf_driver = { package = "wolfpack-driver", path = "crates/wolf_driver", version = "0.1.0" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

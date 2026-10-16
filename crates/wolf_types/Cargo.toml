@@ -1,10 +1,14 @@
 [package]
-name = "wolf_types"
+name = "wolfpack-types"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "The type checker of Wolfpack"
+
+[lib]
+name = "wolf_types"
 
 [dependencies]
 wolf_ast = { workspace = true }

@@ -59,7 +59,7 @@ What makes Wolfpack different:
 You need [Rust](https://rustup.rs) 1.85 or later to build `wolf` itself:
 
 ```bash
-cargo install --locked --git https://github.com/realfamousbae/Wolfpack wolf_cli
+cargo install --locked --git https://github.com/realfamousbae/Wolfpack wolfpack-lang
 ```
 
 This installs the `wolf` command into `~/.cargo/bin`. To run programs, install the tools of the

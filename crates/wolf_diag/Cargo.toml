@@ -1,10 +1,14 @@
 [package]
-name = "wolf_diag"
+name = "wolfpack-diag"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+description = "Diagnostics of the Wolfpack compiler: codes, messages, rendering and explanations"
+
+[lib]
+name = "wolf_diag"
 
 [dependencies]
 codespan-reporting = "0.13.1"
