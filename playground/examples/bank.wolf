@@ -1,0 +1,42 @@
+//! Ownership: `mut` changes an account in place, `own` takes it away. Try
+//! `transfer(mut alice, mut alice, 10)`: the compiler rejects the overlap.
+module main
+
+types {
+    struct Account {
+        owner: String
+        balance: Int
+    }
+}
+
+impl {
+    Account {
+        fn deposit(mut self, amount: Int) {
+            self.balance += amount
+        }
+
+        fn summary(self) -> String {
+            self.owner + ": " + self.balance.to_string()
+        }
+    }
+}
+
+functions {
+    fn transfer(mut from: Account, mut to: Account, amount: Int) {
+        from.deposit(-amount)
+        to.deposit(amount)
+    }
+
+    fn close(own account: Account) -> Int {
+        account.balance
+    }
+
+    fn main() {
+        var alice = Account { owner: "Alice", balance: 100 }
+        var bob = Account { owner: "Bob", balance: 20 }
+        transfer(mut alice, mut bob, 30)
+        print(alice.summary())
+        print(bob.summary())
+        print("closed with " + close(own bob).to_string())
+    }
+}

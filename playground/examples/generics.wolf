@@ -1,0 +1,48 @@
+//! A generic stack and a bound on a type parameter.
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Stack<T> {
+        fn new() -> Stack<T> {
+            Stack { items: [] }
+        }
+
+        fn push(mut self, own item: T) {
+            self.items.push(own item)
+        }
+
+        fn pop(mut self) -> Option<T> {
+            self.items.pop()
+        }
+    }
+}
+
+functions {
+    fn count_equal<T: Equatable>(items: List<T>, target: T) -> Int {
+        var count = 0
+        for item in items {
+            if item == target {
+                count += 1
+            }
+        }
+        count
+    }
+
+    fn main() {
+        var stack = Stack.new()
+        for word in own ["wolf", "pack", "wolf"] {
+            stack.push(own word)
+        }
+        match stack.pop() {
+            Some(top) => print("top: " + top)
+            None => print("empty")
+        }
+        print(count_equal(stack.items, "wolf").to_string())
+    }
+}

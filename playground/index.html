@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wolfpack playground</title>
+    <meta
+      name="description"
+      content="Write Wolfpack in the browser, run it, and see the TypeScript, Go and Rust it compiles to."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <header class="bar">
+      <h1 class="title">Wolfpack <span class="title-sub">playground</span></h1>
+      <label class="example">
+        <span class="visually-hidden">Example</span>
+        <select id="example" aria-label="Example">
+          <option value="hello">Hello</option>
+          <option value="shapes">Shapes and match</option>
+          <option value="bank">Ownership</option>
+          <option value="errors">Errors and Result</option>
+          <option value="generics">Generics</option>
+        </select>
+      </label>
+      <div class="actions">
+        <button id="share" type="button" class="button quiet">Copy link</button>
+        <button id="format" type="button" class="button quiet">Format</button>
+        <button id="run" type="button" class="button primary" title="Ctrl+Enter">Run</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="pane source" aria-label="Source">
+        <div class="pane-head">
+          <span class="file">src/main.wolf</span>
+        </div>
+        <div class="editor">
+          <pre class="gutter" id="gutter" aria-hidden="true"></pre>
+          <textarea
+            id="code"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            aria-label="Wolfpack source"
+          ></textarea>
+        </div>
+      </section>
+
+      <section class="pane result" aria-label="Result">
+        <div class="pane-head tabs" role="tablist">
+          <button role="tab" class="tab" data-view="output" aria-selected="true">Output</button>
+          <span class="tab-sep" aria-hidden="true"></span>
+          <button role="tab" class="tab lang" data-view="ts" aria-selected="false">TypeScript</button>
+          <button role="tab" class="tab lang" data-view="go" aria-selected="false">Go</button>
+          <button role="tab" class="tab lang" data-view="rust" aria-selected="false">Rust</button>
+          <select id="file" class="file-select" aria-label="Generated file" hidden></select>
+        </div>
+        <pre class="view" id="view" tabindex="0"></pre>
+      </section>
+    </main>
+
+    <footer class="status" id="status" role="status">Loading the compiler…</footer>
+  </body>
+</html>
