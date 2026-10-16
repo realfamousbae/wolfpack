@@ -151,9 +151,65 @@ jobs:
             test "$("$WOLF" run --target "$target")" = "Hello, wolfpack!"
           done
 
+  # The terminal installers on a clean machine, with the files of this run instead of a release.
+  try-scripts:
+    needs: [package-macos, package-linux, package-windows]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: dist
+      - name: The sums, as the release has them
+        shell: bash
+        run: |
+          cd dist
+          if command -v sha256sum >/dev/null; then sha256sum -- * > SHA256SUMS.txt; else shasum -a 256 -- * > SHA256SUMS.txt; fi
+      - name: install.sh, twice and into another directory
+        if: runner.os != 'Windows'
+        env:
+          WOLFPACK_DOWNLOAD_URL: file://${{ github.workspace }}/dist
+          WOLFPACK_NO_SETUP: "1"
+        run: |
+          # A short PATH, so the profiles must be changed even where ~/.local/bin is on PATH.
+          env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh release/install.sh
+          env PATH=/usr/bin:/bin:/usr/sbin:/sbin sh release/install.sh
+          sh release/install.sh --dir "$HOME/other-bin" --no-modify-path
+          "$HOME/.local/bin/wolf" --version
+          "$HOME/other-bin/wolf" --version
+          test "$(grep -c 'wolfpack installer' "$HOME/.profile")" = 1
+      - name: install.ps1 in Windows PowerShell 5.1, twice
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          WOLFPACK_DOWNLOAD_URL: ${{ github.workspace }}\dist
+          WOLFPACK_NO_SETUP: "1"
+        run: |
+          Get-Content -Raw release\install.ps1 | Invoke-Expression
+          Get-Content -Raw release\install.ps1 | Invoke-Expression
+          & "$env:LOCALAPPDATA\Programs\wolfpack\bin\wolf.exe" --version
+          $path = [Environment]::GetEnvironmentVariable('Path', 'User')
+          if (($path -split ';' | Where-Object { $_ -like '*Programs\wolfpack\bin' }).Count -ne 1) { throw "PATH: $path" }
+      - name: install.ps1 in PowerShell 7
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WOLFPACK_DOWNLOAD_URL: ${{ github.workspace }}\dist
+          WOLFPACK_NO_SETUP: "1"
+          WOLFPACK_INSTALL_DIR: ${{ runner.temp }}\wolf7
+        run: |
+          Get-Content -Raw release\install.ps1 | Invoke-Expression
+          & "$env:WOLFPACK_INSTALL_DIR\wolf.exe" --version
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: try
+    needs: [try, try-scripts]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -168,7 +224,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp release/install.sh dist/
+          cp release/install.sh release/install.ps1 dist/
           (cd dist && sha256sum -- * > SHA256SUMS.txt)
           gh release create "$GITHUB_REF_NAME" dist/* --draft --verify-tag \
             --title "wolfpack ${GITHUB_REF_NAME#v}" \
