@@ -103,6 +103,8 @@ directory.
 
 ## Learn more
 
+- [The playground](playground/README.md) runs the compiler in the browser: edit a program, run
+  it, and read the TypeScript, Go and Rust it becomes.
 - [The guide](docs/guide/README.md) teaches the language step by step, from the first program to
   ownership, generics, modules and target libraries.
 - [The specification](docs/spec/) is the exact definition of the language.
