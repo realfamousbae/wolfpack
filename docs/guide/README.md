@@ -30,6 +30,6 @@ first project.
 Every program in this guide is complete and is checked by the tests of the compiler
 (`crates/wolf_cli/tests/guide.rs`): it compiles, it is formatted as `wolf fmt` writes it, it builds
 for TypeScript, Go and Rust, and where the guide shows its output, it prints exactly that output on
-all three. The generated code shown in chapter 13 is compared with the real output of `wolf build`,
-and examples of errors are checked to produce the error they show. `wolf explain <code>` describes any
-error code in detail.
+all three. The generated code shown in chapter 13 is compared with the real output of
+`wolf build`, and examples of errors are checked to produce the error they show.
+`wolf explain <code>` describes any error code in detail.
