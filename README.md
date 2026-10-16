@@ -1,5 +1,10 @@
 # Wolfpack
 
+[![CI](https://github.com/realfamousbae/wolfpack/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/realfamousbae/wolfpack/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/realfamousbae/wolfpack)](https://github.com/realfamousbae/wolfpack/releases/latest)
+[![Playground](https://img.shields.io/badge/try-playground-blue)](https://realfamousbae.github.io/wolfpack/)
+[![License: MIT or Apache-2.0](https://img.shields.io/badge/license-MIT%20or%20Apache--2.0-green)](#license)
+
 Wolfpack is a small, statically typed programming language whose compiler, `wolf`, translates
 your program into **readable TypeScript, Go and Rust**. You write the program once; the compiler
 checks it and generates a project in the target language that looks as if a person had written it,
@@ -38,8 +43,29 @@ functions {
 ```
 
 This program prints the same output on all three targets.
+[Try it in the browser](https://realfamousbae.github.io/wolfpack/) without installing anything.
 
-What makes wolfpack different:
+## Contents
+
+- [Why wolfpack](#why-wolfpack)
+- [Install](#install)
+  - [Quick install](#quick-install)
+  - [What the installer does](#what-the-installer-does)
+  - [Installer options](#installer-options)
+  - [Other ways to install](#other-ways-to-install)
+  - [Check the installation](#check-the-installation)
+  - [Update](#update)
+  - [Uninstall](#uninstall)
+  - [Troubleshooting](#troubleshooting)
+- [Your first program](#your-first-program)
+- [Commands](#commands)
+- [Using TypeScript, Go and Rust libraries](#using-typescript-go-and-rust-libraries)
+- [Learn more](#learn-more)
+- [Status and roadmap](#status-and-roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Why wolfpack
 
 - **Every file has the same shape.** A file is a list of sections in a fixed order (`imports`,
   `types`, `impl`, `functions`, `tests`, ...), so you always know where to look.
@@ -53,40 +79,240 @@ What makes wolfpack different:
   on all three.
 - **Errors you can read.** Every diagnostic has a code, points at the exact place and often
   suggests a fix; `wolf explain E0501` describes any code with a wrong and a fixed example.
+- **No lock-in.** The generated project is ordinary TypeScript, Go or Rust. You can read it, ship
+  it, or keep developing it without wolfpack.
 
 ## Install
 
-The installers put the `wolf` command on your `PATH` and then run `wolf setup`, which downloads
-the tools that `wolf run` uses for each target: Node.js and TypeScript, Go and Rust. They go into
-`~/.wolfpack` (about 1 GB) and do not change versions of these tools that you installed yourself.
-Download the installer from the [latest release](https://github.com/realfamousbae/wolfpack/releases/latest):
+### Quick install
 
-- **macOS** (Apple silicon and Intel): `wolfpack-<version>-macos.pkg`. The package is not signed
-  yet, so macOS refuses to open it with a double-click: open it with a right-click and **Open**, or
-  allow it under **System Settings, Privacy & Security**. Rust needs the Command Line Tools of
-  Xcode; if macOS offers to install them, accept.
-- **Windows** (x64): `wolfpack-<version>-windows-x64-setup.exe`. It installs for your user, without
+Open a terminal and run one command.
+
+**macOS and Linux**
+
+```bash
+curl -fsSL https://github.com/realfamousbae/wolfpack/releases/latest/download/install.sh | sh
+```
+
+No `curl`? Use `wget`:
+
+```bash
+wget -qO- https://github.com/realfamousbae/wolfpack/releases/latest/download/install.sh | sh
+```
+
+**Windows** (PowerShell, no administrator rights needed)
+
+```powershell
+irm https://github.com/realfamousbae/wolfpack/releases/latest/download/install.ps1 | iex
+```
+
+Then **open a new terminal** (so it sees the new `PATH`) and check:
+
+```bash
+wolf --version
+```
+
+| Platform | Supported | Notes |
+| --- | --- | --- |
+| macOS 11 and newer | Apple silicon and Intel | one universal binary |
+| Linux | x64 and arm64, glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and newer) | for Alpine and other musl systems, [build from source](#build-from-source) |
+| Windows 10 and 11 | x64 | on Windows on ARM, the x64 build runs under emulation |
+
+### What the installer does
+
+1. Picks the build for your system and downloads it from the
+   [GitHub release](https://github.com/realfamousbae/wolfpack/releases/latest).
+2. Checks the download against `SHA256SUMS.txt` of the same release. A damaged or replaced file is
+   never installed.
+3. Puts `wolf` into your user's directory, without `sudo` or administrator rights:
+   `~/.local/bin/wolf` on macOS and Linux, `%LOCALAPPDATA%\Programs\wolfpack\bin\wolf.exe` on
+   Windows.
+4. Adds that directory to your `PATH`: in `~/.profile` and in the profiles of bash, zsh and fish
+   that you use (macOS, Linux), or in your user's `Path` (Windows). It adds each line only once.
+5. Runs **`wolf setup`**, which downloads the tools that `wolf run` uses for each target: Node.js
+   and TypeScript, Go and Rust. They go into `~/.wolfpack` (`%USERPROFILE%\.wolfpack` on Windows),
+   take about 1 GB, and **do not change** any versions of these tools that you installed yourself.
+   Each of them is also checked against a SHA-256 sum built into `wolf`.
+
+The installer is safe to run again: it replaces `wolf` with the new version and keeps the rest.
+If the network breaks off while the script is downloading, nothing runs, because the scripts do
+all their work in a function called on their last line.
+
+Prefer to read a script before running it? Download it, read it, then run it:
+
+```bash
+curl -fsSLO https://github.com/realfamousbae/wolfpack/releases/latest/download/install.sh
+less install.sh
+sh install.sh
+```
+
+### Installer options
+
+**macOS and Linux.** Pass options after `sh -s --`:
+
+```bash
+curl -fsSL https://github.com/realfamousbae/wolfpack/releases/latest/download/install.sh | sh -s -- --version 0.1.0 --no-setup
+```
+
+| Option | Environment variable | Meaning |
+| --- | --- | --- |
+| `--version <x.y.z>` | `WOLFPACK_VERSION` | install this release instead of the latest one |
+| `--dir <path>` | `WOLFPACK_INSTALL_DIR` | install `wolf` into this directory |
+| `--no-modify-path` | `WOLFPACK_NO_MODIFY_PATH=1` | do not change shell profiles |
+| `--no-setup` | `WOLFPACK_NO_SETUP=1` | do not run `wolf setup`; run it later yourself |
+| | `WOLFPACK_DOWNLOAD_URL` | download from a mirror instead of GitHub |
+| | `WOLFPACK_SKIP_CHECKSUM=1` | install without the SHA-256 check, when the system has no tool for it |
+
+**Windows.** Set environment variables first, then run the installer:
+
+```powershell
+$env:WOLFPACK_VERSION = '0.1.0'; $env:WOLFPACK_NO_SETUP = '1'
+irm https://github.com/realfamousbae/wolfpack/releases/latest/download/install.ps1 | iex
+```
+
+The same variables work: `WOLFPACK_VERSION`, `WOLFPACK_INSTALL_DIR`, `WOLFPACK_NO_MODIFY_PATH`,
+`WOLFPACK_NO_SETUP` and `WOLFPACK_DOWNLOAD_URL`.
+
+`wolf setup` itself installs into `~/.wolfpack`, or into the directory named by `WOLFPACK_HOME`.
+
+### Other ways to install
+
+#### Graphical installers
+
+Each [release](https://github.com/realfamousbae/wolfpack/releases/latest) also has installers you
+can double-click. They do the same as the scripts, including `wolf setup`.
+
+- **macOS**: `wolfpack-<version>-macos.pkg`, which installs `wolf` into `/usr/local/bin`. The
+  package is not signed yet, so macOS refuses to open it with a double-click: open it with a
+  right-click and **Open**, or allow it under **System Settings, Privacy & Security**.
+- **Windows**: `wolfpack-<version>-windows-x64-setup.exe`. It installs for your user, without
   administrator rights. Windows SmartScreen warns about an unknown publisher: choose
   **More info** and **Run anyway**.
-- **Linux** (x64 and arm64), or macOS from the terminal:
 
-  ```bash
-  curl -fsSL https://github.com/realfamousbae/wolfpack/releases/latest/download/install.sh | sh
-  ```
+#### Archives
 
-Then open a new terminal. `wolf setup --check` shows which tools are installed and where; if a
-download failed, `wolf setup` installs what is missing.
+`wolfpack-macos-universal.tar.gz`, `wolfpack-linux-x64.tar.gz`, `wolfpack-linux-arm64.tar.gz` and
+`wolfpack-windows-x64.zip` contain only the `wolf` binary. Unpack it into any directory on your
+`PATH` and run `wolf setup`.
 
-To build `wolf` from source instead, you need [Rust](https://rustup.rs) 1.85 or later. The
-package on [crates.io](https://crates.io/crates/wolfpack-lang) is `wolfpack-lang`:
+#### Build from source
+
+You need [Rust](https://rustup.rs) 1.85 or later. The package on
+[crates.io](https://crates.io/crates/wolfpack-lang) is `wolfpack-lang`:
 
 ```bash
 cargo install --locked wolfpack-lang
+wolf setup
 ```
 
-`wolf setup` works the same way afterwards. You can also use tools you installed yourself:
-`wolf` looks for them on `PATH` when `wolf setup` has not installed them. Node.js 22, TypeScript
-5, Go 1.24 and Rust 1.85 are the oldest versions it supports.
+This works on every system Rust supports, including Alpine and other musl-based Linux
+distributions.
+
+#### Use your own Node.js, Go and Rust
+
+`wolf setup` is optional. When it has not installed a tool, `wolf` looks for it on `PATH`. The
+oldest supported versions are Node.js 22, TypeScript 5, Go 1.24 and Rust 1.85. You only need the
+tools of the targets you use: `wolf setup --target go` installs just Go.
+
+### Check the installation
+
+```text
+$ wolf --version
+wolf 0.1.0
+$ wolf setup --check
+```
+
+`wolf setup --check` installs nothing. It lists every tool, where it was found and its version,
+and exits with code 1 if a tool of an enabled target is missing. Run `wolf setup` to install what
+is missing.
+
+### Update
+
+Run the installer again: the [quick install](#quick-install) command, or the newest graphical
+installer. It replaces `wolf` and keeps your settings and projects. Run `wolf setup` afterwards,
+because a new `wolf` may use new versions of the target tools.
+
+### Uninstall
+
+**macOS and Linux** (installed with the script):
+
+```bash
+rm ~/.local/bin/wolf
+rm -rf ~/.wolfpack
+```
+
+Then remove the lines after `# Added by the wolfpack installer.` from `~/.profile`, `~/.bashrc`,
+`~/.bash_profile`, `~/.zshrc` and `~/.zprofile`, and delete
+`~/.config/fish/conf.d/wolfpack.fish` if it exists.
+
+**macOS** (installed with the `.pkg`):
+
+```bash
+sudo rm /usr/local/bin/wolf
+sudo pkgutil --forget io.github.realfamousbae.wolfpack
+rm -rf ~/.wolfpack
+```
+
+**Windows**: if you used the setup program, uninstall **wolfpack** under **Settings, Apps**. If
+you used `install.ps1`, delete `%LOCALAPPDATA%\Programs\wolfpack` and remove it from your user's
+`Path` (**Settings, System, About, Advanced system settings, Environment Variables**). In both
+cases, delete `%USERPROFILE%\.wolfpack` to remove the target tools.
+
+### Troubleshooting
+
+<details>
+<summary><code>wolf: command not found</code> right after installing</summary>
+
+Open a new terminal: the old one does not see the changed `PATH`. If it still fails, add the
+directory yourself, for example `export PATH="$HOME/.local/bin:$PATH"` at the end of the profile
+of your shell, or run `~/.local/bin/wolf` directly.
+</details>
+
+<details>
+<summary>The download fails behind a corporate proxy</summary>
+
+On macOS and Linux, set `https_proxy` (for example
+`export https_proxy=http://proxy.example.com:8080`) before running the installer. On Windows,
+the installer uses the proxy of the system and your Windows sign-in. If a mirror of the release
+files is available inside your network, point `WOLFPACK_DOWNLOAD_URL` at it.
+</details>
+
+<details>
+<summary><code>the download ... is damaged</code></summary>
+
+The file did not arrive intact, or a proxy changed it. Run the installer again. If it keeps
+failing, download the archive and `SHA256SUMS.txt` from the release page by hand and compare them
+with `shasum -a 256` (macOS), `sha256sum` (Linux) or `Get-FileHash` (Windows).
+</details>
+
+<details>
+<summary><code>this Linux uses musl</code> or <code>wolf needs glibc 2.35 or newer</code></summary>
+
+The ready builds of `wolf` need a recent glibc. [Build wolf from source](#build-from-source); it
+takes a few minutes.
+</details>
+
+<details>
+<summary>Windows says that running scripts is disabled</summary>
+
+`irm ... | iex` does not run a script file, so the execution policy does not apply to it. If your
+organisation blocks it anyway, use the setup program from the release page instead.
+</details>
+
+<details>
+<summary><code>wolf setup</code> failed, or <code>wolf run</code> cannot find <code>node</code>, <code>go</code> or <code>cargo</code></summary>
+
+Run `wolf setup` again: it installs only what is missing and says which download failed and why.
+On macOS, Rust needs the Command Line Tools of Xcode; if macOS offers to install them, accept,
+then run `wolf setup` again. `wolf setup --check` shows what is installed and where.
+</details>
+
+<details>
+<summary>macOS refuses to open the <code>.pkg</code></summary>
+
+The package is not signed yet. Right-click it and choose **Open**, or allow it under
+**System Settings, Privacy & Security**. The terminal installer does not have this problem.
+</details>
 
 ## Your first program
 
@@ -106,18 +332,52 @@ Hello, wolfpack!
 `src/main.wolf` and run it again. The generated code is in `out/<target>/`;
 `wolf build --target all` writes all three.
 
-| Command | |
+A project always has the same layout:
+
+```text
+hello/
+  wolfpack.toml     name, version, targets, dependencies
+  src/
+    main.wolf       the program (lib.wolf for a library)
+  tests/            integration tests
+  examples/         small programs that use the project
+  out/              generated TypeScript, Go and Rust (not in git)
+```
+
+## Commands
+
+| Command | What it does |
 | --- | --- |
+| `wolf new <name>` | create a project (`--kind lib` for a library) |
 | `wolf check` | check the project without generating code |
 | `wolf build` | generate the target project in `out/<target>/` |
-| `wolf run` | build and run the program |
+| `wolf run` | build and run the program (`--target ts\|go\|rust`, `--example <name>`) |
 | `wolf test` | run the tests of the project |
-| `wolf fmt` | format the source files |
-| `wolf explain <code>` | explain an error code |
+| `wolf fmt` | format the source files (`--check` only reports) |
+| `wolf explain <code>` | explain an error code with a wrong and a fixed example |
 | `wolf setup` | install the tools of the targets; `--check` lists them |
 
-The [examples](examples/) of this repository are complete projects; run one with `wolf run` in its
-directory.
+`wolf <command> --help` shows every option. The [examples](examples/) of this repository are
+complete projects; run one with `wolf run` in its directory.
+
+## Using TypeScript, Go and Rust libraries
+
+The standard library of wolfpack is small on purpose. Everything else comes from the target
+languages through the `extern` section of a module: you declare a function or a type with a
+wolfpack signature and its path in the target, and call it like any other function.
+
+| What | Supported |
+| --- | --- |
+| The standard library of a target (`strings.ToUpper`, `Math.max`, `std::cmp::max`) | yes |
+| Packages from npm, Go modules and crates.io, listed in `wolfpack.toml` | yes |
+| Values at the boundary: `Int`, `Float`, `Bool`, `String`, `List`, `Option`, `Result`, opaque types | yes |
+| Your own `.ts`, `.go` and `.rs` files inside the project | planned |
+| `Map`, callbacks and records at the boundary | planned |
+| Declarations generated from the target code (`wolf bind`) | planned |
+
+[Chapter 12 of the guide](docs/guide/12-extern.md) shows how to use `extern`, and the
+[`fuzzy`](examples/fuzzy/) example uses a package of each target. The plan for the rest is in
+[docs/plans/native-code.md](docs/plans/native-code.md).
 
 ## Learn more
 
@@ -129,13 +389,36 @@ directory.
 - [The examples](examples/README.md) show the language on small programs.
 - [Decisions](docs/decisions/) record why the language and the compiler are the way they are.
 
-## Status
+## Status and roadmap
 
-Wolfpack is a young language. The compiler has a lexer, a parser, name resolution, a type checker
-with generics and interfaces, an ownership checker, and backends for TypeScript, Go and Rust, plus
-`extern` declarations for libraries of the target languages, a formatter and `wolf explain`. A
-bytecode virtual machine (`wolf run --vm`) is planned next. The [changelog](CHANGELOG.md) lists
-what each milestone added.
+Wolfpack is a young language: expect changes between versions. The compiler has a lexer, a
+parser, name resolution, a type checker with generics and interfaces, an ownership checker, and
+backends for TypeScript, Go and Rust, plus `extern` declarations for libraries of the target
+languages, a formatter and `wolf explain`. The [changelog](CHANGELOG.md) lists what each milestone
+added.
+
+Next:
+
+- a bytecode virtual machine (`wolf run --vm`);
+- your own target code in a project, and a wider `extern` boundary
+  ([plan](docs/plans/native-code.md));
+- package managers (Homebrew, Scoop, winget), signed installers and `wolf self update`
+  ([plan](docs/plans/distribution.md));
+- later: a language server for editors, async, and web and GUI projects.
+
+## Contributing
+
+Issues and pull requests are welcome. The branches are:
+
+| Branch | Purpose |
+| --- | --- |
+| `master` | released code; the playground is published from it, and release tags are made on it |
+| `night` | the integration branch, where new work lands first; it may be unstable |
+| other branches | single features and experiments, merged into `night` |
+
+Send pull requests to `night`. Before a commit, run `cargo fmt`, `cargo clippy -- -D warnings` and
+`cargo test`; the end-to-end tests need `node`, `tsc`, `go` and `cargo` on `PATH` (`wolf setup`
+installs them). Any change of the language starts with a change of [the specification](docs/spec/).
 
 ## License
 
