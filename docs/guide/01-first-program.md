@@ -81,9 +81,10 @@ $ wolf run --target rust
 Hello, wolfpack!
 ```
 
-Each target needs its own tools: Node.js 22 and TypeScript for `ts`, Go 1.24 for `go`, Rust 1.85 for
-`rust` (or later versions). A program prints the same output on every target; that is a promise of
-the language, and the tests of the compiler check it.
+Each target needs its own tools: Node.js and TypeScript for `ts`, Go for `go`, Rust for `rust`. The
+installers of `wolf` install them with `wolf setup`, which you can also run yourself;
+`wolf setup --check` shows where each tool is found. A program prints the same output on every target; that is
+a promise of the language, and the tests of the compiler check it.
 
 ## The other commands
 
@@ -96,6 +97,7 @@ the language, and the tests of the compiler check it.
 | `wolf fmt` | formats the source files; `wolf fmt --check` only lists the files that need it |
 | `wolf explain <code>` | explains an error code with a wrong and a fixed example |
 | `wolf new <name>` | creates a project; `--kind lib` creates a library |
+| `wolf setup` | installs the tools of the targets into `~/.wolfpack` |
 
 The commands find the project by looking for `wolfpack.toml` in the current directory and its
 parents, so they work from any directory inside the project.

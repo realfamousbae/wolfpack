@@ -56,20 +56,36 @@ What makes wolfpack different:
 
 ## Install
 
-You need [Rust](https://rustup.rs) 1.85 or later to build `wolf` itself:
+The installers put the `wolf` command on your `PATH` and then run `wolf setup`, which downloads
+the tools that `wolf run` uses for each target: Node.js and TypeScript, Go and Rust. They go into
+`~/.wolfpack` (about 1 GB) and do not change versions of these tools that you installed yourself.
+Download the installer from the [latest release](https://github.com/realfamousbae/wolfpack/releases/latest):
+
+- **macOS** (Apple silicon and Intel): `wolfpack-<version>-macos.pkg`. The package is not signed
+  yet, so macOS refuses to open it with a double-click: open it with a right-click and **Open**, or
+  allow it under **System Settings, Privacy & Security**. Rust needs the Command Line Tools of
+  Xcode; if macOS offers to install them, accept.
+- **Windows** (x64): `wolfpack-<version>-windows-x64-setup.exe`. It installs for your user, without
+  administrator rights. Windows SmartScreen warns about an unknown publisher: choose
+  **More info** and **Run anyway**.
+- **Linux** (x64 and arm64), or macOS from the terminal:
+
+  ```bash
+  curl -fsSL https://github.com/realfamousbae/wolfpack/releases/latest/download/install.sh | sh
+  ```
+
+Then open a new terminal. `wolf setup --check` shows which tools are installed and where; if a
+download failed, `wolf setup` installs what is missing.
+
+To build `wolf` from source instead, you need [Rust](https://rustup.rs) 1.85 or later:
 
 ```bash
 cargo install --locked --git https://github.com/realfamousbae/wolfpack wolfpack-lang
 ```
 
-This installs the `wolf` command into `~/.cargo/bin`. To run programs, install the tools of the
-targets you want to use:
-
-| Target | Tools |
-| --- | --- |
-| TypeScript (the default) | [Node.js](https://nodejs.org) 22 or later, and TypeScript: `npm install -g typescript` |
-| Go | [Go](https://go.dev/dl) 1.24 or later |
-| Rust | Rust 1.85 or later, which you already have |
+`wolf setup` works the same way afterwards. You can also use tools you installed yourself:
+`wolf` looks for them on `PATH` when `wolf setup` has not installed them. Node.js 22, TypeScript
+5, Go 1.24 and Rust 1.85 are the oldest versions it supports.
 
 ## Your first program
 
@@ -97,6 +113,7 @@ Hello, wolfpack!
 | `wolf test` | run the tests of the project |
 | `wolf fmt` | format the source files |
 | `wolf explain <code>` | explain an error code |
+| `wolf setup` | install the tools of the targets; `--check` lists them |
 
 The [examples](examples/) of this repository are complete projects; run one with `wolf run` in its
 directory.
