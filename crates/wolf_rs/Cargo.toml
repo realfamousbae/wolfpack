@@ -5,7 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "The Rust backend of the wolfpack compiler"
+readme = "../INTERNAL.md"
+description = "The Rust backend of the wolfpack compiler. Internal part of wolfpack-lang, not a stable API"
 
 [lib]
 name = "wolf_rs"

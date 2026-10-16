@@ -5,7 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Modules, imports and name resolution of wolfpack"
+readme = "../INTERNAL.md"
+description = "Modules, imports and name resolution of wolfpack. Internal part of wolfpack-lang, not a stable API"
 
 [lib]
 name = "wolf_resolve"
