@@ -80,7 +80,7 @@ struct FnState {
     self_local: Option<Local>,
     /// Read parameters of type `String` or `List`: `&str` or `&[T]`.
     unsized_params: BTreeSet<LocalRef>,
-    /// Integer literals get a suffix (they reach a type parameter).
+    /// Literals reach a type parameter: integers get a suffix, strings become `&String`.
     suffix: bool,
 }
 
@@ -2349,6 +2349,9 @@ impl<'p> Emitter<'p> {
             ExprKind::Unit => Expr::Tuple(Vec::new()),
             ExprKind::Str(s) => match want {
                 Want::Own => to_string(Expr::Str(s.clone())),
+                // A read parameter of a type parameter is `&T`, here `&String`: a `&str` literal
+                // does not fit it.
+                Want::Read(true) if self.f.suffix => reference(to_string(Expr::Str(s.clone()))),
                 _ => Expr::Str(s.clone()),
             },
             ExprKind::Local(l) => match self.f.locals.get(l).cloned() {
