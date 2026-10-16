@@ -458,6 +458,7 @@ dependencies = [
  "codespan-reporting",
  "wolf_ast",
  "wolf_diag",
+ "wolf_fmt",
  "wolf_go",
  "wolf_ir",
  "wolf_lexer",
@@ -477,6 +478,17 @@ name = "wolf_diag"
 version = "0.1.0"
 dependencies = [
  "codespan-reporting",
+ "wolf_span",
+]
+
+[[package]]
+name = "wolf_fmt"
+version = "0.1.0"
+dependencies = [
+ "wolf_ast",
+ "wolf_diag",
+ "wolf_lexer",
+ "wolf_parser",
  "wolf_span",
 ]
 
