@@ -81,7 +81,7 @@ code.addEventListener("keydown", (event) => {
     onEdit();
   } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
-    run();
+    if (ready) run();
   }
 });
 
@@ -89,6 +89,7 @@ code.addEventListener("input", onEdit);
 
 function onEdit() {
   saveSource();
+  if (!ready) return;
   lastFiles = { ts: null, go: null, rust: null };
   clearTimeout(checkTimer);
   checkTimer = setTimeout(checkNow, 250);
@@ -391,8 +392,12 @@ $("example").addEventListener("change", async (event) => {
 
 // ----- Start --------------------------------------------------------------------------------
 
+let ready = false;
+
 async function start() {
   await init();
+  ready = true;
+  for (const id of ["run", "format", "share", "example"]) $(id).disabled = false;
   let source = sourceFromHash();
   if (source === null) {
     try {

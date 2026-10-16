@@ -22,7 +22,7 @@
       <h1 class="title">Wolfpack <span class="title-sub">playground</span></h1>
       <label class="example">
         <span class="visually-hidden">Example</span>
-        <select id="example" aria-label="Example">
+        <select id="example" aria-label="Example" disabled>
           <option value="hello">Hello</option>
           <option value="shapes">Shapes and match</option>
           <option value="bank">Ownership</option>
@@ -31,9 +31,9 @@
         </select>
       </label>
       <div class="actions">
-        <button id="share" type="button" class="button quiet">Copy link</button>
-        <button id="format" type="button" class="button quiet">Format</button>
-        <button id="run" type="button" class="button primary" title="Ctrl+Enter">Run</button>
+        <button id="share" type="button" class="button quiet" disabled>Copy link</button>
+        <button id="format" type="button" class="button quiet" disabled>Format</button>
+        <button id="run" type="button" class="button primary" title="Ctrl+Enter" disabled>Run</button>
       </div>
     </header>
 
@@ -67,6 +67,6 @@
       </section>
     </main>
 
-    <footer class="status" id="status" role="status">Loading the compiler…</footer>
+    <footer class="status" id="status" role="status">Loading the compiler (about 2 MB)…</footer>
   </body>
 </html>
