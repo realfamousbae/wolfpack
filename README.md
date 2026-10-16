@@ -177,6 +177,14 @@ The same variables work: `WOLFPACK_VERSION`, `WOLFPACK_INSTALL_DIR`, `WOLFPACK_N
 
 ### Other ways to install
 
+Every way to install, for each system:
+
+| System | Terminal script | Graphical installer | Archive (only `wolf`) | From source |
+| --- | --- | --- | --- | --- |
+| macOS | `install.sh` | `wolfpack-<version>-macos.pkg` | `wolfpack-macos-universal.tar.gz` | `cargo install` |
+| Linux | `install.sh` | none | `wolfpack-linux-x64.tar.gz`, `wolfpack-linux-arm64.tar.gz` | `cargo install` |
+| Windows | `install.ps1` | `wolfpack-<version>-windows-x64-setup.exe` | `wolfpack-windows-x64.zip` | `cargo install` |
+
 #### Graphical installers
 
 Each [release](https://github.com/realfamousbae/wolfpack/releases/latest) also has installers you
@@ -416,7 +424,8 @@ Issues and pull requests are welcome. The branches are:
 | `night` | the integration branch, where new work lands first; it may be unstable |
 | other branches | single features and experiments, merged into `night` |
 
-Send pull requests to `night`. Before a commit, run `cargo fmt`, `cargo clippy -- -D warnings` and
+Send pull requests to `night`: GitHub suggests `master` as the base branch, so choose `night`
+when you open one. Before a commit, run `cargo fmt`, `cargo clippy -- -D warnings` and
 `cargo test`; the end-to-end tests need `node`, `tsc`, `go` and `cargo` on `PATH` (`wolf setup`
 installs them). Any change of the language starts with a change of [the specification](docs/spec/).
 
