@@ -1,0 +1,24 @@
+[package]
+name = "wolf_wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The Wolfpack compiler for the browser playground"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+wolf_diag = { workspace = true }
+wolf_driver = { workspace = true }
+wolf_fmt = { workspace = true }
+wolf_ir = { workspace = true }
+wolf_project = { workspace = true }
+wolf_resolve = { workspace = true }
+wolf_span = { workspace = true }
+
+[lints]
+workspace = true

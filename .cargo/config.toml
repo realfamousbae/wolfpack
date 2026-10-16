@@ -1,0 +1,4 @@
+# The playground runs the compiler in WebAssembly, on the main thread: give it the stack that the
+# parser needs for deeply nested input (`wolf_parser::STACK_SIZE`).
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=-zstack-size=16777216"]
