@@ -4,6 +4,17 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- `wolf setup` installs pinned, checked versions of Node.js, TypeScript, Go and Rust into
+  `~/.wolfpack/toolchains`, and `wolf` uses them before the tools on `PATH` (spec chapter 8,
+  section 2a; E0804). `wolf setup --check` lists the tools.
+- Release installers: a `.pkg` for macOS (universal), a per-user installer for Windows and
+  `install.sh` for Linux and macOS; each runs `wolf setup`. The release workflow builds them on a
+  tag, tries each one on a clean machine and creates a draft release.
+- The language is written `wolfpack` in lower case, the repository is `wolfpack`, and the crates
+  are `wolfpack-lang` and `wolfpack-*`, ready for crates.io.
+- Fix: on Windows, tools on `PATH` with `.exe` and `.cmd` names are found, and built programs are
+  run by their `.exe` name.
+
 ## M12: Polish (2026-10-16)
 
 - `wolf fmt` and `wolf fmt --check`: one canonical layout (spec chapter 3, section 8a); the
