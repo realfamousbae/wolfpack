@@ -280,3 +280,40 @@ fn tests_are_not_in_the_normal_build() {
     );
     assert!(!out.join("src/main.test.ts").exists());
 }
+
+/// `wolf fmt --check` lists the unformatted files and changes nothing; `wolf fmt` formats them.
+#[test]
+fn fmt_checks_and_formats_a_project() {
+    let dir = tmp("fmt_project");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::write(
+        dir.join("wolfpack.toml"),
+        "[package]\nname = \"fmt-demo\"\nversion = \"0.1.0\"\nkind = \"cli\"\n",
+    )
+    .unwrap();
+    let messy = "module main\nfunctions {\n    fn main() { print(\"hi\")   }\n}\n";
+    fs::write(dir.join("src/main.wolf"), messy).unwrap();
+    let fmt = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_wolf"))
+            .arg("fmt")
+            .args(args)
+            .current_dir(&dir)
+            .output()
+            .unwrap()
+    };
+    let check = fmt(&["--check"]);
+    assert_eq!(check.status.code(), Some(1));
+    assert_eq!(String::from_utf8_lossy(&check.stdout), "src/main.wolf\n");
+    assert_eq!(
+        fs::read_to_string(dir.join("src/main.wolf")).unwrap(),
+        messy
+    );
+    let write = fmt(&[]);
+    assert_eq!(write.status.code(), Some(0));
+    assert_eq!(
+        fs::read_to_string(dir.join("src/main.wolf")).unwrap(),
+        "module main\n\nfunctions {\n    fn main() { print(\"hi\") }\n}\n"
+    );
+    assert_eq!(fmt(&["--check"]).status.code(), Some(0));
+}

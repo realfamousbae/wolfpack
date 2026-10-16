@@ -5,6 +5,7 @@
 
 mod build;
 mod check;
+mod fmt;
 
 use std::io::{self, IsTerminal, Write};
 use std::panic;
@@ -41,6 +42,19 @@ enum Command {
     Run(RunArgs),
     /// Run the tests of the project: `tests` sections and the modules under `tests/`.
     Test(TestArgs),
+    /// Format the source files of the project, or the given files and directories.
+    Fmt(FmtArgs),
+}
+
+/// Options of `wolf fmt`.
+#[derive(clap::Args)]
+struct FmtArgs {
+    /// Files or directories to format; without them, the `.wolf` files of the project.
+    paths: Vec<PathBuf>,
+
+    /// Change nothing; list the files that are not formatted and exit with code 1.
+    #[arg(long)]
+    check: bool,
 }
 
 /// Options of `wolf test`.
@@ -257,6 +271,17 @@ fn run() -> ExitCode {
                 then,
                 target,
             ))
+        }
+        Command::Fmt(args) => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            match fmt::run(&cwd, &args.paths, args.check) {
+                fmt::Outcome::Done => ExitCode::SUCCESS,
+                fmt::Outcome::Unformatted(files) => {
+                    fmt::print_unformatted(&files);
+                    ExitCode::from(EXIT_ERRORS)
+                }
+                fmt::Outcome::Failed(result, code) => finish(build::Outcome::Failed(result, code)),
+            }
         }
         Command::Check(args) => {
             let result = check::run(&args);
