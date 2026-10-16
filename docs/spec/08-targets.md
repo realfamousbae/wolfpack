@@ -104,6 +104,33 @@ Added after approval, while writing the examples. **[INTERNAL]**
 3. **`examples/`**: TS `examples/<path>.ts` compiled as separate entry points; Go one `main` package
    per example in `examples/<path>/main.go`; Rust the native `examples/<path>.rs` of Cargo.
 
+## 2a. The tools of the targets and `wolf setup`
+
+`wolf run` and `wolf test` build the generated project with the tools of its target: `node`, `npm`
+and `tsc` for TypeScript, `go` for Go, `cargo` for Rust (author, 2026-10-16).
+
+1. **Where `wolf` finds a tool.** First among the tools installed by `wolf setup` in the wolfpack
+   home, then on `PATH`. The wolfpack home is `~/.wolfpack` (`%USERPROFILE%\.wolfpack` on
+   Windows), or the directory named by the environment variable `WOLFPACK_HOME`. A tool found
+   there is run with its own environment (its directory first on `PATH`, `RUSTUP_HOME` and
+   `CARGO_HOME` for Rust), so the user's own installations, `PATH` and settings are not changed.
+2. **`wolf setup`** installs the tools of every target into `<home>/toolchains/`. The versions are
+   fixed by the version of `wolf`; for 0.1.0 they are Node.js 24.22.0 (with npm), TypeScript
+   5.9.3, Go 1.27.2 and Rust 1.99.1 (installed with rustup 1.29.1, profile `minimal`). Every
+   download comes from the official site of the tool and is checked against a SHA-256 sum built
+   into `wolf`; a tool that is already installed in the right version is kept.
+   - `wolf setup --target <ts|go|rust>` installs the tools of one target.
+   - `wolf setup --check` installs nothing: it lists each tool, where it is found and its
+     version, and exits with code 1 if a tool of an enabled target is missing.
+3. **Platforms.** On Windows, Rust is the `x86_64-pc-windows-gnu` toolchain, which brings its own
+   linker, so Visual Studio is not needed. On macOS, Rust needs the Command Line Tools of Xcode
+   for its linker; when they are missing, `wolf setup` asks macOS to install them
+   (`xcode-select --install`) and says so.
+4. A download or an installation step that fails is E0804, with the tool, the URL and the reason.
+   Nothing half-installed is left in `<home>/toolchains/`.
+5. The release installers of `wolf` (a `.pkg` for macOS, an installer for Windows, an archive
+   with `install.sh` for Linux) put `wolf` on `PATH` and run `wolf setup` as their last step.
+
 ## 3. Names
 
 | Wolfpack | TS | Go | Rust |
@@ -289,7 +316,8 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 
 | Code | Error |
 | --- | --- |
-| E0801 | A tool of the target is not installed (`node`, `tsc`, `go`, `cargo`); the hint says how to install it |
+| E0801 | A tool of the target is not installed (`node`, `tsc`, `go`, `cargo`); the hint names `wolf setup` |
+| E0804 | `wolf setup` could not download or install a tool (section 2a); the tool, the URL and the reason are shown (author, 2026-10-16) |
 | E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it |
 | E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16) |
 
