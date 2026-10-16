@@ -37,3 +37,10 @@ unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
 indexing_slicing = "warn"
+
+# The compiler of the playground (`playground/build.sh`): small rather than fast.
+[profile.wasm]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1

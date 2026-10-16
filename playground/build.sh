@@ -3,4 +3,4 @@
 # wasm32-unknown-unknown target of Rust). Serve the playground/ directory with any static server.
 set -e
 cd "$(dirname "$0")/.."
-wasm-pack build crates/wolf_wasm --release --target web --out-dir ../../playground/pkg --out-name wolf_wasm --no-typescript --no-pack
+wasm-pack build crates/wolf_wasm --profile wasm --target web --out-dir ../../playground/pkg --out-name wolf_wasm --no-typescript --no-pack
