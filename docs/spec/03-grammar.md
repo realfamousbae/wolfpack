@@ -302,6 +302,41 @@ functions {
 }
 ```
 
+## 8a. Formatting (`wolf fmt`)
+
+`wolf fmt` (milestone M12) rewrites source files in one canonical layout, the layout of the examples
+(author, 2026-10-16). It changes only whitespace, line breaks, trailing commas and the separators of
+declarations; the syntax tree and every comment stay the same. `wolf fmt --check` reports the files
+that would change and changes nothing. A file with syntax errors is not formatted.
+
+1. **Lines.** Indentation is 4 spaces per level. Lines are at most 100 columns wide where the rules
+   below can break them. Lines end with `LF`, have no trailing spaces, and the file ends with one
+   newline.
+2. **Blank lines.** One blank line follows the `module` line and separates sections. Between two
+   items of a section, two members of a declaration or two statements, a blank line is kept if the
+   source has one or more, and none is added; blocks do not start or end with a blank line.
+3. **Declarations.** One field, variant, interface method, impl method, extern declaration or
+   section entry per line; a `,` separating them is removed. The payload of a struct variant stays
+   on the line of the variant: `Done { note: String }`. The order of declarations is not changed.
+4. **Spaces.** One space around binary operators, `=`, compound assignments, `->` and `=>`; after
+   `,` and `:`; inside the braces of a struct literal or pattern (`Point { x: 1 }`); none inside
+   `( )` and `[ ]`. Empty forms are `[]`, `[:]`, `()` and `Name {}`.
+5. **One-line blocks.** A block written on one line stays on one line if it holds one statement
+   and fits: `fn area(self) -> Float { self.w * self.h }`. Every other block has one statement per
+   line.
+6. **Breaking long lines.** When a construct does not fit, it is broken from the outside in:
+   - arguments, list and map items, struct literal fields and parameters go one per line, indented
+     once, with a trailing `,`;
+   - a last argument that is a closure with a block body, a `match`, an `if` or a block stays on the
+     line of the call: `items.map(|x| {`;
+   - a chain of two or more method calls puts each `.call()` on its own line, indented once;
+   - a binary expression breaks after its operators, the continuation indented once;
+   - the value of `let`, `var` or an assignment moves to the next line after `=`, indented once, if
+     that makes it fit.
+7. **Comments.** Doc comments and ordinary comments are kept as written. A comment on its own line
+   stays before the statement, member or item that follows it; a comment after code on the same line
+   stays at the end of that line, after one space.
+
 ## 9. Diagnostics
 
 Proposed range E03xx for parser errors (confirmed in chapter 9). This list is the minimum; the
