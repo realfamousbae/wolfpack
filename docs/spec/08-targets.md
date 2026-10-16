@@ -128,8 +128,18 @@ and `tsc` for TypeScript, `go` for Go, `cargo` for Rust (author, 2026-10-16).
    (`xcode-select --install`) and says so.
 4. A download or an installation step that fails is E0804, with the tool, the URL and the reason.
    Nothing half-installed is left in `<home>/toolchains/`.
-5. The release installers of `wolf` (a `.pkg` for macOS, an installer for Windows, an archive
-   with `install.sh` for Linux) put `wolf` on `PATH` and run `wolf setup` as their last step.
+5. The release installers of `wolf` put `wolf` on `PATH` and run `wolf setup` as their last step
+   (author, 2026-10-17: every way to install is listed for each system):
+   - **macOS**: the terminal script `install.sh` (`curl ... | sh`), the package `.pkg`, or the
+     archive `wolfpack-macos-universal.tar.gz`;
+   - **Linux**: the terminal script `install.sh`, or the archives `wolfpack-linux-x64.tar.gz` and
+     `wolfpack-linux-arm64.tar.gz`;
+   - **Windows**: the terminal script `install.ps1` (`irm ... | iex`), the setup program
+     `...-windows-x64-setup.exe`, or the archive `wolfpack-windows-x64.zip`;
+   - **every system**: building from source with `cargo install`.
+
+   The archives contain only `wolf`: they change no `PATH` and do not run `wolf setup`. The
+   terminal scripts check the download against the `SHA256SUMS.txt` of the release.
 
 ## 3. Names
 
