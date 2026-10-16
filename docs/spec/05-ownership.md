@@ -59,7 +59,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
 3. **Only whole variables can be moved** (author). The place in an owning position must be a local
    variable or an `own` parameter, never a field path or an index. `let n = user.name` is an error
    with three suggestions: copy it (`user.name.copy()`), take the whole value apart with
-   `match own user`, or use a std function that takes a part out (`list.remove(i)`,
+   `match own user`, or use a std function that takes a part out (the method `items.remove(i)`,
    `replace(mut place, own value)` from the prelude, rule 7).
 4. A **borrowed** value cannot be moved: a read or `mut` parameter, `self` in read or `mut` mode, a
    binding of `match place`, a variable of `for x in xs`. The error suggests `.copy()`.
@@ -169,7 +169,8 @@ Two places **overlap** if one is a prefix of the other: `user` and `user.name` o
 3. `match temporary` (for example `match find(id)`) behaves like `match own`: the temporary has no
    other owner.
 4. `match mut place` (author, D5.2) borrows the place exclusively. The bindings give in-place,
-   mutable access to the parts: `match mut shape { Shape.Circle(r) => r *= 2.0 }`. Inside the arm the
+   mutable access to the parts: `match mut shape { Shape.Circle(r) => { r *= 2.0 } }` (an arm
+   that assigns is a block, since an assignment is a statement, chapter 3). Inside the arm the
    place itself cannot be used except through the bindings. The place must be a mutable place.
 
 ### 7.5 Assignment
