@@ -105,6 +105,9 @@ plain `self` only borrows the value, so to return a field it would return `self.
 Each type has one such block, in the module that declares the type. Methods cannot be added to
 types of other modules or to built-in types; write a function instead.
 
+A method also cannot have the name of a field of its struct: TypeScript and Go keep fields and
+methods in one namespace. That is why the field above is `name` and the method `label`.
+
 ## Enums
 
 An `enum` is a type whose value is one of several **variants**. A variant can carry no data,

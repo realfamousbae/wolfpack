@@ -245,5 +245,6 @@ A few more rules keep interfaces translatable to Go and Rust:
 - Every interface method takes `self`, and has no type parameters of its own. The interface itself
   may have them: `interface Container<T>`.
 - A type implements an interface at most once, in the module that declares the type.
-- A type cannot have two methods with the same name, even from two different interfaces.
+- A type cannot have two methods with the same name, even from two different interfaces, and a
+  method of a struct cannot have the name of one of its fields.
 - Interfaces have no default method bodies and do not extend each other.
