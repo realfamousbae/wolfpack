@@ -34,7 +34,7 @@ Recommendations are the drafter's; "plan default" is what `PLAN.md` says.
 
 | # | Question | Status | Answer / recommendation |
 | --- | --- | --- | --- |
-| 1 | Crates.io name | open | Plan default: publish as `wolfpack-lang`, binary `wolf`. Not blocking before M12 |
+| 1 | Crates.io name | **closed** (author, 2026-10-16) | The command-line package is `wolfpack-lang` with the binary `wolf`; the internal crates are published as `wolfpack-<name>` (`wolfpack-diag`, ...). Publication waits until the repository is public |
 | 2 | `Int` size | **closed** (ADR 0001) | 64-bit everywhere, `bigint` in TS. Deviates from plan default |
 | 3 | Bytecode vs WebAssembly | open | Plan default: own stack bytecode and VM. Not blocking before M13 |
 | 4 | `config` overridable from manifest | **closed** (plan default) | Constants, overridable from `[config]` in `wolfpack.toml`. Follow-up for chapter 6: add a `[config]` table to the manifest and decide which types may be overridden |
