@@ -1,0 +1,25 @@
+error[E0432]: `Counter` has a field and a method named `label`
+   --> src/main.wolf:25:12
+   |
+ 5 |         label: String
+   |         ----- field
+   .
+25 |         fn label(self) -> String {
+   |            ^^^^^ method
+   |
+   = help: rename the method or the field
+   = note: fields and methods of a struct share one namespace in TypeScript and Go
+
+error[E0432]: `Job` has a field and a method named `message`
+   --> src/main.wolf:31:12
+   |
+10 |         message: String
+   |         ------- field
+   .
+31 |         fn message(self) -> String {
+   |            ^^^^^^^ method
+   |
+   = help: rename the method or the field
+   = note: fields and methods of a struct share one namespace in TypeScript and Go
+
+error: aborting due to 2 errors

@@ -1,0 +1,52 @@
+module main
+
+types {
+    struct Counter {
+        label: String
+        count: Int
+    }
+
+    struct Job {
+        message: String
+    }
+
+    enum Shape {
+        Rect { w: Float }
+        Empty
+    }
+}
+
+impl {
+    Counter {
+        fn count() -> Counter {
+            Counter { label: "c", count: 0 }
+        }
+
+        fn label(self) -> String {
+            self.label.copy()
+        }
+    }
+
+    Job: Error {
+        fn message(self) -> String {
+            self.message.copy()
+        }
+    }
+
+    Shape {
+        fn w(self) -> Float {
+            match self {
+                Shape.Rect { w } => w
+                Shape.Empty => 0.0
+            }
+        }
+    }
+}
+
+functions {
+    fn main() {
+        print(Counter.count().label())
+        print(Job { message: "m" }.message())
+        print(Shape.Empty.w().to_string())
+    }
+}

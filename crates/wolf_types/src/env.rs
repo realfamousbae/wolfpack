@@ -994,6 +994,7 @@ impl<'a> Checker<'a> {
         let mut implemented: Vec<(String, Span, Sig)> = Vec::new();
         for method in &block.methods {
             let sig = self.lower_sig(&method.decl.sig, &scope);
+            let has_self = sig.self_mode.is_some();
             let name = method.decl.sig.name.clone();
             implemented.push((name.name.clone(), name.span, sig.clone()));
             let index = self.methods.len();
@@ -1028,6 +1029,30 @@ impl<'a> Checker<'a> {
                 }
                 None => {
                     table.insert(name.name.clone(), index);
+                }
+            }
+            // TypeScript classes and Go structs keep fields and methods in one namespace
+            // (spec chapter 4, section 8.3, rule 6).
+            if has_self {
+                let field = self
+                    .fields
+                    .get(&owner)
+                    .and_then(|fields| fields.iter().find(|f| f.name == name.name))
+                    .map(|f| f.span);
+                if let Some(field_span) = field {
+                    self.report(
+                        Diagnostic::new(
+                            codes::E0432,
+                            format!(
+                                "`{}` has a field and a method named `{}`",
+                                owner_def.name, name.name
+                            ),
+                        )
+                        .primary(name.span, "method")
+                        .secondary(field_span, "field")
+                        .help("rename the method or the field")
+                        .note("fields and methods of a struct share one namespace in TypeScript and Go"),
+                    );
                 }
             }
             if interface.is_none() {

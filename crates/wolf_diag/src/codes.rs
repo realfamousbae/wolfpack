@@ -180,6 +180,9 @@ pub const E0430: Code = Code::new("E0430", "`break` or `continue` outside a loop
 
 /// Implementation that cannot be written.
 pub const E0431: Code = Code::new("E0431", "implementation that cannot be written");
+/// A method of a struct with the name of one of its fields.
+pub const E0432: Code = Code::new("E0432", "method with the name of a field");
+
 /// Use of a moved value.
 pub const E0501: Code = Code::new("E0501", "use of a moved value");
 /// Use of a value that may have been moved.
@@ -285,10 +288,11 @@ pub const ALL: &[Code] = &[
     E0210, E0211, E0212, E0213, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309,
     E0310, E0311, E0312, E0313, E0314, E0401, E0402, E0403, E0404, E0405, E0406, E0407, E0408,
     E0409, E0410, E0411, E0412, E0413, E0414, E0415, E0416, E0417, E0418, E0419, E0420, E0421,
-    E0422, E0423, E0424, E0425, E0426, E0427, E0428, E0429, E0430, E0431, E0501, E0502, E0503,
-    E0504, E0505, E0506, E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605,
-    E0606, E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618,
-    E0619, E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0801, E0802, E0803,
+    E0422, E0423, E0424, E0425, E0426, E0427, E0428, E0429, E0430, E0431, E0432, E0501, E0502,
+    E0503, E0504, E0505, E0506, E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604,
+    E0605, E0606, E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617,
+    E0618, E0619, E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0801, E0802,
+    E0803,
 ];
 
 /// Codes that were used once and must never be used again.

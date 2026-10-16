@@ -14,7 +14,7 @@ types {
     }
 
     struct Dog {
-        name: String
+        title: String
     }
 }
 
@@ -44,7 +44,7 @@ impl {
     }
 
     Dog: Named {
-        fn name(self) -> String { self.name.copy() }
+        fn name(self) -> String { self.title.copy() }
     }
 }
 
@@ -56,7 +56,7 @@ functions {
     fn main() {
         var c = Color.Red
         c.flip()
-        let items: List<Named> = [c, Dog { name: "rex" }, Color.Red]
+        let items: List<Named> = [c, Dog { title: "rex" }, Color.Red]
         let copy = items.copy()
         c.flip()
         print(names(items) + " " + names(copy) + " " + c.name())
