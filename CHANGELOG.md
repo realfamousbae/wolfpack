@@ -4,6 +4,28 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+## M12: Polish (2026-10-16)
+
+- `wolf fmt` and `wolf fmt --check`: one canonical layout (spec chapter 3, section 8a); the
+  examples and run programs are formatted with it.
+- `wolf explain <code>`: a text with a wrong and a fixed example for every code, embedded in the
+  compiler; the tests check that each wrong example reports its code first and each fixed one
+  checks and builds.
+- The language guide, `docs/guide/`, in 13 chapters, and a `README.md` with installation and a
+  first program. Every program in them is checked, formatted, built for all three targets and run
+  on each where its output is shown; the generated code of chapter 13 is compared with the build.
+- The playground, `playground/`: a static page with the compiler in WebAssembly (`wolf_wasm`),
+  errors while typing, runs of the generated TypeScript in a worker, the generated TypeScript, Go
+  and Rust, formatting, `wolf explain` and links that hold the program.
+- `wolf_driver`: the in-memory compiler pipeline, used by `wolf_cli` and `wolf_wasm`.
+- Spec: rules of `wolf explain`; a method cannot have the name of a field of its struct (E0432);
+  `map.get` is a free function, `remove` a method, an assigning `match` arm a block.
+- Fix: a string literal passed to a read parameter of a type parameter builds in Rust.
+- Decisions: ADR 0012.
+- Tests: explain texts, the guide and the README, the playground functions natively and its
+  examples, a run program for generic literals, a UI test for E0432; CI builds `wolf_wasm` for
+  WebAssembly.
+
 ## M11: `extern` (2026-10-16)
 
 - Checks of extern declarations: types at the boundary (E0702), one signature per name across
