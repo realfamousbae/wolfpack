@@ -250,6 +250,11 @@ error. **[PROPOSAL]**
 5. Generic inherent methods (`fn map<U>(self, f: fn(T) -> U) -> Stack<U>`) are allowed (author). The
    Go backend may emit them as free generic functions until it can rely on generic methods in Go;
    this is a backend matter (chapter 8).
+6. **No method with the name of a field.** A method of a struct (a function with `self`, in its
+   inherent block or in an interface implementation) cannot have the name of one of the struct's
+   fields (E0432). TypeScript classes and Go structs keep fields and methods in one namespace.
+   Associated functions without `self` and the fields of enum variants are not affected. (Author,
+   2026-10-16.)
 
 ### 8.4 Method calls
 
@@ -363,6 +368,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0429 | A type or a module used as a value (`let x = Int`) |
 | E0430 | `break` or `continue` outside a loop |
 | E0431 | Implementation that cannot be written: not an interface, a derived built-in interface (`Equatable`, `Copyable`, `Hashable`), or an interface implemented twice (added in M5) |
+| E0432 | A method of a struct with the name of one of its fields (section 8.3, rule 6; added in M12) |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
