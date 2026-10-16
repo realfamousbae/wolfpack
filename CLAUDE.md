@@ -34,8 +34,9 @@ commit messages and compiler diagnostics. `PLAN.md` stays in Russian as the auth
 
 - No `unsafe`. No `unwrap`, `expect` or `panic!` on any path that depends on user input.
 - The compiler never panics on user input: every invalid file yields a diagnostic.
-- Every diagnostic has a unique code (`E0101`), a source range and a test. Codes are listed in one
-  file and never reused. Driver errors (E00xx) may have no source range.
+- Every diagnostic has a unique code (`E0101`), a source range, a test and a `wolf explain` text
+  (`crates/wolf_diag/explain/`, with checked examples). Codes are listed in one file and never
+  reused. Driver errors (E00xx) may have no source range.
 - Backends read only the IR. Each backend builds a target-language tree and then prints it; direct
   string concatenation from IR is forbidden.
 - Before every commit run `cargo fmt`, `cargo clippy -- -D warnings`, `cargo test`.
