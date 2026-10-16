@@ -1,0 +1,11 @@
+#!/bin/sh
+# Runs after the package is installed, as root: installs the tools of the targets for the user who
+# is logged in (spec chapter 8, section 2a, rule 5). A failure here does not fail the
+# installation: `wolf setup` can be run again from the terminal.
+user=$(stat -f%Su /dev/console)
+if [ -n "$user" ] && [ "$user" != "root" ]; then
+    home=$(dscl . -read "/Users/$user" NFSHomeDirectory | awk '{print $2}')
+    # The log belongs to the user, so the redirection runs as the user too.
+    sudo -u "$user" HOME="$home" sh -c '/usr/local/bin/wolf setup >"$HOME/.wolfpack-setup.log" 2>&1' || true
+fi
+exit 0

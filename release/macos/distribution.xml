@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>wolfpack @VERSION@</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_localSystem="true"/>
+    <choices-outline>
+        <line choice="wolf"/>
+    </choices-outline>
+    <choice id="wolf" visible="false">
+        <pkg-ref id="io.github.realfamousbae.wolfpack"/>
+    </choice>
+    <pkg-ref id="io.github.realfamousbae.wolfpack" version="@VERSION@" onConclusion="none">wolf.pkg</pkg-ref>
+</installer-gui-script>
