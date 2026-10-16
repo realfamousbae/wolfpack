@@ -4,11 +4,13 @@
 //! one label on a source range. Output is sorted by file and position so it is deterministic.
 
 pub mod codes;
+mod explain;
 mod json;
 mod render;
 
 use wolf_span::Span;
 
+pub use explain::explain;
 pub use json::render_json;
 pub use render::{render_human, render_human_to_string};
 

@@ -44,6 +44,15 @@ enum Command {
     Test(TestArgs),
     /// Format the source files of the project, or the given files and directories.
     Fmt(FmtArgs),
+    /// Show a longer description of an error code, with a wrong and a fixed example.
+    Explain(ExplainArgs),
+}
+
+/// Options of `wolf explain`.
+#[derive(clap::Args)]
+struct ExplainArgs {
+    /// The code, for example `E0405`.
+    code: String,
 }
 
 /// Options of `wolf fmt`.
@@ -272,6 +281,7 @@ fn run() -> ExitCode {
                 target,
             ))
         }
+        Command::Explain(args) => explain(&args.code),
         Command::Fmt(args) => {
             let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
             match fmt::run(&cwd, &args.paths, args.check) {
@@ -340,6 +350,25 @@ fn finish(outcome: build::Outcome) -> ExitCode {
             };
             report(&mut map, &diagnostics, &args);
             ExitCode::from(code)
+        }
+    }
+}
+
+/// `wolf explain <code>` (spec chapter 9, section 3, rule 8).
+fn explain(code: &str) -> ExitCode {
+    let id = code.trim().to_ascii_uppercase();
+    let id = if id.starts_with('E') { id } else { format!("E{id}") };
+    match wolf_diag::explain(&id) {
+        Some(text) => {
+            let _ = io::stdout().write_all(text.as_bytes());
+            ExitCode::SUCCESS
+        }
+        None => {
+            let _ = writeln!(
+                io::stderr(),
+                "error[E0002]: there is no error code `{code}`\n = help: codes look like `E0405`; they are listed in chapter 9 of the specification"
+            );
+            ExitCode::from(EXIT_USAGE)
         }
     }
 }
