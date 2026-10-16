@@ -1,7 +1,7 @@
 # 0012: Choices of the playground (M12)
 
-Status: proposed. Item 1 was decided by the author (2026-10-16); the other items are [INTERNAL]
-choices recorded so that the author can object.
+Status: accepted (author, 2026-10-16). Item 1 was decided by the author; the other items are
+[INTERNAL] choices recorded so that the author can object.
 
 ## Decision
 
