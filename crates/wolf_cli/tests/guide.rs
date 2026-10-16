@@ -238,3 +238,36 @@ fn guide_examples_check_build_and_print_their_output() {
     });
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+/// The examples of the playground (`playground/examples/*.wolf`) are programs like those of the
+/// guide: they check, are formatted, build for every target and run on TypeScript.
+#[test]
+fn playground_examples_check_build_and_run() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../playground/examples");
+    let mut files: Vec<PathBuf> = fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "wolf"))
+        .collect();
+    files.sort();
+    assert!(!files.is_empty());
+    let mut failures = Vec::new();
+    for path in files {
+        let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+        let source = fs::read_to_string(&path).unwrap();
+        let project = tmp(&format!("playground-{name}"));
+        for problem in program(&project, &source, None, &[]) {
+            failures.push(format!("playground example {name}: {problem}"));
+        }
+        let run_out = project.with_extension("run");
+        let run = wolf(&project, &["run", "--out", run_out.to_str().unwrap()]);
+        if !run.status.success() {
+            failures.push(format!(
+                "playground example {name} does not run\n{}",
+                String::from_utf8_lossy(&run.stderr)
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
