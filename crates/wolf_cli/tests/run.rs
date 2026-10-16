@@ -22,7 +22,11 @@ fn wolf_run(project: &Path, out: &Path, extra: &[&str], path: Option<&str>) -> O
         .args(extra)
         .current_dir(project);
     if let Some(path) = path {
-        cmd.env("PATH", path);
+        // Only this PATH: no tools installed by `wolf setup` either.
+        cmd.env("PATH", path).env(
+            "WOLFPACK_HOME",
+            Path::new(env!("CARGO_TARGET_TMPDIR")).join("no-wolfpack-home"),
+        );
     }
     cmd.output().unwrap()
 }
@@ -316,4 +320,51 @@ fn fmt_checks_and_formats_a_project() {
         "module main\n\nfunctions {\n    fn main() { print(\"hi\") }\n}\n"
     );
     assert_eq!(fmt(&["--check"]).status.code(), Some(0));
+}
+
+/// E0804: a download of `wolf setup` fails (the tests send it to a port where nothing listens);
+/// nothing half-installed is left behind.
+#[test]
+fn e0804_setup_cannot_download() {
+    let home = tmp("E0804_home");
+    let _ = fs::remove_dir_all(&home);
+    let output = Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .args(["setup", "--target", "go"])
+        .env("WOLFPACK_HOME", &home)
+        .env("WOLF_TEST_SETUP_MIRROR", "http://127.0.0.1:9")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("error[E0804]: Go could not be installed: "),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("= note: downloading http://127.0.0.1:9/dl/go"),
+        "{stderr}"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let left: Vec<_> = fs::read_dir(home.join("toolchains"))
+        .unwrap()
+        .flatten()
+        .collect();
+    assert!(left.is_empty(), "{left:?}");
+}
+
+/// `wolf setup --check` lists the missing tools and exits with 1.
+#[test]
+fn setup_check_lists_missing_tools() {
+    let empty = tmp("empty_path_check");
+    fs::create_dir_all(&empty).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .args(["setup", "--check", "--target", "go"])
+        .env("WOLFPACK_HOME", tmp("no_home_check"))
+        .env("PATH", &empty)
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "go    go     missing\n\nrun `wolf setup` to install the missing tools\n"
+    );
+    assert_eq!(output.status.code(), Some(1));
 }

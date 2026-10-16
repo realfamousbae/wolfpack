@@ -280,6 +280,8 @@ pub const E0801: Code = Code::new("E0801", "target tool not installed");
 pub const E0802: Code = Code::new("E0802", "target tool rejected the generated code");
 /// The packages of `[extern.<target>.dependencies]` could not be fetched.
 pub const E0803: Code = Code::new("E0803", "target dependencies could not be fetched");
+/// `wolf setup` could not download or install a tool.
+pub const E0804: Code = Code::new("E0804", "a tool could not be installed");
 
 /// Every code in use, in order.
 pub const ALL: &[Code] = &[
@@ -292,7 +294,7 @@ pub const ALL: &[Code] = &[
     E0503, E0504, E0505, E0506, E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604,
     E0605, E0606, E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617,
     E0618, E0619, E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0801, E0802,
-    E0803,
+    E0803, E0804,
 ];
 
 /// Codes that were used once and must never be used again.

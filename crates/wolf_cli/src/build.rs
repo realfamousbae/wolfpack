@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use wolf_diag::{Diagnostic, codes};
@@ -210,18 +210,6 @@ fn write(out: &Path, clean: &[&str], files: &[(String, &str)]) -> std::io::Resul
     Ok(())
 }
 
-/// A program on `PATH`, or in `node_modules/.bin` of the output project.
-fn find_tool(name: &str, out: &Path) -> Option<PathBuf> {
-    let local = out.join("node_modules").join(".bin").join(name);
-    if local.is_file() {
-        return Some(local);
-    }
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|dir| dir.join(name))
-        .find(|candidate| candidate.is_file())
-}
-
 fn missing_tool(mut result: CheckResult, target: Target, tool: &str, help: &str) -> Outcome {
     let note = match target {
         Target::Go => "`wolf run --target go` builds and runs with Go",
@@ -310,15 +298,16 @@ fn ts(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -
 
 /// `npm install` in the output project (spec chapter 8, section 2, rule 5).
 fn npm_install(mut result: CheckResult, out: &Path) -> Result<CheckResult, Outcome> {
-    let Some(npm) = find_tool("npm", out) else {
+    let Some(npm) = crate::tools::find("npm", out) else {
         return Err(missing_tool(
             result,
             Target::Ts,
             "npm",
-            "install Node.js 22 or later from https://nodejs.org; it includes npm",
+            "run `wolf setup`, or install Node.js 22 or later from https://nodejs.org; it includes npm",
         ));
     };
-    let output = Command::new(&npm)
+    let output = npm
+        .command()
         .args(["install", "--no-audit", "--no-fund", "--loglevel=error"])
         .current_dir(out)
         .output();
@@ -343,24 +332,27 @@ fn npm_install(mut result: CheckResult, out: &Path) -> Result<CheckResult, Outco
 }
 
 /// `tsc` for the output project; `node` if it built, or the failure.
-fn compile_ts(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Outcome> {
-    let Some(node) = find_tool("node", out) else {
+fn compile_ts(
+    result: CheckResult,
+    out: &Path,
+) -> Result<(crate::tools::Tool, CheckResult), Outcome> {
+    let Some(node) = crate::tools::find("node", out) else {
         return Err(missing_tool(
             result,
             Target::Ts,
             "node",
-            "install Node.js 22 or later from https://nodejs.org",
+            "run `wolf setup`, or install Node.js 22 or later from https://nodejs.org",
         ));
     };
-    let Some(tsc) = find_tool("tsc", out) else {
+    let Some(tsc) = crate::tools::find("tsc", out) else {
         return Err(missing_tool(
             result,
             Target::Ts,
             "tsc",
-            "install TypeScript: `npm install -g typescript`",
+            "run `wolf setup`, or install TypeScript: `npm install -g typescript`",
         ));
     };
-    match Command::new(&tsc).arg("-p").arg(out).output() {
+    match tsc.command().arg("-p").arg(out).output() {
         Ok(o) if o.status.success() => Ok((node, result)),
         Ok(o) => Err(rejected(result, Target::Ts, &o)),
         Err(e) => Err(missing_tool(
@@ -387,7 +379,7 @@ fn run_ts_tests(
         println!("test result: ok. 0 passed; 0 failed");
         return Outcome::Ran(0);
     }
-    let mut cmd = Command::new(&node);
+    let mut cmd = node.command();
     cmd.current_dir(out)
         .arg("--test")
         .arg("--test-concurrency=1")
@@ -411,7 +403,7 @@ fn run_ts(result: CheckResult, out: &Path, entry: &str, args: &[String]) -> Outc
         Ok(ok) => ok,
         Err(outcome) => return outcome,
     };
-    let status = Command::new(&node).arg(out.join(entry)).args(args).status();
+    let status = node.command().arg(out.join(entry)).args(args).status();
     match status {
         Ok(s) => Outcome::Ran(s.code().unwrap_or(1)),
         Err(e) => missing_tool(
@@ -468,8 +460,8 @@ fn go(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -
 }
 
 /// `go` with the environment that keeps it local and away from the user's workspace.
-fn go_command(go: &Path, out: &Path) -> Command {
-    let mut cmd = Command::new(go);
+fn go_command(go: &crate::tools::Tool, out: &Path) -> Command {
+    let mut cmd = go.command();
     cmd.current_dir(out)
         .env("GOTOOLCHAIN", "local")
         .env("GOWORK", "off")
@@ -477,14 +469,14 @@ fn go_command(go: &Path, out: &Path) -> Command {
     cmd
 }
 
-fn find_go(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Outcome> {
-    match find_tool("go", out) {
+fn find_go(result: CheckResult, out: &Path) -> Result<(crate::tools::Tool, CheckResult), Outcome> {
+    match crate::tools::find("go", out) {
         Some(go) => Ok((go, result)),
         None => Err(missing_tool(
             result,
             Target::Go,
             "go",
-            "install Go 1.24 or later from https://go.dev/dl",
+            "run `wolf setup`, or install Go 1.24 or later from https://go.dev/dl",
         )),
     }
 }
@@ -494,7 +486,7 @@ fn run_go(result: CheckResult, out: &Path, package: &str, name: &str, args: &[St
         Ok(ok) => ok,
         Err(outcome) => return outcome,
     };
-    let binary = out.join("bin").join(name);
+    let binary = out.join("bin").join(crate::tools::exe(name));
     let built = go_command(&go, out)
         .arg("build")
         .arg("-o")
@@ -698,8 +690,8 @@ fn rust(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then)
 }
 
 /// `cargo` for the generated project, with its own target directory.
-fn cargo_command(cargo: &Path, out: &Path) -> Command {
-    let mut cmd = Command::new(cargo);
+fn cargo_command(cargo: &crate::tools::Tool, out: &Path) -> Command {
+    let mut cmd = cargo.command();
     cmd.current_dir(out)
         .env("CARGO_TARGET_DIR", out.join("target"))
         .env_remove("RUSTFLAGS")
@@ -707,14 +699,17 @@ fn cargo_command(cargo: &Path, out: &Path) -> Command {
     cmd
 }
 
-fn find_cargo(result: CheckResult, out: &Path) -> Result<(PathBuf, CheckResult), Outcome> {
-    match find_tool("cargo", out) {
+fn find_cargo(
+    result: CheckResult,
+    out: &Path,
+) -> Result<(crate::tools::Tool, CheckResult), Outcome> {
+    match crate::tools::find("cargo", out) {
         Some(cargo) => Ok((cargo, result)),
         None => Err(missing_tool(
             result,
             Target::Rust,
             "cargo",
-            "install Rust 1.85 or later from https://rustup.rs",
+            "run `wolf setup`, or install Rust 1.85 or later from https://rustup.rs",
         )),
     }
 }
@@ -735,12 +730,15 @@ fn run_rust(
     let binary = match example {
         Some(name) => {
             cmd.arg("--example").arg(name);
-            out.join("target").join("debug").join("examples").join(name)
+            out.join("target")
+                .join("debug")
+                .join("examples")
+                .join(crate::tools::exe(name))
         }
         None => out
             .join("target")
             .join("debug")
-            .join(wolf_rs::bin_name(program)),
+            .join(crate::tools::exe(&wolf_rs::bin_name(program))),
     };
     match cmd.output() {
         Ok(o) if o.status.success() => {}

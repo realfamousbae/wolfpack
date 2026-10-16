@@ -1,5 +1,5 @@
 error[E0801]: `cargo` is not installed
- = help: install Rust 1.85 or later from https://rustup.rs
+ = help: run `wolf setup`, or install Rust 1.85 or later from https://rustup.rs
  = note: `wolf run --target rust` builds and runs with Cargo
 
 error: aborting due to 1 error

@@ -45,12 +45,12 @@ fn tmp(name: &str) -> PathBuf {
 /// file cannot hold, input too large to show, and errors of `wolf build` or the target tools.
 const NO_CHECKED_WRONG: &[&str] = &[
     "E0001", "E0002", "E0003", "E0004", "E0101", "E0109", "E0110", "E0314", "E0704", "E0801",
-    "E0802", "E0803",
+    "E0802", "E0803", "E0804",
 ];
 
 /// Codes whose fixed example cannot be a checked project.
 const NO_CHECKED_FIXED: &[&str] = &[
-    "E0001", "E0002", "E0003", "E0004", "E0101", "E0110", "E0801", "E0802", "E0803",
+    "E0001", "E0002", "E0003", "E0004", "E0101", "E0110", "E0801", "E0802", "E0803", "E0804",
 ];
 
 /// Builds a checked project for its default target; the error output if the build fails.

@@ -1,12 +1,14 @@
 //! The `wolf` command-line tool.
 //!
 //! `wolf check` checks a project, `wolf build` generates the target project in `out/<target>/`,
-//! `wolf run` builds and runs it with the tools of the target, `wolf new` creates a project, and
-//! `wolf explain` describes an error code.
+//! `wolf run` builds and runs it with the tools of the target, `wolf new` creates a project,
+//! `wolf explain` describes an error code, and `wolf setup` installs the tools of the targets.
 
 mod build;
 mod check;
 mod fmt;
+mod setup;
+mod tools;
 
 use std::io::{self, IsTerminal, Write};
 use std::panic;
@@ -47,6 +49,20 @@ enum Command {
     Fmt(FmtArgs),
     /// Show a longer description of an error code, with a wrong and a fixed example.
     Explain(ExplainArgs),
+    /// Install the tools of the targets (Node.js, TypeScript, Go, Rust) for `wolf run`.
+    Setup(SetupArgs),
+}
+
+/// Options of `wolf setup`.
+#[derive(clap::Args)]
+struct SetupArgs {
+    /// Install only the tools of this target.
+    #[arg(long, value_enum)]
+    target: Option<TargetArg>,
+
+    /// Install nothing; list the tools, where they are found and their versions.
+    #[arg(long)]
+    check: bool,
 }
 
 /// Options of `wolf explain`.
@@ -294,6 +310,7 @@ fn run() -> ExitCode {
             }
         }
         Command::Explain(args) => explain(&args.code),
+        Command::Setup(args) => setup(&args),
         Command::Check(args) => {
             let result = check::run(&args);
             let mut map = result.map;
@@ -353,6 +370,35 @@ fn finish(outcome: build::Outcome) -> ExitCode {
             ExitCode::from(code)
         }
     }
+}
+
+/// `wolf setup` (spec chapter 8, section 2a).
+fn setup(args: &SetupArgs) -> ExitCode {
+    use wolf_project::Target;
+    let targets: Vec<Target> = match args.target {
+        Some(TargetArg::Ts) => vec![Target::Ts],
+        Some(TargetArg::Go) => vec![Target::Go],
+        Some(TargetArg::Rust) => vec![Target::Rust],
+        Some(TargetArg::All) | None => Target::ALL.to_vec(),
+    };
+    if args.check {
+        return if setup::check(&targets) {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::from(EXIT_ERRORS)
+        };
+    }
+    let diagnostics = setup::install(&targets);
+    if diagnostics.is_empty() {
+        return ExitCode::SUCCESS;
+    }
+    let mut stderr = StandardStream::stderr(if io::stderr().is_terminal() {
+        ColorChoice::Auto
+    } else {
+        ColorChoice::Never
+    });
+    let _ = wolf_diag::render_human(&SourceMap::new(), &diagnostics, &mut stderr);
+    ExitCode::from(EXIT_ERRORS)
 }
 
 /// `wolf explain <code>` (spec chapter 9, section 2, rule 8).

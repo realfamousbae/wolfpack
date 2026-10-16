@@ -23,7 +23,11 @@ fn wolf(command: &str, project: &Path, out: &Path, extra: &[&str], path: Option<
         .args(extra)
         .current_dir(project);
     if let Some(path) = path {
-        cmd.env("PATH", path);
+        // Only this PATH: no tools installed by `wolf setup` either.
+        cmd.env("PATH", path).env(
+            "WOLFPACK_HOME",
+            Path::new(env!("CARGO_TARGET_TMPDIR")).join("no-wolfpack-home"),
+        );
     }
     cmd.output().unwrap()
 }

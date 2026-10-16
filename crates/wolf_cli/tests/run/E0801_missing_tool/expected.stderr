@@ -1,5 +1,5 @@
 error[E0801]: `node` is not installed
- = help: install Node.js 22 or later from https://nodejs.org
+ = help: run `wolf setup`, or install Node.js 22 or later from https://nodejs.org
  = note: `wolf run --target ts` builds with TypeScript and runs with Node.js
 
 error: aborting due to 1 error
