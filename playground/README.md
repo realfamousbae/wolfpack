@@ -3,7 +3,8 @@
 A static page that compiles wolfpack in the browser: edit `src/main.wolf`, see errors as you
 type, run the program, and read the TypeScript, Go and Rust it compiles to. The compiler is the
 crate `crates/wolf_wasm` compiled to WebAssembly; programs run as their generated TypeScript in a
-worker (ADR 0012).
+worker (ADR 0012). It is published at https://realfamousbae.github.io/wolfpack/ by the workflow
+`.github/workflows/pages.yml` on every push to `main`.
 
 ## Building and serving
 
