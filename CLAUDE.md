@@ -9,6 +9,11 @@ for scope and milestones). This file holds the working rules for Claude Code.
 Everything in the repository is written in **English**: the spec, docs, README, code, comments,
 commit messages and compiler diagnostics. `PLAN.md` stays in Russian as the author's original plan.
 
+The name of the language is written in lower case, `wolfpack`, also in prose ("a wolfpack
+program"); it gets a capital letter only where English needs one, at the start of a sentence or a
+heading. The repository is `wolfpack`; the crates are `wolfpack-lang` (the `wolf` command) and
+`wolfpack-<name>` (author, 2026-10-16).
+
 ## Order of work
 
 1. Work on one milestone at a time (see section 11 of `PLAN.md`). Do not jump ahead.
