@@ -1,4 +1,5 @@
-//! Tests of the code in the language guide, `docs/guide/*.md`.
+//! Tests of the code in the language guide, `docs/guide/*.md`, and in the `README.md` of the
+//! repository.
 //!
 //! - A ```` ```wolf ```` block is a complete project (see `common`). It must check without errors,
 //!   be formatted as `wolf fmt` writes it, and build for every target.
@@ -110,13 +111,15 @@ fn generated(info: &str) -> Option<(String, String)> {
 
 fn guide_files() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/guide");
-    let mut files: Vec<PathBuf> = fs::read_dir(dir)
+    let mut files: Vec<PathBuf> = fs::read_dir(&dir)
         .unwrap()
         .flatten()
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|e| e == "md"))
         .collect();
     files.sort();
+    // The README of the repository follows the same rules.
+    files.push(dir.join("../../README.md"));
     files
 }
 
