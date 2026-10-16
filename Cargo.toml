@@ -26,6 +26,7 @@ wolf_ts = { path = "crates/wolf_ts" }
 wolf_go = { path = "crates/wolf_go" }
 wolf_rs = { path = "crates/wolf_rs" }
 wolf_fmt = { path = "crates/wolf_fmt" }
+wolf_driver = { path = "crates/wolf_driver" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

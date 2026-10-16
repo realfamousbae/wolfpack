@@ -5,7 +5,6 @@
 //! `.wolf` file argument is checked on its own, without a project: lexing and parsing only. That
 //! mode is a tool for tests and debugging.
 
-use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -102,22 +101,7 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
     };
     let (files, diagnostics) = wolf_project::discover(&root, &manifest);
     result.diagnostics.extend(diagnostics);
-    // The std modules take part in resolution like any module.
-    let mut parsed: Vec<(Vec<String>, wolf_resolve::Role, FileId, wolf_ast::File)> = Vec::new();
-    for module in wolf_std::MODULES {
-        let id = result.map.add(module.file_name, module.source.to_string());
-        let lexed = wolf_lexer::lex(id, module.source);
-        let tree = wolf_parser::parse(id, module.source, &lexed.tokens);
-        result.diagnostics.extend(lexed.diagnostics);
-        result.diagnostics.extend(tree.diagnostics);
-        let role = if module.path == wolf_std::PRELUDE {
-            wolf_resolve::Role::Prelude
-        } else {
-            wolf_resolve::Role::Std
-        };
-        let path = module.path.split('.').map(str::to_string).collect();
-        parsed.push((path, role, id, tree.file));
-    }
+    let mut parsed = wolf_driver::std_modules(&mut result.map, &mut result.diagnostics);
     for file in &files {
         if let Some((id, ast)) = parse_file(&file.path, file.display.clone(), args, result) {
             let role = match file.role {
@@ -129,51 +113,13 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
             parsed.push((file.module.clone(), role, id, ast));
         }
     }
-    let inputs: Vec<wolf_resolve::ModuleInput<'_>> = parsed
-        .iter()
-        .map(|(path, role, file, ast)| wolf_resolve::ModuleInput {
-            path: path.clone(),
-            role: *role,
-            file: *file,
-            ast,
-        })
-        .collect();
-    let info = wolf_resolve::ProjectInfo {
-        kind: manifest.kind,
-        config: &manifest.config,
-    };
-    let mut resolved = wolf_resolve::resolve(&inputs, &info);
-    result
-        .diagnostics
-        .extend(std::mem::take(&mut resolved.diagnostics));
-    let mut typed = wolf_types::check(&inputs, &resolved, &info);
-    result
-        .diagnostics
-        .extend(std::mem::take(&mut typed.diagnostics));
-    // Ownership (chapter 5) is checked on the IR of a program without other errors.
-    if result.diagnostics.is_empty() {
-        let meta = wolf_ir::ProjectMeta {
-            name: &manifest.name,
-            version: &manifest.version,
-            kind: manifest.kind,
-            dependencies: BTreeMap::new(),
-        };
-        match wolf_ir::lower(&inputs, &resolved, &typed, &result.map, &meta) {
-            Ok(program) => result.diagnostics.extend(wolf_own::check(&program)),
-            Err(e) => result.diagnostics.push(
-                Diagnostic::new(codes::E0003, "internal compiler error")
-                    .note(format!("the program cannot be lowered: {}", e.message))
-                    .help("this is a bug in wolf; please report it with the input that caused it"),
-            ),
-        }
-    }
-    drop(inputs);
+    let analysis = wolf_driver::analyze(&result.map, &manifest, parsed, &mut result.diagnostics);
     result.project = Some(Project {
         root,
         manifest,
-        parsed,
-        resolved,
-        typed,
+        parsed: analysis.parsed,
+        resolved: analysis.resolved,
+        typed: analysis.typed,
     });
 }
 
@@ -221,24 +167,22 @@ fn parse_file(
         }
     };
     let id = result.map.add(name.clone(), text);
-    let text = result.map.get(id).map(|f| f.text()).unwrap_or("");
-    let lexed = wolf_lexer::lex(id, text);
-    let parsed = wolf_parser::parse(id, text, &lexed.tokens);
+    let file = wolf_driver::parse(&result.map, id, &mut result.diagnostics);
     let mut stdout = std::io::stdout();
     match args.emit {
         Some(Emit::Tokens) => {
+            let text = result.map.get(id).map(|f| f.text()).unwrap_or("");
+            let lexed = wolf_lexer::lex(id, text);
             let _ = writeln!(stdout, "== {name}");
             let _ = stdout.write_all(wolf_lexer::dump(text, &lexed.tokens).as_bytes());
         }
         Some(Emit::Ast) => {
             let _ = writeln!(stdout, "== {name}");
-            let _ = stdout.write_all(wolf_ast::dump(&parsed.file).as_bytes());
+            let _ = stdout.write_all(wolf_ast::dump(&file).as_bytes());
         }
         None => {}
     }
-    result.diagnostics.extend(lexed.diagnostics);
-    result.diagnostics.extend(parsed.diagnostics);
-    Some((id, parsed.file))
+    Some((id, file))
 }
 
 fn read_error(name: &str, error: &std::io::Error) -> Diagnostic {

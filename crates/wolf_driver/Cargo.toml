@@ -1,0 +1,26 @@
+[package]
+name = "wolf_driver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+wolf_ast = { workspace = true }
+wolf_diag = { workspace = true }
+wolf_go = { workspace = true }
+wolf_ir = { workspace = true }
+wolf_lexer = { workspace = true }
+wolf_own = { workspace = true }
+wolf_parser = { workspace = true }
+wolf_project = { workspace = true }
+wolf_resolve = { workspace = true }
+wolf_rs = { workspace = true }
+wolf_span = { workspace = true }
+wolf_std = { workspace = true }
+wolf_ts = { workspace = true }
+wolf_types = { workspace = true }
+
+[lints]
+workspace = true

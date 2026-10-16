@@ -88,17 +88,7 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
     if !result.diagnostics.is_empty() {
         return Outcome::Failed(Box::new(result), crate::EXIT_ERRORS);
     }
-    let meta = wolf_ir::ProjectMeta {
-        name: &project.manifest.name,
-        version: &project.manifest.version,
-        kind: project.manifest.kind,
-        dependencies: project
-            .manifest
-            .dependencies
-            .iter()
-            .map(|(t, d)| (t.name().to_string(), d.clone()))
-            .collect(),
-    };
+    let meta = wolf_driver::meta(&project.manifest, true);
     let program = match wolf_ir::lower(
         &inputs,
         &project.resolved,
