@@ -88,7 +88,7 @@ functions {
 
 - **Copy it**: `order.items.copy()`.
 - **Swap something else in**: `replace(mut place, new)` stores the new value and returns the old
-  one. `list.remove(i)` does the same for one element of a list.
+  one. The method `items.remove(i)` takes one element out of a list.
 - **Take the whole value apart**: `match own order` moves `order` and gives the arm ownership of
   every part.
 

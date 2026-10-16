@@ -146,7 +146,7 @@ imports {
 functions {
     fn main() {
         var ages = ["Ann": 31, "Bob": 25]
-        let _ = ages.insert("Cid", 40)
+        ages.insert("Cid", 40)
         ages["Bob"] += 1
         print(ages["Bob"].to_string())
         print(ages.contains_key("Dan").to_string())
@@ -154,7 +154,7 @@ functions {
             Some(age) => print(age.to_string())
             None => print("no Dan")
         }
-        let _ = ages.remove("Ann")
+        ages.remove("Ann")
         for name in ages.keys() {
             print(name + " " + ages[name].to_string())
         }
@@ -180,5 +180,5 @@ Cid 40
 - Keys are `Int`, `String`, `Bool` or enums without data. These are the types that every target can
   use as keys by their value.
 
-`insert` and `remove` return an `Option` that is not needed here, so `let _ =` drops it. Chapter 7
-explains why some results must be handled and others may be dropped.
+`insert` and `remove` return an `Option` that is not needed here; such a result may simply be
+dropped. Only a `Result` must always be handled, as chapter 7 explains.
