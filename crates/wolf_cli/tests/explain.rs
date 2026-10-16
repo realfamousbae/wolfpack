@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn tmp(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_TARGET_TMPDIR")).join("explain").join(name)
+    Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("explain")
+        .join(name)
 }
 
 fn wolf(args: &[&str], cwd: &Path) -> Output {
@@ -55,7 +57,11 @@ fn every_code_is_explained() {
         .map(|c| c.id())
         .filter(|id| wolf_diag::explain(id).is_none())
         .collect();
-    assert!(missing.is_empty(), "no description for {}", missing.join(" "));
+    assert!(
+        missing.is_empty(),
+        "no description for {}",
+        missing.join(" ")
+    );
 }
 
 #[test]
@@ -73,7 +79,9 @@ fn examples_are_true() {
             let out = check(&format!("{id}-wrong"), &wrong);
             let stderr = String::from_utf8_lossy(&out.stderr);
             if !stderr.contains(&format!("error[{id}]")) {
-                failures.push(format!("--- {id} wrong example does not report it:\n{stderr}"));
+                failures.push(format!(
+                    "--- {id} wrong example does not report it:\n{stderr}"
+                ));
             }
         }
         if let Some(fixed) = example(text, "Fixed") {

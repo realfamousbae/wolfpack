@@ -357,7 +357,11 @@ fn finish(outcome: build::Outcome) -> ExitCode {
 /// `wolf explain <code>` (spec chapter 9, section 3, rule 8).
 fn explain(code: &str) -> ExitCode {
     let id = code.trim().to_ascii_uppercase();
-    let id = if id.starts_with('E') { id } else { format!("E{id}") };
+    let id = if id.starts_with('E') {
+        id
+    } else {
+        format!("E{id}")
+    };
     match wolf_diag::explain(&id) {
         Some(text) => {
             let _ = io::stdout().write_all(text.as_bytes());
