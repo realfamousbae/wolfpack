@@ -46,13 +46,12 @@ Ordered by how many users each one reaches and how little it costs to keep.
 | winget (Windows) | a manifest in `microsoft/winget-pkgs` for the setup program | `wingetcreate update` in the release workflow; each version is a pull request reviewed by Microsoft |
 | Debian/Ubuntu, Fedora | `.deb` and `.rpm` built with `cargo-deb` / `cargo-generate-rpm`, attached to the release | built in the release workflow |
 | Arch Linux | an AUR package `wolfpack-bin` | a workflow step pushing to the AUR |
-| Cargo | the crates on crates.io, so `cargo install wolfpack-lang` works without `--git` | `cargo publish` of every crate in order |
+| Cargo | done: `cargo install --locked wolfpack-lang` (version 0.1.0 on crates.io) | `cargo publish` of every crate in order, in the release workflow |
 
 Questions for the author:
 
 1. Are separate repositories (the Homebrew tap, the Scoop bucket) acceptable?
 2. winget needs a public pull request to a Microsoft repository for every release. Is that wanted?
-3. Should the crates be published on crates.io, which reserves the names?
 
 ## 4. Stage D3: trust
 

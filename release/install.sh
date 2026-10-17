@@ -116,7 +116,7 @@ pick_asset() {
             fail "this is Windows; run in PowerShell: irm $releases/latest/download/install.ps1 | iex"
             ;;
         *)
-            fail "there is no build of wolf for $os; build it from source: cargo install --locked --git https://github.com/realfamousbae/wolfpack wolfpack-lang"
+            fail "there is no build of wolf for $os; build it from source: cargo install --locked wolfpack-lang"
             ;;
     esac
 
@@ -127,13 +127,13 @@ pick_asset() {
             fail "wolf needs glibc $min_glibc or newer, this system has $glibc; update the system or build wolf from source"
         fi
     elif ls /lib/ld-musl-* >/dev/null 2>&1 || { has ldd && ldd --version 2>&1 | grep -qi musl; }; then
-        fail "this Linux uses musl (Alpine?); the builds of wolf need glibc. Build it from source: cargo install --locked --git https://github.com/realfamousbae/wolfpack wolfpack-lang"
+        fail "this Linux uses musl (Alpine?); the builds of wolf need glibc. Build it from source: cargo install --locked wolfpack-lang"
     fi
 
     case "$arch" in
         x86_64 | amd64) echo "wolfpack-linux-x64.tar.gz" ;;
         aarch64 | arm64) echo "wolfpack-linux-arm64.tar.gz" ;;
-        *) fail "there is no build of wolf for Linux on $arch; build it from source: cargo install --locked --git https://github.com/realfamousbae/wolfpack wolfpack-lang" ;;
+        *) fail "there is no build of wolf for Linux on $arch; build it from source: cargo install --locked wolfpack-lang" ;;
     esac
 }
 
