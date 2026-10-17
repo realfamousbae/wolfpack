@@ -4,6 +4,7 @@
 //! one label on a source range. Output is sorted by file and position so it is deterministic.
 
 pub mod codes;
+pub mod explain;
 mod json;
 mod render;
 

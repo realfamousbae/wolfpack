@@ -1,7 +1,8 @@
 //! The `wolf` command-line tool.
 //!
 //! `wolf check` checks a project, `wolf build` generates the target project in `out/<target>/`,
-//! `wolf run` builds and runs it with the tools of the target, and `wolf new` creates a project.
+//! `wolf run` builds and runs it with the tools of the target, `wolf new` creates a project, and
+//! `wolf explain` describes an error code.
 
 mod build;
 mod check;
@@ -44,6 +45,15 @@ enum Command {
     Test(TestArgs),
     /// Format the source files of the project, or the given files and directories.
     Fmt(FmtArgs),
+    /// Show a longer description of an error code, with a wrong and a fixed example.
+    Explain(ExplainArgs),
+}
+
+/// Options of `wolf explain`.
+#[derive(clap::Args)]
+struct ExplainArgs {
+    /// The error code, for example `E0501`.
+    code: String,
 }
 
 /// Options of `wolf fmt`.
@@ -283,6 +293,7 @@ fn run() -> ExitCode {
                 fmt::Outcome::Failed(result, code) => finish(build::Outcome::Failed(result, code)),
             }
         }
+        Command::Explain(args) => explain(&args.code),
         Command::Check(args) => {
             let result = check::run(&args);
             let mut map = result.map;
@@ -340,6 +351,29 @@ fn finish(outcome: build::Outcome) -> ExitCode {
             };
             report(&mut map, &diagnostics, &args);
             ExitCode::from(code)
+        }
+    }
+}
+
+/// `wolf explain <code>` (spec chapter 9, section 2, rule 8).
+fn explain(code: &str) -> ExitCode {
+    use wolf_diag::explain::Explanation;
+    match wolf_diag::explain::explain(code) {
+        Explanation::Text(_, text) => {
+            let _ = io::stdout().write_all(text.as_bytes());
+            ExitCode::SUCCESS
+        }
+        Explanation::Retired(id) => {
+            let _ = writeln!(io::stdout(), "{id} is no longer used by the compiler");
+            ExitCode::SUCCESS
+        }
+        Explanation::Unknown => {
+            let _ = writeln!(
+                io::stderr(),
+                "error[{}]: there is no error code `{code}`",
+                codes::E0002.id()
+            );
+            ExitCode::from(EXIT_USAGE)
         }
     }
 }
