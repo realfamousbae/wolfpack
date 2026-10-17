@@ -115,10 +115,10 @@ and `tsc` for TypeScript, `go` for Go, `cargo` for Rust (author, 2026-10-16).
    there is run with its own environment (its directory first on `PATH`, `RUSTUP_HOME` and
    `CARGO_HOME` for Rust), so the user's own installations, `PATH` and settings are not changed.
 2. **`wolf setup`** installs the tools of every target into `<home>/toolchains/`. The versions are
-   fixed by the version of `wolf`; for 0.1.0 they are Node.js 24.22.0 (with npm), TypeScript
-   5.9.3, Go 1.27.2 and Rust 1.99.1 (installed with rustup 1.29.1, profile `minimal`). Every
-   download comes from the official site of the tool and is checked against a SHA-256 sum built
-   into `wolf`; a tool that is already installed in the right version is kept.
+   fixed by the version of `wolf`; for 0.1.0 and 0.1.1 they are Node.js 24.22.0 (with npm),
+   TypeScript 5.9.3, Go 1.27.2 and Rust 1.99.1 (installed with rustup 1.29.1, profile `minimal`).
+   Every download comes from the official site of the tool and is checked against a SHA-256 sum
+   built into `wolf`; a tool that is already installed in the right version is kept.
    - `wolf setup --target <ts|go|rust>` installs the tools of one target.
    - `wolf setup --check` installs nothing: it lists each tool, where it is found and its
      version, and exits with code 1 if a tool of an enabled target is missing.
