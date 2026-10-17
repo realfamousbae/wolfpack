@@ -279,3 +279,4 @@ The example from `PLAN.md` section 5, unchanged, is a valid file under this chap
 | D2.3 | `impl` block forms: inherent `Type { }` plus `Type: Interface { }`, at most one inherent block per type in a module | **answered**: yes |
 | D2.4 | A file with only a `module` line is valid | **answered**: yes |
 | D2.5 | Rest of the chapter: order is layout not visibility (2.6), unknown section and stray declaration errors (2.7, 2.8), `extern` target blocks (3.2), `pub` rules for config, methods and tests, doc comment placement (section 4), diagnostics list (section 5) | **answered**: yes |
+| D2.6 | The entry point is a `main` section above `functions`, with an optional `args` parameter and result type (section 3.7, `docs/decisions/0013-main-section.md`) | **answered**: yes (author, 2026-10-17) |
