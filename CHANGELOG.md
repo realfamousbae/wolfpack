@@ -2,7 +2,25 @@
 
 All notable changes are recorded here at the end of each milestone.
 
-## Unreleased
+## 0.1.1 (2026-10-17)
+
+- Installation from a terminal on every system: `install.sh` (macOS, Linux) checks the download
+  against `SHA256SUMS.txt`, falls back to `wget`, retries, refuses unsupported systems (musl, old
+  glibc, 32-bit ARM) with a clear message, updates the profiles of sh, bash, zsh and fish once,
+  and takes options (`--version`, `--dir`, `--no-modify-path`, `--no-setup`). The new
+  `install.ps1` does the same on Windows (`irm ... | iex`, PowerShell 5.1 and 7, no administrator
+  rights). The release workflow tries both scripts on clean machines.
+- `wolfpack-lang` is on crates.io: `cargo install --locked wolfpack-lang`. The internal crates say
+  that they are not a stable API.
+- The playground is published on GitHub Pages, with a smaller compiler (size-optimized, LTO); its
+  buttons wait until the compiler is loaded.
+- A new `README.md`: every way to install for each system, options, update, removal and
+  troubleshooting.
+- Plans in `docs/plans/`: calling the project's own TypeScript, Go and Rust code, and package
+  managers and signed installers.
+- Branches: `master` is the default branch and holds releases; work lands in `night` first.
+
+## 0.1.0 (2026-10-16)
 
 - `wolf setup` installs pinned, checked versions of Node.js, TypeScript, Go and Rust into
   `~/.wolfpack/toolchains`, and `wolf` uses them before the tools on `PATH` (spec chapter 8,
