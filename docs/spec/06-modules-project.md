@@ -13,7 +13,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
   interfaces and the functions `print`, `panic`, `assert`.
 - The public API of a `lib` project is the `pub` part of `src/lib.wolf` plus what it re-exports with
   `pub` imports.
-- `fn main()` or `fn main() -> Result<Void, Error>`.
+- a `main` section (chapter 2, section 3.7).
 
 ## 1. Modules
 
@@ -147,14 +147,16 @@ behaviour of a failed assertion are in chapter 7.
 
 ## 5. The entry point
 
-1. Kind `cli`: `src/main.wolf` must declare `fn main()` or `fn main() -> Result<Void, Error>` in
-   `functions` (author). Any other signature is an error (E0614). `main` cannot be `pub`.
+1. Kind `cli`: `src/main.wolf` must have a `main` section (author, 2026-10-17; it replaces
+   `fn main` in `functions`). Its header may carry the parameter `args: List<String>` and the
+   result type `Result<Void, Error>`, each optional (chapter 2, section 3.7). Any other parameter
+   or result type is an error (E0614). A missing `main` is E0614 too.
 2. When `main` returns `Err(e)`, the program writes the error to standard error and exits with code
    1. When it returns normally, the exit code is 0. A panic exits with code 101 **[PROPOSAL]** (the
    Rust convention; chapter 8 makes every target do the same).
-3. Command-line arguments and an explicit exit code come from `std.io` and `std.process`
-   (chapter 7).
-4. Kind `lib`: `src/lib.wolf` has no `main`.
+3. Command-line arguments come to `main` as its optional parameter (the same list as
+   `std.io.args()`); an explicit exit code comes from `std.process` (chapter 7).
+4. Kind `lib`: `src/lib.wolf` has no `main` section.
 
 ## 6. The manifest `wolfpack.toml`
 
@@ -225,7 +227,7 @@ my-app/
    for a `lib`, only the library API (it imports `lib`); for a `cli`, the `pub` names of all modules
    in `src/`. **[PROPOSAL]**
 4. **`examples/`** holds usage examples **[PLAN]**. Each file is a module `examples.<path>` and a
-   small program with its own `fn main`, seeing the same names as integration tests.
+   small program with its own `main` section, seeing the same names as integration tests.
    `wolf run --example <name>` runs one (a new flag of `wolf run`, PLAN section 10).
    **[PROPOSAL]**
 5. `out/` is generated and is not part of the source; `wolf new` adds it to `.gitignore`.
@@ -257,7 +259,7 @@ Proposed range E06xx (confirmed in chapter 9).
 | E0611 | Invalid manifest: syntax, unknown key, wrong value |
 | E0612 | Invalid layout: missing or extra entry file, index file, unexpected file, bad file name. When the problem has no place in a source file (an unexpected file such as `src/notes.txt`), the diagnostic has no label and names the path in its message (author, 2026-10-08) |
 | E0613 | Config override for an unknown constant or with a wrong type |
-| E0614 | Missing `main` or wrong signature |
+| E0614 | Missing `main` section or a wrong parameter or result type in its header |
 | E0615 | Unused import |
 | E0616 | Import of an entry module, or of the module itself |
 | E0617 | Redeclaration of a prelude name |

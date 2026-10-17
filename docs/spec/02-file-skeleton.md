@@ -37,8 +37,9 @@ section = section_name "{" entry+ "}"
 | 4 | `types` | `struct`, `enum`, `type` aliases | [PLAN] |
 | 5 | `interfaces` | `interface` declarations | [PLAN] |
 | 6 | `impl` | methods of types and implementations of interfaces | [PLAN] |
-| 7 | `functions` | free functions | [PLAN] |
-| 8 | `tests` | tests of the module | [PLAN] |
+| 7 | `main` | the entry point of the program, at most one block | author, 2026-10-17 |
+| 8 | `functions` | free functions | [PLAN] |
+| 9 | `tests` | tests of the module | [PLAN] |
 
 Rules **[PLAN]**:
 
@@ -171,16 +172,47 @@ impl {
 4. Which types may be given an `impl` in which module (coherence, "orphan" rules) and the syntax for
    generic types are in chapter 4.
 
-### 3.7 `functions`
+### 3.7 `main`
+
+The entry point of a program is not a function but a section of its own. It holds a body and is
+written above `functions` (author, 2026-10-17; it replaces `fn main` as the last declaration of
+`functions`).
+
+```
+main {
+    print("hello")
+}
+
+main(args: List<String>) -> Result<Void, Error> {
+    let n = parse_count(args)?
+    print("count: " + n.to_string())
+}
+```
+
+The header is `main`, then an optional parameter list, then an optional `-> type`, then `{`, all on
+one line. Both optional parts are independent, so all four forms are valid: `main { }`,
+`main(args) { }`, `main -> Result<Void, Error> { }` and `main(args) -> Result<Void, Error> { }`.
+
+1. The section holds a statement body, like a function body, not a list of entries. An empty
+   `main { }` is an error, as for any section (E0204).
+2. The parameter list has at most one parameter, whose type is `List<String>`: the command-line
+   arguments without the program name, the same value as `std.io.args()`. Its name is free
+   (`args`); the type may be left out (`main(args) { }`) and, when written, must be
+   `List<String>`. Other parameters are E0614 (chapter 6).
+3. The result type is omitted (then `Void`) or `Result<Void, Error>`. Anything else is E0614.
+4. The section appears at most once (E0203), may not be `pub`, and cannot be called: it has no
+   name in the module scope. Everything else in the module is visible inside it (section 2 rule 6).
+5. `fn main` in `functions` is an error with a hint to use the `main` section (E0214).
+6. The section may appear in any file, as `fn main` could (examples and tests use it); chapter 6
+   says where it is required.
+
+### 3.8 `functions`
 
 Only `fn` declarations, optionally `pub` **[PLAN]**. In `std` modules a function may be marked
-`intrinsic` and then has no body (chapter 7). In `src/main.wolf` of a `cli` project this section
-contains `fn main` **[PLAN]** (section 6; signature in chapter 6).
+`intrinsic` and then has no body (chapter 7). The entry point is not declared here but in the
+`main` section (section 3.7).
 
-`fn main`, in any file that declares it, is the **last** declaration of `functions`, so that the
-entry point is always easy to find at the end of the section (E0213; author, 2026-10-09).
-
-### 3.8 `tests`
+### 3.9 `tests`
 
 ```
 tests {
@@ -227,7 +259,8 @@ parser, which recovers and continues so that every skeleton error of a file is s
 | E0210 | Second inherent `impl` block for the same type | merge with the block at line N |
 | E0211 | Duplicate test name | |
 | E0212 | Doc comment in a position where it documents nothing | |
-| E0213 | `fn main` is not the last declaration of `functions` (added in M5) | move `main` to the end of `functions` |
+| E0213 | Retired: `fn main` is no longer a declaration of `functions` (was: not last, added in M5). The code is never reused | |
+| E0214 | `fn main` in `functions` | declare the entry point as a `main { }` section above `functions` |
 
 Recovery strategy for the parser **[PROPOSAL]**: on a skeleton error the parser still parses the
 contents of the offending section normally, so that errors inside it are also reported. An

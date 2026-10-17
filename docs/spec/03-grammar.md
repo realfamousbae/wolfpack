@@ -37,6 +37,9 @@ param        = self_param | mode? IDENT ":" type
 self_param   = mode? "self"
 mode         = "mut" | "own"
 
+main_decl    = "main" ( "(" main_param? ")" )? ( "->" type )? block   // the `main` section, chapter 2
+main_param   = IDENT ( ":" type )?
+
 struct_decl  = visibility "struct" IDENT generics? "{" field* "}"
 field        = visibility IDENT ":" type
 
@@ -60,7 +63,8 @@ Rules:
 
 1. A function body is required except for `intrinsic` functions (chapter 7) and `extern`
    declarations. **[PLAN]**
-2. Omitting `-> type` means the result is `Void`. **[PROPOSAL]**
+2. Omitting `-> type` means the result is `Void`. **[PROPOSAL]** The same holds for `main_decl`; its
+   parameter and result type are checked in chapter 6, section 5 (author, 2026-10-17).
 3. `self_param` may appear only as the first parameter of a method in `impl` or of a signature in an
    `interface`. A function in an inherent `impl` block without `self` is an **associated function**,
    called as `Type.name(...)` (for example `List.new()`, `FileStorage.open(path)`). **[PROPOSAL]**

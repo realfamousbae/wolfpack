@@ -98,7 +98,7 @@ Contextual:
 
 | Word | Special only when |
 | --- | --- |
-| `imports`, `config`, `types`, `interfaces`, `functions`, `tests` | at the top level of a file, as a section header followed by `{` |
+| `imports`, `config`, `types`, `interfaces`, `main`, `functions`, `tests` | at the top level of a file, as a section header (`main` is followed by `{`, `(` or `->`, the others by `{`) |
 | `ts`, `go`, `rust` | as a block header directly inside `extern { }` |
 | `from` | after a signature inside an `extern` block |
 | `as` | inside `imports`, before an alias (chapter 6) |
