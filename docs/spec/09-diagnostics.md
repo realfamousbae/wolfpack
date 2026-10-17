@@ -110,6 +110,17 @@ Decisions taken by the author for this chapter (2026-10-07):
    example for E0001). The object is printed on a single line.
 8. `wolf explain <code>` shows a longer description with a wrong and a fixed example **[PLAN]**
    (section 10, milestone M12). Each code gets this text when it is introduced.
+   - The code is written as in the output (`E0501`); the letter may be lower case (`e0501`).
+   - It works anywhere: no project is needed and `wolfpack.toml` is not searched for.
+   - The text is printed to standard output as written, in Markdown: a heading with the code and
+     its title, one or more paragraphs on the rule and the usual fix, then `Wrong:` and `Fixed:`
+     with a complete example each. Driver and tool errors (E00xx, E08xx) may show a command or a
+     manifest instead of `.wolf` code.
+   - A code that does not exist is a usage error (E0002, exit code 2). A retired code prints that
+     it is no longer used and exits with 0.
+   - Diagnostics do not mention `wolf explain`; the output of section 3 stays as it is.
+
+   The rules of `wolf explain` were accepted by the author on 2026-10-16.
 
 ## 4. Exit codes of `wolf`
 
