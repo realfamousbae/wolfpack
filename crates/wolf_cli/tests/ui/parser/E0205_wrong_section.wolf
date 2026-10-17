@@ -1,11 +1,11 @@
 module main
 
+main {
+    print("hi")
+}
+
 functions {
     struct Point {
         x: Int
-    }
-
-    fn main() {
-        print("hi")
     }
 }

@@ -48,17 +48,17 @@ impl {
     }
 }
 
+main {
+    var c = Color.Red
+    c.flip()
+    let items: List<Named> = [c, Dog { title: "rex" }, Color.Red]
+    let copy = items.copy()
+    c.flip()
+    print(names(items) + " " + names(copy) + " " + c.name())
+}
+
 functions {
     fn names(items: List<Named>) -> String {
         string.join(items.map(|n| n.name()), ",")
-    }
-
-    fn main() {
-        var c = Color.Red
-        c.flip()
-        let items: List<Named> = [c, Dog { title: "rex" }, Color.Red]
-        let copy = items.copy()
-        c.flip()
-        print(names(items) + " " + names(copy) + " " + c.name())
     }
 }

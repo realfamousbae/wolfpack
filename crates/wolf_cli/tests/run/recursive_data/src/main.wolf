@@ -18,6 +18,21 @@ types {
     }
 }
 
+main {
+    var list = Node { value: 3, next: None }
+    list = push_front(own list, 2)
+    list = push_front(own list, 1)
+    let copy = list.copy()
+    print(length(list).to_string() + " " + (copy == list).to_string())
+    list.next = None
+    print(
+        length(list).to_string() + " " + length(copy).to_string() + " " + (copy == list).to_string(),
+    )
+    var items = [Status.Active, Status.Snoozed(1), Status.Done { note: "x" }]
+    bump_all(mut items)
+    print(string.join(items.map(|s| describe(s)), ", "))
+}
+
 functions {
     fn length(n: Node) -> Int {
         match n.next {
@@ -46,21 +61,5 @@ functions {
             Status.Snoozed(n) => "snoozed " + n.to_string()
             Status.Done { note } => "done " + note
         }
-    }
-
-    fn main() {
-        var list = Node { value: 3, next: None }
-        list = push_front(own list, 2)
-        list = push_front(own list, 1)
-        let copy = list.copy()
-        print(length(list).to_string() + " " + (copy == list).to_string())
-        list.next = None
-        print(
-            length(list).to_string() + " " + length(copy).to_string() + " " +
-                (copy == list).to_string(),
-        )
-        var items = [Status.Active, Status.Snoozed(1), Status.Done { note: "x" }]
-        bump_all(mut items)
-        print(string.join(items.map(|s| describe(s)), ", "))
     }
 }

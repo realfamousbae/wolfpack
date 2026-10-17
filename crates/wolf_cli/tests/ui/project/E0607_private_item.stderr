@@ -1,15 +1,15 @@
 error[E0607]: `secret` is private in `users.model`
-  --> src/main.wolf:9:21
+  --> src/main.wolf:8:17
   |
-9 |         print(model.secret().to_string())
-  |                     ^^^^^^ private declaration
+8 |     print(model.secret().to_string())
+  |                 ^^^^^^ private declaration
   |
   = help: mark it `pub` in `users.model`
 
 error[E0607]: `User.create` is private
-   --> src/main.wolf:10:28
-   |
-10 |         let u = model.User.create()
-   |                            ^^^^^^ private associated function
+  --> src/main.wolf:9:24
+  |
+9 |     let u = model.User.create()
+  |                        ^^^^^^ private associated function
 
 error: aborting due to 2 errors

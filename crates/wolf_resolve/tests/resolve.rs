@@ -61,7 +61,7 @@ fn resolve(project: &[(&str, Role, &str)], kind: Kind) -> Vec<&'static str> {
     codes
 }
 
-const MAIN: &str = "module main\n\nfunctions {\n    fn main() {\n        print(\"hi\")\n    }\n}\n";
+const MAIN: &str = "module main\n\nmain {\n    print(\"hi\")\n}";
 
 #[test]
 fn std_resolves_cleanly() {
@@ -70,7 +70,7 @@ fn std_resolves_cleanly() {
 
 #[test]
 fn std_names_resolve() {
-    let main = "module main\n\nimports {\n    std.fs\n    std.list.{sort_by}\n    std.math\n}\n\nfunctions {\n    fn load(path: String) -> Result<String, Error> {\n        let text = fs.read_text(path)?\n        Ok(text)\n    }\n\n    fn main() {\n        var items: List<Int> = List.new()\n        items.push(math.int_max)\n        sort_by(mut items, |a, b| a.compare(b))\n        let e = fs.FsError.NotFound(\"x\")\n        match e {\n            fs.FsError.NotFound(p) => print(p)\n            _ => print(\"other\")\n        }\n        let o = Ordering.Less\n        let _ = o\n        let _ = load(\"a\")\n    }\n}\n";
+    let main = "module main\n\nimports {\n    std.fs\n    std.list.{sort_by}\n    std.math\n}\n\nmain {\n    var items: List<Int> = List.new()\n    items.push(math.int_max)\n    sort_by(mut items, |a, b| a.compare(b))\n    let e = fs.FsError.NotFound(\"x\")\n    match e {\n        fs.FsError.NotFound(p) => print(p)\n        _ => print(\"other\")\n    }\n    let o = Ordering.Less\n    let _ = o\n    let _ = load(\"a\")\n}\n\nfunctions {\n    fn load(path: String) -> Result<String, Error> {\n        let text = fs.read_text(path)?\n        Ok(text)\n    }\n}\n";
     let codes = resolve(&[("main", Role::Entry, main)], Kind::Cli);
     assert!(codes.is_empty(), "{codes:?}");
 }
@@ -79,7 +79,7 @@ fn std_names_resolve() {
 fn deep_nesting_on_the_compiler_stack() {
     let depth = wolf_parser::MAX_DEPTH as usize - 10;
     let main = format!(
-        "module main\n\nfunctions {{\n    fn main() {{\n        let x = {}1{}\n        print(x.to_string())\n    }}\n}}\n",
+        "module main\n\nmain {{\n    let x = {}1{}\n    print(x.to_string())\n}}\n",
         "(".repeat(depth),
         ")".repeat(depth)
     );

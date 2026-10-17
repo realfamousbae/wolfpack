@@ -1,9 +1,9 @@
 error[E0302]: unclosed delimiter, expected `)`
-  --> parser/E0302_unclosed_delimiter.wolf:5:14
+  --> parser/E0302_unclosed_delimiter.wolf:4:10
   |
-5 |         print("a"
-  |              ^ this delimiter is never closed
-6 |     }
-  |     - expected `)` here
+4 |     print("a"
+  |          ^ this delimiter is never closed
+5 | }
+  | - expected `)` here
 
 error: aborting due to 1 error

@@ -1,5 +1,9 @@
 module main
 
+main {
+    print(label(1))
+}
+
 functions {
     fn label(n: Int) -> String {
         let size = if n > 10 { "big" } else { n }
@@ -8,9 +12,5 @@ functions {
             _ => false
         }
         size + kind
-    }
-
-    fn main() {
-        print(label(1))
     }
 }

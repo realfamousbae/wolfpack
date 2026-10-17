@@ -15,18 +15,16 @@ types {
     }
 }
 
-functions {
-    fn main() {
-        let name = "Ann"
-        let ann = User { name, age: 31 }
-        var bob = User { name: "Bob", age: 25 }
-        bob.age += 1
-        print(ann.name + " " + ann.age.to_string())
-        print(bob.name + " " + bob.age.to_string())
-        print((ann == bob).to_string())
-        let twin = bob.copy()
-        print((twin == bob).to_string())
-    }
+main {
+    let name = "Ann"
+    let ann = User { name, age: 31 }
+    var bob = User { name: "Bob", age: 25 }
+    bob.age += 1
+    print(ann.name + " " + ann.age.to_string())
+    print(bob.name + " " + bob.age.to_string())
+    print((ann == bob).to_string())
+    let twin = bob.copy()
+    print((twin == bob).to_string())
 }
 ```
 
@@ -81,14 +79,12 @@ impl {
     }
 }
 
-functions {
-    fn main() {
-        var clicks = Counter.new("clicks")
-        clicks.add(2)
-        clicks.add(3)
-        print(clicks.label())
-        print(clicks.finish())
-    }
+main {
+    var clicks = Counter.new("clicks")
+    clicks.add(2)
+    clicks.add(3)
+    print(clicks.label())
+    print(clicks.finish())
 }
 ```
 
@@ -124,19 +120,19 @@ types {
     }
 }
 
+main {
+    let shapes = [Shape.Circle(1.0), Shape.Rect { w: 2.0, h: 3.0 }, Shape.Empty]
+    for s in shapes {
+        print(area(s).to_string())
+    }
+}
+
 functions {
     fn area(s: Shape) -> Float {
         match s {
             Shape.Circle(r) => 3.0 * r * r
             Shape.Rect { w, h } => w * h
             Shape.Empty => 0.0
-        }
-    }
-
-    fn main() {
-        let shapes = [Shape.Circle(1.0), Shape.Rect { w: 2.0, h: 3.0 }, Shape.Empty]
-        for s in shapes {
-            print(area(s).to_string())
         }
     }
 }
@@ -179,13 +175,11 @@ impl {
     }
 }
 
-functions {
-    fn main() {
-        var light = Light.Red
-        for step in 0..4 {
-            light = light.next()
-            print(step.to_string() + " " + (light == Light.Red).to_string())
-        }
+main {
+    var light = Light.Red
+    for step in 0..4 {
+        light = light.next()
+        print(step.to_string() + " " + (light == Light.Red).to_string())
     }
 }
 ```
@@ -212,6 +206,14 @@ types {
     }
 }
 
+main {
+    var tree = Tree.Leaf
+    for n in [5, 2, 8] {
+        tree = insert(own tree, n)
+    }
+    print(sum(tree).to_string())
+}
+
 functions {
     fn insert(own tree: Tree, value: Int) -> Tree {
         match own tree {
@@ -229,14 +231,6 @@ functions {
             Tree.Leaf => 0
             Tree.Node(left, v, right) => sum(left) + v + sum(right)
         }
-    }
-
-    fn main() {
-        var tree = Tree.Leaf
-        for n in [5, 2, 8] {
-            tree = insert(own tree, n)
-        }
-        print(sum(tree).to_string())
     }
 }
 ```

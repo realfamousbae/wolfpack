@@ -7,6 +7,15 @@ types {
     }
 }
 
+main {
+    let u = make()
+    u.name = "b"
+    change(mut u)
+    for t in u.tags {
+        t = "x"
+    }
+}
+
 functions {
     fn take(own u: User) -> Int {
         u.tags.len()
@@ -18,14 +27,5 @@ functions {
 
     fn make() -> User {
         User { name: "a", tags: ["t"] }
-    }
-
-    fn main() {
-        let u = make()
-        u.name = "b"
-        change(mut u)
-        for t in u.tags {
-            t = "x"
-        }
     }
 }

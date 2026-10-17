@@ -31,7 +31,7 @@ fn parse_here(text: &str) -> Vec<&'static str> {
 }
 
 fn in_function(body: &str) -> String {
-    format!("module main\n\nfunctions {{\n    fn main() {{\n        let x = {body}\n    }}\n}}\n")
+    format!("module main\n\nmain {{\n    let x = {body}\n}}\n")
 }
 
 const DEEP: usize = 10_000;
@@ -69,7 +69,7 @@ fn deep_lists_and_blocks() {
     let body = format!("{}1{}", "|| ".repeat(DEEP), "");
     assert_eq!(parse(&in_function(&body)), ["E0314"]);
     let blocks = format!(
-        "module main\n\nfunctions {{\n    fn main() {}x{}\n}}\n",
+        "module main\n\nmain {}x{}\n",
         "{ if a ".repeat(DEEP),
         " }".repeat(DEEP)
     );
@@ -105,7 +105,7 @@ fn deep_matches_struct_literals_calls_and_loops() {
     let calls = format!("{}1{}", "f(".repeat(DEEP), ")".repeat(DEEP));
     assert_eq!(parse(&in_function(&calls)), ["E0314"]);
     let loops = format!(
-        "module main\n\nfunctions {{\n    fn main() {{\n{}x{}\n    }}\n}}\n",
+        "module main\n\nmain {{\n{}x{}\n}}\n",
         "for i in xs {\n".repeat(DEEP),
         "\n}".repeat(DEEP)
     );
@@ -125,7 +125,7 @@ fn the_limit_fits_into_eight_mebibytes() {
             " } }".repeat(depth / 2)
         )),
         format!(
-            "module main\n\nfunctions {{\n    fn main() {}{{ x }}{}\n}}\n",
+            "module main\n\nmain {}{{ x }}{}\n",
             "{ if a ".repeat(depth / 2),
             " }".repeat(depth / 2)
         ),

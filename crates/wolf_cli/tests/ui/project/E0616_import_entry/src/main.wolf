@@ -4,12 +4,12 @@ imports {
     main.{helper}
 }
 
+main {
+    helper()
+}
+
 functions {
     fn helper() {
         print("x")
-    }
-
-    fn main() {
-        helper()
     }
 }

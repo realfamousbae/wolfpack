@@ -7,6 +7,18 @@ types {
     }
 }
 
+main {
+    var u = make()
+    if u.tags.len() > 0 {
+        let _ = take(own u)
+    }
+    print(u.name)
+    let w = make()
+    for i in 0..2 {
+        print(take(own w).to_string())
+    }
+}
+
 functions {
     fn take(own u: User) -> Int {
         u.tags.len()
@@ -18,17 +30,5 @@ functions {
 
     fn make() -> User {
         User { name: "a", tags: ["t"] }
-    }
-
-    fn main() {
-        var u = make()
-        if u.tags.len() > 0 {
-            let _ = take(own u)
-        }
-        print(u.name)
-        let w = make()
-        for i in 0..2 {
-            print(take(own w).to_string())
-        }
     }
 }

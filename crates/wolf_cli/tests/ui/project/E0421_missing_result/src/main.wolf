@@ -1,5 +1,9 @@
 module main
 
+main {
+    print(sign(1) + count(2).to_string() + forever().to_string())
+}
+
 functions {
     fn sign(n: Int) -> String {
         if n < 0 {
@@ -18,9 +22,5 @@ functions {
         while true {
             print("tick")
         }
-    }
-
-    fn main() {
-        print(sign(1) + count(2).to_string() + forever().to_string())
     }
 }

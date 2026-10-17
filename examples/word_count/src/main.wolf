@@ -11,6 +11,23 @@ config {
     sample: String = "the quick brown fox jumps over the lazy dog the fox"
 }
 
+main {
+    let counts = count_words(sample)
+    for word in counts.keys() {
+        print(word + ": " + counts[word].to_string())
+    }
+
+    let long_words = counts.keys().filter(|w| w.len() > 4)
+    print("long words: " + string.join(long_words, ", "))
+
+    var entries = counts.entries()
+    list.sort_by(mut entries, |a, b| b.value.compare(a.value))
+    print("top three:")
+    for i in 0..3 {
+        print("  " + entries[i].key + " " + entries[i].value.to_string())
+    }
+}
+
 functions {
     fn count_words(text: String) -> Map<String, Int> {
         var counts: Map<String, Int> = [:]
@@ -22,22 +39,5 @@ functions {
             }
         }
         counts
-    }
-
-    fn main() {
-        let counts = count_words(sample)
-        for word in counts.keys() {
-            print(word + ": " + counts[word].to_string())
-        }
-
-        let long_words = counts.keys().filter(|w| w.len() > 4)
-        print("long words: " + string.join(long_words, ", "))
-
-        var entries = counts.entries()
-        list.sort_by(mut entries, |a, b| b.value.compare(a.value))
-        print("top three:")
-        for i in 0..3 {
-            print("  " + entries[i].key + " " + entries[i].value.to_string())
-        }
     }
 }

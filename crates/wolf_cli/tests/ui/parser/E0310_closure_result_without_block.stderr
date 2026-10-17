@@ -1,8 +1,8 @@
 error[E0310]: closure with a result type needs a block body
-  --> parser/E0310_closure_result_without_block.wolf:5:31
+  --> parser/E0310_closure_result_without_block.wolf:4:27
   |
-5 |         let inc = |x: Int| -> Int x + 1
-  |                               ^^^ result type written here
+4 |     let inc = |x: Int| -> Int x + 1
+  |                           ^^^ result type written here
   |
   = help: write the body in braces: `|x: Int| -> Int { x + 1 }`
 

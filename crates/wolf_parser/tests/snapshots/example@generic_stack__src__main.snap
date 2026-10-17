@@ -23,6 +23,25 @@ file
         (params self (f (fn T (-> U))))
         (-> (Stack U))
         (block (struct Stack (items: (call (. (. self items) map) f))))
+  section main
+    fn
+      main
+      ()
+      block
+        (var numbers (Stack Int) (call (. Stack new)))
+        (for i (..= 1 5) (block (call (. numbers push) (* i i))))
+        (call print (+ "size: " (call (. (call (. numbers len)) to_string))))
+        (var labels (call (. numbers map) (closure (params n) (+ "#" (call (. n to_string))))))
+        match
+          (call (. labels pop))
+          (=> (Some label) (call print (+ "top label: " label)))
+          (=> None (call print "no labels"))
+        (call print (+ "sum: " (call (. (call drain_sum (own numbers)) to_string))))
+        match
+          (call largest (list "pear" "apple" "zucchini" "fig"))
+          (=> (Some word) (call print (+ "largest word: " word)))
+          (=> None (call print "no words"))
+        (call print (+ "threes: " (call (. (call count_equal (list 3 1 3 2 3) 3) to_string))))
   section functions
     fn
       doc " Takes the stack and sums it. An `own` parameter is mutable inside the function."
@@ -61,24 +80,6 @@ file
               (== (call (. item compare) best) (. Ordering Greater))
               (block (= best (call (. item copy))))
         (call Some best)
-    fn
-      main
-      ()
-      block
-        (var numbers (Stack Int) (call (. Stack new)))
-        (for i (..= 1 5) (block (call (. numbers push) (* i i))))
-        (call print (+ "size: " (call (. (call (. numbers len)) to_string))))
-        (var labels (call (. numbers map) (closure (params n) (+ "#" (call (. n to_string))))))
-        match
-          (call (. labels pop))
-          (=> (Some label) (call print (+ "top label: " label)))
-          (=> None (call print "no labels"))
-        (call print (+ "sum: " (call (. (call drain_sum (own numbers)) to_string))))
-        match
-          (call largest (list "pear" "apple" "zucchini" "fig"))
-          (=> (Some word) (call print (+ "largest word: " word)))
-          (=> None (call print "no words"))
-        (call print (+ "threes: " (call (. (call count_equal (list 3 1 3 2 3) 3) to_string))))
   section tests
     test
       "pop returns items in reverse order"

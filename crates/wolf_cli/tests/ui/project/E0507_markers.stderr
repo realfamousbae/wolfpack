@@ -1,24 +1,24 @@
 error[E0507]: missing `mut` at the call site
-   --> src/main.wolf:25:16
+   --> src/main.wolf:12:12
    |
-25 |         change(u)
-   |                ^ this parameter is `mut`
+12 |     change(u)
+   |            ^ this parameter is `mut`
    |
    = help: write `mut` before the argument
 
 error[E0507]: missing `own` at the call site
-   --> src/main.wolf:26:20
+   --> src/main.wolf:13:16
    |
-26 |         print(take(u).to_string())
-   |                    ^ this argument is moved into an `own` parameter
+13 |     print(take(u).to_string())
+   |                ^ this argument is moved into an `own` parameter
    |
    = help: write `own` before the argument, or pass a copy without `own`: `x.copy()`
 
 error[E0507]: unexpected `own` at the call site
-   --> src/main.wolf:27:24
+   --> src/main.wolf:14:20
    |
-27 |         print(take(own make()).to_string())
-   |                        ^^^^^^ a temporary or a copy type needs no `own`
+14 |     print(take(own make()).to_string())
+   |                    ^^^^^^ a temporary or a copy type needs no `own`
    |
    = help: remove `own`
 

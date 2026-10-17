@@ -58,6 +58,31 @@ impl {
     }
 }
 
+main -> Result<Void, Error> {
+    var alice = Account.open("Alice", 100)
+    var bob = Account.open("Bob", 20)
+
+    transfer(mut alice, mut bob, 30)?
+    print(alice.summary())
+    print(bob.summary())
+
+    match transfer(mut bob, mut alice, 500) {
+        Ok(_) => print("transfer done")
+        Err(error) => print("transfer failed: " + error.message())
+    }
+
+    let final_balance = close(own bob)
+    print("closed Bob's account with " + final_balance.to_string())
+    // print(bob.summary())   would not compile: `bob` was moved into `close`
+
+    match alice.deposit(0) {
+        Ok(_) => print("deposit done")
+        Err(error) => print("deposit failed: " + error.message())
+    }
+    print(alice.summary())
+    Ok(())
+}
+
 functions {
     /// Moves money between two different accounts.
     fn transfer(mut from: Account, mut to: Account, amount: Int) -> Result<Void, BankError> {
@@ -69,31 +94,6 @@ functions {
     /// Closes the account and returns its final balance. The caller can no longer use it.
     fn close(own account: Account) -> Int {
         account.balance
-    }
-
-    fn main() -> Result<Void, Error> {
-        var alice = Account.open("Alice", 100)
-        var bob = Account.open("Bob", 20)
-
-        transfer(mut alice, mut bob, 30)?
-        print(alice.summary())
-        print(bob.summary())
-
-        match transfer(mut bob, mut alice, 500) {
-            Ok(_) => print("transfer done")
-            Err(error) => print("transfer failed: " + error.message())
-        }
-
-        let final_balance = close(own bob)
-        print("closed Bob's account with " + final_balance.to_string())
-        // print(bob.summary())   would not compile: `bob` was moved into `close`
-
-        match alice.deposit(0) {
-            Ok(_) => print("deposit done")
-            Err(error) => print("deposit failed: " + error.message())
-        }
-        print(alice.summary())
-        Ok(())
     }
 }
 

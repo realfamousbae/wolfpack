@@ -34,6 +34,20 @@ impl {
     }
 }
 
+main {
+    var numbers = Stack.new()
+    numbers.push(1)
+    numbers.push(2)
+    var labels = numbers.map(|n| "#" + n.to_string())
+    match labels.pop() {
+        Some(label) => print(label)
+        None => print("empty")
+    }
+    print(last_or(["a", "b"], "none"))
+    let empty = List.<String>.new()
+    print(last_or(own empty, "none"))
+}
+
 functions {
     fn last_or<T>(own items: List<T>, own fallback: T) -> T {
         var rest = items
@@ -41,20 +55,6 @@ functions {
             Some(item) => item
             None => fallback
         }
-    }
-
-    fn main() {
-        var numbers = Stack.new()
-        numbers.push(1)
-        numbers.push(2)
-        var labels = numbers.map(|n| "#" + n.to_string())
-        match labels.pop() {
-            Some(label) => print(label)
-            None => print("empty")
-        }
-        print(last_or(["a", "b"], "none"))
-        let empty = List.<String>.new()
-        print(last_or(own empty, "none"))
     }
 }
 ```
@@ -82,6 +82,14 @@ joined with `+`:
 ```wolf
 module main
 
+main {
+    print(count_equal(["a", "b", "a"], "a").to_string())
+    match largest([3, 9, 4]) {
+        Some(n) => print(n.to_string())
+        None => print("empty")
+    }
+}
+
 functions {
     fn count_equal<T: Equatable>(items: List<T>, target: T) -> Int {
         var count = 0
@@ -104,14 +112,6 @@ functions {
             }
         }
         Some(best)
-    }
-
-    fn main() {
-        print(count_equal(["a", "b", "a"], "a").to_string())
-        match largest([3, 9, 4]) {
-            Some(n) => print(n.to_string())
-            None => print("empty")
-        }
     }
 }
 ```
@@ -198,6 +198,17 @@ impl {
     }
 }
 
+main {
+    let shapes: List<Shape> = [Rect { w: 2.0, h: 3.0 }, Square { side: 2.0 }]
+    print(total_area(shapes.copy()).to_string())
+    for shape in shapes {
+        print(shape.name() + " " + shape.area().to_string())
+    }
+    var rects = [Rect { w: 5.0, h: 1.0 }, Rect { w: 1.0, h: 1.0 }]
+    list.sort(mut rects)
+    print(rects[0].area().to_string())
+}
+
 functions {
     fn total_area(shapes: List<Shape>) -> Float {
         var sum = 0.0
@@ -205,17 +216,6 @@ functions {
             sum += shape.area()
         }
         sum
-    }
-
-    fn main() {
-        let shapes: List<Shape> = [Rect { w: 2.0, h: 3.0 }, Square { side: 2.0 }]
-        print(total_area(shapes.copy()).to_string())
-        for shape in shapes {
-            print(shape.name() + " " + shape.area().to_string())
-        }
-        var rects = [Rect { w: 5.0, h: 1.0 }, Rect { w: 1.0, h: 1.0 }]
-        list.sort(mut rects)
-        print(rects[0].area().to_string())
     }
 }
 ```

@@ -15,10 +15,10 @@ error[E0423]: evaluating this constant panics: shift amount out of range
   = note: constants are computed by the compiler, so a panic is a compile error
 
 error[E0423]: integer literal `9223372036854775808` is out of range
-   --> src/main.wolf:12:21
+   --> src/main.wolf:11:17
    |
-12 |         let wrong = 9223372036854775808
-   |                     ^^^^^^^^^^^^^^^^^^^ the largest `Int` is 9223372036854775807
+11 |     let wrong = 9223372036854775808
+   |                 ^^^^^^^^^^^^^^^^^^^ the largest `Int` is 9223372036854775807
    |
    = note: `9223372036854775808` can only be written after a minus sign
 

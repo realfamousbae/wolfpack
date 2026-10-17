@@ -1,41 +1,41 @@
-error[E0401]: expected `Int`, found `String`
-  --> src/main.wolf:5:25
-  |
-5 |         let mixed = [1, "a"]
-  |                         ^^^ this is `String`
-
-error[E0401]: expected `Int`, found `String`
-  --> src/main.wolf:7:23
-  |
-7 |         let x = items["x"]
-  |                       ^^^ this is `String`
-
-error[E0401]: expected `String`, found `Int`
-  --> src/main.wolf:8:22
-  |
-8 |         let y = ages[1]
-  |                      ^ this is `Int`
-
-error[E0401]: expected `Int`, found `Void`
-   --> src/main.wolf:10:13
-   |
-10 |             return
-   |             ^^^^^^ this is `Void`
-
 error[E0405]: `+` cannot be applied to `Int` and `String`
-   --> src/main.wolf:17:9
-   |
-17 |         total += "a"
-   |         ^^^^^^^^^^^^ `Int` + `String`
-   |
-   = help: convert the other side with `.to_string()`
+  --> src/main.wolf:5:5
+  |
+5 |     total += "a"
+  |     ^^^^^^^^^^^^ `Int` + `String`
+  |
+  = help: convert the other side with `.to_string()`
 
 error[E0406]: `fn(Int) -> Int` is not `Copyable`
-   --> src/main.wolf:19:20
+  --> src/main.wolf:7:16
+  |
+7 |     let part = fns[0..1]
+  |                ^^^^^^^^^ slicing a list copies the elements and needs `Copyable`
+  |
+  = note: `fn(Int) -> Int` is not `Copyable` because functions cannot be copied
+
+error[E0401]: expected `Int`, found `String`
+   --> src/main.wolf:14:25
    |
-19 |         let part = fns[0..1]
-   |                    ^^^^^^^^^ slicing a list copies the elements and needs `Copyable`
+14 |         let mixed = [1, "a"]
+   |                         ^^^ this is `String`
+
+error[E0401]: expected `Int`, found `String`
+   --> src/main.wolf:16:23
    |
-   = note: `fn(Int) -> Int` is not `Copyable` because functions cannot be copied
+16 |         let x = items["x"]
+   |                       ^^^ this is `String`
+
+error[E0401]: expected `String`, found `Int`
+   --> src/main.wolf:17:22
+   |
+17 |         let y = ages[1]
+   |                      ^ this is `Int`
+
+error[E0401]: expected `Int`, found `Void`
+   --> src/main.wolf:19:13
+   |
+19 |             return
+   |             ^^^^^^ this is `Void`
 
 error: aborting due to 6 errors

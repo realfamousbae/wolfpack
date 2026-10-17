@@ -1,51 +1,51 @@
-error[E0428]: `Shape.Circle` has 1 value, but the pattern has 2
-   --> src/main.wolf:14:13
-   |
-14 |             Shape.Circle(r, _) => r
-   |             ^^^^^^^^^^^^^^^^^^ expected 1 pattern
-
-error[E0428]: variant `Shape.Rect` is written as `Shape.Rect { ... }`
-   --> src/main.wolf:15:13
-   |
-15 |             Shape.Rect(w, h) => w * h
-   |             ^^^^^^^^^^ this pattern has a different form
-
 error[E0428]: `area` takes 1 argument, but 2 were given
-   --> src/main.wolf:21:15
+   --> src/main.wolf:12:11
    |
-21 |         print(area(Shape.Empty, 1).to_string())
-   |               ^^^^^^^^^^^^^^^^^^^^ expected 1 argument
+12 |     print(area(Shape.Empty, 1).to_string())
+   |           ^^^^^^^^^^^^^^^^^^^^ expected 1 argument
 
 error[E0428]: variant `Shape.Empty` has no payload
-   --> src/main.wolf:22:17
+   --> src/main.wolf:13:13
    |
-22 |         let a = Shape.Empty()
-   |                 ^^^^^^^^^^^^^ this variant takes no values
+13 |     let a = Shape.Empty()
+   |             ^^^^^^^^^^^^^ this variant takes no values
    |
    = help: write `Shape.Empty` without parentheses
 
 error[E0428]: variant `Shape.Rect` has named fields
-   --> src/main.wolf:23:17
+   --> src/main.wolf:14:13
    |
-23 |         let b = Shape.Rect(1.0, 2.0)
-   |                 ^^^^^^^^^^^^^^^^^^^^ this variant is written with its fields
+14 |     let b = Shape.Rect(1.0, 2.0)
+   |             ^^^^^^^^^^^^^^^^^^^^ this variant is written with its fields
    |
    = help: write `Shape.Rect { field: value, ... }`
 
 error[E0428]: variant `Shape.Circle` needs a payload
-   --> src/main.wolf:24:23
+   --> src/main.wolf:15:19
    |
-24 |         let c = Shape.Circle
-   |                       ^^^^^^ the payload is missing
+15 |     let c = Shape.Circle
+   |                   ^^^^^^ the payload is missing
    |
    = help: write it with its payload: `Shape.Circle(...)`; a variant is not a function value, so to pass it on write a closure such as `|x| Shape.Circle(x)`
 
 error[E0428]: variant `Some` needs a payload
-   --> src/main.wolf:25:31
+   --> src/main.wolf:16:27
    |
-25 |         let names = ["a"].map(Some)
-   |                               ^^^^ the payload is missing
+16 |     let names = ["a"].map(Some)
+   |                           ^^^^ the payload is missing
    |
    = help: write it with its payload: `Some(...)`; a variant is not a function value, so to pass it on write a closure such as `|x| Some(x)`
+
+error[E0428]: `Shape.Circle` has 1 value, but the pattern has 2
+   --> src/main.wolf:24:13
+   |
+24 |             Shape.Circle(r, _) => r
+   |             ^^^^^^^^^^^^^^^^^^ expected 1 pattern
+
+error[E0428]: variant `Shape.Rect` is written as `Shape.Rect { ... }`
+   --> src/main.wolf:25:13
+   |
+25 |             Shape.Rect(w, h) => w * h
+   |             ^^^^^^^^^^ this pattern has a different form
 
 error: aborting due to 7 errors

@@ -1,0 +1,4 @@
+[package]
+name = "main-args-typed-result"
+version = "0.1.0"
+kind = "cli"

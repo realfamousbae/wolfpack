@@ -11,6 +11,18 @@ the situations that should never happen, there are panics.
 ```wolf
 module main
 
+main {
+    let names = ["Ann", "Bob"]
+    match find_index(names.copy(), "Bob") {
+        Some(i) => print("found at " + i.to_string())
+        None => print("not found")
+    }
+    match find_index(names, "Cid") {
+        Some(i) => print("found at " + i.to_string())
+        None => print("not found")
+    }
+}
+
 functions {
     fn find_index(names: List<String>, wanted: String) -> Option<Int> {
         for i in 0..names.len() {
@@ -19,18 +31,6 @@ functions {
             }
         }
         None
-    }
-
-    fn main() {
-        let names = ["Ann", "Bob"]
-        match find_index(names.copy(), "Bob") {
-            Some(i) => print("found at " + i.to_string())
-            None => print("not found")
-        }
-        match find_index(names, "Cid") {
-            Some(i) => print("found at " + i.to_string())
-            None => print("not found")
-        }
     }
 }
 ```
@@ -51,13 +51,11 @@ happens when there is none, usually with a `match`.
 ```wolf
 module main
 
-functions {
-    fn main() {
-        for text in ["42", "forty-two"] {
-            match text.parse_int() {
-                Ok(n) => print("number " + (n + 1).to_string())
-                Err(e) => print("error: " + e.message())
-            }
+main {
+    for text in ["42", "forty-two"] {
+        match text.parse_int() {
+            Ok(n) => print("number " + (n + 1).to_string())
+            Err(e) => print("error: " + e.message())
         }
     }
 }
@@ -78,10 +76,8 @@ imports {
     std.fs
 }
 
-functions {
-    fn main() {
-        fs.write_text("notes.txt", "remember the milk")
-    }
+main {
+    fs.write_text("notes.txt", "remember the milk")
 }
 ```
 
@@ -116,6 +112,15 @@ impl {
     }
 }
 
+main {
+    for text in ["8080", "http", "70000"] {
+        match parse_port(text) {
+            Ok(port) => print("listening on " + port.to_string())
+            Err(e) => print(e.message())
+        }
+    }
+}
+
 functions {
     fn parse_port(text: String) -> Result<Int, Error> {
         let port = text.parse_int()?
@@ -123,15 +128,6 @@ functions {
             return Err(PortError.OutOfRange(port))
         }
         Ok(port)
-    }
-
-    fn main() {
-        for text in ["8080", "http", "70000"] {
-            match parse_port(text) {
-                Ok(port) => print("listening on " + port.to_string())
-                Err(e) => print(e.message())
-            }
-        }
     }
 }
 ```
@@ -149,18 +145,16 @@ too. Where a function promises a specific error type instead, such as `Result<In
 
 ## When `main` fails
 
-`main` may return `Result<Void, Error>`. Then `?` works in `main` too, and when `main` returns an
-error, the program writes `error: ` and the message to standard error and exits with code 1:
+The `main` section may be written `main -> Result<Void, Error> { ... }`. Then `?` works in `main`
+too, and when `main` returns an error, the program writes `error: ` and the message to standard error and exits with code 1:
 
 ```wolf
 module main
 
-functions {
-    fn main() -> Result<Void, Error> {
-        let n = "12".parse_int()?
-        print((n * 2).to_string())
-        Ok(())
-    }
+main -> Result<Void, Error> {
+    let n = "12".parse_int()?
+    print((n * 2).to_string())
+    Ok(())
 }
 ```
 

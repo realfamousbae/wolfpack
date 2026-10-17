@@ -6,8 +6,6 @@ config {
     depth: Int = depth + 1
 }
 
-functions {
-    fn main() {
-        print((width + height + depth).to_string())
-    }
+main {
+    print((width + height + depth).to_string())
 }

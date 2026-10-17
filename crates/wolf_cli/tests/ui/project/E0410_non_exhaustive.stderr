@@ -1,31 +1,31 @@
 error[E0410]: `match` does not cover every value: `Shape.Rect { .. }` is missing
-   --> src/main.wolf:13:15
+   --> src/main.wolf:17:15
    |
-13 |         match s {
+17 |         match s {
    |               ^ `Shape.Rect { .. }` is not covered
    |
    = help: add an arm for `Shape.Rect { .. }`, or `_ => ...` for the rest
 
 error[E0410]: `match` does not cover every value of `Int`
-   --> src/main.wolf:20:15
+   --> src/main.wolf:24:15
    |
-20 |         match n {
+24 |         match n {
    |               ^ some values are not covered
    |
    = help: add an arm `_ => ...` for the other values
 
 error[E0410]: `match` does not cover every value: `Some(None)` is missing
-   --> src/main.wolf:27:15
+   --> src/main.wolf:31:15
    |
-27 |         match o {
+31 |         match o {
    |               ^ `Some(None)` is not covered
    |
    = help: add an arm for `Some(None)`, or `_ => ...` for the rest
 
 error[E0410]: `match` does not cover every value of `Int`
-   --> src/main.wolf:34:15
+   --> src/main.wolf:38:15
    |
-34 |         match n {
+38 |         match n {
    |               ^ some values are not covered
    |
    = help: add an arm `_ => ...` for the other values

@@ -4,8 +4,6 @@ imports {
     shapes.{make}
 }
 
-functions {
-    fn main() {
-        let _ = make()
-    }
+main {
+    let _ = make()
 }

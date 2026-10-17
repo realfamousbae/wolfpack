@@ -1,7 +1,7 @@
 error[E0205]: `struct` in the `functions` section
-  --> parser/E0205_wrong_section.wolf:4:5
+  --> parser/E0205_wrong_section.wolf:8:5
   |
-4 |     struct Point {
+8 |     struct Point {
   |     ^^^^^^^^^^^^ a `struct` belongs in `types`
   |
   = help: move this `struct` into the `types` section

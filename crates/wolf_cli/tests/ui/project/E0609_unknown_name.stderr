@@ -1,29 +1,29 @@
 error[E0609]: unknown name `prnt`
-  --> src/main.wolf:5:9
+  --> src/main.wolf:4:5
   |
-5 |         prnt("hi")
-  |         ^^^^ not found in this scope
+4 |     prnt("hi")
+  |     ^^^^ not found in this scope
   |
   = help: did you mean `print`?
 
 error[E0609]: unknown name `lenght`
-  --> src/main.wolf:6:17
+  --> src/main.wolf:5:13
   |
-6 |         let n = lenght
-  |                 ^^^^^^ not found in this scope
+5 |     let n = lenght
+  |             ^^^^^^ not found in this scope
   |
   = help: if it comes from another module, import it in `imports`
 
 error[E0609]: unknown name `Color`
-  --> src/main.wolf:8:15
+  --> src/main.wolf:7:11
   |
-8 |         print(Color.Red)
-  |               ^^^^^ not found in this scope
+7 |     print(Color.Red)
+  |           ^^^^^ not found in this scope
 
 error[E0609]: `self` outside of a method
-   --> src/main.wolf:11:24
+   --> src/main.wolf:10:20
    |
-11 |             _ => print(self)
-   |                        ^^^^ only methods with a `self` parameter have `self`
+10 |         _ => print(self)
+   |                    ^^^^ only methods with a `self` parameter have `self`
 
 error: aborting due to 4 errors

@@ -7,6 +7,10 @@ types {
     }
 }
 
+main {
+    print("hi")
+}
+
 functions {
     fn same(a: Task, b: Task) -> Bool {
         a == b
@@ -18,9 +22,5 @@ functions {
 
     fn errors_equal(a: Error, b: Error) -> Bool {
         a == b
-    }
-
-    fn main() {
-        print("hi")
     }
 }

@@ -1,25 +1,25 @@
 error[E0406]: `T` is not `Equatable`
-  --> src/main.wolf:5:9
+  --> src/main.wolf:9:9
   |
-5 |         a == b
+9 |         a == b
   |         ^^^^^^ `==` needs `Equatable`
   |
   = help: add the bound where `T` is declared: `T: Equatable`
 
 error[E0406]: `T` is not `Copyable`
-  --> src/main.wolf:9:12
-  |
-9 |         [x.copy(), x.copy()]
-  |            ^^^^ `.copy()` needs `Copyable`
-  |
-  = help: add the bound where `T` is declared: `T: Copyable`
+   --> src/main.wolf:13:12
+   |
+13 |         [x.copy(), x.copy()]
+   |            ^^^^ `.copy()` needs `Copyable`
+   |
+   = help: add the bound where `T` is declared: `T: Copyable`
 
 error[E0406]: `T` is not `Copyable`
-  --> src/main.wolf:9:22
-  |
-9 |         [x.copy(), x.copy()]
-  |                      ^^^^ `.copy()` needs `Copyable`
-  |
-  = help: add the bound where `T` is declared: `T: Copyable`
+   --> src/main.wolf:13:22
+   |
+13 |         [x.copy(), x.copy()]
+   |                      ^^^^ `.copy()` needs `Copyable`
+   |
+   = help: add the bound where `T` is declared: `T: Copyable`
 
 error: aborting due to 3 errors

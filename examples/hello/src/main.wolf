@@ -1,7 +1,5 @@
 module main
 
-functions {
-    fn main() {
-        print("Hello, wolfpack!")
-    }
+main {
+    print("Hello, wolfpack!")
 }

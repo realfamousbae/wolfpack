@@ -7,15 +7,15 @@ types {
     }
 }
 
+main {
+    let count: Int = "three"
+    greet(42)
+    let user = User { name: "a", age: 1.5 }
+    let _ = [count.to_string(), user.name]
+}
+
 functions {
     fn greet(name: String) {
         print("hi " + name)
-    }
-
-    fn main() {
-        let count: Int = "three"
-        greet(42)
-        let user = User { name: "a", age: 1.5 }
-        let _ = [count.to_string(), user.name]
     }
 }

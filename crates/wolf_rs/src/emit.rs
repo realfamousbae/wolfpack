@@ -1204,11 +1204,16 @@ impl<'p> Emitter<'p> {
             let result = m.items.iter().any(|it| {
                 matches!(it, ir::Item::Fn(f) if f.name == "main" && matches!(f.ret, IrType::Result(..)))
             });
-            let run = if result {
-                self.rt_call("run_main_result", "run_main_result", vec![path("main_")])
-            } else {
-                self.rt_call("run_main", "run_main", vec![path("main_")])
+            let takes_args = m.items.iter().any(
+                |it| matches!(it, ir::Item::Fn(f) if f.name == "main" && !f.params.is_empty()),
+            );
+            let runner = match (result, takes_args) {
+                (true, true) => "run_main_args_result",
+                (true, false) => "run_main_result",
+                (false, true) => "run_main_args",
+                (false, false) => "run_main",
             };
+            let run = self.rt_call(runner, runner, vec![path("main_")]);
             items.push(Item::Fn(rs::Fn {
                 docs: Vec::new(),
                 attrs: Vec::new(),

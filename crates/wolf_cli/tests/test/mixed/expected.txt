@@ -7,7 +7,7 @@ test src/util/math.wolf: overflow is a panic too ... FAILED
 failures:
 
   src/main.wolf: this assertion is wrong
-    panic at src/main.wolf:19:9: assertion failed: halve(4) == 3
+    panic at src/main.wolf:17:9: assertion failed: halve(4) == 3
 
   src/util/math.wolf: odd numbers panic
     panic at src/util/math.wolf:10:13: odd number 3

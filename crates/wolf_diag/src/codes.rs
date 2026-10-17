@@ -70,8 +70,8 @@ pub const E0212: Code = Code::new(
     "E0212",
     "doc comment in a position where it documents nothing",
 );
-/// `fn main` is not the last function.
-pub const E0213: Code = Code::new("E0213", "`main` is not the last function");
+/// `fn main` in `functions`.
+pub const E0214: Code = Code::new("E0214", "`fn main` in `functions`");
 /// Unexpected token.
 pub const E0301: Code = Code::new("E0301", "unexpected token");
 /// Unclosed delimiter.
@@ -237,7 +237,7 @@ pub const E0609: Code = Code::new("E0609", "unknown name");
 pub const E0610: Code = Code::new("E0610", "`module` line does not match the file path");
 
 /// Missing `main` or wrong signature.
-pub const E0614: Code = Code::new("E0614", "missing `main` or wrong signature");
+pub const E0614: Code = Code::new("E0614", "missing `main` or wrong header");
 
 /// Unused import.
 pub const E0615: Code = Code::new("E0615", "unused import");
@@ -287,7 +287,7 @@ pub const E0804: Code = Code::new("E0804", "a tool could not be installed");
 pub const ALL: &[Code] = &[
     E0001, E0002, E0003, E0004, E0101, E0102, E0103, E0104, E0105, E0106, E0107, E0108, E0109,
     E0110, E0111, E0112, E0113, E0201, E0202, E0203, E0204, E0205, E0206, E0207, E0208, E0209,
-    E0210, E0211, E0212, E0213, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309,
+    E0210, E0211, E0212, E0214, E0301, E0302, E0303, E0304, E0305, E0306, E0307, E0308, E0309,
     E0310, E0311, E0312, E0313, E0314, E0401, E0402, E0403, E0404, E0405, E0406, E0407, E0408,
     E0409, E0410, E0411, E0412, E0413, E0414, E0415, E0416, E0417, E0418, E0419, E0420, E0421,
     E0422, E0423, E0424, E0425, E0426, E0427, E0428, E0429, E0430, E0431, E0432, E0501, E0502,
@@ -298,7 +298,7 @@ pub const ALL: &[Code] = &[
 ];
 
 /// Codes that were used once and must never be used again.
-pub const RETIRED: &[&str] = &[];
+pub const RETIRED: &[&str] = &["E0213"];
 
 #[cfg(test)]
 mod tests {

@@ -1,7 +1,5 @@
 module main
 
-functions {
-    pub fn main(args: List<String>) -> Int {
-        0
-    }
+main(args: List<String>) -> Int {
+    0
 }

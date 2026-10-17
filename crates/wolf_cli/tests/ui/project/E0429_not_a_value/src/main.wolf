@@ -10,11 +10,9 @@ types {
     }
 }
 
-functions {
-    fn main() {
-        let a = Int
-        let b = io
-        let c = Point
-        let _ = [a, b, c]
-    }
+main {
+    let a = Int
+    let b = io
+    let c = Point
+    let _ = [a, b, c]
 }

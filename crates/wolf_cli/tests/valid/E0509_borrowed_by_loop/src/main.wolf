@@ -7,6 +7,22 @@ types {
     }
 }
 
+main {
+    var u = make()
+    var extra: List<String> = []
+    for t in u.tags {
+        extra.push(t.copy())
+    }
+    u.tags.append(own extra)
+    let rename = match u.name {
+        "a" => true
+        _ => false
+    }
+    if rename {
+        change(mut u)
+    }
+}
+
 functions {
     fn take(own u: User) -> Int {
         u.tags.len()
@@ -18,21 +34,5 @@ functions {
 
     fn make() -> User {
         User { name: "a", tags: ["t"] }
-    }
-
-    fn main() {
-        var u = make()
-        var extra: List<String> = []
-        for t in u.tags {
-            extra.push(t.copy())
-        }
-        u.tags.append(own extra)
-        let rename = match u.name {
-            "a" => true
-            _ => false
-        }
-        if rename {
-            change(mut u)
-        }
     }
 }

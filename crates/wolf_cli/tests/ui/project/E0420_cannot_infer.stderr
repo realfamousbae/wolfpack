@@ -1,16 +1,16 @@
 error[E0420]: cannot infer the type of `names`
-  --> src/main.wolf:5:13
+  --> src/main.wolf:4:9
   |
-5 |         var names = []
-  |             ^^^^^ the type is `List<_>` here
+4 |     var names = []
+  |         ^^^^^ the type is `List<_>` here
   |
   = help: write the type after the name: `names: List<...>`
 
 error[E0420]: cannot infer the type of `empty`
-  --> src/main.wolf:7:13
+  --> src/main.wolf:6:9
   |
-7 |         let empty = None
-  |             ^^^^^ the type is `Option<_>` here
+6 |     let empty = None
+  |         ^^^^^ the type is `Option<_>` here
   |
   = help: write the type after the name: `empty: Option<...>`
 

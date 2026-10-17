@@ -4,8 +4,6 @@ imports {
     text.shout.{shout}
 }
 
-functions {
-    fn main() {
-        print(shout("hi"))
-    }
+main {
+    print(shout("hi"))
 }

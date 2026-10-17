@@ -1,23 +1,23 @@
 error[E0406]: `Task` is not `Equatable`
-   --> src/main.wolf:12:9
+   --> src/main.wolf:16:9
    |
-12 |         a == b
+16 |         a == b
    |         ^^^^^^ `==` needs `Equatable`
    |
    = note: `Task` is not `Equatable` because field `on_done` has a function type
 
 error[E0406]: `fn(Int) -> Int` is not `Copyable`
-   --> src/main.wolf:16:11
+   --> src/main.wolf:20:11
    |
-16 |         f.copy()
+20 |         f.copy()
    |           ^^^^ `.copy()` needs `Copyable`
    |
    = note: `fn(Int) -> Int` is not `Copyable` because functions cannot be copied
 
 error[E0406]: `Error` is not `Equatable`
-   --> src/main.wolf:20:9
+   --> src/main.wolf:24:9
    |
-20 |         a == b
+24 |         a == b
    |         ^^^^^^ `==` needs `Equatable`
    |
    = note: `Error` is not `Equatable` because `Error` is an interface, and interface values have no `==`

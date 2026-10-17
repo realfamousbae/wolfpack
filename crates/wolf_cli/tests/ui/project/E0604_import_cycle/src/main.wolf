@@ -4,8 +4,6 @@ imports {
     a.{one}
 }
 
-functions {
-    fn main() {
-        print(one().to_string())
-    }
+main {
+    print(one().to_string())
 }

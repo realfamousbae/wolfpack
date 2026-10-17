@@ -7,13 +7,11 @@ extern {
     }
 }
 
-functions {
-    fn main() {
-        let r = compile("a+")
-        let s = r.copy()
-        let _ = r == s
-        print(r.source)
-        r.find("aa")
-        let _: Map<Regex, Int> = [:]
-    }
+main {
+    let r = compile("a+")
+    let s = r.copy()
+    let _ = r == s
+    print(r.source)
+    r.find("aa")
+    let _: Map<Regex, Int> = [:]
 }

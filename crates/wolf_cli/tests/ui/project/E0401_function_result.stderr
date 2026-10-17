@@ -1,13 +1,13 @@
 error[E0401]: expected `Int`, found `String`
-  --> src/main.wolf:6:20
-  |
-6 |             return "negative"
-  |                    ^^^^^^^^^^ this is `String`
+   --> src/main.wolf:10:20
+   |
+10 |             return "negative"
+   |                    ^^^^^^^^^^ this is `String`
 
 error[E0401]: expected `Int`, found `String`
-  --> src/main.wolf:8:9
-  |
-8 |         n.to_string()
-  |         ^^^^^^^^^^^^^ this is `String`
+   --> src/main.wolf:12:9
+   |
+12 |         n.to_string()
+   |         ^^^^^^^^^^^^^ this is `String`
 
 error: aborting due to 2 errors

@@ -7,6 +7,14 @@ types {
     }
 }
 
+main {
+    var total = 0
+    let add = |n: Int| {
+        total += n
+    }
+    add(1)
+}
+
 functions {
     fn take(own u: User) -> Int {
         u.tags.len()
@@ -18,13 +26,5 @@ functions {
 
     fn make() -> User {
         User { name: "a", tags: ["t"] }
-    }
-
-    fn main() {
-        var total = 0
-        let add = |n: Int| {
-            total += n
-        }
-        add(1)
     }
 }

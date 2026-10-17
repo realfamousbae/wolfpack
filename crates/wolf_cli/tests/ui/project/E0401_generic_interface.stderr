@@ -1,8 +1,8 @@
 error[E0401]: expected `Holder<Int>`, found `Box<String>`
-   --> src/main.wolf:30:22
+   --> src/main.wolf:25:18
    |
-30 |         print(number(Box { item: "one" }).to_string())
-   |                      ^^^^^^^^^^^^^^^^^^^ this is `Box<String>`
+25 |     print(number(Box { item: "one" }).to_string())
+   |                  ^^^^^^^^^^^^^^^^^^^ this is `Box<String>`
    |
    = note: `Box<String>` does not implement `Holder<Int>`
 

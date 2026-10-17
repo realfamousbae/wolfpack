@@ -1,23 +1,17 @@
-error[E0614]: missing `fn main` in `examples.demo`
+error[E0614]: missing `main` section in `examples.demo`
   --> examples/demo.wolf:1:8
   |
 1 | module examples.demo
-  |        ^^^^^^^^^^^^^ this module needs a `main` function
+  |        ^^^^^^^^^^^^^ this module needs a `main` section
   |
-  = help: add `fn main()` to the `functions` section
+  = help: add a `main { }` section above `functions`
 
-error[E0614]: wrong signature of `main`
-  --> src/main.wolf:4:9
+error[E0614]: wrong header of `main`
+  --> src/main.wolf:3:1
   |
-4 |     pub fn main(args: List<String>) -> Int {
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `main` takes no parameters
+3 | main(args: List<String>) -> Int {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `main` takes only `args: List<String>` and returns `Void` or `Result<Void, Error>`
   |
-  = help: write `fn main()` or `fn main() -> Result<Void, Error>`; arguments come from `std.io.args()`
+  = help: write `main`, `main(args)`, `main -> Result<Void, Error>` or `main(args) -> Result<Void, Error>`
 
-error[E0614]: `main` cannot be `pub`
-  --> src/main.wolf:4:12
-  |
-4 |     pub fn main(args: List<String>) -> Int {
-  |            ^^^^ remove `pub`
-
-error: aborting due to 3 errors
+error: aborting due to 2 errors

@@ -1,9 +1,7 @@
 module main
 
-functions {
-    fn main() {
-        let total = 2 + 2
-        print("checking")
-        assert(total == 5)
-    }
+main {
+    let total = 2 + 2
+    print("checking")
+    assert(total == 5)
 }

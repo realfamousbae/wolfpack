@@ -7,6 +7,14 @@ types {
     }
 }
 
+main {
+    var a = make()
+    var b = make()
+    swap_names(mut a, mut b)
+    merge(mut a.tags, b.tags)
+    set_both(mut a.name, mut a.tags)
+}
+
 functions {
     fn take(own u: User) -> Int {
         u.tags.len()
@@ -35,13 +43,5 @@ functions {
     fn set_both(mut name: String, mut tags: List<String>) {
         name = "both"
         tags.clear()
-    }
-
-    fn main() {
-        var a = make()
-        var b = make()
-        swap_names(mut a, mut b)
-        merge(mut a.tags, b.tags)
-        set_both(mut a.name, mut a.tags)
     }
 }

@@ -15,25 +15,25 @@ error[E0601]: field `UserName` should be in `snake_case`
   = help: rename it to `user_name`
 
 error[E0601]: function `PrintAll` should be in `snake_case`
-   --> src/main.wolf:10:8
+   --> src/main.wolf:14:8
    |
-10 |     fn PrintAll(Items: List<Int>) {
+14 |     fn PrintAll(Items: List<Int>) {
    |        ^^^^^^^^ not `snake_case`
    |
    = help: rename it to `print_all`
 
 error[E0601]: parameter `Items` should be in `snake_case`
-   --> src/main.wolf:10:17
+   --> src/main.wolf:14:17
    |
-10 |     fn PrintAll(Items: List<Int>) {
+14 |     fn PrintAll(Items: List<Int>) {
    |                 ^^^^^ not `snake_case`
    |
    = help: rename it to `items`
 
 error[E0601]: variable `Total` should be in `snake_case`
-   --> src/main.wolf:11:13
+   --> src/main.wolf:15:13
    |
-11 |         let Total = 1
+15 |         let Total = 1
    |             ^^^^^ not `snake_case`
    |
    = help: rename it to `total`

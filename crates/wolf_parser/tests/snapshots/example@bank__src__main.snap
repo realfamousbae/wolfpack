@@ -60,19 +60,7 @@ file
               (BankError.InsufficientFunds missing)
               (+ "insufficient funds, missing " (call (. missing to_string)))
             (=> (BankError.InvalidAmount amount) (+ "invalid amount " (call (. amount to_string))))
-  section functions
-    fn
-      doc " Moves money between two different accounts."
-      transfer
-      (params (mut from Account) (mut to Account) (amount Int))
-      (-> (Result Void BankError))
-      (block (? (call (. from withdraw) amount)) (? (call (. to deposit) amount)) (call Ok ()))
-    fn
-      doc " Closes the account and returns its final balance. The caller can no longer use it."
-      close
-      (params (own account Account))
-      (-> Int)
-      (block (. account balance))
+  section main
     fn
       main
       ()
@@ -95,6 +83,19 @@ file
           (=> (Err error) (call print (+ "deposit failed: " (call (. error message)))))
         (call print (call (. alice summary)))
         (call Ok ())
+  section functions
+    fn
+      doc " Moves money between two different accounts."
+      transfer
+      (params (mut from Account) (mut to Account) (amount Int))
+      (-> (Result Void BankError))
+      (block (? (call (. from withdraw) amount)) (? (call (. to deposit) amount)) (call Ok ()))
+    fn
+      doc " Closes the account and returns its final balance. The caller can no longer use it."
+      close
+      (params (own account Account))
+      (-> Int)
+      (block (. account balance))
   section tests
     test
       "transfer moves money"

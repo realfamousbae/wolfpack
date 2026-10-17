@@ -53,6 +53,25 @@ impl {
     }
 }
 
+main {
+    var shapes: List<Shape> = [
+        Rect { w: 3.0, h: 4.0 },
+        Square { side: 2.0 },
+        Triangle { base: 6.0, height: 5.0 },
+    ]
+    list.sort_by(mut shapes, |a, b| compare_floats(a.area(), b.area()))
+    for shape in shapes {
+        print(shape.name() + ": " + shape.area().to_string())
+    }
+    print("total: " + total_area(shapes).to_string())
+
+    let rects = [Rect { w: 1.0, h: 1.0 }, Rect { w: 2.0, h: 3.0 }, Rect { w: 0.5, h: 2.0 }]
+    match list.max(rects) {
+        Some(r) => print("largest rectangle: " + r.w.to_string() + " x " + r.h.to_string())
+        None => print("no rectangles")
+    }
+}
+
 functions {
     /// `Float` is not `Comparable` (NaN), so floats are compared by hand.
     fn compare_floats(a: Float, b: Float) -> Ordering {
@@ -65,24 +84,5 @@ functions {
             sum += shape.area()
         }
         sum
-    }
-
-    fn main() {
-        var shapes: List<Shape> = [
-            Rect { w: 3.0, h: 4.0 },
-            Square { side: 2.0 },
-            Triangle { base: 6.0, height: 5.0 },
-        ]
-        list.sort_by(mut shapes, |a, b| compare_floats(a.area(), b.area()))
-        for shape in shapes {
-            print(shape.name() + ": " + shape.area().to_string())
-        }
-        print("total: " + total_area(shapes).to_string())
-
-        let rects = [Rect { w: 1.0, h: 1.0 }, Rect { w: 2.0, h: 3.0 }, Rect { w: 0.5, h: 2.0 }]
-        match list.max(rects) {
-            Some(r) => print("largest rectangle: " + r.w.to_string() + " x " + r.h.to_string())
-            None => print("no rectangles")
-        }
     }
 }

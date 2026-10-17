@@ -1,13 +1,11 @@
 module main
 
-functions {
-    fn main() {
-        let price = 10
-        let tax = 2
-        let total = price
-            - tax
-        total + 1
-        "done"
-        print(total.to_string())
-    }
+main {
+    let price = 10
+    let tax = 2
+    let total = price
+        - tax
+    total + 1
+    "done"
+    print(total.to_string())
 }

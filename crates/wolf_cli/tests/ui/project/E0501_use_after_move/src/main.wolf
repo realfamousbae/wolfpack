@@ -7,6 +7,12 @@ types {
     }
 }
 
+main {
+    let u = make()
+    print(take(own u).to_string())
+    print(u.name)
+}
+
 functions {
     fn take(own u: User) -> Int {
         u.tags.len()
@@ -18,11 +24,5 @@ functions {
 
     fn make() -> User {
         User { name: "a", tags: ["t"] }
-    }
-
-    fn main() {
-        let u = make()
-        print(take(own u).to_string())
-        print(u.name)
     }
 }

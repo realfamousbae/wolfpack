@@ -8,8 +8,6 @@ types {
     type Port = Int
 }
 
-functions {
-    fn main() {
-        print(port.to_string())
-    }
+main {
+    print(port.to_string())
 }

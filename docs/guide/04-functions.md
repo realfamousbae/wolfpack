@@ -8,6 +8,11 @@ the function returns `Void`. The value of the body is the result; `return` leave
 ```wolf
 module main
 
+main {
+    report("area", area(3, 4))
+    report("clamped", clamp(150, 0, 100))
+}
+
 functions {
     fn area(width: Int, height: Int) -> Int {
         width * height
@@ -22,11 +27,6 @@ functions {
 
     fn report(name: String, value: Int) {
         print(name + " = " + value.to_string())
-    }
-
-    fn main() {
-        report("area", area(3, 4))
-        report("clamped", clamp(150, 0, 100))
     }
 }
 ```
@@ -57,6 +57,13 @@ visible when you read the code:
 ```wolf
 module main
 
+main {
+    var names = ["Ann", "Bob"]
+    add_guest(mut names)
+    print(count(names).to_string())
+    print(total_length(own names).to_string())
+}
+
 functions {
     fn count(names: List<String>) -> Int {
         names.len()
@@ -72,13 +79,6 @@ functions {
             total += name.len()
         }
         total
-    }
-
-    fn main() {
-        var names = ["Ann", "Bob"]
-        add_guest(mut names)
-        print(count(names).to_string())
-        print(total_length(own names).to_string())
     }
 }
 ```
@@ -103,13 +103,13 @@ caller still owns it:
 ```wolf error E0504
 module main
 
+main {
+    print(first(["Ann"]))
+}
+
 functions {
     fn first(names: List<String>) -> String {
         names[0]
-    }
-
-    fn main() {
-        print(first(["Ann"]))
     }
 }
 ```
@@ -126,6 +126,11 @@ types:
 ```wolf
 module main
 
+main {
+    print(apply_twice(double, 5).to_string())
+    print(apply_twice(|n| n + 3, 5).to_string())
+}
+
 functions {
     fn double(n: Int) -> Int {
         n * 2
@@ -133,11 +138,6 @@ functions {
 
     fn apply_twice(f: fn(Int) -> Int, value: Int) -> Int {
         f(f(value))
-    }
-
-    fn main() {
-        print(apply_twice(double, 5).to_string())
-        print(apply_twice(|n| n + 3, 5).to_string())
     }
 }
 ```
@@ -156,17 +156,15 @@ body:
 ```wolf
 module main
 
-functions {
-    fn main() {
-        let numbers = [1, 2, 3, 4, 5, 6]
-        let squares = numbers.map(|n| n * n)
-        let even = numbers.count(|n| n % 2 == 0)
-        let big = numbers.any(|n: Int| -> Bool {
-            let limit = 5
-            n > limit
-        })
-        print(squares[5].to_string() + " " + even.to_string() + " " + big.to_string())
-    }
+main {
+    let numbers = [1, 2, 3, 4, 5, 6]
+    let squares = numbers.map(|n| n * n)
+    let even = numbers.count(|n| n % 2 == 0)
+    let big = numbers.any(|n: Int| -> Bool {
+        let limit = 5
+        n > limit
+    })
+    print(squares[5].to_string() + " " + even.to_string() + " " + big.to_string())
 }
 ```
 
@@ -181,15 +179,13 @@ first if you still need it:
 ```wolf
 module main
 
-functions {
-    fn main() {
-        let names = ["Ann", "Bob"]
-        let title = "Dr. "
-        let prefix = title.copy()
-        let titled = names.map(|n| prefix + n)
-        print(titled[1])
-        print(title)
-    }
+main {
+    let names = ["Ann", "Bob"]
+    let title = "Dr. "
+    let prefix = title.copy()
+    let titled = names.map(|n| prefix + n)
+    print(titled[1])
+    print(title)
 }
 ```
 

@@ -296,7 +296,7 @@ fn fmt_checks_and_formats_a_project() {
         "[package]\nname = \"fmt-demo\"\nversion = \"0.1.0\"\nkind = \"cli\"\n",
     )
     .unwrap();
-    let messy = "module main\nfunctions {\n    fn main() { print(\"hi\")   }\n}\n";
+    let messy = "module main\nmain { print(\"hi\") }\n";
     fs::write(dir.join("src/main.wolf"), messy).unwrap();
     let fmt = |args: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_wolf"))
@@ -317,7 +317,7 @@ fn fmt_checks_and_formats_a_project() {
     assert_eq!(write.status.code(), Some(0));
     assert_eq!(
         fs::read_to_string(dir.join("src/main.wolf")).unwrap(),
-        "module main\n\nfunctions {\n    fn main() { print(\"hi\") }\n}\n"
+        "module main\n\nmain { print(\"hi\") }\n"
     );
     assert_eq!(fmt(&["--check"]).status.code(), Some(0));
 }

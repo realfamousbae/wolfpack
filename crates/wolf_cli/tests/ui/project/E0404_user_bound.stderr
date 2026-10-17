@@ -7,10 +7,10 @@ error[E0404]: `Float` does not implement `Comparable`
    = note: `Float` has no total order because of NaN; sort floats with `list.sort_by` and a comparison function
 
 error[E0404]: `Point` does not implement `Comparable`
-   --> src/main.wolf:23:17
+   --> src/main.wolf:18:13
    |
-23 |         let p = largest([Point { x: 1 }])
-   |                 ^^^^^^^ required by `largest`
+18 |     let p = largest([Point { x: 1 }])
+   |             ^^^^^^^ required by `largest`
    |
    = help: implement `Comparable` for `Point` in an `impl` block
 

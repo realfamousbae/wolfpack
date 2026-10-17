@@ -1,8 +1,8 @@
 error[E0311]: type arguments need a dot in expressions
-  --> parser/E0311_type_arguments_without_dot.wolf:5:17
+  --> parser/E0311_type_arguments_without_dot.wolf:4:13
   |
-5 |         let n = parse<Int>(text)
-  |                 ^^^^^^^^^^ parsed as comparisons `<` and `>`
+4 |     let n = parse<Int>(text)
+  |             ^^^^^^^^^^ parsed as comparisons `<` and `>`
   |
   = help: write explicit type arguments as `name.<Type>(...)`
 

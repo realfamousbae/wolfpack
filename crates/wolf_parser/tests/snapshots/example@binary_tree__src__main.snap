@@ -73,16 +73,7 @@ file
             =>
               (Tree.Node left _ right)
               (+ 1 (call (. (call (. left depth)) max) (call (. right depth))))
-  section functions
-    fn
-      join_ints
-      (params (values (List Int)))
-      (-> String)
-      block
-        call
-          (. string join)
-          (call (. values map) (closure (params v) (call (. v to_string))))
-          ", "
+  section main
     fn
       main
       ()
@@ -95,6 +86,16 @@ file
         (call print (+ "depth: " (call (. (call (. tree depth)) to_string))))
         (call print (+ "contains 35: " (call (. (call (. tree contains) 35) to_string))))
         (call print (+ "contains 36: " (call (. (call (. tree contains) 36) to_string))))
+  section functions
+    fn
+      join_ints
+      (params (values (List Int)))
+      (-> String)
+      block
+        call
+          (. string join)
+          (call (. values map) (closure (params v) (call (. v to_string))))
+          ", "
   section tests
     test
       "values come out sorted"

@@ -1,7 +1,5 @@
 module main
 
-functions {
-    fn main() {
-        let n = parse<Int>(text)
-    }
+main {
+    let n = parse<Int>(text)
 }

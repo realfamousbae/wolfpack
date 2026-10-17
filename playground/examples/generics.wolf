@@ -23,6 +23,18 @@ impl {
     }
 }
 
+main {
+    var stack = Stack.new()
+    for word in own ["wolf", "pack", "wolf"] {
+        stack.push(own word)
+    }
+    match stack.pop() {
+        Some(top) => print("top: " + top)
+        None => print("empty")
+    }
+    print(count_equal(stack.items, "wolf").to_string())
+}
+
 functions {
     fn count_equal<T: Equatable>(items: List<T>, target: T) -> Int {
         var count = 0
@@ -32,17 +44,5 @@ functions {
             }
         }
         count
-    }
-
-    fn main() {
-        var stack = Stack.new()
-        for word in own ["wolf", "pack", "wolf"] {
-            stack.push(own word)
-        }
-        match stack.pop() {
-            Some(top) => print("top: " + top)
-            None => print("empty")
-        }
-        print(count_equal(stack.items, "wolf").to_string())
     }
 }

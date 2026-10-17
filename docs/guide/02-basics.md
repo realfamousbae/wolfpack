@@ -41,13 +41,11 @@ types {
     }
 }
 
-functions {
+main {
     // An ordinary comment.
-    fn main() {
-        let p = Point { x: 3, y: 4 }
-        print(greeting + ", " + (p.x + p.y).to_string())
-        print(math.pi.to_string())
-    }
+    let p = Point { x: 3, y: 4 }
+    print(greeting + ", " + (p.x + p.y).to_string())
+    print(math.pi.to_string())
 }
 ```
 
@@ -71,23 +69,21 @@ put each call on its own line. `wolf fmt` breaks long lines exactly this way:
 ```wolf
 module main
 
-functions {
-    fn main() {
-        let base_price_in_cents = 12000
-        let delivery_fee_in_cents = 1500
-        let total_price_in_cents =
-            base_price_in_cents + delivery_fee_in_cents + base_price_in_cents / 10
-        let words = "  the quick brown fox jumps over the lazy dog  "
-            .trim()
-            .split(" ")
-            .filter(|w| w.len() > 3)
-        print(total_price_in_cents.to_string() + " " + words.len().to_string())
-    }
+main {
+    let base_price_in_cents = 12000
+    let delivery_fee_in_cents = 1500
+    let total_price_in_cents =
+        base_price_in_cents + delivery_fee_in_cents + base_price_in_cents / 10
+    let words = "  the quick brown fox jumps over the lazy dog and runs far away from the old farm  "
+        .trim()
+        .split(" ")
+        .filter(|w| w.len() > 3)
+    print(total_price_in_cents.to_string() + " " + words.len().to_string())
 }
 ```
 
 ```output
-14700 5
+14700 9
 ```
 
 Writing the operator at the start of the next line is an error, because the statement ended with
@@ -101,15 +97,13 @@ closing `}`: `} else {`.
 ```wolf
 module main
 
-functions {
-    fn main() {
-        let name = "wolfpack"
-        var count = 1
-        count += 1
-        count = count * 10
-        let label: String = name + " " + count.to_string()
-        print(label)
-    }
+main {
+    let name = "wolfpack"
+    var count = 1
+    count += 1
+    count = count * 10
+    let label: String = name + " " + count.to_string()
+    print(label)
 }
 ```
 
@@ -143,10 +137,8 @@ config {
     name: String = "store"
 }
 
-functions {
-    fn main() {
-        print(name + ": " + max_bytes.to_string())
-    }
+main {
+    print(name + ": " + max_bytes.to_string())
 }
 ```
 
@@ -172,16 +164,14 @@ convert one side with `to_float()` or `to_int()`, which truncates toward zero:
 ```wolf
 module main
 
-functions {
-    fn main() {
-        let items = 7
-        let price = 2.5
-        let total = items.to_float() * price
-        print(total.to_string())
-        print(total.to_int().to_string())
-        print((items / 2).to_string() + " " + (items % 2).to_string())
-        print((-7 / 2).to_string() + " " + (-7 % 2).to_string())
-    }
+main {
+    let items = 7
+    let price = 2.5
+    let total = items.to_float() * price
+    print(total.to_string())
+    print(total.to_int().to_string())
+    print((items / 2).to_string() + " " + (items % 2).to_string())
+    print((-7 / 2).to_string() + " " + (-7 % 2).to_string())
 }
 ```
 
@@ -218,15 +208,13 @@ not bytes, on every target:
 ```wolf
 module main
 
-functions {
-    fn main() {
-        let word = "naïve"
-        print(word.len().to_string())
-        print(word[0..2])
-        print(word.to_upper_ascii())
-        print("a,b,c".split(",").len().to_string())
-        print("tab\tquote\" backslash\\")
-    }
+main {
+    let word = "naïve"
+    print(word.len().to_string())
+    print(word[0..2])
+    print(word.to_upper_ascii())
+    print("a,b,c".split(",").len().to_string())
+    print("tab\tquote\" backslash\\")
 }
 ```
 

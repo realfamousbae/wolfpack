@@ -106,7 +106,8 @@ fn test_sections(r: &mut Resolver<'_>, input: &ModuleInput<'_>) {
     }
 }
 
-/// `fn main()` or `fn main() -> Result<Void, Error>` in programs and examples (E0614).
+/// The `main` section in programs and examples: at most the parameter `args: List<String>` and
+/// the result `Result<Void, Error>` (E0614).
 fn entry(r: &mut Resolver<'_>, input: &ModuleInput<'_>) {
     let needs_main = match input.role {
         Role::Entry => r.project.kind == Kind::Cli && input.path == ["main"],
@@ -118,7 +119,7 @@ fn entry(r: &mut Resolver<'_>, input: &ModuleInput<'_>) {
         .ast
         .sections
         .iter()
-        .filter(|s| s.kind == SectionKind::Functions)
+        .filter(|s| s.kind == SectionKind::Main)
         .flat_map(|s| s.items.iter())
         .filter_map(|i| match &i.kind {
             ItemKind::Fn(decl) if decl.sig.name.name == "main" => Some(decl),
@@ -128,9 +129,9 @@ fn entry(r: &mut Resolver<'_>, input: &ModuleInput<'_>) {
     if is_lib {
         for main in mains {
             r.report(
-                Diagnostic::new(codes::E0614, "a library has no `main`")
+                Diagnostic::new(codes::E0614, "a library has no `main` section")
                     .primary(main.sig.name.span, "`main` is only for programs")
-                    .help("rename the function"),
+                    .help("remove the section"),
             );
         }
         return;
@@ -142,11 +143,11 @@ fn entry(r: &mut Resolver<'_>, input: &ModuleInput<'_>) {
         let span = input.ast.module.as_ref().map(|p| p.span);
         let mut d = Diagnostic::new(
             codes::E0614,
-            format!("missing `fn main` in `{}`", join(&input.path)),
+            format!("missing `main` section in `{}`", join(&input.path)),
         )
-        .help("add `fn main()` to the `functions` section");
+        .help("add a `main { }` section above `functions`");
         if let Some(span) = span {
-            d = d.primary(span, "this module needs a `main` function");
+            d = d.primary(span, "this module needs a `main` section");
         }
         r.report(d);
         return;
@@ -161,13 +162,36 @@ fn entry(r: &mut Resolver<'_>, input: &ModuleInput<'_>) {
         None => true,
         Some(ty) => is_result_void_error(ty),
     };
-    if !main.sig.params.is_empty() || !main.sig.generics.is_empty() || !result_ok {
+    let params_ok = match main.sig.params.as_slice() {
+        [] => true,
+        [p] => {
+            p.mode == Mode::Read
+                && matches!(&p.kind, ParamKind::Named { ty, .. } if is_list_of_string(ty))
+        }
+        _ => false,
+    };
+    if !params_ok || !result_ok {
         r.report(
-            Diagnostic::new(codes::E0614, "wrong signature of `main`")
-                .primary(main.sig.span, "`main` takes no parameters")
-                .help("write `fn main()` or `fn main() -> Result<Void, Error>`; arguments come from `std.io.args()`"),
+            Diagnostic::new(codes::E0614, "wrong header of `main`")
+                .primary(main.sig.span, "`main` takes only `args: List<String>` and returns `Void` or `Result<Void, Error>`")
+                .help("write `main`, `main(args)`, `main -> Result<Void, Error>` or `main(args) -> Result<Void, Error>`"),
         );
     }
+}
+
+fn is_list_of_string(ty: &Ty) -> bool {
+    let TyKind::Path { path, args } = &ty.kind else {
+        return false;
+    };
+    path.segments.len() == 1
+        && path.segments.first().is_some_and(|s| s.name == "List")
+        && matches!(
+            args.as_slice(),
+            [Ty { kind: TyKind::Path { path, args }, .. }]
+                if args.is_empty()
+                    && path.segments.len() == 1
+                    && path.segments.first().is_some_and(|s| s.name == "String")
+        )
 }
 
 fn is_result_void_error(ty: &Ty) -> bool {

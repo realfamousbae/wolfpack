@@ -2,6 +2,11 @@
 //! not a `&str` (Rust), and an integer literal an `i64`.
 module main
 
+main {
+    print(count_equal(["a", "b", "a"], "a").to_string())
+    print(count_equal([1, 2, 1, 1], 1).to_string())
+}
+
 functions {
     fn count_equal<T: Equatable>(items: List<T>, target: T) -> Int {
         var count = 0
@@ -11,10 +16,5 @@ functions {
             }
         }
         count
-    }
-
-    fn main() {
-        print(count_equal(["a", "b", "a"], "a").to_string())
-        print(count_equal([1, 2, 1, 1], 1).to_string())
     }
 }

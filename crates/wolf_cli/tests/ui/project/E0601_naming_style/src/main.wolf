@@ -6,13 +6,13 @@ types {
     }
 }
 
+main {
+    print("hi")
+}
+
 functions {
     fn PrintAll(Items: List<Int>) {
         let Total = 1
         print(Total.to_string())
-    }
-
-    fn main() {
-        print("hi")
     }
 }

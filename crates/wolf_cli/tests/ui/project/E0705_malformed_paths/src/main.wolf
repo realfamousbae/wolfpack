@@ -13,8 +13,6 @@ extern {
     }
 }
 
-functions {
-    fn main() {
-        print(a().to_string())
-    }
+main {
+    print(a().to_string())
 }

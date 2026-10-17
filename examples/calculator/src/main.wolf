@@ -25,6 +25,19 @@ impl {
     }
 }
 
+main -> Result<Void, Error> {
+    for line in ["3 4 +", "5 1 2 + 4 * + 3 -", "2 3 4 * +", "10 2 /"] {
+        print(line + " = " + evaluate(line)?.to_string())
+    }
+    for line in ["1 +", "4 0 /", "1 2", "2 x *"] {
+        match evaluate(line) {
+            Ok(value) => print(line + " = " + value.to_string())
+            Err(error) => print(line + ": " + error.message())
+        }
+    }
+    Ok(())
+}
+
 functions {
     fn pop(mut stack: List<Int>) -> Result<Int, CalcError> {
         match stack.pop() {
@@ -67,19 +80,6 @@ functions {
             return Err(CalcError.Unbalanced(stack.len() + 1))
         }
         Ok(result)
-    }
-
-    fn main() -> Result<Void, Error> {
-        for line in ["3 4 +", "5 1 2 + 4 * + 3 -", "2 3 4 * +", "10 2 /"] {
-            print(line + " = " + evaluate(line)?.to_string())
-        }
-        for line in ["1 +", "4 0 /", "1 2", "2 x *"] {
-            match evaluate(line) {
-                Ok(value) => print(line + " = " + value.to_string())
-                Err(error) => print(line + ": " + error.message())
-            }
-        }
-        Ok(())
     }
 }
 

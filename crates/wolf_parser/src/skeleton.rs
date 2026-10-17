@@ -51,7 +51,7 @@ pub(crate) fn check(_file: FileId, tree: &File) -> Vec<Diagnostic> {
                         before.0.name()
                     ))
                     .note(
-                        "the order is: imports, extern, config, types, interfaces, impl, functions, tests",
+                        "the order is: imports, extern, config, types, interfaces, impl, main, functions, tests",
                     ),
                 );
             }

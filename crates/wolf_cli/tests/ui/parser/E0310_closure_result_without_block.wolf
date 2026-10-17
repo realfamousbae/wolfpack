@@ -1,7 +1,5 @@
 module main
 
-functions {
-    fn main() {
-        let inc = |x: Int| -> Int x + 1
-    }
+main {
+    let inc = |x: Int| -> Int x + 1
 }

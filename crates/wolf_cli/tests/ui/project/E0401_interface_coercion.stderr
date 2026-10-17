@@ -1,15 +1,15 @@
 error[E0401]: expected `Error`, found `Note`
-   --> src/main.wolf:15:14
+   --> src/main.wolf:10:10
    |
-15 |         show(Note { text: "x" })
-   |              ^^^^^^^^^^^^^^^^^^ this is `Note`
+10 |     show(Note { text: "x" })
+   |          ^^^^^^^^^^^^^^^^^^ this is `Note`
    |
    = note: `Note` does not implement `Error`
 
 error[E0401]: expected a function, found `Int`
-   --> src/main.wolf:17:9
+   --> src/main.wolf:12:5
    |
-17 |         n(1)
-   |         ^ this is `Int`, it cannot be called
+12 |     n(1)
+   |     ^ this is `Int`, it cannot be called
 
 error: aborting due to 2 errors

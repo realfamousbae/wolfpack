@@ -16,6 +16,10 @@ types {
     }
 }
 
+main {
+    print(size().to_string())
+}
+
 functions {
     fn size() -> Int {
         1
@@ -23,10 +27,6 @@ functions {
 
     fn Point() {
         print("x")
-    }
-
-    fn main() {
-        print(size().to_string())
     }
 }
 

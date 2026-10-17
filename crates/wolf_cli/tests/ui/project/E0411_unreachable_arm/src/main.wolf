@@ -1,5 +1,9 @@
 module main
 
+main {
+    print(name(1) + check(None).to_string())
+}
+
 functions {
     fn name(n: Int) -> String {
         match n {
@@ -14,9 +18,5 @@ functions {
             None => 0
             Some(1) => 1
         }
-    }
-
-    fn main() {
-        print(name(1) + check(None).to_string())
     }
 }

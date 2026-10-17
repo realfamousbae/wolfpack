@@ -1,24 +1,24 @@
 error[E0505]: cannot change `u.name`: `u` is not mutable
-   --> src/main.wolf:25:9
+   --> src/main.wolf:12:5
    |
-25 |         u.name = "b"
-   |         ^^^^^^ changed here
+12 |     u.name = "b"
+   |     ^^^^^^ changed here
    |
    = help: declare it with `var u`
 
 error[E0505]: cannot change `u`: `u` is not mutable
-   --> src/main.wolf:26:20
+   --> src/main.wolf:13:16
    |
-26 |         change(mut u)
-   |                    ^ changed here
+13 |     change(mut u)
+   |                ^ changed here
    |
    = help: declare it with `var u`
 
 error[E0505]: cannot change `t`: `t` is not mutable
-   --> src/main.wolf:28:13
+   --> src/main.wolf:15:9
    |
-28 |             t = "x"
-   |             ^ changed here
+15 |         t = "x"
+   |         ^ changed here
    |
    = note: parameters and bindings that read a value cannot change it; use a `mut` parameter, `for x in mut` or `match mut`
 

@@ -7,11 +7,11 @@ error[E0701]: `intrinsic` outside `std`
   = help: give the function a body, or use `extern` for code of the target language
 
 error[E0701]: `intrinsic` outside `std`
-  --> src/main.wolf:8:18
-  |
-8 |     intrinsic fn fast() -> Int
-  |                  ^^^^ only the standard library declares intrinsic functions and types
-  |
-  = help: give the function a body, or use `extern` for code of the target language
+   --> src/main.wolf:12:18
+   |
+12 |     intrinsic fn fast() -> Int
+   |                  ^^^^ only the standard library declares intrinsic functions and types
+   |
+   = help: give the function a body, or use `extern` for code of the target language
 
 error: aborting due to 2 errors

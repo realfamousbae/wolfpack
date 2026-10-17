@@ -1,30 +1,30 @@
-error[E0606]: `x` is declared twice in the same block
-  --> src/main.wolf:5:13
+error[E0606]: `a` is declared twice in the same block
+  --> src/main.wolf:5:9
   |
-4 |     fn twice(x: Int) -> Int {
-  |              - first declaration
-5 |         let x = 2
-  |             ^ second declaration
+4 |     let a = 1
+  |         - first declaration
+5 |     let a = 2
+  |         ^ second declaration
   |
   = help: rename it; a name may be reused only in a nested block
 
-error[E0606]: `a` is declared twice in the same block
-   --> src/main.wolf:11:13
-   |
-10 |         let a = 1
-   |             - first declaration
-11 |         let a = 2
-   |             ^ second declaration
-   |
-   = help: rename it; a name may be reused only in a nested block
-
 error[E0606]: `item` is declared twice in the same block
-   --> src/main.wolf:13:17
+  --> src/main.wolf:7:13
+  |
+6 |     for item in [1, 2] {
+  |         ---- first declaration
+7 |         let item = 3
+  |             ^^^^ second declaration
+  |
+  = help: rename it; a name may be reused only in a nested block
+
+error[E0606]: `x` is declared twice in the same block
+   --> src/main.wolf:16:13
    |
-12 |         for item in [1, 2] {
-   |             ---- first declaration
-13 |             let item = 3
-   |                 ^^^^ second declaration
+15 |     fn twice(x: Int) -> Int {
+   |              - first declaration
+16 |         let x = 2
+   |             ^ second declaration
    |
    = help: rename it; a name may be reused only in a nested block
 

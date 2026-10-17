@@ -32,6 +32,74 @@ impl {
     }
 }
 
+main {
+    print(classify(0) + " " + classify(-3) + " " + classify(4) + " " + classify(7))
+    print(find_first_even([1, 3, 6, 8]).to_string() + " " + find_first_even([1, 3]).to_string())
+    print(sign(0).to_string() + " " + sign(5).to_string() + " " + sign(-5).to_string())
+    let p = Pair { first: "pear", second: "plum" }
+    print(p.larger() + " " + Pair { first: 3, second: 2 }.larger().to_string())
+    var slot = 1
+    let old = replace(mut slot, 2)
+    print("old " + old.to_string() + " new " + slot.to_string())
+    let nums = [5, 3, 9, 1]
+    var sorted = nums.copy()
+    list.sort(mut sorted)
+    print(string.join(sorted.map(|n| n.to_string()), ","))
+    print(
+        list.contains(nums, 9).to_string() + " " + list.sum(nums).to_string() + " " +
+            list.range(2, 5).len().to_string(),
+    )
+    match list.min(nums) {
+        Some(m) => print("min " + m.to_string())
+        None => print("empty")
+    }
+    let idx = list.index_of(nums, 9)
+    print(match idx {
+        Some(i) => i.to_string()
+        None => "-"
+    })
+    var ages: Map<String, Int> = ["ann": 30, "bob": 25]
+    let _ = ages.remove("ann")
+    let _ = ages.insert("cid", 40)
+    for e in ages.copy().entries() {
+        print(e.key + " " + e.value.to_string())
+    }
+    print(string.join(map.values(ages).map(|v| v.to_string()), "+"))
+    print(match map.get(ages, "zed") {
+        Some(_) => "found"
+        None => "missing"
+    })
+    match "12x".parse_int() {
+        Ok(n) => print(n.to_string())
+        Err(e) => print(e.message())
+    }
+    print(
+        " a b ".trim() + "|" + "a,b,,c".split(",").len().to_string() + "|" +
+            "Hello".to_upper_ascii() + "|" + "ab".repeat(3),
+    )
+    print(match "hello".find("ll") {
+        Some(i) => i.to_string()
+        None => "-"
+    })
+    let doubled = [1, 2, 3].map(|n| halve(n * 2))
+    print(doubled.count(|o| o == Some(2)).to_string())
+    let maybe = halve(3)
+    print((maybe == None).to_string())
+    var total = 0
+    for n in 1..=4 {
+        if n == 3 {
+            continue
+        }
+        total += n
+    }
+    print(total.to_string())
+    print(
+        (2.5).round().to_string() + " " + (-2.5).round().to_string() + " " +
+            (7.9).to_int().to_string() + " " + (3).pow(4).to_string(),
+    )
+    process.exit(3)
+}
+
 functions {
     fn classify(n: Int) -> String {
         match n {
@@ -69,73 +137,5 @@ functions {
 
     fn halve(n: Int) -> Option<Int> {
         if n % 2 == 0 { Some(n / 2) } else { None }
-    }
-
-    fn main() {
-        print(classify(0) + " " + classify(-3) + " " + classify(4) + " " + classify(7))
-        print(find_first_even([1, 3, 6, 8]).to_string() + " " + find_first_even([1, 3]).to_string())
-        print(sign(0).to_string() + " " + sign(5).to_string() + " " + sign(-5).to_string())
-        let p = Pair { first: "pear", second: "plum" }
-        print(p.larger() + " " + Pair { first: 3, second: 2 }.larger().to_string())
-        var slot = 1
-        let old = replace(mut slot, 2)
-        print("old " + old.to_string() + " new " + slot.to_string())
-        let nums = [5, 3, 9, 1]
-        var sorted = nums.copy()
-        list.sort(mut sorted)
-        print(string.join(sorted.map(|n| n.to_string()), ","))
-        print(
-            list.contains(nums, 9).to_string() + " " + list.sum(nums).to_string() + " " +
-                list.range(2, 5).len().to_string(),
-        )
-        match list.min(nums) {
-            Some(m) => print("min " + m.to_string())
-            None => print("empty")
-        }
-        let idx = list.index_of(nums, 9)
-        print(match idx {
-            Some(i) => i.to_string()
-            None => "-"
-        })
-        var ages: Map<String, Int> = ["ann": 30, "bob": 25]
-        let _ = ages.remove("ann")
-        let _ = ages.insert("cid", 40)
-        for e in ages.copy().entries() {
-            print(e.key + " " + e.value.to_string())
-        }
-        print(string.join(map.values(ages).map(|v| v.to_string()), "+"))
-        print(match map.get(ages, "zed") {
-            Some(_) => "found"
-            None => "missing"
-        })
-        match "12x".parse_int() {
-            Ok(n) => print(n.to_string())
-            Err(e) => print(e.message())
-        }
-        print(
-            " a b ".trim() + "|" + "a,b,,c".split(",").len().to_string() + "|" +
-                "Hello".to_upper_ascii() + "|" + "ab".repeat(3),
-        )
-        print(match "hello".find("ll") {
-            Some(i) => i.to_string()
-            None => "-"
-        })
-        let doubled = [1, 2, 3].map(|n| halve(n * 2))
-        print(doubled.count(|o| o == Some(2)).to_string())
-        let maybe = halve(3)
-        print((maybe == None).to_string())
-        var total = 0
-        for n in 1..=4 {
-            if n == 3 {
-                continue
-            }
-            total += n
-        }
-        print(total.to_string())
-        print(
-            (2.5).round().to_string() + " " + (-2.5).round().to_string() + " " +
-                (7.9).to_int().to_string() + " " + (3).pow(4).to_string(),
-        )
-        process.exit(3)
     }
 }

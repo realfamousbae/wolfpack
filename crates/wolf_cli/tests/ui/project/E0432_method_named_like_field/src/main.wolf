@@ -43,10 +43,8 @@ impl {
     }
 }
 
-functions {
-    fn main() {
-        print(Counter.count().label())
-        print(Job { message: "m" }.message())
-        print(Shape.Empty.w().to_string())
-    }
+main {
+    print(Counter.count().label())
+    print(Job { message: "m" }.message())
+    print(Shape.Empty.w().to_string())
 }

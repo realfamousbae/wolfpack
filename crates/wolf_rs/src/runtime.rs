@@ -85,7 +85,7 @@ fn flush() {
         name: "run_main",
         deps: &["message"],
         code: r#"/// Runs `main`: a panic prints its message and ends the program with exit code 101.
-pub fn run_main(main: fn()) {
+pub fn run_main(main: impl FnOnce() + std::panic::UnwindSafe) {
     std::panic::set_hook(Box::new(|_| {}));
     if let Err(payload) = std::panic::catch_unwind(main) {
         flush();
@@ -98,7 +98,7 @@ pub fn run_main(main: fn()) {
         name: "run_main_result",
         deps: &["run_main", "Error"],
         code: r#"/// Runs a `main` that returns `Result<Void, Error>`.
-pub fn run_main_result(main: fn() -> Result<(), Box<dyn Error>>) {
+pub fn run_main_result(main: impl FnOnce() -> Result<(), Box<dyn Error>> + std::panic::UnwindSafe) {
     std::panic::set_hook(Box::new(|_| {}));
     match std::panic::catch_unwind(main) {
         Ok(Ok(())) => {}
@@ -113,6 +113,22 @@ pub fn run_main_result(main: fn() -> Result<(), Box<dyn Error>>) {
             std::process::exit(101);
         }
     }
+}"#,
+    },
+    Piece {
+        name: "run_main_args",
+        deps: &["run_main", "io"],
+        code: r#"/// Runs a `main` that takes the command-line arguments.
+pub fn run_main_args(main: fn(&[String])) {
+    run_main(move || main(&args()));
+}"#,
+    },
+    Piece {
+        name: "run_main_args_result",
+        deps: &["run_main_result", "io"],
+        code: r#"/// Runs a `main` that takes the command-line arguments and returns `Result<Void, Error>`.
+pub fn run_main_args_result(main: fn(&[String]) -> Result<(), Box<dyn Error>>) {
+    run_main_result(move || main(&args()));
 }"#,
     },
     Piece {

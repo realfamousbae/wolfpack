@@ -23,6 +23,16 @@ config {
     max_distance: Int = 2
 }
 
+main {
+    let commands = ["build", "check", "run", "test", "fmt", "explain"]
+    for word in ["biuld", "tset", "chek", "rnu", "format"] {
+        match suggest(word, commands) {
+            Some(command) => print(word + ": did you mean `" + command + "`?")
+            None => print(word + ": no suggestion")
+        }
+    }
+}
+
 functions {
     /// The closest command to `word`, if it is close enough; the first one wins a tie.
     fn suggest(word: String, commands: List<String>) -> Option<String> {
@@ -36,16 +46,6 @@ functions {
             }
         }
         best
-    }
-
-    fn main() {
-        let commands = ["build", "check", "run", "test", "fmt", "explain"]
-        for word in ["biuld", "tset", "chek", "rnu", "format"] {
-            match suggest(word, commands) {
-                Some(command) => print(word + ": did you mean `" + command + "`?")
-                None => print(word + ": no suggestion")
-            }
-        }
     }
 }
 

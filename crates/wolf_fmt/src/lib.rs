@@ -9,8 +9,8 @@ mod doc;
 
 use wolf_ast::{
     self as ast, Arg, Arm, AssignOp, BinaryOp, Block, ExprKind, ExternDeclKind, File, ForIter,
-    GenericParam, ItemKind, Mode, ParamKind, Pat, PatKind, Stmt, StmtKind, Ty, TyKind, UnaryOp,
-    VariantPayload,
+    GenericParam, ItemKind, Mode, ParamKind, Pat, PatKind, SectionKind, Stmt, StmtKind, Ty, TyKind,
+    UnaryOp, VariantPayload,
 };
 use wolf_diag::Diagnostic;
 use wolf_span::{FileId, Span};
@@ -270,6 +270,22 @@ impl<'a> Fmt<'a> {
                 parts.push(Doc::Hard);
             }
             parts.extend(self.leading(s.name_span.start, None));
+            if let (SectionKind::Main, Some(ItemKind::Fn(decl))) =
+                (s.kind, s.items.first().map(|i| &i.kind))
+            {
+                parts.push(self.main_header(&decl.sig));
+                if let Some(b) = &decl.body {
+                    parts.push(text(" "));
+                    self.depth = 0;
+                    parts.push(self.block(b, true));
+                }
+                if let Some(t) = self.trailing(s.span.end) {
+                    parts.push(t);
+                }
+                parts.push(Doc::Hard);
+                prev = Some(s.span.end);
+                continue;
+            }
             parts.push(text(format!("{} {{", s.kind.name())));
             self.depth = 1;
             let elements: Vec<Element> = s.items.iter().map(Self::item).collect();
@@ -526,6 +542,36 @@ impl<'a> Fmt<'a> {
         if let Some(b) = &decl.body {
             parts.push(text(" "));
             parts.push(self.block(b, true));
+        }
+        cat(parts)
+    }
+
+    /// `main`, `main(args)`, `main -> T` or `main(args: List<String>) -> T`, as written: a
+    /// parameter whose type has an empty span was written without a type.
+    fn main_header(&mut self, sig: &ast::FnSig) -> Doc {
+        let mut parts = vec![text("main")];
+        let params: Vec<Doc> = sig
+            .params
+            .iter()
+            .map(|p| {
+                let m = mode(p.mode);
+                match &p.kind {
+                    ParamKind::SelfParam => text(format!("{m}self")),
+                    ParamKind::Named { name, ty } if ty.span.start == ty.span.end => {
+                        text(format!("{m}{}", name.name))
+                    }
+                    ParamKind::Named { name, ty } => {
+                        cat(vec![text(format!("{m}{}: ", name.name)), self.ty(ty)])
+                    }
+                }
+            })
+            .collect();
+        if !params.is_empty() {
+            parts.push(delimited("(", ")", params));
+        }
+        if let Some(r) = &sig.ret {
+            parts.push(text(" -> "));
+            parts.push(self.ty(r));
         }
         cat(parts)
     }

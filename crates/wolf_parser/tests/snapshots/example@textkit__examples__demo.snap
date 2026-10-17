@@ -6,7 +6,7 @@ file
   doc! " Run with `wolf run --example demo`."
   module examples.demo
   (section imports (import lib (names word_count capitalize shout)))
-  section functions
+  section main
     fn
       main
       ()

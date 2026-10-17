@@ -19,14 +19,12 @@ impl {
     }
 }
 
-functions {
-    fn main() {
-        let p = Point.origin()
-        print(p.z.to_string())
-        print(p.sum.to_string())
-        print(p.total().to_string())
-        let q = p.origin()
-        let r = Point.sum(p)
-        let _ = [q, r]
-    }
+main {
+    let p = Point.origin()
+    print(p.z.to_string())
+    print(p.sum.to_string())
+    print(p.total().to_string())
+    let q = p.origin()
+    let r = Point.sum(p)
+    let _ = [q, r]
 }

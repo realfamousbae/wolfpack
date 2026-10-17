@@ -64,6 +64,65 @@ impl {
     }
 }
 
+main {
+    var names = []
+    names.push("a")
+    let lens = names.map(|n| n.len())
+    print(list.sum(lens).to_string())
+    var m: Map<String, Int> = [:]
+    let _ = m.insert("k", 1)
+    m["k"] += 1
+    print(m["k"].to_string())
+    let p = Point.new(1, 2)
+    var q = p.copy()
+    q.shift(1)
+    print(q.sum().to_string())
+    let pts: Points = [p, q]
+    print(pts.len().to_string())
+    print(area(Shape.Rect { w: 1.0, h: 2.0 }).to_string())
+    let job = Job { name: "j", run: |x| x + 1 }
+    print((job.run)(2).to_string())
+    print(classify(5) + name)
+    let r = parse("12")
+    match r {
+        Ok(v) => print(v.to_string())
+        Err(e) => print(e.message())
+    }
+    let _ = load("x")
+    let o = twice(first_even([1, 2, 3]))
+    if o == None {
+        print("none")
+    }
+    list.sort_by(mut names, |a, b| a.compare(b))
+    let total = names.filter(|n| !n.is_empty()).count(|n| n.len() > 0)
+    print(total.to_string() + forever().to_string() + flags(true, false).to_string())
+    print(opt(Some(None)).to_string() + limit.to_string() + big.to_string())
+    if flag && ratio > 1.0 {
+        names.pop()
+    }
+    let s = "hello"
+    print(s[1..3] + s[0..=0])
+    let sub = lens[0..1]
+    print(sub.len().to_string())
+    for i in 0..3 {
+        if i == 1 {
+            continue
+        }
+        print(i.to_string())
+    }
+    let ord = 1.compare(2)
+    match ord {
+        Ordering.Less => print("less")
+        Ordering.Equal | Ordering.Greater => print("not less")
+    }
+    let maybe = list.get(lens, 0)
+    let shown = match maybe {
+        Some(v) => v.to_string()
+        None => panic("empty")
+    }
+    print(shown)
+}
+
 functions {
     fn area(s: Shape) -> Float {
         match s {
@@ -132,64 +191,5 @@ functions {
             Some(None) => 0
             None => -1
         }
-    }
-
-    fn main() {
-        var names = []
-        names.push("a")
-        let lens = names.map(|n| n.len())
-        print(list.sum(lens).to_string())
-        var m: Map<String, Int> = [:]
-        let _ = m.insert("k", 1)
-        m["k"] += 1
-        print(m["k"].to_string())
-        let p = Point.new(1, 2)
-        var q = p.copy()
-        q.shift(1)
-        print(q.sum().to_string())
-        let pts: Points = [p, q]
-        print(pts.len().to_string())
-        print(area(Shape.Rect { w: 1.0, h: 2.0 }).to_string())
-        let job = Job { name: "j", run: |x| x + 1 }
-        print((job.run)(2).to_string())
-        print(classify(5) + name)
-        let r = parse("12")
-        match r {
-            Ok(v) => print(v.to_string())
-            Err(e) => print(e.message())
-        }
-        let _ = load("x")
-        let o = twice(first_even([1, 2, 3]))
-        if o == None {
-            print("none")
-        }
-        list.sort_by(mut names, |a, b| a.compare(b))
-        let total = names.filter(|n| !n.is_empty()).count(|n| n.len() > 0)
-        print(total.to_string() + forever().to_string() + flags(true, false).to_string())
-        print(opt(Some(None)).to_string() + limit.to_string() + big.to_string())
-        if flag && ratio > 1.0 {
-            names.pop()
-        }
-        let s = "hello"
-        print(s[1..3] + s[0..=0])
-        let sub = lens[0..1]
-        print(sub.len().to_string())
-        for i in 0..3 {
-            if i == 1 {
-                continue
-            }
-            print(i.to_string())
-        }
-        let ord = 1.compare(2)
-        match ord {
-            Ordering.Less => print("less")
-            Ordering.Equal | Ordering.Greater => print("not less")
-        }
-        let maybe = list.get(lens, 0)
-        let shown = match maybe {
-            Some(v) => v.to_string()
-            None => panic("empty")
-        }
-        print(shown)
     }
 }

@@ -7,6 +7,12 @@ types {
     }
 }
 
+main {
+    var a = make()
+    swap_names(mut a, mut a)
+    merge(mut a.tags, a.tags)
+}
+
 functions {
     fn take(own u: User) -> Int {
         u.tags.len()
@@ -30,11 +36,5 @@ functions {
         for f in from {
             into.push(f.copy())
         }
-    }
-
-    fn main() {
-        var a = make()
-        swap_names(mut a, mut a)
-        merge(mut a.tags, a.tags)
     }
 }

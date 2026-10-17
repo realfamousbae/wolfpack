@@ -6,17 +6,15 @@ types {
     }
 }
 
-functions {
-    fn main() {
-        let a = 1 + 1.0
-        let b = "n=" + 5
-        let c = true & false
-        let d = Point { x: 1 } < Point { x: 2 }
-        let e = -"text"
-        let f = !1
-        let g = "abc"[0]
-        let h = 5?
-        let i = 1 && true
-        let _ = [a.to_string(), b, c.to_string(), d.to_string(), e, f.to_string(), g, h, i.to_string()]
-    }
+main {
+    let a = 1 + 1.0
+    let b = "n=" + 5
+    let c = true & false
+    let d = Point { x: 1 } < Point { x: 2 }
+    let e = -"text"
+    let f = !1
+    let g = "abc"[0]
+    let h = 5?
+    let i = 1 && true
+    let _ = [a.to_string(), b, c.to_string(), d.to_string(), e, f.to_string(), g, h, i.to_string()]
 }

@@ -37,22 +37,7 @@ file
       (for Shape)
       (fn area (params self) (-> Float) (block (/ (* (. self base) (. self height)) 2.0)))
       (fn name (params self) (-> String) (block "triangle"))
-  section functions
-    fn
-      doc " `Float` is not `Comparable` (NaN), so floats are compared by hand."
-      compare_floats
-      (params (a Float) (b Float))
-      (-> Ordering)
-      block
-        if
-          (< a b)
-          (block (. Ordering Less))
-          (else (if (> a b) (block (. Ordering Greater)) (else (block (. Ordering Equal)))))
-    fn
-      total_area
-      (params (shapes (List Shape)))
-      (-> Float)
-      (block (var sum 0.0) (for shape shapes (block (+= sum (call (. shape area))))) sum)
+  section main
     fn
       main
       ()
@@ -92,3 +77,19 @@ file
                 (+ (+ "largest rectangle: " (call (. (. r w) to_string))) " x ")
                 (call (. (. r h) to_string))
           (=> None (call print "no rectangles"))
+  section functions
+    fn
+      doc " `Float` is not `Comparable` (NaN), so floats are compared by hand."
+      compare_floats
+      (params (a Float) (b Float))
+      (-> Ordering)
+      block
+        if
+          (< a b)
+          (block (. Ordering Less))
+          (else (if (> a b) (block (. Ordering Greater)) (else (block (. Ordering Equal)))))
+    fn
+      total_area
+      (params (shapes (List Shape)))
+      (-> Float)
+      (block (var sum 0.0) (for shape shapes (block (+= sum (call (. shape area))))) sum)

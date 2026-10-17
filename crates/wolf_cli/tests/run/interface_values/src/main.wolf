@@ -61,6 +61,41 @@ impl {
     }
 }
 
+main {
+    let where = Box { move: 21, ref: "r" }
+    print(where.dyn().to_string() + " " + where.ref)
+    var grid = [[1, 2, 3], [4, 5, 6]]
+    grid[1][2] = 60
+    grid[0][0] += 9
+    print(grid[0][0].to_string() + " " + grid[1][2].to_string())
+    var m: Map<String, Int> = ["a": 1]
+    m["a"] += 41
+    print(m["a"].to_string())
+    var o = Outer { b: Inner { c: 1 }, tags: ["x"] }
+    o.b.c += 2
+    o.tags.push("y")
+    o.tags[0] += "!"
+    print(o.b.c.to_string() + " " + string.join(o.tags, ","))
+    print(largest([3, 9, 2]).to_string() + " " + largest(["b", "c", "a"]))
+    print(match second_negative([1, -2, -3]) {
+        Some(v) => v.to_string()
+        None => "none"
+    })
+    var zoo: List<Animal> = [Vec { x: 1 }, Color.Green, Vec { x: 2 }]
+    let zoo2 = zoo.copy()
+    zoo[0].rename("abcd")
+    print(loud(zoo) + " | " + loud(zoo2))
+    let words = "one two three".split(" ")
+    var lens = words.map(|w| w.len())
+    list.sort(mut lens)
+    print(lens.map(|n| n.to_string()).len().to_string() + " " + lens[2].to_string())
+    let nested = |x: Int| -> Int {
+        let add = |y: Int| -> Int { x + y }
+        add(10)
+    }
+    print(nested(5).to_string())
+}
+
 functions {
     fn largest<T: Comparable + Copyable>(items: List<T>) -> T {
         var best = items[0].copy()
@@ -87,40 +122,5 @@ functions {
 
     fn loud(animals: List<Animal>) -> String {
         string.join(animals.map(|a| a.sound()), "; ")
-    }
-
-    fn main() {
-        let where = Box { move: 21, ref: "r" }
-        print(where.dyn().to_string() + " " + where.ref)
-        var grid = [[1, 2, 3], [4, 5, 6]]
-        grid[1][2] = 60
-        grid[0][0] += 9
-        print(grid[0][0].to_string() + " " + grid[1][2].to_string())
-        var m: Map<String, Int> = ["a": 1]
-        m["a"] += 41
-        print(m["a"].to_string())
-        var o = Outer { b: Inner { c: 1 }, tags: ["x"] }
-        o.b.c += 2
-        o.tags.push("y")
-        o.tags[0] += "!"
-        print(o.b.c.to_string() + " " + string.join(o.tags, ","))
-        print(largest([3, 9, 2]).to_string() + " " + largest(["b", "c", "a"]))
-        print(match second_negative([1, -2, -3]) {
-            Some(v) => v.to_string()
-            None => "none"
-        })
-        var zoo: List<Animal> = [Vec { x: 1 }, Color.Green, Vec { x: 2 }]
-        let zoo2 = zoo.copy()
-        zoo[0].rename("abcd")
-        print(loud(zoo) + " | " + loud(zoo2))
-        let words = "one two three".split(" ")
-        var lens = words.map(|w| w.len())
-        list.sort(mut lens)
-        print(lens.map(|n| n.to_string()).len().to_string() + " " + lens[2].to_string())
-        let nested = |x: Int| -> Int {
-            let add = |y: Int| -> Int { x + y }
-            add(10)
-        }
-        print(nested(5).to_string())
     }
 }

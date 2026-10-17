@@ -1,0 +1,9 @@
+error[E0214]: `fn main` in `functions`
+  --> parser/E0214_main_in_functions.wolf:4:8
+  |
+4 |     fn main() {
+  |        ^^^^ the entry point is not a function
+  |
+  = help: declare it as a `main { }` section above `functions`
+
+error: aborting due to 1 error

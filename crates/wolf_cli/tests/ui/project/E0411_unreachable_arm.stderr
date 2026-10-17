@@ -1,15 +1,15 @@
 error[E0411]: unreachable `match` arm
-  --> src/main.wolf:7:13
-  |
-7 |             0 => "zero"
-  |             ^ the arms above already cover this pattern
-  |
-  = help: remove this arm, or move it before the arm that covers it
+   --> src/main.wolf:11:13
+   |
+11 |             0 => "zero"
+   |             ^ the arms above already cover this pattern
+   |
+   = help: remove this arm, or move it before the arm that covers it
 
 error[E0411]: unreachable `match` arm
-   --> src/main.wolf:15:13
+   --> src/main.wolf:19:13
    |
-15 |             Some(1) => 1
+19 |             Some(1) => 1
    |             ^^^^^^^ the arms above already cover this pattern
    |
    = help: remove this arm, or move it before the arm that covers it

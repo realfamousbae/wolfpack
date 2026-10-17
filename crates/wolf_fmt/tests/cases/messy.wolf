@@ -16,6 +16,20 @@ types {
         Dot
     }
 }
+main {
+
+
+    let p = Point{x:1,y:2}
+    // the area
+    let a = area(Shape.Rect { w: 2.0, h: 3.0 })
+    let numbers = [1,2,3]
+    let total = list.sum(numbers.map(|n| n * 2).filter(|n| n > 2).map(|n| n + long_name_for_a_function(n, n, n)))
+    if a > 1.0 { print("big") } else { print("small") }
+    print(p.x.to_string() + " " + a.to_string() + " " + total.to_string() + " " + string.join(["a", "b"], ","))
+    print(math.int_max.to_string())
+
+}
+
 functions {
     fn area(s: Shape) -> Float { match s { Shape.Circle(r) => r*r*3.0
         Shape.Rect { w, h } => w*h
@@ -24,17 +38,5 @@ functions {
     fn  long_name_for_a_function(first_argument: Int, second_argument: Int, third_argument: Int) -> Int {
         first_argument+second_argument   // the sum
     }
-    fn main() {
-
-
-        let p = Point{x:1,y:2}
-        // the area
-        let a = area(Shape.Rect { w: 2.0, h: 3.0 })
-        let numbers = [1,2,3]
-        let total = list.sum(numbers.map(|n| n * 2).filter(|n| n > 2).map(|n| n + long_name_for_a_function(n, n, n)))
-        if a > 1.0 { print("big") } else { print("small") }
-        print(p.x.to_string() + " " + a.to_string() + " " + total.to_string() + " " + string.join(["a", "b"], ","))
-        print(math.int_max.to_string())
-
-    }
 }
+

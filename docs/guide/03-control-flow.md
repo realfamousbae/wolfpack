@@ -9,6 +9,14 @@ and `match` can be used as values:
 ```wolf
 module main
 
+main {
+    let limit = 10
+    let size = if limit > 5 { "big" } else { "small" }
+    print(size)
+    print(sign(-3))
+    print(sign(0))
+}
+
 functions {
     fn sign(n: Int) -> String {
         if n < 0 {
@@ -18,14 +26,6 @@ functions {
         } else {
             "positive"
         }
-    }
-
-    fn main() {
-        let limit = 10
-        let size = if limit > 5 { "big" } else { "small" }
-        print(size)
-        print(sign(-3))
-        print(sign(0))
     }
 }
 ```
@@ -52,25 +52,23 @@ mistake, often a statement broken by a line break.
 ```wolf
 module main
 
-functions {
-    fn main() {
-        var n = 1
-        while n < 100 {
-            n = n * 3
-        }
-        print(n.to_string())
+main {
+    var n = 1
+    while n < 100 {
+        n = n * 3
+    }
+    print(n.to_string())
 
-        for i in 1..=3 {
-            print("step " + i.to_string())
-        }
+    for i in 1..=3 {
+        print("step " + i.to_string())
+    }
 
-        let names = ["Ann", "Bob", "Cid"]
-        for name in names {
-            if name == "Bob" {
-                continue
-            }
-            print(name)
+    let names = ["Ann", "Bob", "Cid"]
+    for name in names {
+        if name == "Bob" {
+            continue
         }
+        print(name)
     }
 }
 ```
@@ -91,6 +89,10 @@ value. There is no `loop` keyword: write `while true`. Such a loop is known to n
 ```wolf
 module main
 
+main {
+    print(first_square_above(50).to_string())
+}
+
 functions {
     fn first_square_above(limit: Int) -> Int {
         var i = 1
@@ -100,10 +102,6 @@ functions {
             }
             i += 1
         }
-    }
-
-    fn main() {
-        print(first_square_above(50).to_string())
     }
 }
 ```
@@ -123,6 +121,14 @@ one that fits:
 ```wolf
 module main
 
+main {
+    print(describe(2))
+    print(describe(-5))
+    print(describe(40))
+    print(greet("de"))
+    print(greet("fr"))
+}
+
 functions {
     fn describe(n: Int) -> String {
         match n {
@@ -139,14 +145,6 @@ functions {
             "de" => "hallo"
             other => "no greeting for " + other
         }
-    }
-
-    fn main() {
-        print(describe(2))
-        print(describe(-5))
-        print(describe(40))
-        print(greet("de"))
-        print(greet("fr"))
     }
 }
 ```
@@ -175,16 +173,16 @@ is an error too:
 ```wolf error E0410
 module main
 
+main {
+    print(describe(1))
+}
+
 functions {
     fn describe(n: Int) -> String {
         match n {
             0 => "zero"
             x if x > 0 => "positive"
         }
-    }
-
-    fn main() {
-        print(describe(1))
     }
 }
 ```

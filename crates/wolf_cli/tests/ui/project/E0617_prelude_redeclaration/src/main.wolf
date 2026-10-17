@@ -7,12 +7,12 @@ types {
     }
 }
 
+main {
+    print("x")
+}
+
 functions {
     fn print(s: String) {
         assert(s.is_empty())
-    }
-
-    fn main() {
-        print("x")
     }
 }

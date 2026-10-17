@@ -7,9 +7,9 @@ error[E0617]: `Option` is a prelude name
   = help: choose another name
 
 error[E0617]: `print` is a prelude name
-   --> src/main.wolf:11:8
+   --> src/main.wolf:15:8
    |
-11 |     fn print(s: String) {
+15 |     fn print(s: String) {
    |        ^^^^^ this would hide the prelude name everywhere in the module
    |
    = help: choose another name

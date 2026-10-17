@@ -1,22 +1,22 @@
 error[E0429]: `Int` is a type, not a value
-   --> src/main.wolf:15:17
+   --> src/main.wolf:14:13
    |
-15 |         let a = Int
-   |                 ^^^ expected a value
+14 |     let a = Int
+   |             ^^^ expected a value
 
 error[E0429]: a module is not a value
-   --> src/main.wolf:16:17
+   --> src/main.wolf:15:13
    |
-16 |         let b = io
-   |                 ^^ this names a module
+15 |     let b = io
+   |             ^^ this names a module
    |
    = help: use one of its declarations: `module.name`
 
 error[E0429]: `Point` is a type, not a value
-   --> src/main.wolf:17:17
+   --> src/main.wolf:16:13
    |
-17 |         let c = Point
-   |                 ^^^^^ expected a value
+16 |     let c = Point
+   |             ^^^^^ expected a value
    |
    = help: build a value: `Point { ... }`
 

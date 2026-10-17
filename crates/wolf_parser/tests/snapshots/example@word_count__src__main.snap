@@ -7,22 +7,7 @@ file
   module main
   (section imports (import std.list) (import std.string))
   (section config (const sample String "the quick brown fox jumps over the lazy dog the fox"))
-  section functions
-    fn
-      count_words
-      (params (text String))
-      (-> (Map String Int))
-      block
-        (var counts (Map String Int) [:])
-        for
-          word
-          (call (. (call (. text to_lower_ascii)) split) " ")
-          block
-            if
-              (call (. counts contains_key) word)
-              (block (+= (index counts word) 1))
-              (else (block (let _ (call (. counts insert) (call (. word copy)) 1))))
-        counts
+  section main
     fn
       main
       ()
@@ -51,3 +36,19 @@ file
               +
                 (+ (+ "  " (. (index entries i) key)) " ")
                 (call (. (. (index entries i) value) to_string))
+  section functions
+    fn
+      count_words
+      (params (text String))
+      (-> (Map String Int))
+      block
+        (var counts (Map String Int) [:])
+        for
+          word
+          (call (. (call (. text to_lower_ascii)) split) " ")
+          block
+            if
+              (call (. counts contains_key) word)
+              (block (+= (index counts word) 1))
+              (else (block (let _ (call (. counts insert) (call (. word copy)) 1))))
+        counts

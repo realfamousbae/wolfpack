@@ -46,23 +46,23 @@ types {
     }
 }
 
+main {
+    print("[" + trim("  padded  ") + "]")
+    print(size("1").to_string())
+    let parts = split("a,b,c", ",")
+    print(parts.len().to_string() + " " + string.join(parts, "+"))
+    match decode("%zz") {
+        Ok(v) => print("decoded " + v)
+        Err(_) => print("not decoded")
+    }
+    let rule = Rule { name: "ab", pattern: pattern("ab") }
+    print(check(rule, "ab") + ", " + check(rule, "x"))
+    let rules = [rule]
+    print(rules.len().to_string())
+}
+
 functions {
     fn check(rule: Rule, text: String) -> String {
         rule.name + ": " + matches(rule.pattern, text).to_string()
-    }
-
-    fn main() {
-        print("[" + trim("  padded  ") + "]")
-        print(size("1").to_string())
-        let parts = split("a,b,c", ",")
-        print(parts.len().to_string() + " " + string.join(parts, "+"))
-        match decode("%zz") {
-            Ok(v) => print("decoded " + v)
-            Err(_) => print("not decoded")
-        }
-        let rule = Rule { name: "ab", pattern: pattern("ab") }
-        print(check(rule, "ab") + ", " + check(rule, "x"))
-        let rules = [rule]
-        print(rules.len().to_string())
     }
 }

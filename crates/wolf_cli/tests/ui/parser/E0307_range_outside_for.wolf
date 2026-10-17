@@ -1,7 +1,5 @@
 module main
 
-functions {
-    fn main() {
-        let r = 0..10
-    }
+main {
+    let r = 0..10
 }

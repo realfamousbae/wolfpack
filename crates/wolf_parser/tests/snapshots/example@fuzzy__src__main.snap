@@ -17,6 +17,20 @@ file
         from "github.com/agnivade/levenshtein.ComputeDistance"
     (extern rust (fn distance (params (a String) (b String)) (-> Int) from "strsim::levenshtein"))
   (section config (const doc " Words farther than this get no suggestion." max_distance Int 2))
+  section main
+    fn
+      main
+      ()
+      block
+        (let commands (list "build" "check" "run" "test" "fmt" "explain"))
+        for
+          word
+          (list "biuld" "tset" "chek" "rnu" "format")
+          block
+            match
+              (call suggest word commands)
+              (=> (Some command) (call print (+ (+ (+ word ": did you mean `") command) "`?")))
+              (=> None (call print (+ word ": no suggestion")))
   section functions
     fn
       doc " The closest command to `word`, if it is close enough; the first one wins a tie."
@@ -35,19 +49,6 @@ file
               (< d best_distance)
               (block (= best (call Some (call (. command copy)))) (= best_distance d))
         best
-    fn
-      main
-      ()
-      block
-        (let commands (list "build" "check" "run" "test" "fmt" "explain"))
-        for
-          word
-          (list "biuld" "tset" "chek" "rnu" "format")
-          block
-            match
-              (call suggest word commands)
-              (=> (Some command) (call print (+ (+ (+ word ": did you mean `") command) "`?")))
-              (=> None (call print (+ word ": no suggestion")))
   section tests
     test
       "distance counts single edits"

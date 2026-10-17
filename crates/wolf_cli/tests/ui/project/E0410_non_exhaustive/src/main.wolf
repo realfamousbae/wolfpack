@@ -8,6 +8,10 @@ types {
     }
 }
 
+main {
+    print(area(Shape.Empty).to_string() + name(1) + inner(None).to_string() + sign(1))
+}
+
 functions {
     fn area(s: Shape) -> Float {
         match s {
@@ -35,9 +39,5 @@ functions {
             x if x < 0 => "negative"
             x if x >= 0 => "positive"
         }
-    }
-
-    fn main() {
-        print(area(Shape.Empty).to_string() + name(1) + inner(None).to_string() + sign(1))
     }
 }

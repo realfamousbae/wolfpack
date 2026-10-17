@@ -6,11 +6,9 @@ imports {
     lib.{word_count, capitalize, shout}
 }
 
-functions {
-    fn main() {
-        let text = "the wolf pack hunts together"
-        print(capitalize(text))
-        print(word_count(text).to_string() + " words")
-        print(shout("aroo"))
-    }
+main {
+    let text = "the wolf pack hunts together"
+    print(capitalize(text))
+    print(word_count(text).to_string() + " words")
+    print(shout("aroo"))
 }

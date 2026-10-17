@@ -5,6 +5,7 @@ expression: result.dump
 file
   doc! " FizzBuzz: ranges, `match` with alternatives, conversion to `String`."
   module main
+  (section main (fn main () (block (for i (..= 1 15) (block (call print (call fizzbuzz i)))))))
   section functions
     fn
       doc " Returns the FizzBuzz word for `n`."
@@ -18,7 +19,6 @@ file
           (=> (| 3 6 9 12) "Fizz")
           (=> (| 5 10) "Buzz")
           (=> _ (call (. n to_string)))
-    (fn main () (block (for i (..= 1 15) (block (call print (call fizzbuzz i))))))
   section tests
     (test "multiples of three" (block (call assert (== (call fizzbuzz 9) "Fizz"))))
     (test "multiples of five" (block (call assert (== (call fizzbuzz 10) "Buzz"))))

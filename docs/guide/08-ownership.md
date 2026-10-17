@@ -34,13 +34,11 @@ the value went:
 ```wolf error E0501
 module main
 
-functions {
-    fn main() {
-        let names = ["Ann", "Bob"]
-        let team = names
-        print(team.len().to_string())
-        print(names.len().to_string())
-    }
+main {
+    let names = ["Ann", "Bob"]
+    let team = names
+    print(team.len().to_string())
+    print(names.len().to_string())
 }
 ```
 
@@ -66,16 +64,14 @@ types {
     }
 }
 
-functions {
-    fn main() {
-        var order = Order { id: 1, items: ["tea", "cake"] }
-        let copied = order.items.copy()
-        let taken = replace(mut order.items, [])
-        print(copied.len().to_string() + " " + taken.len().to_string())
-        print(order.items.len().to_string())
-        match own order {
-            Order { id, items } => print(id.to_string() + " " + items.len().to_string())
-        }
+main {
+    var order = Order { id: 1, items: ["tea", "cake"] }
+    let copied = order.items.copy()
+    let taken = replace(mut order.items, [])
+    print(copied.len().to_string() + " " + taken.len().to_string())
+    print(order.items.len().to_string())
+    match own order {
+        Order { id, items } => print(id.to_string() + " " + items.len().to_string())
     }
 }
 ```
@@ -109,6 +105,14 @@ types {
     }
 }
 
+main {
+    var shapes = [Shape.Circle(1.5), Shape.Square(2.0)]
+    grow(mut shapes)
+    for s in shapes {
+        print(describe(s))
+    }
+}
+
 functions {
     fn grow(mut shapes: List<Shape>) {
         for s in mut shapes {
@@ -123,14 +127,6 @@ functions {
         match s {
             Shape.Circle(r) => "circle " + r.to_string()
             Shape.Square(side) => "square " + side.to_string()
-        }
-    }
-
-    fn main() {
-        var shapes = [Shape.Circle(1.5), Shape.Square(2.0)]
-        grow(mut shapes)
-        for s in shapes {
-            print(describe(s))
         }
     }
 }
@@ -161,15 +157,15 @@ overlap:
 ```wolf error E0508
 module main
 
+main {
+    var numbers = [1, 2]
+    move_all(mut numbers, mut numbers)
+    print(numbers.len().to_string())
+}
+
 functions {
     fn move_all(mut from: List<Int>, mut to: List<Int>) {
         to.append(replace(mut from, []))
-    }
-
-    fn main() {
-        var numbers = [1, 2]
-        move_all(mut numbers, mut numbers)
-        print(numbers.len().to_string())
     }
 }
 ```
@@ -187,15 +183,15 @@ parameter, cannot be captured at all; copy it into a local variable first:
 ```wolf
 module main
 
+main {
+    let shouted = with_suffix(["hey", "you"], "!")
+    print(shouted[0] + " " + shouted[1])
+}
+
 functions {
     fn with_suffix(words: List<String>, suffix: String) -> List<String> {
         let end = suffix.copy()
         words.map(|w| w + end)
-    }
-
-    fn main() {
-        let shouted = with_suffix(["hey", "you"], "!")
-        print(shouted[0] + " " + shouted[1])
     }
 }
 ```

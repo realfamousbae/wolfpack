@@ -1,16 +1,16 @@
 error[E0401]: `for` needs a `List` or a range, found `String`
-  --> src/main.wolf:5:18
+  --> src/main.wolf:4:14
   |
-5 |         for c in "abc" {
-  |                  ^^^^^ this is `String`
+4 |     for c in "abc" {
+  |              ^^^^^ this is `String`
   |
   = help: iterate over the characters: `for c in s.chars()`
 
 error[E0401]: `for` needs a `List` or a range, found `Map<String, Int>`
-  --> src/main.wolf:9:21
+  --> src/main.wolf:8:17
   |
-9 |         for name in ages {
-  |                     ^^^^ this is `Map<String, Int>`
+8 |     for name in ages {
+  |                 ^^^^ this is `Map<String, Int>`
   |
   = help: iterate over the keys: `for k in m.keys()`
 

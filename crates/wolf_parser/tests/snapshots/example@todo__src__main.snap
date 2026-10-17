@@ -6,11 +6,7 @@ file
   doc! " A todo list split into modules: `todo.model` and `todo.store`."
   module main
   (section imports (import todo.model (names Priority)) (import todo.store (names Store)))
-  section functions
-    fn
-      show
-      (params (store Store))
-      (block (for line (call (. store report)) (block (call print line))) (call print "--"))
+  section main
     fn
       main
       ()
@@ -27,3 +23,8 @@ file
         (let removed (call (. store remove_done)))
         (call print (+ "removed: " (call (. removed to_string))))
         (call show store)
+  section functions
+    fn
+      show
+      (params (store Store))
+      (block (for line (call (. store report)) (block (call print line))) (call print "--"))

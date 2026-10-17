@@ -1,7 +1,11 @@
 module main
 
+main {
+    print("hi")
+}
+
 function {
-    fn main() {
+    fn greet() {
         print("hi")
     }
 }

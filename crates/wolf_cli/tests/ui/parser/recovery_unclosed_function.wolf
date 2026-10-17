@@ -1,7 +1,7 @@
 module main
 
 functions {
-    fn main() {
+    fn greet() {
         print("the closing brace of this function is missing")
 
 tests {

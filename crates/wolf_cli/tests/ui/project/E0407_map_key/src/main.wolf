@@ -6,15 +6,15 @@ types {
     }
 }
 
+main {
+    let groups = [[1]: "one"]
+    var empty = Map.new()
+    empty[1.5] = 1
+    let _ = [groups.len(), empty.len()]
+}
+
 functions {
     fn count(groups: Map<List<Int>, String>) -> Int {
         groups.len()
-    }
-
-    fn main() {
-        let groups = [[1]: "one"]
-        var empty = Map.new()
-        empty[1.5] = 1
-        let _ = [groups.len(), empty.len()]
     }
 }

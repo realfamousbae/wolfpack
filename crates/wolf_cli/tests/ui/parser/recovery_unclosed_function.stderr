@@ -1,8 +1,8 @@
 error[E0302]: unclosed `{`
-  --> parser/recovery_unclosed_function.wolf:4:15
+  --> parser/recovery_unclosed_function.wolf:4:16
   |
-4 |     fn main() {
-  |               ^ this `{` is never closed
+4 |     fn greet() {
+  |                ^ this `{` is never closed
   .
 7 | tests {
   | ----- a section starts here

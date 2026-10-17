@@ -25,9 +25,7 @@ impl {
     }
 }
 
-functions {
-    fn main() {
-        let r = Rect { w: 1.0 }
-        print(r.area().to_string())
-    }
+main {
+    let r = Rect { w: 1.0 }
+    print(r.area().to_string())
 }

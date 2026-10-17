@@ -565,11 +565,11 @@ export function replace<T>(place: Ref<T>, value: T): T {
     },
     Piece {
         name: "runMain",
-        deps: &["report"],
-        code: r#"/** Runs `main`. */
-export function runMain(main: () => void): void {
+        deps: &["report", "args"],
+        code: r#"/** Runs `main`; a `main` with a parameter gets the command-line arguments. */
+export function runMain(main: (args: string[]) => void): void {
   try {
-    main();
+    main(args());
   } catch (error) {
     report(error);
   }
@@ -577,11 +577,11 @@ export function runMain(main: () => void): void {
     },
     Piece {
         name: "runMainResult",
-        deps: &["report"],
+        deps: &["report", "args"],
         code: r#"/** Runs a `main` that returns `Result<Void, Error>`. */
-export function runMainResult(main: () => { ok: boolean; error?: { message(): string } }): void {
+export function runMainResult(main: (args: string[]) => { ok: boolean; error?: { message(): string } }): void {
   try {
-    const result = main();
+    const result = main(args());
     if (!result.ok && result.error !== undefined) {
       process.stderr.write("error: " + result.error.message() + "\n");
       process.exitCode = 1;

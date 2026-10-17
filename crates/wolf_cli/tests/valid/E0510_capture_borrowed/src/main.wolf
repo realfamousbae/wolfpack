@@ -7,6 +7,11 @@ types {
     }
 }
 
+main {
+    let u = make()
+    print(names(u).len().to_string())
+}
+
 functions {
     fn take(own u: User) -> Int {
         u.tags.len()
@@ -23,10 +28,5 @@ functions {
     fn names(u: User) -> List<String> {
         let name = u.name.copy()
         ["x"].map(|s| s + name)
-    }
-
-    fn main() {
-        let u = make()
-        print(names(u).len().to_string())
     }
 }

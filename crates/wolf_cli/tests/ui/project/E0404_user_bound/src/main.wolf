@@ -14,13 +14,13 @@ types {
     }
 }
 
+main {
+    let p = largest([Point { x: 1 }])
+    print(p.x.to_string())
+}
+
 functions {
     fn largest<T: Comparable + Copyable>(items: List<T>) -> T {
         items[0].copy()
-    }
-
-    fn main() {
-        let p = largest([Point { x: 1 }])
-        print(p.x.to_string())
     }
 }

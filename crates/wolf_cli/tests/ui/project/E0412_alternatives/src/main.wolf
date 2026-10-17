@@ -8,6 +8,10 @@ types {
     }
 }
 
+main {
+    print(show(Value.Nothing) + mixed(Value.Nothing))
+}
+
 functions {
     fn show(v: Value) -> String {
         match v {
@@ -21,9 +25,5 @@ functions {
             Value.Number(x) | Value.Text(x) => x.to_string()
             Value.Nothing => "none"
         }
-    }
-
-    fn main() {
-        print(show(Value.Nothing) + mixed(Value.Nothing))
     }
 }

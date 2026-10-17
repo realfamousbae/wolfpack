@@ -4,10 +4,10 @@ types {
     intrinsic type Handle
 }
 
+main {
+    print(fast().to_string())
+}
+
 functions {
     intrinsic fn fast() -> Int
-
-    fn main() {
-        print(fast().to_string())
-    }
 }

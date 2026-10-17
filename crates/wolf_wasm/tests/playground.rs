@@ -1,7 +1,6 @@
 //! The functions of the playground, called natively.
 
-const HELLO: &str =
-    "module main\n\nfunctions {\n    fn main() {\n        print(\"hi\")\n    }\n}\n";
+const HELLO: &str = "module main\n\nmain {\n    print(\"hi\")\n}\n";
 
 #[test]
 fn a_valid_program_has_no_errors() {
@@ -20,7 +19,7 @@ fn errors_come_as_text_and_json() {
         result.contains("error[E0609]: unknown name `prnt`"),
         "{result}"
     );
-    assert!(result.contains("--> src/main.wolf:5:9"), "{result}");
+    assert!(result.contains("--> src/main.wolf:4:5"), "{result}");
     assert!(result.contains("\"code\":\"E0609\""), "{result}");
 }
 
@@ -50,10 +49,10 @@ fn build_reports_errors_and_no_files() {
 
 #[test]
 fn format_and_explain() {
-    let messy = "module main\nfunctions {\n    fn main() { print(\"hi\")   }\n}\n";
+    let messy = "module main\nmain { print(\"hi\") }\n";
     assert_eq!(
         wolf_wasm::format(messy),
-        "{\"ok\":true,\"text\":\"module main\\n\\nfunctions {\\n    fn main() { print(\\\"hi\\\") }\\n}\\n\"}"
+        "{\"ok\":true,\"text\":\"module main\\n\\nmain { print(\\\"hi\\\") }\\n\"}"
     );
     assert!(wolf_wasm::format("module main\nfunctions {\n").starts_with("{\"ok\":false,"));
     assert!(wolf_wasm::explain("e0501").starts_with("# E0501: "));

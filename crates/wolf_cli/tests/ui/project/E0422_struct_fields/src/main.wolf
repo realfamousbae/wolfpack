@@ -7,14 +7,12 @@ types {
     }
 }
 
-functions {
-    fn main() {
-        let a = User { name: "a" }
-        let b = User { name: "b", age: 2, email: "x" }
-        let c = User { name: "c", name: "d", age: 3 }
-        match a {
-            User { name } => print(name)
-        }
-        let _ = [b, c]
+main {
+    let a = User { name: "a" }
+    let b = User { name: "b", age: 2, email: "x" }
+    let c = User { name: "c", name: "d", age: 3 }
+    match a {
+        User { name } => print(name)
     }
+    let _ = [b, c]
 }

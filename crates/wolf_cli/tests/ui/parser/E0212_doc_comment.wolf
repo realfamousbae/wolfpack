@@ -2,7 +2,7 @@ module main
 
 /// Helper functions.
 functions {
-    fn main() {
+    fn greet() {
         /// Prints a greeting.
         print("hi")
     }

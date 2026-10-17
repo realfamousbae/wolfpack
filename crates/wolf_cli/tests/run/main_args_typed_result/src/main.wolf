@@ -1,0 +1,6 @@
+module main
+
+main(args: List<String>) -> Result<Void, Error> {
+    print("arguments: " + args.len().to_string())
+    Ok(())
+}

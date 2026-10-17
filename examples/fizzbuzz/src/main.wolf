@@ -2,6 +2,12 @@
 
 module main
 
+main {
+    for i in 1..=15 {
+        print(fizzbuzz(i))
+    }
+}
+
 functions {
     /// Returns the FizzBuzz word for `n`.
     fn fizzbuzz(n: Int) -> String {
@@ -10,12 +16,6 @@ functions {
             3 | 6 | 9 | 12 => "Fizz"
             5 | 10 => "Buzz"
             _ => n.to_string()
-        }
-    }
-
-    fn main() {
-        for i in 1..=15 {
-            print(fizzbuzz(i))
         }
     }
 }

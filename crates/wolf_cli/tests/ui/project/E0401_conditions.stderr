@@ -1,13 +1,13 @@
 error[E0401]: expected `Bool`, found `Int`
-  --> src/main.wolf:6:12
+  --> src/main.wolf:5:8
   |
-6 |         if n {
-  |            ^ this is `Int`
+5 |     if n {
+  |        ^ this is `Int`
 
 error[E0401]: expected `Bool`, found `String`
-  --> src/main.wolf:9:15
+  --> src/main.wolf:8:11
   |
-9 |         while "go" {
-  |               ^^^^ this is `String`
+8 |     while "go" {
+  |           ^^^^ this is `String`
 
 error: aborting due to 2 errors

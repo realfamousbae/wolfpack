@@ -1,5 +1,13 @@
 # Wolfpack
 
+> ## ⚠️ Work in progress: expect big, breaking changes
+>
+> Wolfpack is under active development and is going to change a lot, including the language
+> itself. Syntax, the standard library and the command line may change from one version to the
+> next without a deprecation period. The first big change is already on its way: the entry point is
+> no longer `fn main` but a `main` section above `functions` (see `docs/spec/`). Do not build
+> anything you cannot rewrite.
+
 [![CI](https://github.com/realfamousbae/wolfpack/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/realfamousbae/wolfpack/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/realfamousbae/wolfpack)](https://github.com/realfamousbae/wolfpack/releases/latest)
 [![Playground](https://img.shields.io/badge/try-playground-blue)](https://realfamousbae.github.io/wolfpack/)
@@ -20,18 +28,18 @@ types {
     }
 }
 
+main {
+    let shapes = [Shape.Circle(1.0), Shape.Rect { w: 2.0, h: 3.0 }]
+    for s in shapes {
+        print(area(s).to_string())
+    }
+}
+
 functions {
     fn area(s: Shape) -> Float {
         match s {
             Shape.Circle(r) => 3.0 * r * r
             Shape.Rect { w, h } => w * h
-        }
-    }
-
-    fn main() {
-        let shapes = [Shape.Circle(1.0), Shape.Rect { w: 2.0, h: 3.0 }]
-        for s in shapes {
-            print(area(s).to_string())
         }
     }
 }

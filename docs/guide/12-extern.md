@@ -27,11 +27,9 @@ extern {
     }
 }
 
-functions {
-    fn main() {
-        print(upper("wolfpack"))
-        print(larger(2.5, 1.5).to_string())
-    }
+main {
+    print(upper("wolfpack"))
+    print(larger(2.5, 1.5).to_string())
 }
 ```
 
@@ -84,11 +82,9 @@ extern {
     }
 }
 
-functions {
-    fn main() {
-        let digits = compile("^[0-9]+$")
-        print(matches(digits, "2026").to_string())
-    }
+main {
+    let digits = compile("^[0-9]+$")
+    print(matches(digits, "2026").to_string())
 }
 
 // file: wolfpack.toml

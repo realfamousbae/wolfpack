@@ -7,26 +7,26 @@ error[E0407]: `Float` cannot be a map key
   = note: map keys are `Int`, `String`, `Bool` and enums without payloads
 
 error[E0407]: `List<Int>` cannot be a map key
-   --> src/main.wolf:10:22
+   --> src/main.wolf:10:18
    |
-10 |     fn count(groups: Map<List<Int>, String>) -> Int {
-   |                      ^^^^^^^^^^^^^^^^^^^^^^ a map key must be `Hashable`
-   |
-   = note: map keys are `Int`, `String`, `Bool` and enums without payloads
-
-error[E0407]: `List<Int>` cannot be a map key
-   --> src/main.wolf:15:22
-   |
-15 |         let groups = [[1]: "one"]
-   |                      ^^^^^^^^^^^^ a map key must be `Hashable`
+10 |     let groups = [[1]: "one"]
+   |                  ^^^^^^^^^^^^ a map key must be `Hashable`
    |
    = note: map keys are `Int`, `String`, `Bool` and enums without payloads
 
 error[E0407]: `Float` cannot be a map key
-   --> src/main.wolf:16:25
+   --> src/main.wolf:11:21
    |
-16 |         var empty = Map.new()
-   |                         ^^^ a map key must be `Hashable`
+11 |     var empty = Map.new()
+   |                     ^^^ a map key must be `Hashable`
+   |
+   = note: map keys are `Int`, `String`, `Bool` and enums without payloads
+
+error[E0407]: `List<Int>` cannot be a map key
+   --> src/main.wolf:17:22
+   |
+17 |     fn count(groups: Map<List<Int>, String>) -> Int {
+   |                      ^^^^^^^^^^^^^^^^^^^^^^ a map key must be `Hashable`
    |
    = note: map keys are `Int`, `String`, `Bool` and enums without payloads
 

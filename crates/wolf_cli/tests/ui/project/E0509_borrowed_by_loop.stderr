@@ -1,20 +1,20 @@
 error[E0509]: cannot change `u.tags` while it is borrowed
-   --> src/main.wolf:26:13
+   --> src/main.wolf:13:9
    |
-25 |         for t in u.tags {
-   |                  ------ this `for` loop reads
-26 |             u.tags.push(t.copy())
-   |             ^^^^^^ change here
+12 |     for t in u.tags {
+   |              ------ this `for` loop reads
+13 |         u.tags.push(t.copy())
+   |         ^^^^^^ change here
    |
    = note: a `for` loop or a `match` arm reads the place for its whole body
 
 error[E0509]: cannot change `u` while it is borrowed
-   --> src/main.wolf:29:31
+   --> src/main.wolf:16:27
    |
-28 |         match u.name {
-   |               ------ this `match` reads
-29 |             "a" => change(mut u)
-   |                               ^ change here
+15 |     match u.name {
+   |           ------ this `match` reads
+16 |         "a" => change(mut u)
+   |                           ^ change here
    |
    = note: a `for` loop or a `match` arm reads the place for its whole body
 

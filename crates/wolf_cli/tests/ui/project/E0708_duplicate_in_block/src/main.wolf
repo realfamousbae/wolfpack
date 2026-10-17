@@ -7,8 +7,6 @@ extern {
     }
 }
 
-functions {
-    fn main() {
-        print(now().to_string())
-    }
+main {
+    print(now().to_string())
 }

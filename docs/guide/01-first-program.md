@@ -44,10 +44,8 @@ used when a command does not name one.
 ```wolf
 module main
 
-functions {
-    fn main() {
-        print("Hello, wolfpack!")
-    }
+main {
+    print("Hello, wolfpack!")
 }
 ```
 
@@ -61,7 +59,9 @@ Even this small file shows how every wolfpack file is built:
   path below `src/`: `src/main.wolf` is `main`, `src/users/model.wolf` would be `users.model`.
 - Everything else is in **sections**. Functions go into the `functions` section; chapter 2 shows the
   others.
-- `fn main()` is where the program starts. It is the last function of its section.
+- `main` is where the program starts. It is a section of its own, written above `functions`, and
+  holds the statements of the program. Its header may also name the command-line arguments and the
+  result type: `main(args: List<String>) -> Result<Void, Error> { ... }`. Both parts are optional.
 - `print` writes a string and a line break to standard output.
 
 ## Running it
@@ -113,10 +113,8 @@ Change `print` to `prnt` and check the project:
 ```wolf error E0609
 module main
 
-functions {
-    fn main() {
-        prnt("Hello, wolfpack!")
-    }
+main {
+    prnt("Hello, wolfpack!")
 }
 ```
 

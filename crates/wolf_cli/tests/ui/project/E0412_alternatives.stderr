@@ -1,15 +1,15 @@
 error[E0412]: `n` is not bound in every alternative
-   --> src/main.wolf:14:31
+   --> src/main.wolf:18:31
    |
-14 |             Value.Number(n) | Value.Nothing => n.to_string()
+18 |             Value.Number(n) | Value.Nothing => n.to_string()
    |                               ^^^^^^^^^^^^^ this alternative does not bind `n`
    |
    = note: every alternative of `|` must bind the same names
 
 error[E0412]: `x` has type `Int` in one alternative and `String` in another
-   --> src/main.wolf:21:42
+   --> src/main.wolf:25:42
    |
-21 |             Value.Number(x) | Value.Text(x) => x.to_string()
+25 |             Value.Number(x) | Value.Text(x) => x.to_string()
    |                                          ^ this `x` is `String`
    |
    = note: every alternative of `|` must bind each name with the same type

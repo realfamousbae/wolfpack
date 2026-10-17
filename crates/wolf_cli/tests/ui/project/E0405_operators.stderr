@@ -1,72 +1,72 @@
 error[E0405]: `+` cannot be applied to `Int` and `Float`
-   --> src/main.wolf:11:17
+   --> src/main.wolf:10:13
    |
-11 |         let a = 1 + 1.0
-   |                 ^^^^^^^ `Int` + `Float`
+10 |     let a = 1 + 1.0
+   |             ^^^^^^^ `Int` + `Float`
    |
    = help: convert one side: `x.to_float()` or `x.to_int()`
 
 error[E0405]: `+` cannot be applied to `String` and `Int`
-   --> src/main.wolf:12:17
+   --> src/main.wolf:11:13
    |
-12 |         let b = "n=" + 5
-   |                 ^^^^^^^^ `String` + `Int`
+11 |     let b = "n=" + 5
+   |             ^^^^^^^^ `String` + `Int`
    |
    = help: convert the other side with `.to_string()`
 
 error[E0405]: `&` is not defined for `Bool`
-   --> src/main.wolf:13:17
+   --> src/main.wolf:12:13
    |
-13 |         let c = true & false
-   |                 ^^^^^^^^^^^^ the operands are `Bool`
+12 |     let c = true & false
+   |             ^^^^^^^^^^^^ the operands are `Bool`
    |
    = note: bitwise operators and shifts work only on `Int`
 
 error[E0405]: `<` is not defined for `Point`
-   --> src/main.wolf:14:17
+   --> src/main.wolf:13:13
    |
-14 |         let d = Point { x: 1 } < Point { x: 2 }
-   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the operands are `Point`
+13 |     let d = Point { x: 1 } < Point { x: 2 }
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the operands are `Point`
    |
    = note: `<`, `<=`, `>` and `>=` work on `Int`, `Float` and `String`; compare other types with `a.compare(b)`
 
 error[E0405]: `-` is not defined for `String`
-   --> src/main.wolf:15:17
+   --> src/main.wolf:14:13
    |
-15 |         let e = -"text"
-   |                 ^^^^^^^ the operands are `String`
+14 |     let e = -"text"
+   |             ^^^^^^^ the operands are `String`
    |
    = note: arithmetic works on `Int` and `Float`
 
 error[E0405]: `!` cannot be applied to `Int`
-   --> src/main.wolf:16:17
+   --> src/main.wolf:15:13
    |
-16 |         let f = !1
-   |                 ^^ the operand is `Int`
+15 |     let f = !1
+   |             ^^ the operand is `Int`
    |
    = note: `!` works on `Bool`; `~` is the bitwise not of `Int`
 
 error[E0405]: a `String` cannot be indexed
-   --> src/main.wolf:17:17
+   --> src/main.wolf:16:13
    |
-17 |         let g = "abc"[0]
-   |                 ^^^^^ this is `String`
+16 |     let g = "abc"[0]
+   |             ^^^^^ this is `String`
    |
    = help: use a slice, which is a `String`: `s[i..=i]`
    = note: there is no character type; positions count Unicode scalar values
 
 error[E0405]: `?` cannot be applied to `Int`
-   --> src/main.wolf:18:17
+   --> src/main.wolf:17:13
    |
-18 |         let h = 5?
-   |                 ^^ this is `Int`
+17 |     let h = 5?
+   |             ^^ this is `Int`
    |
    = note: `?` works on `Result` and `Option`
 
 error[E0405]: `&&` needs `Bool` operands, found `Int`
-   --> src/main.wolf:19:17
+   --> src/main.wolf:18:13
    |
-19 |         let i = 1 && true
-   |                 ^ this is `Int`
+18 |     let i = 1 && true
+   |             ^ this is `Int`
 
 error: aborting due to 9 errors

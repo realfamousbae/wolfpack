@@ -66,7 +66,7 @@ fn check(main: &str) -> String {
 }
 
 fn main_with(body: &str) -> String {
-    format!("module main\n\nfunctions {{\n    fn main() {{\n{body}\n    }}\n}}\n")
+    format!("module main\n\nmain {{\n{body}\n}}\n")
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn inference_flows_both_ways() {
 #[test]
 fn void_blocks_discard_their_final_value() {
     let out = check(
-        "module main\n\nfunctions {\n    fn drop_last(mut l: List<Int>) {\n        l.pop()\n    }\n\n    fn main() {\n        var l = [1]\n        if l.len() > 0 {\n            print(\"x\")\n        } else {\n            l.pop()\n        }\n        drop_last(mut l)\n    }\n}\n",
+        "module main\n\nmain {\n    var l = [1]\n    if l.len() > 0 {\n        print(\"x\")\n    } else {\n        l.pop()\n    }\n    drop_last(mut l)\n}\n\nfunctions {\n    fn drop_last(mut l: List<Int>) {\n        l.pop()\n    }\n}\n",
     );
     assert!(out.is_empty(), "{out}");
 }
@@ -167,6 +167,14 @@ impl {
     }
 }
 
+main {
+    let s: Stack<Int> = Stack { items: [1, 2] }
+    let labels = s.map(|n| n.to_string())
+    print(describe(s) + labels.items[0] + max_of(\"a\", \"b\"))
+    let empty: Stack<String> = Stack.new()
+    let _ = empty
+}
+
 functions {
     fn describe(c: Container<Int>) -> String {
         c.size().to_string()
@@ -174,14 +182,6 @@ functions {
 
     fn max_of<T: Comparable + Copyable>(a: T, b: T) -> T {
         if a.compare(b) == Ordering.Less { b.copy() } else { a.copy() }
-    }
-
-    fn main() {
-        let s: Stack<Int> = Stack { items: [1, 2] }
-        let labels = s.map(|n| n.to_string())
-        print(describe(s) + labels.items[0] + max_of(\"a\", \"b\"))
-        let empty: Stack<String> = Stack.new()
-        let _ = empty
     }
 }
 ",
@@ -223,11 +223,9 @@ impl {
     }
 }
 
-functions {
-    fn main() {
-        let s: Sorted<Int> = Sorted.new()
-        print(s.better(1, 2).to_string())
-    }
+main {
+    let s: Sorted<Int> = Sorted.new()
+    print(s.better(1, 2).to_string())
 }
 ",
     );
@@ -237,7 +235,7 @@ functions {
 #[test]
 fn methods_on_struct_literals_are_checked() {
     let out = check(
-        "module main\n\ntypes {\n    struct P {\n        x: Int\n    }\n}\n\nimpl {\n    P {\n        fn get(self) -> Int {\n            self.x\n        }\n    }\n}\n\nfunctions {\n    fn main() {\n        print(P { x: 1 }.get().to_string())\n        print(P { x: 1 }.nope().to_string())\n    }\n}\n",
+        "module main\n\ntypes {\n    struct P {\n        x: Int\n    }\n}\n\nimpl {\n    P {\n        fn get(self) -> Int {\n            self.x\n        }\n    }\n}\n\nmain {\n    print(P { x: 1 }.get().to_string())\n    print(P { x: 1 }.nope().to_string())\n}",
     );
     assert!(
         out.contains("E0424") && out.matches("error[").count() == 1,

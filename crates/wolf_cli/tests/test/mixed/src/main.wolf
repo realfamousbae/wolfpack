@@ -4,10 +4,8 @@ imports {
     util.math.{halve}
 }
 
-functions {
-    fn main() {
-        print(halve(4).to_string())
-    }
+main {
+    print(halve(4).to_string())
 }
 
 tests {

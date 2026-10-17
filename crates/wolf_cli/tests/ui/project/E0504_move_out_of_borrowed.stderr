@@ -1,7 +1,7 @@
 error[E0504]: cannot move out of borrowed `u`
-   --> src/main.wolf:24:9
+   --> src/main.wolf:29:9
    |
-24 |         u.name
+29 |         u.name
    |         ^^^^^^ `u.name` is moved here
    |
    = help: move a copy: `u.name.copy()`

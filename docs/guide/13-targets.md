@@ -15,6 +15,11 @@ types {
     }
 }
 
+main {
+    let shapes = [Shape.Circle(1.0), Shape.Rect { w: 2.0, h: 3.0 }]
+    print(total(shapes).to_string())
+}
+
 functions {
     /// The area of a shape.
     fn area(s: Shape) -> Float {
@@ -30,11 +35,6 @@ functions {
             sum += area(s)
         }
         sum
-    }
-
-    fn main() {
-        let shapes = [Shape.Circle(1.0), Shape.Rect { w: 2.0, h: 3.0 }]
-        print(total(shapes).to_string())
     }
 }
 
@@ -78,6 +78,11 @@ export class ShapeRect {
   }
 }
 
+function main(): void {
+  const shapes: Shape[] = [new ShapeCircle(1.0), new ShapeRect(2.0, 3.0)];
+  $rt.print($rt.floatToString(total(shapes)));
+}
+
 /** The area of a shape. */
 function area(s: Shape): number {
   if (s.kind === "Circle") {
@@ -96,11 +101,6 @@ function total(shapes: Shape[]): number {
     sum = sum + area(s);
   }
   return sum;
-}
-
-function main(): void {
-  const shapes: Shape[] = [new ShapeCircle(1.0), new ShapeRect(2.0, 3.0)];
-  $rt.print($rt.floatToString(total(shapes)));
 }
 
 $rt.runMain(main);
@@ -142,6 +142,11 @@ type shapeRect struct {
 
 func (*shapeRect) isShape() {}
 
+func main_() {
+	shapes := []shape{&shapeCircle{F0: 1.0}, &shapeRect{W: 2.0, H: 3.0}}
+	fmt.Println(wolfrt.FloatString(total(shapes)))
+}
+
 // The area of a shape.
 func area(s shape) float64 {
 	switch v := s.(type) {
@@ -163,11 +168,6 @@ func total(shapes []shape) float64 {
 		sum += area(s)
 	}
 	return sum
-}
-
-func main_() {
-	shapes := []shape{&shapeCircle{F0: 1.0}, &shapeRect{W: 2.0, H: 3.0}}
-	fmt.Println(wolfrt.FloatString(total(shapes)))
 }
 
 func main() {
@@ -195,6 +195,11 @@ pub enum Shape {
     Rect { w: f64, h: f64 },
 }
 
+fn main_() {
+    let shapes: Vec<Shape> = vec![Shape::Circle(1.0), Shape::Rect { w: 2.0, h: 3.0 }];
+    println!("{}", wolf_rt::float_to_string(total(&shapes)));
+}
+
 /// The area of a shape.
 pub fn area(s: &Shape) -> f64 {
     match s {
@@ -209,11 +214,6 @@ pub fn total(shapes: &[Shape]) -> f64 {
         sum += area(s);
     }
     sum
-}
-
-fn main_() {
-    let shapes: Vec<Shape> = vec![Shape::Circle(1.0), Shape::Rect { w: 2.0, h: 3.0 }];
-    println!("{}", wolf_rt::float_to_string(total(&shapes)));
 }
 
 fn main() {

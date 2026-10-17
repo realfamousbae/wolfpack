@@ -1,8 +1,6 @@
 //! The smallest program. Press Run, or look at the TypeScript, Go and Rust it becomes.
 module main
 
-functions {
-    fn main() {
-        print("Hello, wolfpack!")
-    }
+main {
+    print("Hello, wolfpack!")
 }

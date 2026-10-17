@@ -62,23 +62,23 @@ impl {
     }
 }
 
+main {
+    var tree = Tree.Leaf
+    for value in [50, 30, 70, 20, 40, 60, 80, 35] {
+        tree = tree.insert(value)
+    }
+
+    var sorted: List<Int> = []
+    tree.collect(mut sorted)
+    print("in order: " + join_ints(sorted))
+    print("depth: " + tree.depth().to_string())
+    print("contains 35: " + tree.contains(35).to_string())
+    print("contains 36: " + tree.contains(36).to_string())
+}
+
 functions {
     fn join_ints(values: List<Int>) -> String {
         string.join(values.map(|v| v.to_string()), ", ")
-    }
-
-    fn main() {
-        var tree = Tree.Leaf
-        for value in [50, 30, 70, 20, 40, 60, 80, 35] {
-            tree = tree.insert(value)
-        }
-
-        var sorted: List<Int> = []
-        tree.collect(mut sorted)
-        print("in order: " + join_ints(sorted))
-        print("depth: " + tree.depth().to_string())
-        print("contains 35: " + tree.contains(35).to_string())
-        print("contains 36: " + tree.contains(36).to_string())
     }
 }
 

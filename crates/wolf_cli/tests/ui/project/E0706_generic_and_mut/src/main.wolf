@@ -7,9 +7,7 @@ extern {
     }
 }
 
-functions {
-    fn main() {
-        var items = [1]
-        push(mut items)
-    }
+main {
+    var items = [1]
+    push(mut items)
 }

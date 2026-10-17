@@ -9,14 +9,12 @@ config {
     loud: Bool = true
 }
 
-functions {
-    fn main() {
-        let shout = shout(greeting)
-        print(shout)
-        if loud {
-            let greeting = "inner"
-            print(greeting)
-        }
+main {
+    let shout = shout(greeting)
+    print(shout)
+    if loud {
+        let greeting = "inner"
         print(greeting)
     }
+    print(greeting)
 }

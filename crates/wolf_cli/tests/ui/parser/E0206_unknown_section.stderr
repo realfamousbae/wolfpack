@@ -1,17 +1,17 @@
 error[E0206]: unknown section `function`
-  --> parser/E0206_unknown_section.wolf:3:1
+  --> parser/E0206_unknown_section.wolf:7:1
   |
-3 | function {
+7 | function {
   | ^^^^^^^^ not a section name
   |
   = help: did you mean `functions`?
 
 error[E0206]: unknown section `helpers`
-  --> parser/E0206_unknown_section.wolf:9:1
-  |
-9 | helpers {
-  | ^^^^^^^ not a section name
-  |
-  = note: sections are imports, extern, config, types, interfaces, impl, functions, tests
+   --> parser/E0206_unknown_section.wolf:13:1
+   |
+13 | helpers {
+   | ^^^^^^^ not a section name
+   |
+   = note: sections are imports, extern, config, types, interfaces, impl, main, functions, tests
 
 error: aborting due to 2 errors

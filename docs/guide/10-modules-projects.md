@@ -17,12 +17,10 @@ imports {
     text.format
 }
 
-functions {
-    fn main() {
-        let a = Point { x: 0, y: 0 }
-        let b = Point.new(3, 4)
-        print(format.labeled("distance", distance(a, b)))
-    }
+main {
+    let a = Point { x: 0, y: 0 }
+    let b = Point.new(3, 4)
+    print(format.labeled("distance", distance(a, b)))
 }
 
 // file: src/geometry.wolf
@@ -136,10 +134,8 @@ config {
     greeting: String = "hello"
 }
 
-functions {
-    fn main() {
-        print(greeting + " " + max_sessions.to_string())
-    }
+main {
+    print(greeting + " " + max_sessions.to_string())
 }
 
 // file: wolfpack.toml
@@ -199,6 +195,6 @@ Next to `src/`, a project has two more directories:
   (`imports { lib.{word_count} }`), a program through the `pub` names of its modules. Chapter 11
   covers tests.
 - `examples/` holds **usage examples**: small programs `examples.<name>`, each with its own
-  `fn main`, which see the project the same way. `wolf run --example <name>` runs one.
+  `main` section, which see the project the same way. `wolf run --example <name>` runs one.
 
 The generated code goes to `out/`, which is not part of the source and is ignored by git.

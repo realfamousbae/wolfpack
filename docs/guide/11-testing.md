@@ -8,6 +8,12 @@ Tests are part of the module they test, in its last section, `tests`. A test is
 ```wolf
 module main
 
+main {
+    for n in 1..=5 {
+        print(fizz(n))
+    }
+}
+
 functions {
     fn fizz(n: Int) -> String {
         if n % 15 == 0 {
@@ -18,12 +24,6 @@ functions {
             "Buzz"
         } else {
             n.to_string()
-        }
-    }
-
-    fn main() {
-        for n in 1..=5 {
-            print(fizz(n))
         }
     }
 }

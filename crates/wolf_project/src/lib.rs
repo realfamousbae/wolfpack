@@ -39,7 +39,7 @@ pub fn create(dir: &Path, name: &str, kind: Kind) -> Result<(), String> {
     let (entry, source) = match kind {
         Kind::Cli => (
             "main.wolf",
-            "module main\n\nfunctions {\n    fn main() {\n        print(\"Hello, wolfpack!\")\n    }\n}\n",
+            "module main\n\nmain {\n    print(\"Hello, wolfpack!\")\n}\n",
         ),
         Kind::Lib => (
             "lib.wolf",

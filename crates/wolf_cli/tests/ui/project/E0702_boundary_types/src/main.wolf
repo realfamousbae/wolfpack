@@ -15,8 +15,6 @@ types {
     }
 }
 
-functions {
-    fn main() {
-        print(names().len().to_string())
-    }
+main {
+    print(names().len().to_string())
 }

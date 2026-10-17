@@ -1,7 +1,7 @@
 error[E0301]: expected a variable name, found `=`
-  --> parser/E0301_unexpected_token.wolf:5:13
+  --> parser/E0301_unexpected_token.wolf:4:9
   |
-5 |         let = 5
-  |             ^ expected a variable name
+4 |     let = 5
+  |         ^ expected a variable name
 
 error: aborting due to 1 error

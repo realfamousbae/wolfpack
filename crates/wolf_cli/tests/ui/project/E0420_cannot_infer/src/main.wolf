@@ -1,10 +1,8 @@
 module main
 
-functions {
-    fn main() {
-        var names = []
-        print(names.len().to_string())
-        let empty = None
-        let _ = empty
-    }
+main {
+    var names = []
+    print(names.len().to_string())
+    let empty = None
+    let _ = empty
 }

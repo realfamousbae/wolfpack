@@ -1,8 +1,8 @@
 error[E0207]: `fn` outside of any section
   --> parser/E0207_outside_section.wolf:3:1
   |
-3 | fn main() {
-  | ^^^^^^^ declarations must be inside a section
+3 | fn greet() {
+  | ^^^^^^^^ declarations must be inside a section
   |
   = help: put this `fn` into the `functions` section
 

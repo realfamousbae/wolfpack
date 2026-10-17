@@ -1,0 +1,8 @@
+module main
+
+main(args) {
+    print("arguments: " + args.len().to_string())
+    for a in args {
+        print(a)
+    }
+}

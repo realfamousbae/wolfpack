@@ -4,9 +4,7 @@ imports {
     users.model.{User, Rolle, secret}
 }
 
-functions {
-    fn main() {
-        let u = User { name: "Ann" }
-        print(u.name)
-    }
+main {
+    let u = User { name: "Ann" }
+    print(u.name)
 }

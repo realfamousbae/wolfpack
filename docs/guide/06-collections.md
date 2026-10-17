@@ -9,21 +9,19 @@ returns its keys.
 ```wolf
 module main
 
-functions {
-    fn main() {
-        var items = [3, 1, 4]
-        items.push(1)
-        items.insert(0, 9)
-        let removed = items.remove(1)
-        print(items.len().to_string() + " " + removed.to_string())
-        print(items[0].to_string() + " " + items[items.len() - 1].to_string())
-        items[0] = 7
-        let middle = items[1..3]
-        print(middle[0].to_string() + " " + middle[1].to_string())
-        match items.pop() {
-            Some(last) => print("popped " + last.to_string())
-            None => print("empty")
-        }
+main {
+    var items = [3, 1, 4]
+    items.push(1)
+    items.insert(0, 9)
+    let removed = items.remove(1)
+    print(items.len().to_string() + " " + removed.to_string())
+    print(items[0].to_string() + " " + items[items.len() - 1].to_string())
+    items[0] = 7
+    let middle = items[1..3]
+    print(middle[0].to_string() + " " + middle[1].to_string())
+    match items.pop() {
+        Some(last) => print("popped " + last.to_string())
+        None => print("empty")
     }
 }
 ```
@@ -51,20 +49,18 @@ place, and `for x in own items` takes the elements out and consumes the list:
 ```wolf
 module main
 
-functions {
-    fn main() {
-        var prices = [100, 250, 40]
-        for p in mut prices {
-            p = p * 2
-        }
-        let labels = prices.map(|p| "$" + p.to_string())
-        let cheap = prices.filter(|p| p < 300)
-        print(labels[1] + " " + cheap.len().to_string())
-        let words = ["red", "green", "blue"]
-        print(words.any(|w| w == "blue").to_string())
-        print(words.all(|w| w.len() > 3).to_string())
-        print(words.count(|w| w.contains("e")).to_string())
+main {
+    var prices = [100, 250, 40]
+    for p in mut prices {
+        p = p * 2
     }
+    let labels = prices.map(|p| "$" + p.to_string())
+    let cheap = prices.filter(|p| p < 300)
+    print(labels[1] + " " + cheap.len().to_string())
+    let words = ["red", "green", "blue"]
+    print(words.any(|w| w == "blue").to_string())
+    print(words.all(|w| w.len() > 3).to_string())
+    print(words.count(|w| w.contains("e")).to_string())
 }
 ```
 
@@ -93,22 +89,20 @@ imports {
     std.list
 }
 
-functions {
-    fn main() {
-        var scores = [42, 7, 19, 7]
-        list.sort(mut scores)
-        print(scores[0].to_string() + " " + scores[3].to_string())
-        print(list.contains(scores, 19).to_string())
-        print(list.sum(scores).to_string())
-        match list.max(scores) {
-            Some(best) => print("best " + best.to_string())
-            None => print("no scores")
-        }
-        var names = ["Cid", "ann", "Bob"]
-        list.sort_by(mut names, |a, b| a.to_lower_ascii().compare(b.to_lower_ascii()))
-        print(names[0] + " " + names[1] + " " + names[2])
-        print(list.range(0, 4).len().to_string())
+main {
+    var scores = [42, 7, 19, 7]
+    list.sort(mut scores)
+    print(scores[0].to_string() + " " + scores[3].to_string())
+    print(list.contains(scores, 19).to_string())
+    print(list.sum(scores).to_string())
+    match list.max(scores) {
+        Some(best) => print("best " + best.to_string())
+        None => print("no scores")
     }
+    var names = ["Cid", "ann", "Bob"]
+    list.sort_by(mut names, |a, b| a.to_lower_ascii().compare(b.to_lower_ascii()))
+    print(names[0] + " " + names[1] + " " + names[2])
+    print(list.range(0, 4).len().to_string())
 }
 ```
 
@@ -143,21 +137,19 @@ imports {
     std.map
 }
 
-functions {
-    fn main() {
-        var ages = ["Ann": 31, "Bob": 25]
-        ages.insert("Cid", 40)
-        ages["Bob"] += 1
-        print(ages["Bob"].to_string())
-        print(ages.contains_key("Dan").to_string())
-        match map.get(ages, "Dan") {
-            Some(age) => print(age.to_string())
-            None => print("no Dan")
-        }
-        ages.remove("Ann")
-        for name in ages.keys() {
-            print(name + " " + ages[name].to_string())
-        }
+main {
+    var ages = ["Ann": 31, "Bob": 25]
+    ages.insert("Cid", 40)
+    ages["Bob"] += 1
+    print(ages["Bob"].to_string())
+    print(ages.contains_key("Dan").to_string())
+    match map.get(ages, "Dan") {
+        Some(age) => print(age.to_string())
+        None => print("no Dan")
+    }
+    ages.remove("Ann")
+    for name in ages.keys() {
+        print(name + " " + ages[name].to_string())
     }
 }
 ```

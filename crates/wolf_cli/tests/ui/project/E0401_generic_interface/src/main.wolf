@@ -20,13 +20,13 @@ impl {
     }
 }
 
+main {
+    print(number(Box { item: 1 }).to_string())
+    print(number(Box { item: "one" }).to_string())
+}
+
 functions {
     fn number(h: Holder<Int>) -> Int {
         h.get()
-    }
-
-    fn main() {
-        print(number(Box { item: 1 }).to_string())
-        print(number(Box { item: "one" }).to_string())
     }
 }

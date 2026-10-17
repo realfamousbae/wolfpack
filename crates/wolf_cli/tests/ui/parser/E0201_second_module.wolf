@@ -1,8 +1,6 @@
 module main
 module other
 
-functions {
-    fn main() {
-        print("hi")
-    }
+main {
+    print("hi")
 }

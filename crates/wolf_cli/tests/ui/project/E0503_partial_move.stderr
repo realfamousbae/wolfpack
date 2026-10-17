@@ -1,16 +1,16 @@
 error[E0503]: cannot move `u.tags` out of `u`
-   --> src/main.wolf:25:20
+   --> src/main.wolf:12:16
    |
-25 |         let tags = u.tags
-   |                    ^^^^^^ only whole variables can be moved
+12 |     let tags = u.tags
+   |                ^^^^^^ only whole variables can be moved
    |
    = help: copy it (`u.tags.copy()`), take the value apart with `match own`, or use `replace(mut u.tags, ...)`
 
 error[E0503]: cannot move `tags[...]` out of `tags`
-   --> src/main.wolf:26:21
+   --> src/main.wolf:13:17
    |
-26 |         let first = tags[0]
-   |                     ^^^^^^^ only whole variables can be moved
+13 |     let first = tags[0]
+   |                 ^^^^^^^ only whole variables can be moved
    |
    = help: copy it (`tags[...].copy()`), take the value apart with `match own`, or use `replace(mut tags[...], ...)`
 

@@ -1,15 +1,13 @@
 module main
 
-functions {
-    fn main() {
-        break
-        for i in 0..3 {
-            let skip = |n: Int| {
-                if n == i {
-                    continue
-                }
+main {
+    break
+    for i in 0..3 {
+        let skip = |n: Int| {
+            if n == i {
+                continue
             }
-            skip(i)
         }
+        skip(i)
     }
 }

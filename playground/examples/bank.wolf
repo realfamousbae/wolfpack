@@ -21,6 +21,15 @@ impl {
     }
 }
 
+main {
+    var alice = Account { owner: "Alice", balance: 100 }
+    var bob = Account { owner: "Bob", balance: 20 }
+    transfer(mut alice, mut bob, 30)
+    print(alice.summary())
+    print(bob.summary())
+    print("closed with " + close(own bob).to_string())
+}
+
 functions {
     fn transfer(mut from: Account, mut to: Account, amount: Int) {
         from.deposit(-amount)
@@ -29,14 +38,5 @@ functions {
 
     fn close(own account: Account) -> Int {
         account.balance
-    }
-
-    fn main() {
-        var alice = Account { owner: "Alice", balance: 100 }
-        var bob = Account { owner: "Bob", balance: 20 }
-        transfer(mut alice, mut bob, 30)
-        print(alice.summary())
-        print(bob.summary())
-        print("closed with " + close(own bob).to_string())
     }
 }

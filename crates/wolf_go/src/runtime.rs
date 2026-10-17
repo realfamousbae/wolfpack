@@ -363,6 +363,25 @@ func RunMainResult(main func() error) {
 }"#,
     },
     Piece {
+        name: "RunMainArgs",
+        deps: &["RunMain", "process"],
+        imports: &[],
+        code: r#"// RunMainArgs runs a main that takes the command-line arguments.
+func RunMainArgs(main func([]string)) {
+	RunMain(func() { main(Args()) })
+}"#,
+    },
+    Piece {
+        name: "RunMainArgsResult",
+        deps: &["RunMainResult", "process"],
+        imports: &[],
+        code: r#"// RunMainArgsResult runs a main that takes the command-line arguments and returns
+// Result<Void, Error>.
+func RunMainArgsResult(main func([]string) error) {
+	RunMainResult(func() error { return main(Args()) })
+}"#,
+    },
+    Piece {
         name: "Test",
         deps: &["message"],
         imports: &["fmt"],

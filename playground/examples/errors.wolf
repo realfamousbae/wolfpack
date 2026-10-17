@@ -17,6 +17,15 @@ impl {
     }
 }
 
+main {
+    for text in ["8080", "http", "70000"] {
+        match parse_port(text) {
+            Ok(port) => print("listening on " + port.to_string())
+            Err(e) => print(e.message())
+        }
+    }
+}
+
 functions {
     fn parse_port(text: String) -> Result<Int, Error> {
         let port = text.parse_int()?
@@ -24,14 +33,5 @@ functions {
             return Err(PortError.OutOfRange(port))
         }
         Ok(port)
-    }
-
-    fn main() {
-        for text in ["8080", "http", "70000"] {
-            match parse_port(text) {
-                Ok(port) => print("listening on " + port.to_string())
-                Err(e) => print(e.message())
-            }
-        }
     }
 }

@@ -30,6 +30,25 @@ file
             =>
               (CalcError.Unbalanced count)
               (+ (call (. count to_string)) " values left on the stack")
+  section main
+    fn
+      main
+      ()
+      (-> (Result Void Error))
+      block
+        for
+          line
+          (list "3 4 +" "5 1 2 + 4 * + 3 -" "2 3 4 * +" "10 2 /")
+          (block (call print (+ (+ line " = ") (call (. (? (call evaluate line)) to_string)))))
+        for
+          line
+          (list "1 +" "4 0 /" "1 2" "2 x *")
+          block
+            match
+              (call evaluate line)
+              (=> (Ok value) (call print (+ (+ line " = ") (call (. value to_string)))))
+              (=> (Err error) (call print (+ (+ line ": ") (call (. error message)))))
+        (call Ok ())
   section functions
     fn
       pop
@@ -92,24 +111,6 @@ file
           (! (call (. stack is_empty)))
           (block (return (call Err (call (. CalcError Unbalanced) (+ (call (. stack len)) 1)))))
         (call Ok result)
-    fn
-      main
-      ()
-      (-> (Result Void Error))
-      block
-        for
-          line
-          (list "3 4 +" "5 1 2 + 4 * + 3 -" "2 3 4 * +" "10 2 /")
-          (block (call print (+ (+ line " = ") (call (. (? (call evaluate line)) to_string)))))
-        for
-          line
-          (list "1 +" "4 0 /" "1 2" "2 x *")
-          block
-            match
-              (call evaluate line)
-              (=> (Ok value) (call print (+ (+ line " = ") (call (. value to_string)))))
-              (=> (Err error) (call print (+ (+ line ": ") (call (. error message)))))
-        (call Ok ())
   section tests
     (test "adds two numbers" (block (call assert (== (call evaluate "2 3 +") (call Ok 5)))))
     (test "respects operand order" (block (call assert (== (call evaluate "10 4 -") (call Ok 6)))))

@@ -1,25 +1,25 @@
 error[E0618]: unused variable `count`
-  --> src/main.wolf:5:13
+  --> src/main.wolf:4:9
   |
-5 |         let count = 1
-  |             ^^^^^ this variable is never used
+4 |     let count = 1
+  |         ^^^^^ this variable is never used
   |
   = help: remove it, or write `let _ = ...` to compute the value without keeping it
 
 error[E0618]: unused variable `spare`
-  --> src/main.wolf:6:13
+  --> src/main.wolf:5:9
   |
-6 |         var spare = 2
-  |             ^^^^^ this variable is never used
+5 |     var spare = 2
+  |         ^^^^^ this variable is never used
   |
   = help: remove it, or write `let _ = ...` to compute the value without keeping it
 
 error[E0618]: unused variable `value`
-   --> src/main.wolf:10:18
-   |
-10 |             Some(value) => print("some")
-   |                  ^^^^^ this variable is never used
-   |
-   = help: remove it, or replace the name with `_`
+  --> src/main.wolf:9:14
+  |
+9 |         Some(value) => print("some")
+  |              ^^^^^ this variable is never used
+  |
+  = help: remove it, or replace the name with `_`
 
 error: aborting due to 3 errors

@@ -1,14 +1,14 @@
 error[E0430]: `break` outside a loop
-  --> src/main.wolf:5:9
+  --> src/main.wolf:4:5
   |
-5 |         break
-  |         ^^^^^ not inside `while` or `for`
+4 |     break
+  |     ^^^^^ not inside `while` or `for`
 
 error[E0430]: `continue` outside a loop
-  --> src/main.wolf:9:21
+  --> src/main.wolf:8:17
   |
-9 |                     continue
-  |                     ^^^^^^^^ not inside `while` or `for`
+8 |                 continue
+  |                 ^^^^^^^^ not inside `while` or `for`
   |
   = note: the body of a closure is not part of the loop around it
 

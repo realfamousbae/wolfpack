@@ -1,5 +1,11 @@
 module main
 
+main {
+    print(total("1").to_string())
+    let _ = first([1])
+    let _ = wrong_error("x")
+}
+
 functions {
     fn parse(s: String) -> Result<Int, String> {
         if s.is_empty() {
@@ -20,11 +26,5 @@ functions {
     fn wrong_error(s: String) -> Result<Int, Int> {
         let n = parse(s)?
         Ok(n)
-    }
-
-    fn main() {
-        print(total("1").to_string())
-        let _ = first([1])
-        let _ = wrong_error("x")
     }
 }

@@ -70,6 +70,8 @@ pub enum SectionKind {
     Interfaces,
     /// `impl`
     Impl,
+    /// `main`: the entry point (spec chapter 2, section 3.7)
+    Main,
     /// `functions`
     Functions,
     /// `tests`
@@ -78,13 +80,14 @@ pub enum SectionKind {
 
 impl SectionKind {
     /// All sections in their required order.
-    pub const ALL: [SectionKind; 8] = [
+    pub const ALL: [SectionKind; 9] = [
         SectionKind::Imports,
         SectionKind::Extern,
         SectionKind::Config,
         SectionKind::Types,
         SectionKind::Interfaces,
         SectionKind::Impl,
+        SectionKind::Main,
         SectionKind::Functions,
         SectionKind::Tests,
     ];
@@ -98,6 +101,7 @@ impl SectionKind {
             SectionKind::Types => "types",
             SectionKind::Interfaces => "interfaces",
             SectionKind::Impl => "impl",
+            SectionKind::Main => "main",
             SectionKind::Functions => "functions",
             SectionKind::Tests => "tests",
         }

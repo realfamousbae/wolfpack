@@ -1,5 +1,9 @@
 module main
 
+main {
+    print(same(1, 2).to_string() + twice(1).len().to_string())
+}
+
 functions {
     fn same<T>(a: T, b: T) -> Bool {
         a == b
@@ -7,9 +11,5 @@ functions {
 
     fn twice<T>(x: T) -> List<T> {
         [x.copy(), x.copy()]
-    }
-
-    fn main() {
-        print(same(1, 2).to_string() + twice(1).len().to_string())
     }
 }

@@ -53,6 +53,18 @@ impl Parser<'_> {
                     self.bump();
                     self.recover();
                 }
+                _ if self.at_main_header() => {
+                    for doc in &docs {
+                        self.report(
+                            Diagnostic::new(codes::E0212, "doc comment before a section")
+                                .primary(doc.span, "sections are not declarations")
+                                .help("use `//!` before the `module` line to document the module"),
+                        );
+                    }
+                    if let Some(section) = self.main_section() {
+                        file.sections.push(section);
+                    }
+                }
                 _ => {
                     if let Some(kind) = self.section_header() {
                         for doc in &docs {
@@ -66,7 +78,7 @@ impl Parser<'_> {
                         }
                         let section = self.section(kind, &mut inherent_impls, &mut test_names);
                         if kind == SectionKind::Functions {
-                            self.main_is_last(&section);
+                            self.main_is_a_section(&section);
                         }
                         file.sections.push(section);
                     } else {
@@ -78,26 +90,158 @@ impl Parser<'_> {
         file
     }
 
-    /// `fn main` is the last declaration of `functions` (spec chapter 2, section 3.7; E0213).
-    fn main_is_last(&mut self, section: &Section) {
-        let Some((last, rest)) = section.items.split_last() else {
-            return;
-        };
-        for item in rest {
+    /// `fn main` in `functions` is an error: the entry point is the `main` section (spec chapter
+    /// 2, section 3.7; E0214).
+    fn main_is_a_section(&mut self, section: &Section) {
+        for item in &section.items {
             if let ItemKind::Fn(decl) = &item.kind {
                 if decl.sig.name.name == "main" {
-                    let mut d = Diagnostic::new(
-                        codes::E0213,
-                        "`main` is not the last function of the section",
-                    )
-                    .primary(decl.sig.name.span, "`main` must come last")
-                    .help("move `main` to the end of `functions`");
-                    if let ItemKind::Fn(other) = &last.kind {
-                        d = d.secondary(other.sig.name.span, "declared after `main`");
-                    }
-                    self.report(d);
+                    self.report(
+                        Diagnostic::new(codes::E0214, "`fn main` in `functions`")
+                            .primary(decl.sig.name.span, "the entry point is not a function")
+                            .help("declare it as a `main { }` section above `functions`"),
+                    );
                 }
             }
+        }
+    }
+
+    /// Whether the next tokens are the header of the `main` section: `main {`, `main(` or
+    /// `main ->`.
+    fn at_main_header(&self) -> bool {
+        let token = self.raw(0);
+        token.kind == TokenKind::Ident
+            && self.source(token.span) == "main"
+            && matches!(
+                self.raw(1).kind,
+                TokenKind::LBrace | TokenKind::LParen | TokenKind::Arrow
+            )
+    }
+
+    /// The `main` section: `main(args: List<String>) -> Result<Void, Error> { ... }`, the
+    /// parameter list and the result type both optional (spec chapter 2, section 3.7).
+    ///
+    /// It is parsed into a section with one `fn main`, so that the rest of the compiler sees an
+    /// ordinary function. A parameter without a type gets an empty type span at the end of its
+    /// name; the formatter uses that to print what was written.
+    fn main_section(&mut self) -> Option<Section> {
+        let name_span = self.bump().span; // `main`
+        let name = Ident {
+            name: "main".to_string(),
+            span: name_span,
+        };
+        let mut params: Vec<Param> = Vec::new();
+        if self.at(&TokenKind::LParen) {
+            let open = self.bump().span;
+            self.ignore_lines(|p| {
+                while !p.at(&TokenKind::RParen) && !p.at(&TokenKind::Eof) {
+                    let before = p.pos;
+                    let start = p.peek_span();
+                    let mode = p.mode();
+                    if let Some(pname) = p.ident("a parameter name") {
+                        let ty = if p.eat_then_lines(&TokenKind::Colon) {
+                            p.ty()
+                        } else {
+                            p.list_of_string(pname.span)
+                        };
+                        params.push(Param {
+                            mode,
+                            kind: ParamKind::Named { name: pname, ty },
+                            span: p.span_from(start),
+                        });
+                    } else {
+                        p.recover();
+                    }
+                    if !p.eat(&TokenKind::Comma) || p.pos == before {
+                        break;
+                    }
+                }
+            });
+            if self
+                .ignore_lines(|p| p.expect(&TokenKind::RParen, "`)`"))
+                .is_none()
+            {
+                self.report(
+                    Diagnostic::new(codes::E0302, "unclosed `(`")
+                        .primary(open, "this `(` is never closed"),
+                );
+                self.recover();
+            }
+        }
+        let ret = if self.eat_then_lines(&TokenKind::Arrow) {
+            Some(self.ty())
+        } else {
+            None
+        };
+        let sig = FnSig {
+            name,
+            generics: Vec::new(),
+            params,
+            ret,
+            span: self.span_from(name_span),
+        };
+        let body = if self.at(&TokenKind::LBrace) {
+            self.block()
+        } else {
+            self.unexpected("`{` and the body of `main`");
+            None
+        };
+        if let Some(body) = &body {
+            if body.stmts.is_empty() {
+                self.report(
+                    Diagnostic::new(codes::E0204, "empty section `main`")
+                        .primary(name_span, "this section has no statements")
+                        .help("remove the section; empty sections are not written"),
+                );
+            }
+        }
+        let span = self.span_from(name_span);
+        Some(Section {
+            kind: SectionKind::Main,
+            name_span,
+            span,
+            items: vec![Item {
+                docs: Vec::new(),
+                kind: ItemKind::Fn(FnDecl {
+                    public: false,
+                    intrinsic: false,
+                    sig,
+                    body,
+                }),
+                span,
+            }],
+        })
+    }
+
+    /// The type `List<String>` for a `main` parameter written without a type. Its span is empty
+    /// and stands at the end of the parameter name.
+    fn list_of_string(&mut self, name: Span) -> Ty {
+        let at = Span::new(name.file, name.end, name.end);
+        let segment = |text: &str| Ident {
+            name: text.to_string(),
+            span: at,
+        };
+        let string = Ty {
+            id: self.id(),
+            kind: TyKind::Path {
+                path: Path {
+                    segments: vec![segment("String")],
+                    span: at,
+                },
+                args: Vec::new(),
+            },
+            span: at,
+        };
+        Ty {
+            id: self.id(),
+            kind: TyKind::Path {
+                path: Path {
+                    segments: vec![segment("List")],
+                    span: at,
+                },
+                args: vec![string],
+            },
+            span: at,
         }
     }
 
@@ -516,7 +660,7 @@ impl Parser<'_> {
                 d = d.help(format!("did you mean `{close}`?"));
             } else {
                 d = d.note(
-                    "sections are imports, extern, config, types, interfaces, impl, functions, tests",
+                    "sections are imports, extern, config, types, interfaces, impl, main, functions, tests",
                 );
             }
             self.report(d);
@@ -1253,6 +1397,7 @@ fn expected_in(section: SectionKind) -> &'static str {
         SectionKind::Types => "`struct`, `enum` or `type`",
         SectionKind::Interfaces => "`interface`",
         SectionKind::Impl => "an impl block",
+        SectionKind::Main => "the body of `main`",
         SectionKind::Functions => "`fn`",
         SectionKind::Tests => "`test` or `fn`",
     }

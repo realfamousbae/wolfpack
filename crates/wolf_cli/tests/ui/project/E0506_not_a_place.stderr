@@ -1,16 +1,16 @@
 error[E0506]: a `mut` argument must be a mutable place
-   --> src/main.wolf:24:20
+   --> src/main.wolf:11:16
    |
-24 |         change(mut make())
-   |                    ^^^^^^ this is a temporary value
+11 |     change(mut make())
+   |                ^^^^^^ this is a temporary value
    |
    = help: store it in a `var` first and pass the variable
 
 error[E0506]: `for x in mut` needs a mutable place
-   --> src/main.wolf:25:22
+   --> src/main.wolf:12:18
    |
-25 |         for t in mut make().tags {
-   |                      ^^^^^^^^^^^ this is a temporary value
+12 |     for t in mut make().tags {
+   |                  ^^^^^^^^^^^ this is a temporary value
    |
    = help: store it in a `var` first, or loop over it without `mut`
 

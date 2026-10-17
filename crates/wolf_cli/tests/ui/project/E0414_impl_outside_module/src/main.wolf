@@ -18,8 +18,6 @@ impl {
     }
 }
 
-functions {
-    fn main() {
-        print("hi")
-    }
+main {
+    print("hi")
 }

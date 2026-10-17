@@ -14,15 +14,15 @@ impl {
     }
 }
 
+main -> Result<Void, Error> {
+    print("start")
+    let n = check()?
+    print(n.to_string())
+    Ok(())
+}
+
 functions {
     fn check() -> Result<Int, Problem> {
         Err(Problem { what: "the disk" })
-    }
-
-    fn main() -> Result<Void, Error> {
-        print("start")
-        let n = check()?
-        print(n.to_string())
-        Ok(())
     }
 }
