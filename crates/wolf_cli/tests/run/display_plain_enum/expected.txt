@@ -1,0 +1,10 @@
+[green]
+blue red
+[blue]
+[red]red=
+red,green,blue
+[3][s][1.5]
+blue
+green
+<green> green blue
+[red],[green],[blue] [a],[b]
