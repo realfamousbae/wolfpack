@@ -242,7 +242,7 @@ method (Go). **[INTERNAL]**
 | | TS | Go | Rust |
 | --- | --- | --- | --- |
 | interface | `interface` | `interface` | `trait` |
-| as a bound | generic constraint | dictionary parameter (5.4) | trait bound |
+| as a bound | generic constraint; a dictionary parameter for `Display` and `Comparable` (5.4) | dictionary parameter (5.4) | trait bound |
 | as a value type | the interface type | the interface type | `Box<dyn Trait>` |
 
 `.copy()` on an interface value (author, 13b) calls a hidden copy method that every implementation
@@ -258,7 +258,10 @@ gets (`Box<dyn Trait>` gets a `Clone` impl through it). **[INTERNAL]**
    parameter becomes an extra parameter holding the needed operations
    (`func Max[T any](ord wolfrt.Ord[T], a T, b T) T`), and each call site passes the right one.
    **[INTERNAL]** This keeps one generated function per generic function and works for every type.
-3. Generic inherent methods (chapter 4) are emitted in Go as free generic functions
+3. **TS** also passes dictionaries, for the bounds `Display` and `Comparable` only: a payload-less
+   enum is a string at run time, so only the call site knows which `to_string` and `compare` to
+   use. **[INTERNAL]**
+4. Generic inherent methods (chapter 4) are emitted in Go as free generic functions
    (`StackMap[T, U](s Stack[T], f func(T) U) Stack[U]`). When Go generic methods become available
    (Go accepted them in 2026), the backend may switch. **[INTERNAL]**
 
