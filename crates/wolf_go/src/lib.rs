@@ -80,9 +80,78 @@ pub fn generate(program: &Program, wolf_version: &str, tests: bool) -> Result<Pr
     Ok(Project { files, tests: list })
 }
 
+/// The first elements of the import paths of Go's standard library. A module path without a dot
+/// in its first element is reserved for it, so a package named like one of these would make its
+/// imports ambiguous.
+const GO_STD: &[&str] = &[
+    "archive",
+    "bufio",
+    "builtin",
+    "bytes",
+    "cmd",
+    "cmp",
+    "compress",
+    "container",
+    "context",
+    "crypto",
+    "database",
+    "debug",
+    "embed",
+    "encoding",
+    "errors",
+    "expvar",
+    "flag",
+    "fmt",
+    "go",
+    "hash",
+    "html",
+    "image",
+    "index",
+    "internal",
+    "io",
+    "iter",
+    "log",
+    "maps",
+    "math",
+    "mime",
+    "net",
+    "os",
+    "path",
+    "plugin",
+    "reflect",
+    "regexp",
+    "runtime",
+    "slices",
+    "sort",
+    "strconv",
+    "strings",
+    "structs",
+    "sync",
+    "syscall",
+    "testing",
+    "text",
+    "time",
+    "unicode",
+    "unique",
+    "unsafe",
+    "uuid",
+    "vendor",
+    "weak",
+];
+
+/// The module path of `go.mod`: the package name, or `wolfpack.local/<name>` if Go's standard
+/// library has a package of that name.
+pub(crate) fn module_path(name: &str) -> String {
+    if GO_STD.contains(&name) {
+        format!("wolfpack.local/{name}")
+    } else {
+        name.to_string()
+    }
+}
+
 /// `go.mod`, with the modules of `[extern.go.dependencies]` as requirements.
 fn go_mod(program: &Program) -> String {
-    let mut out = format!("module {}\n\ngo 1.24\n", program.name);
+    let mut out = format!("module {}\n\ngo 1.24\n", module_path(&program.name));
     match program.dependencies.get("go").map(Vec::as_slice) {
         None | Some([]) => {}
         Some([(name, version)]) => out.push_str(&format!("\nrequire {name} {version}\n")),
@@ -110,6 +179,12 @@ pub fn main_package(program: &Program, example: Option<&str>) -> Option<String> 
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn module_paths_avoid_the_standard_library() {
+        assert_eq!(super::module_path("cmp"), "wolfpack.local/cmp");
+        assert_eq!(super::module_path("word-count"), "word-count");
+    }
+
     #[test]
     fn test_names_are_pascal_case() {
         assert_eq!(

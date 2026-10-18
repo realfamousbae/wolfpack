@@ -658,7 +658,7 @@ fn test_name(name: &str) -> String {
 
 impl<'p> Emitter<'p> {
     pub(crate) fn new(p: &'p Program, tests: bool) -> Emitter<'p> {
-        let module_path = p.name.clone();
+        let module_path = crate::module_path(&p.name);
         let root_pkg: String = p.name.chars().filter(|c| *c != '-').collect();
         let mut e = Emitter {
             p,
