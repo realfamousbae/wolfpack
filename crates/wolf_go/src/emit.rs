@@ -1110,6 +1110,13 @@ impl<'p> Emitter<'p> {
         matches!(t, IrType::Named(d, _) if self.enums.get(d).is_some_and(|e| e.variants.iter().all(|v| v.payload.is_empty())))
     }
 
+    /// Whether a value is a variant of an enum with payloads: Go gives it the type of the
+    /// variant's struct, so a type argument inferred from it would be that struct and not the
+    /// enum's interface.
+    fn holds_variant(&self, e: &IrExpr) -> bool {
+        matches!(e.kind, ExprKind::Variant { .. }) && self.payload_enum(&e.ty)
+    }
+
     fn payload_enum(&self, t: &IrType) -> bool {
         matches!(t, IrType::Named(d, _) if self.enums.get(d).is_some_and(|e| !e.variants.iter().all(|v| v.payload.is_empty())))
     }
@@ -3655,7 +3662,7 @@ impl<'p> Emitter<'p> {
             ExprKind::Some(v) => {
                 let x = self.expr(v, out)?;
                 let f = self.rt("Option", "Some");
-                if untyped_int(&x) {
+                if untyped_int(&x) || self.holds_variant(v) {
                     let IrType::Option(inner) = &e.ty else {
                         return Err("Some".to_string());
                     };
@@ -4335,7 +4342,10 @@ impl<'p> Emitter<'p> {
             || argv
                 .iter()
                 .zip(&info.params)
-                .any(|(a, (_, p))| untyped_int(a) && matches!(p, IrType::Param(_)));
+                .any(|(a, (_, p))| untyped_int(a) && matches!(p, IrType::Param(_)))
+            || args.iter().zip(&info.params).any(|(a, (_, p))| {
+                type_params.iter().any(|g| mentions(p, &g.name)) && self.holds_variant(&a.value)
+            });
         let mut targs = Vec::new();
         if explicit {
             for g in &type_params {

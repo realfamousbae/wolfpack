@@ -137,6 +137,18 @@ fn subst(t: &IrType, map: &BTreeMap<String, IrType>) -> IrType {
 }
 
 /// Whether a function result of this type is `T | undefined` (ADR 0002).
+/// Whether a type mentions a type parameter.
+fn generic(t: &IrType) -> bool {
+    match t {
+        IrType::Param(_) => true,
+        IrType::List(a) | IrType::Option(a) => generic(a),
+        IrType::Map(a, b) | IrType::Result(a, b) => generic(a) || generic(b),
+        IrType::Named(_, args) => args.iter().any(generic),
+        IrType::Fn(ps, r) => ps.iter().any(|(_, t)| generic(t)) || generic(r),
+        _ => false,
+    }
+}
+
 fn undef_result(t: &IrType) -> bool {
     matches!(t, IrType::Option(inner) if !matches!(**inner, IrType::Option(_) | IrType::Void))
 }
@@ -2484,6 +2496,23 @@ impl<'p> Emitter<'p> {
             .into_iter()
             .map(|v| v.unwrap_or_else(|| evaluated.next().unwrap_or(Expr::Undefined)))
             .collect();
+        // A variant passed for a parameter of a generic type: TypeScript would infer the type
+        // argument as the variant's class, not the enum.
+        if let Some(f) = &info {
+            let skip = usize::from(recv.is_some());
+            for (i, a) in args.iter().enumerate() {
+                let generic = f.params.get(i).is_some_and(|(_, t)| generic(t));
+                if generic
+                    && matches!(a.value.kind, ExprKind::Variant { .. })
+                    && !self.plain_enum(&a.value.ty)
+                {
+                    if let Some(v) = all.get_mut(i + skip) {
+                        let t = self.ty(&a.value.ty);
+                        *v = Expr::As(Box::new(std::mem::replace(v, Expr::Undefined)), t);
+                    }
+                }
+            }
+        }
         let ret_repr = match &info {
             _ if matches!(callee, Callee::Value(_)) => Repr::Tagged,
             Some(f)
