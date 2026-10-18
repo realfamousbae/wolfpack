@@ -129,8 +129,11 @@ pub(crate) fn print(d: &Doc) -> String {
                 col += s.chars().count();
             }
             Doc::Verbatim(first, lines, close) => {
+                // One level deeper than the line the string starts on.
+                let line = out.rsplit('\n').next().unwrap_or("");
+                let line_indent = line.len() - line.trim_start_matches(' ').len();
                 out.push_str(first);
-                let inner = " ".repeat(ind + INDENT);
+                let inner = " ".repeat(line_indent + INDENT);
                 for line in lines {
                     out.push('\n');
                     if !line.is_empty() {
@@ -141,7 +144,7 @@ pub(crate) fn print(d: &Doc) -> String {
                 out.push('\n');
                 out.push_str(&inner);
                 out.push_str(close);
-                col = ind + INDENT + close.chars().count();
+                col = line_indent + INDENT + close.chars().count();
             }
             Doc::Line | Doc::Soft if mode == Mode::Flat => {
                 if matches!(d, Doc::Line) {

@@ -1,0 +1,19 @@
+module main
+
+main {
+    let help = """
+  usage: tour
+
+      run    show everything
+  """
+    print(help)
+    if true {
+        print(f"""
+            a {1 + 2}   
+            """)
+    }
+    outer:  for i in 0..3 {
+        let p = Point { x: 1,  ..q }
+        break outer
+    }
+}
