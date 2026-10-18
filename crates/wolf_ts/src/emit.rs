@@ -83,6 +83,9 @@ struct FnState {
     /// `mut` parameters passed by reference (lists, maps, structs).
     by_reference: BTreeSet<LocalRef>,
     self_expr: Option<Expr>,
+    /// The loops around the current point, innermost last: the label and, for a `loop` whose
+    /// value is used, where `break value` sends the value.
+    loops: Vec<(Option<String>, Option<Target>)>,
 }
 
 pub(crate) struct Emitter<'p> {
@@ -100,6 +103,7 @@ pub(crate) struct Emitter<'p> {
     paths: Vec<Option<String>>,
     /// Interfaces of std that need special handling.
     comparable: Option<DefRef>,
+    display: Option<DefRef>,
     markers: BTreeSet<DefRef>,
     /// Runtime pieces used.
     pub(crate) rt: BTreeSet<&'static str>,
@@ -183,8 +187,10 @@ fn needs_stmts(e: &IrExpr) -> bool {
         | ExprKind::Block(_)
         | ExprKind::Try { .. }
         | ExprKind::Return(_)
-        | ExprKind::Break
-        | ExprKind::Continue => true,
+        | ExprKind::Loop { .. }
+        | ExprKind::Break { .. }
+        | ExprKind::Continue { .. } => true,
+        ExprKind::Interpolate(parts) => parts.iter().any(needs_stmts),
         ExprKind::Call { callee, args } => {
             let c = match callee {
                 Callee::Method { recv, .. } | Callee::Interface { recv, .. } => needs_stmts(recv),
@@ -202,7 +208,10 @@ fn needs_stmts(e: &IrExpr) -> bool {
                 || start.as_ref().is_some_and(|s| needs_stmts(s))
                 || end.as_ref().is_some_and(|s| needs_stmts(s))
         }
-        ExprKind::Struct { fields, .. } => fields.iter().any(|(_, v)| needs_stmts(v)),
+        ExprKind::Struct { fields, base, .. } => {
+            fields.iter().any(|(_, v)| needs_stmts(v))
+                || base.as_ref().is_some_and(|b| needs_stmts(b))
+        }
         ExprKind::Variant { values, .. } | ExprKind::List(values) => values.iter().any(needs_stmts),
         ExprKind::Map(entries) => entries
             .iter()
@@ -214,6 +223,36 @@ fn needs_stmts(e: &IrExpr) -> bool {
         ExprKind::Panic { message, .. } => needs_stmts(message),
         ExprKind::Assert { cond, .. } => needs_stmts(cond),
         _ => false,
+    }
+}
+
+/// A label of the program as a TypeScript label.
+fn label_name(label: &str) -> String {
+    crate::names::safe(camel(label))
+}
+
+/// A loop statement with its label, if it has one.
+fn labeled_loop(label: &Option<String>, stmt: Stmt) -> Stmt {
+    match label {
+        Some(l) => Stmt::Labeled(label_name(l), Box::new(stmt)),
+        None => stmt,
+    }
+}
+
+/// For a `to_string` call on an `Int`, a `Bool` or a `String`, the receiver: a template literal
+/// prints it the same way.
+fn plain_text<'e>(p: &Program, e: &'e IrExpr) -> Option<&'e IrExpr> {
+    match &e.kind {
+        ExprKind::Call {
+            callee: Callee::Method { recv, method },
+            args,
+        } if args.is_empty()
+            && matches!(recv.ty, IrType::Int | IrType::Bool | IrType::String)
+            && p.def(*method).is_some_and(|d| d.name == "to_string") =>
+        {
+            Some(recv)
+        }
+        _ => None,
     }
 }
 
@@ -239,6 +278,7 @@ impl<'p> Emitter<'p> {
             names: BTreeMap::new(),
             paths: Vec::new(),
             comparable: None,
+            display: None,
             markers: BTreeSet::new(),
             rt: BTreeSet::new(),
             wanted: BTreeSet::new(),
@@ -325,6 +365,7 @@ impl<'p> Emitter<'p> {
                         if m.role == ModuleRole::Std {
                             match i.name.as_str() {
                                 "Comparable" => self.comparable = Some(i.def),
+                                "Display" => self.display = Some(i.def),
                                 "Equatable" | "Copyable" | "Hashable" => {
                                     self.markers.insert(i.def);
                                 }
@@ -1346,7 +1387,19 @@ impl<'p> Emitter<'p> {
                 arms,
             } => self.match_(scrutinee, *mode, arms, target, out),
             ExprKind::Block(b) => self.block(b, target, out),
-            ExprKind::Return(_) | ExprKind::Break | ExprKind::Continue => {
+            ExprKind::Loop { label, body } => {
+                let to = match target {
+                    Target::Discard => None,
+                    t => Some(t),
+                };
+                self.f.loops.push((label.clone(), to));
+                let mut b = Vec::new();
+                self.block(body, Target::Discard, &mut b)?;
+                self.f.loops.pop();
+                out.push(labeled_loop(label, Stmt::While(Expr::Bool(true), b)));
+                Ok(())
+            }
+            ExprKind::Return(_) | ExprKind::Break { .. } | ExprKind::Continue { .. } => {
                 self.control(e, out)?;
                 Ok(())
             }
@@ -1398,11 +1451,44 @@ impl<'p> Emitter<'p> {
                 }
                 None => out.push(Stmt::Return(None)),
             },
-            ExprKind::Break => out.push(Stmt::Break(None)),
-            ExprKind::Continue => out.push(Stmt::Continue),
+            ExprKind::Break { label, value } => {
+                if let Some(v) = value {
+                    // `break value` leaves the innermost loop, a `loop` (chapter 3, rule 4.5).
+                    match self.f.loops.last().and_then(|(_, t)| t.clone()) {
+                        Some(Target::Return) => {
+                            let want = self.ret_repr();
+                            let v = self.value(v, out, want)?;
+                            out.push(Stmt::Return(Some(v)));
+                            return Ok(());
+                        }
+                        Some(Target::Assign(place, repr)) => {
+                            let v = self.value(v, out, repr)?;
+                            out.push(Stmt::Assign(place, v));
+                        }
+                        _ => self.tail(v, Target::Discard, out)?,
+                    }
+                }
+                out.push(Stmt::Break(label.as_deref().map(label_name)));
+            }
+            ExprKind::Continue { label } => {
+                out.push(Stmt::Continue(label.as_deref().map(label_name)));
+            }
             _ => {}
         }
         Ok(())
+    }
+
+    /// Emits a loop body with its label in scope.
+    fn loop_block(
+        &mut self,
+        label: &Option<String>,
+        body: &'p Block,
+        out: &mut Vec<Stmt>,
+    ) -> Result<(), Error> {
+        self.f.loops.push((label.clone(), None));
+        let r = self.block(body, Target::Discard, out);
+        self.f.loops.pop();
+        r
     }
 
     fn stmt(&mut self, s: &'p IrStmt, out: &mut Vec<Stmt>) -> Result<(), Error> {
@@ -1417,7 +1503,10 @@ impl<'p> Emitter<'p> {
                 let name = self.local_name(*local);
                 if matches!(
                     value.kind,
-                    ExprKind::If { .. } | ExprKind::Match { .. } | ExprKind::Block(_)
+                    ExprKind::If { .. }
+                        | ExprKind::Match { .. }
+                        | ExprKind::Block(_)
+                        | ExprKind::Loop { .. }
                 ) && needs_stmts(value)
                 {
                     out.push(Stmt::Let(name.clone(), Some(t), None));
@@ -1432,21 +1521,56 @@ impl<'p> Emitter<'p> {
                 }
                 self.f.locals.insert(*local, Local::Plain(name));
             }
+            IrStmt::LetPattern {
+                pattern,
+                mutable,
+                value,
+            } => {
+                // `const p = value; const x = p.x; ...` (the pattern always matches).
+                let v = self.value(value, out, Repr::Tagged)?;
+                let subject = if pure(&v) {
+                    v
+                } else {
+                    let t = self.temp("v");
+                    out.push(Stmt::Const(t.clone(), None, v));
+                    ident(&t)
+                };
+                let mut conds = Vec::new();
+                let mut bindings = Vec::new();
+                self.test(
+                    pattern,
+                    subject,
+                    &value.ty,
+                    Repr::Tagged,
+                    &mut conds,
+                    &mut bindings,
+                )?;
+                for (local, path) in bindings {
+                    let name = self.local_name(local);
+                    if *mutable {
+                        out.push(Stmt::Let(name.clone(), None, Some(path)));
+                    } else {
+                        out.push(Stmt::Const(name.clone(), None, path));
+                    }
+                    self.f.locals.insert(local, Local::Plain(name));
+                }
+            }
             IrStmt::Assign { target, op, value } => self.assign(target, *op, value, out)?,
-            IrStmt::While { cond, body } => {
+            IrStmt::While { label, cond, body } => {
                 let mut pre = Vec::new();
                 let c = self.expr(cond, &mut pre)?;
                 let mut b = Vec::new();
-                self.block(body, Target::Discard, &mut b)?;
+                self.loop_block(label, body, &mut b)?;
                 if pre.is_empty() {
-                    out.push(Stmt::While(c, b));
+                    out.push(labeled_loop(label, Stmt::While(c, b)));
                 } else {
                     pre.push(Stmt::If(not(c), vec![Stmt::Break(None)], None));
                     pre.extend(b);
-                    out.push(Stmt::While(Expr::Bool(true), pre));
+                    out.push(labeled_loop(label, Stmt::While(Expr::Bool(true), pre)));
                 }
             }
             IrStmt::ForList {
+                label,
                 var,
                 mode,
                 list,
@@ -1470,22 +1594,24 @@ impl<'p> Emitter<'p> {
                         .locals
                         .insert(*var, Local::Alias(Place::Elem(items.clone(), ident(&i))));
                     let mut b = Vec::new();
-                    self.block(body, Target::Discard, &mut b)?;
-                    out.push(Stmt::For(
+                    self.loop_block(label, body, &mut b)?;
+                    let stmt = Stmt::For(
                         Box::new(Stmt::Let(i.clone(), None, Some(Expr::Num("0".to_string())))),
                         bin(ident(&i), "<", member(items, "length")),
                         Expr::Unary("++", Box::new(ident(&i))),
                         b,
-                    ));
+                    );
+                    out.push(labeled_loop(label, stmt));
                 } else {
                     let name = self.local_name(*var);
                     self.f.locals.insert(*var, Local::Plain(name.clone()));
                     let mut b = Vec::new();
-                    self.block(body, Target::Discard, &mut b)?;
-                    out.push(Stmt::ForOf(name, l, b));
+                    self.loop_block(label, body, &mut b)?;
+                    out.push(labeled_loop(label, Stmt::ForOf(name, l, b)));
                 }
             }
             IrStmt::ForRange {
+                label,
                 var,
                 start,
                 end,
@@ -1504,13 +1630,14 @@ impl<'p> Emitter<'p> {
                 let name = self.local_name(*var);
                 self.f.locals.insert(*var, Local::Plain(name.clone()));
                 let mut b = Vec::new();
-                self.block(body, Target::Discard, &mut b)?;
-                out.push(Stmt::For(
+                self.loop_block(label, body, &mut b)?;
+                let stmt = Stmt::For(
                     Box::new(Stmt::Let(name.clone(), Some(Type::name("bigint")), Some(s))),
                     bin(ident(&name), if *inclusive { "<=" } else { "<" }, e),
                     Expr::Unary("++", Box::new(ident(&name))),
                     b,
-                ));
+                );
+                out.push(labeled_loop(label, stmt));
             }
             IrStmt::Expr(e) => self.tail(e, Target::Discard, out)?,
         }
@@ -1690,6 +1817,15 @@ impl<'p> Emitter<'p> {
             ExprKind::Int(v) => tagged(Expr::BigInt(*v)),
             ExprKind::Float(v) => tagged(float_lit(*v)),
             ExprKind::Str(s) => tagged(Expr::Str(s.clone())),
+            ExprKind::Interpolate(parts) => {
+                // `${x}` prints `Int`, `Bool` and `String` values as `to_string` does.
+                let items: Vec<(&'p IrExpr, Repr)> = parts
+                    .iter()
+                    .map(|x| (plain_text(self.p, x).unwrap_or(x), Repr::Tagged))
+                    .collect();
+                let values = self.seq(&items, out)?;
+                tagged(Expr::Template(values))
+            }
             ExprKind::Bool(b) => tagged(Expr::Bool(*b)),
             ExprKind::Unit => tagged(Expr::Undefined),
             ExprKind::Local(l) => match self.f.locals.get(l).cloned() {
@@ -1775,17 +1911,21 @@ impl<'p> Emitter<'p> {
                 };
                 tagged(self.rt_call(f, vec![b, s, x, Expr::Bool(*inclusive)]))
             }
-            ExprKind::Struct { def, fields } => {
-                let items: Vec<(&IrExpr, Repr)> =
+            ExprKind::Struct { def, fields, base } => {
+                let mut items: Vec<(&IrExpr, Repr)> =
                     fields.iter().map(|(_, v)| (v, Repr::Tagged)).collect();
-                let values = self.seq(&items, out)?;
-                let object = Expr::Object(
-                    fields
-                        .iter()
-                        .zip(values)
-                        .map(|((n, _), v)| (camel(n), v))
-                        .collect(),
-                );
+                if let Some(b) = base {
+                    items.push((b, Repr::Tagged));
+                }
+                let mut values = self.seq(&items, out)?;
+                // `..base`: the base is spread first, the written fields replace its values.
+                let spread = if base.is_some() { values.pop() } else { None };
+                let mut entries: Vec<(String, Expr)> = Vec::new();
+                if let Some(b) = spread {
+                    entries.push((String::new(), b));
+                }
+                entries.extend(fields.iter().zip(values).map(|((n, _), v)| (camel(n), v)));
+                let object = Expr::Object(entries);
                 let name = self.def_name(*def);
                 let name = self.with_args(name, &e.ty);
                 tagged(Expr::New(name, vec![object]))
@@ -1891,7 +2031,10 @@ impl<'p> Emitter<'p> {
                 };
                 tagged(self.closure(params, body, &ret)?)
             }
-            ExprKind::If { .. } | ExprKind::Match { .. } | ExprKind::Block(_) => {
+            ExprKind::If { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Block(_)
+            | ExprKind::Loop { .. } => {
                 if let ExprKind::If {
                     cond,
                     then,
@@ -1931,7 +2074,7 @@ impl<'p> Emitter<'p> {
                 self.tail(e, Target::Assign(ident(&t), want), out)?;
                 Ok((ident(&t), want))
             }
-            ExprKind::Return(_) | ExprKind::Break | ExprKind::Continue => {
+            ExprKind::Return(_) | ExprKind::Break { .. } | ExprKind::Continue { .. } => {
                 self.control(e, out)?;
                 tagged(Expr::As(Box::new(Expr::Undefined), Type::name("never")))
             }
@@ -2409,7 +2552,9 @@ impl<'p> Emitter<'p> {
                 } else {
                     all.remove(0)
                 };
-                if matches!(recv.ty, IrType::Param(_))
+                if Some(*interface) == self.display && name == "to_string" {
+                    self.rt_call("display", vec![r])
+                } else if matches!(recv.ty, IrType::Param(_))
                     && Some(*interface) == self.comparable
                     && name == "compare"
                 {
@@ -2479,7 +2624,9 @@ impl<'p> Emitter<'p> {
             "process.exit" => self.rt_call("exit", a),
             "process.env" => self.rt_call("env", a),
             "prelude.replace" => self.rt_call("replace", a),
+            "prelude.error" => self.rt_call("textError", a),
             "prelude.Bool.to_string" => call(ident("String"), a),
+            "string.String.to_string" => arg(&mut a),
             "math.Int.to_string" => call(member(arg(&mut a), "toString"), Vec::new()),
             "math.Int.to_float" => call(ident("Number"), a),
             "math.Int.abs" => self.rt_call("intAbs", a),

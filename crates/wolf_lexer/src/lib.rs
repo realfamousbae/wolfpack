@@ -11,7 +11,7 @@ mod token;
 use wolf_diag::{Diagnostic, codes};
 use wolf_span::{FileId, Span};
 
-pub use token::{Comment, Token, TokenKind};
+pub use token::{Comment, FPart, Token, TokenKind};
 
 /// The result of lexing one file.
 #[derive(Debug, Default)]
@@ -73,6 +73,16 @@ pub fn dump(text: &str, tokens: &[Token]) -> String {
             TokenKind::Int(value) => format!("Int {value}"),
             TokenKind::Float(value) => format!("Float {value:?}"),
             TokenKind::Str(value) => format!("Str {value:?}"),
+            TokenKind::FStr(parts) => {
+                let parts: Vec<String> = parts
+                    .iter()
+                    .map(|part| match part {
+                        FPart::Text(text) => format!("{text:?}"),
+                        FPart::Expr(tokens, _) => format!("{{{}}}", tokens.len().saturating_sub(1)),
+                    })
+                    .collect();
+                format!("FStr [{}]", parts.join(", "))
+            }
             TokenKind::DocOuter(value) => format!("DocOuter {value:?}"),
             TokenKind::DocInner(value) => format!("DocInner {value:?}"),
             TokenKind::Error => format!("Error {source:?}"),

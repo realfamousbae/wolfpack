@@ -563,6 +563,15 @@ pub enum StmtKind {
         /// The initializer.
         value: Expr,
     },
+    /// `let Point { x, y } = e`, `var Config { name, .. } = e`: a destructuring `let` (0.2).
+    LetPattern {
+        /// `var`
+        mutable: bool,
+        /// The pattern; the types check that it always matches.
+        pattern: Pat,
+        /// The initializer.
+        value: Expr,
+    },
     /// `place op= value`
     Assign {
         /// The place.
@@ -572,15 +581,32 @@ pub enum StmtKind {
         /// The value.
         value: Expr,
     },
-    /// `while cond { body }`
+    /// `label: while cond { body }`
     While {
+        /// The label of the loop.
+        label: Option<Ident>,
         /// The condition.
         cond: Expr,
         /// The body.
         body: Block,
     },
-    /// `for x in mode? collection { body }` or `for i in a..b { body }`.
+    /// `label: while let pattern = mode? value { body }` (0.2).
+    WhileLet {
+        /// The label of the loop.
+        label: Option<Ident>,
+        /// The pattern.
+        pattern: Pat,
+        /// `mut`, `own` or read.
+        mode: Mode,
+        /// The value, evaluated before every iteration.
+        value: Expr,
+        /// The body.
+        body: Block,
+    },
+    /// `label: for x in mode? collection { body }` or `for i in a..b { body }`.
     For {
+        /// The label of the loop.
+        label: Option<Ident>,
         /// The loop variable.
         var: Ident,
         /// What is iterated.
@@ -650,6 +676,8 @@ pub enum ExprKind {
     Float(f64),
     /// A string literal.
     Str(String),
+    /// An interpolated string `f"..."` (0.2).
+    FStr(Vec<FStrPart>),
     /// `true` or `false`.
     Bool(bool),
     /// `()`
@@ -666,7 +694,7 @@ pub enum ExprKind {
     List(Vec<Expr>),
     /// `["a": 1]`, `[:]`
     Map(Vec<(Expr, Expr)>),
-    /// `Path.<T> { field: value, shorthand }`
+    /// `Path.<T> { field: value, shorthand, ..base }`
     StructLit {
         /// The type name.
         path: Path,
@@ -674,6 +702,8 @@ pub enum ExprKind {
         type_args: Vec<Ty>,
         /// The fields.
         fields: Vec<FieldInit>,
+        /// The base of the update syntax `..base` (0.2).
+        base: Option<Box<Expr>>,
     },
     /// `base.name`
     Field {
@@ -752,6 +782,26 @@ pub enum ExprKind {
         /// `else` followed by a block or another `if`.
         otherwise: Option<Box<Expr>>,
     },
+    /// `if let pattern = mode? value { } else ...` (0.2).
+    IfLet {
+        /// The pattern.
+        pattern: Pat,
+        /// The mode marker of the value.
+        mode: Mode,
+        /// The matched value.
+        value: Box<Expr>,
+        /// The branch taken when the value matches.
+        then: Block,
+        /// `else` followed by a block or another `if`.
+        otherwise: Option<Box<Expr>>,
+    },
+    /// `label: loop { body }` (0.2).
+    Loop {
+        /// The label of the loop.
+        label: Option<Ident>,
+        /// The body.
+        body: Block,
+    },
     /// `match mode? scrutinee { arms }`
     Match {
         /// The mode marker.
@@ -763,12 +813,30 @@ pub enum ExprKind {
     },
     /// `return e?`
     Return(Option<Box<Expr>>),
-    /// `break`
-    Break,
-    /// `continue`
-    Continue,
+    /// `break`, `break label`, `break value`. The parser takes a name after `break` as a label
+    /// when an enclosing loop has that label.
+    Break {
+        /// The label of the loop that is left.
+        label: Option<Ident>,
+        /// The value of the `loop` that is left.
+        value: Option<Box<Expr>>,
+    },
+    /// `continue`, `continue label`.
+    Continue {
+        /// The label of the loop that is continued.
+        label: Option<Ident>,
+    },
     /// Something that could not be parsed; a diagnostic was reported.
     Error,
+}
+
+/// A part of an interpolated string.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FStrPart {
+    /// Text.
+    Text(String),
+    /// An interpolated expression.
+    Expr(Expr),
 }
 
 /// A field in a struct literal.

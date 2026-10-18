@@ -411,6 +411,11 @@ impl Error for ExternError {
     }
 }
 
+/// `error(message)`: an `Error` with this message.
+pub fn text_error(message: &str) -> Box<dyn Error> {
+    Box::new(ExternError(message.to_string()))
+}
+
 /// An error of extern code as an `Error`.
 pub fn extern_error<E: std::fmt::Display>(error: E) -> Box<dyn Error> {
     Box::new(ExternError(error.to_string()))
@@ -517,6 +522,52 @@ fn ordering(o: std::cmp::Ordering) -> Ordering {
         std::cmp::Ordering::Less => Ordering::Less,
         std::cmp::Ordering::Equal => Ordering::Equal,
         std::cmp::Ordering::Greater => Ordering::Greater,
+    }
+}"#,
+    },
+    Piece {
+        name: "Display",
+        deps: &["float_to_string"],
+        code: r#"/// A value that can be shown as text (`Display` of wolfpack). Its method is called as
+/// `Display::to_string(&x)`, because `x.to_string()` of the built-in types is `ToString`.
+pub trait Display {
+    /// The text of the value.
+    fn to_string(&self) -> String;
+}
+
+impl Display for i64 {
+    fn to_string(&self) -> String {
+        ToString::to_string(self)
+    }
+}
+
+impl Display for f64 {
+    fn to_string(&self) -> String {
+        float_to_string(*self)
+    }
+}
+
+impl Display for bool {
+    fn to_string(&self) -> String {
+        ToString::to_string(self)
+    }
+}
+
+impl Display for String {
+    fn to_string(&self) -> String {
+        self.clone()
+    }
+}
+
+impl<T: Display + ?Sized> Display for &T {
+    fn to_string(&self) -> String {
+        T::to_string(self)
+    }
+}
+
+impl<T: Display + ?Sized> Display for Box<T> {
+    fn to_string(&self) -> String {
+        T::to_string(self)
     }
 }"#,
     },

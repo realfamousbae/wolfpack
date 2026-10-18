@@ -1,0 +1,17 @@
+error[E0114]: unclosed `{` in an interpolated string
+  --> lexer/E0114_unbalanced_brace.wolf:4:19
+  |
+4 |     a: String = f"{1 + 2"
+  |                   ^ this `{` is not closed
+  |
+  = help: close the interpolation with `}`, or write `{{` for the character `{`
+
+error[E0114]: unmatched `}` in an interpolated string
+  --> lexer/E0114_unbalanced_brace.wolf:5:21
+  |
+5 |     b: String = f"a } b"
+  |                     ^ this `}` closes nothing
+  |
+  = help: write `}}` for the character `}`
+
+error: aborting due to 2 errors

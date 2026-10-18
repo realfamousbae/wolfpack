@@ -2,13 +2,13 @@ error[E0430]: `break` outside a loop
   --> src/main.wolf:4:5
   |
 4 |     break
-  |     ^^^^^ not inside `while` or `for`
+  |     ^^^^^ not inside `while`, `for` or `loop`
 
 error[E0430]: `continue` outside a loop
   --> src/main.wolf:8:17
   |
 8 |                 continue
-  |                 ^^^^^^^^ not inside `while` or `for`
+  |                 ^^^^^^^^ not inside `while`, `for` or `loop`
   |
   = note: the body of a closure is not part of the loop around it
 

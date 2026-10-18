@@ -347,11 +347,39 @@ fn stmt(s: &Stmt) -> Tree {
             kids.push(expr(value));
             node(if *mutable { "var" } else { "let" }, kids)
         }
+        StmtKind::LetPattern {
+            mutable,
+            pattern,
+            value,
+        } => node(
+            if *mutable { "var" } else { "let" },
+            vec![pat(pattern), expr(value)],
+        ),
         StmtKind::Assign { target, op, value } => {
             node(assign_symbol(*op), vec![expr(target), expr(value)])
         }
-        StmtKind::While { cond, body } => node("while", vec![expr(cond), block(body)]),
-        StmtKind::For { var, iter, body } => {
+        StmtKind::While { label, cond, body } => {
+            labelled(label, node("while", vec![expr(cond), block(body)]))
+        }
+        StmtKind::WhileLet {
+            label,
+            pattern,
+            mode: m,
+            value,
+            body,
+        } => labelled(
+            label,
+            node(
+                "while let",
+                vec![pat(pattern), moded(*m, expr(value)), block(body)],
+            ),
+        ),
+        StmtKind::For {
+            label,
+            var,
+            iter,
+            body,
+        } => {
             let iter = match iter {
                 ForIter::Collection { mode: m, expr: e } => {
                     if *m == Mode::Read {
@@ -369,9 +397,29 @@ fn stmt(s: &Stmt) -> Tree {
                     vec![expr(start), expr(end)],
                 ),
             };
-            node("for", vec![leaf(var.name.clone()), iter, block(body)])
+            labelled(
+                label,
+                node("for", vec![leaf(var.name.clone()), iter, block(body)]),
+            )
         }
         StmtKind::Expr(e) => expr(e),
+    }
+}
+
+/// A loop with its label, if it has one.
+fn labelled(label: &Option<Ident>, t: Tree) -> Tree {
+    match label {
+        Some(l) => node(format!("{}:", l.name), vec![t]),
+        None => t,
+    }
+}
+
+/// A value with its mode marker, if it has one.
+fn moded(m: Mode, t: Tree) -> Tree {
+    if m == Mode::Read {
+        t
+    } else {
+        node(mode(m).trim(), vec![t])
     }
 }
 
@@ -396,6 +444,16 @@ fn expr(e: &Expr) -> Tree {
         ExprKind::Int(v) => leaf(v.to_string()),
         ExprKind::Float(v) => leaf(format!("{v:?}")),
         ExprKind::Str(v) => leaf(format!("{v:?}")),
+        ExprKind::FStr(parts) => node(
+            "f",
+            parts
+                .iter()
+                .map(|part| match part {
+                    FStrPart::Text(t) => leaf(format!("{t:?}")),
+                    FStrPart::Expr(e) => expr(e),
+                })
+                .collect(),
+        ),
         ExprKind::Bool(v) => leaf(v.to_string()),
         ExprKind::Unit => leaf("()"),
         ExprKind::Name(n) => leaf(n.name.clone()),
@@ -415,6 +473,7 @@ fn expr(e: &Expr) -> Tree {
             path: p,
             type_args,
             fields,
+            base,
         } => {
             let mut kids = vec![leaf(path(p))];
             if !type_args.is_empty() {
@@ -425,6 +484,9 @@ fn expr(e: &Expr) -> Tree {
                     Some(v) => node(format!("{}:", f.name.name), vec![expr(v)]),
                     None => leaf(f.name.name.clone()),
                 });
+            }
+            if let Some(base) = base {
+                kids.push(node("..", vec![expr(base)]));
             }
             node("struct", kids)
         }
@@ -495,6 +557,20 @@ fn expr(e: &Expr) -> Tree {
             }
             node("if", kids)
         }
+        ExprKind::IfLet {
+            pattern,
+            mode: m,
+            value,
+            then,
+            otherwise,
+        } => {
+            let mut kids = vec![pat(pattern), moded(*m, expr(value)), block(then)];
+            if let Some(other) = otherwise {
+                kids.push(node("else", vec![expr(other)]));
+            }
+            node("if let", kids)
+        }
+        ExprKind::Loop { label, body } => labelled(label, node("loop", vec![block(body)])),
         ExprKind::Match {
             mode: m,
             scrutinee,
@@ -519,8 +595,24 @@ fn expr(e: &Expr) -> Tree {
             Some(v) => node("return", vec![expr(v)]),
             None => leaf("return"),
         },
-        ExprKind::Break => leaf("break"),
-        ExprKind::Continue => leaf("continue"),
+        ExprKind::Break { label, value } => {
+            let mut kids = Vec::new();
+            if let Some(l) = label {
+                kids.push(leaf(format!("{}:", l.name)));
+            }
+            if let Some(v) = value {
+                kids.push(expr(v));
+            }
+            if kids.is_empty() {
+                leaf("break")
+            } else {
+                node("break", kids)
+            }
+        }
+        ExprKind::Continue { label } => match label {
+            Some(l) => node("continue", vec![leaf(format!("{}:", l.name))]),
+            None => leaf("continue"),
+        },
         ExprKind::Error => leaf("<error>"),
     }
 }

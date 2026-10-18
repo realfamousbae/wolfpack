@@ -102,7 +102,7 @@ pub enum Expr {
     Unary(&'static str, Box<Expr>),
     /// `a op b`, also assignments such as `a += b`.
     Binary(Box<Expr>, &'static str, Box<Expr>),
-    /// `Path { a: x, b }`
+    /// `Path { a: x, b }`; an entry named `..` is the base of the update syntax `..base`.
     Struct(String, Vec<(String, Expr)>),
     /// `()` or `(a, b)`
     Tuple(Vec<Expr>),
@@ -120,10 +120,12 @@ pub enum Expr {
     IfLet(Pat, Box<Expr>, Block, Option<Box<Expr>>),
     /// `return x`
     Return(Option<Box<Expr>>),
-    /// `break`
-    Break,
-    /// `continue`
-    Continue,
+    /// `break`, `break 'label`, `break value`.
+    Break(Option<String>, Option<Box<Expr>>),
+    /// `continue` or `continue 'label`.
+    Continue(Option<String>),
+    /// `'label: loop { ... }` as a value.
+    Loop(Option<String>, Block),
     /// `x?`
     Try(Box<Expr>),
     /// `x as T`
@@ -149,6 +151,8 @@ pub enum Stmt {
     For(Pat, Expr, Block),
     /// `while let pat = e { ... }`
     WhileLet(Pat, Expr, Block),
+    /// `'label: ` before a loop.
+    Labeled(String, Box<Stmt>),
 }
 
 /// A function.
@@ -393,7 +397,7 @@ fn simple_block(b: &Block) -> Option<&Expr> {
 pub fn block_like(e: &Expr) -> bool {
     matches!(
         e,
-        Expr::If(..) | Expr::IfLet(..) | Expr::Match(..) | Expr::Block(_)
+        Expr::If(..) | Expr::IfLet(..) | Expr::Match(..) | Expr::Block(_) | Expr::Loop(..)
     )
 }
 
@@ -534,7 +538,13 @@ impl Printer {
                 let mut list = Vec::new();
                 for (n, v) in fields {
                     let v = self.flat(v)?;
-                    list.push(if v == *n { v } else { format!("{n}: {v}") });
+                    list.push(if n == ".." {
+                        format!("..{v}")
+                    } else if v == *n {
+                        v
+                    } else {
+                        format!("{n}: {v}")
+                    });
                 }
                 let body = list.join(", ");
                 if width(&body) > STRUCT_LIT_WIDTH {
@@ -589,8 +599,21 @@ impl Printer {
             }
             Expr::Return(None) => "return".to_string(),
             Expr::Return(Some(x)) => format!("return {}", self.flat(x)?),
-            Expr::Break => "break".to_string(),
-            Expr::Continue => "continue".to_string(),
+            Expr::Break(l, v) => {
+                let mut s = "break".to_string();
+                if let Some(l) = l {
+                    s.push_str(&format!(" '{l}"));
+                }
+                if let Some(v) = v {
+                    s.push_str(&format!(" {}", self.flat(v)?));
+                }
+                s
+            }
+            Expr::Continue(l) => match l {
+                Some(l) => format!("continue '{l}"),
+                None => "continue".to_string(),
+            },
+            Expr::Loop(..) => return None,
             Expr::Cast(x, t) => format!("{} as {}", self.flat_operand(x, 11)?, self.ty(t)),
             Expr::Paren(x) => format!("({})", self.flat(x)?),
             Expr::Range(a, b, inclusive) => format!(
@@ -699,6 +722,12 @@ impl Printer {
             Expr::Struct(path, fields) => {
                 let mut s = format!("{path} {{\n");
                 for (n, v) in fields {
+                    if n == ".." {
+                        let start = (ind + 1) * 4 + 2;
+                        let value = self.expr(v, ind + 1, start, 0);
+                        s.push_str(&format!("{}..{value}\n", spaces(ind + 1)));
+                        continue;
+                    }
                     let prefix = if matches!(v, Expr::Path(p) if p == n) {
                         String::new()
                     } else {
@@ -750,6 +779,10 @@ impl Printer {
                 format!("{head}{b}")
             }
             Expr::Block(b) => self.block(b, ind),
+            Expr::Loop(l, b) => match l {
+                Some(l) => format!("'{l}: loop {}", self.block(b, ind)),
+                None => format!("loop {}", self.block(b, ind)),
+            },
             Expr::If(c, then, otherwise) => {
                 let cond = self.expr(c, ind, col + 3, 2);
                 let mut s = format!("if {cond} {}", self.block(then, ind));
@@ -823,11 +856,35 @@ impl Printer {
         col: usize,
         reserve: usize,
     ) -> String {
+        self.args_in(head, open, close, args, ind, col, reserve, true)
+    }
+
+    /// The arguments of a call; without `allow_flat` they do not go on one line (an overflowed
+    /// last argument longer than `fn_call_width`).
+    #[allow(clippy::too_many_arguments)]
+    fn args_in(
+        &self,
+        head: &str,
+        open: &str,
+        close: &str,
+        args: &[Expr],
+        ind: usize,
+        col: usize,
+        reserve: usize,
+        allow_flat: bool,
+    ) -> String {
         let flat: Option<Vec<String>> = args.iter().map(|a| self.flat(a)).collect();
-        if let Some(list) = &flat {
+        if let (Some(list), true) = (&flat, allow_flat) {
             let s = list.join(", ");
             if width(&s) <= CALL_WIDTH && col + width(&s) + 2 + reserve <= MAX_WIDTH {
                 return format!("{head}{open}{s}{close}");
+            }
+            // A single string literal stays on the line if it fits (rustfmt keeps a single
+            // argument horizontal when nothing in it can break).
+            if let ([Expr::Str(_)], [one]) = (args, list.as_slice()) {
+                if col + width(one) + 2 + reserve <= MAX_WIDTH {
+                    return format!("{head}{open}{one}{close}");
+                }
             }
         }
         // The last argument may overflow: a closure, a block or a struct literal.
@@ -842,7 +899,14 @@ impl Printer {
                     }
                     let c = col + 1 + width(&prefix);
                     if c < MAX_WIDTH && width(&prefix) <= CALL_WIDTH {
-                        let l = self.broken(last, ind, c, 1 + reserve);
+                        let mut l = self.broken(last, ind, c, 1 + reserve);
+                        // An overflowed call longer than `fn_call_width` breaks its own
+                        // arguments.
+                        if !l.contains('\n') && (width(&l) > CALL_WIDTH || !allow_flat) {
+                            if let Some(forced) = self.forced(last, ind, c, 1 + reserve) {
+                                l = forced;
+                            }
+                        }
                         let first = l.lines().next().unwrap_or("");
                         if c + width(first) <= MAX_WIDTH && l.contains('\n') {
                             return format!("{head}{open}{prefix}{l}{close}");
@@ -851,13 +915,37 @@ impl Printer {
                 }
             }
         }
+        // rustfmt adds no trailing comma to the arguments of a macro.
+        let comma = if head.ends_with('!') { "" } else { "," };
         let mut s = format!("{head}{open}\n");
-        for a in args {
+        let n = args.len();
+        for (i, a) in args.iter().enumerate() {
             let v = self.expr(a, ind + 1, (ind + 1) * 4, 1);
-            s.push_str(&format!("{}{v},\n", spaces(ind + 1)));
+            let sep = if i + 1 < n { "," } else { comma };
+            s.push_str(&format!("{}{v}{sep}\n", spaces(ind + 1)));
         }
         s.push_str(&format!("{}{close}", spaces(ind)));
         s
+    }
+
+    /// A call or a macro with its arguments broken over lines, if `e` is one.
+    fn forced(&self, e: &Expr, ind: usize, col: usize, reserve: usize) -> Option<String> {
+        match e {
+            Expr::Call(f, args) => {
+                let head = self.operand(f, 13, ind, col, 0);
+                let c = col + width(last_line(&head));
+                Some(self.args_in(&head, "(", ")", args, ind, c, reserve, false))
+            }
+            Expr::Macro(name, args) if name != "vec" => {
+                let head = format!("{name}!");
+                let c = col + width(&head);
+                Some(self.args_in(&head, "(", ")", args, ind, c, reserve, false))
+            }
+            Expr::Unary(op, x) => self
+                .forced(x, ind, col + op.len(), reserve)
+                .map(|s| format!("{op}{s}")),
+            _ => None,
+        }
     }
 
     /// `[a, b]` over several lines: short simple items fill the lines, others one per line.
@@ -1069,6 +1157,12 @@ impl Printer {
                 let head = format!("for {} in ", self.pat(p));
                 let it = self.expr(e, ind, ind * 4 + width(&head), 2);
                 out.push_str(&format!("{pad}{head}{it} {}\n", self.block(b, ind)));
+            }
+            Stmt::Labeled(l, inner) => {
+                let mut sub = String::new();
+                self.stmt(&mut sub, inner, ind);
+                let line = sub.strip_prefix(&pad).unwrap_or(&sub);
+                out.push_str(&format!("{pad}'{l}: {line}"));
             }
         }
     }

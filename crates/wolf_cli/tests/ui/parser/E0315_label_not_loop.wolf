@@ -1,0 +1,6 @@
+module main
+
+main {
+    outer: let x = 1
+    print(x.to_string())
+}

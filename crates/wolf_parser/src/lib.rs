@@ -75,6 +75,9 @@ pub(crate) struct Parser<'a> {
     poisoned: bool,
     /// Error count at the start of the current section entry.
     pub(crate) line_errors: usize,
+    /// The labels of the enclosing loops of the current function or closure body; a name after
+    /// `break` is a label when it is one of them (spec chapter 3, section 4, rule 5).
+    pub(crate) labels: Vec<String>,
 }
 
 impl<'a> Parser<'a> {
@@ -101,6 +104,7 @@ impl<'a> Parser<'a> {
             resync_to_top: false,
             poisoned: false,
             line_errors: 0,
+            labels: Vec::new(),
         }
     }
 

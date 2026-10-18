@@ -483,6 +483,28 @@ impl Checker<'_> {
         }
     }
 
+    /// Whether a checked pattern always matches: a name, `_`, or a struct pattern whose parts
+    /// always match (chapter 4, section 6, rule 9b). A pattern with an error counts as matching.
+    pub(crate) fn irrefutable(&self, b: &Body, pat: &ast::Pat) -> bool {
+        match &pat.kind {
+            PatKind::Wild | PatKind::Error => true,
+            PatKind::Name(_) => !matches!(self.res(b, pat.id), Some(Res::Def(_))),
+            PatKind::Struct { fields, .. } => {
+                let is_struct = match self.res(b, pat.id) {
+                    Some(Res::Def(def)) => matches!(self.def_kind(def), Some(DefKind::Struct)),
+                    Some(Res::SelfType) => true,
+                    None => true,
+                    _ => false,
+                };
+                is_struct
+                    && fields
+                        .iter()
+                        .all(|f| f.pat.as_ref().is_none_or(|p| self.irrefutable(b, p)))
+            }
+            _ => false,
+        }
+    }
+
     // ----- exhaustiveness ---------------------------------------------------------------------
 
     /// Exhaustiveness and unreachable arms; `arms` are the patterns and whether each arm has a

@@ -1,0 +1,17 @@
+error[E0115]: empty interpolation
+  --> lexer/E0115_empty_interpolation.wolf:4:23
+  |
+4 |     a: String = f"x = {}"
+  |                       ^^ there is no expression between the braces
+  |
+  = help: write an expression inside the braces, or `{{}}` for the characters `{}`
+
+error[E0115]: empty interpolation
+  --> lexer/E0115_empty_interpolation.wolf:5:23
+  |
+5 |     b: String = f"y = {  }"
+  |                       ^^^^ there is no expression between the braces
+  |
+  = help: write an expression inside the braces, or `{{}}` for the characters `{}`
+
+error: aborting due to 2 errors

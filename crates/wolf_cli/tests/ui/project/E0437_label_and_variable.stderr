@@ -1,0 +1,12 @@
+error[E0437]: `found` is both a loop label and a variable
+  --> src/main.wolf:7:19
+  |
+4 |     let found = 3
+  |         ----- the variable
+  .
+7 |             break found
+  |                   ^^^^^ a label or a value?
+  |
+  = help: rename the label or the variable
+
+error: aborting due to 1 error

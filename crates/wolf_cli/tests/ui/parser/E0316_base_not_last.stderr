@@ -1,0 +1,9 @@
+error[E0316]: `..base` is not the last item of the struct literal
+   --> parser/E0316_base_not_last.wolf:12:23
+   |
+12 |     let q = Point { ..p, x: 3 }
+   |                       ^ the base must come after every field
+   |
+   = help: move `..base` to the end, before `}`
+
+error: aborting due to 1 error

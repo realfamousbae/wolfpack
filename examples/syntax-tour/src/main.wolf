@@ -1,0 +1,144 @@
+module main
+
+imports {
+    std.string.{join}
+}
+
+types {
+    /// A point on a grid.
+    struct Point {
+        x: Int
+        y: Int
+    }
+
+    /// An item of the inventory.
+    struct Item {
+        name: String
+        count: Int
+        tags: List<String>
+    }
+
+    enum Color {
+        Red
+        Green
+    }
+}
+
+impl {
+    Point: Display {
+        fn to_string(self) -> String {
+            f"({self.x}, {self.y})"
+        }
+    }
+
+    Color: Display {
+        fn to_string(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+}
+
+main {
+    strings()
+    patterns()
+    loops()
+    updates()
+    errors()
+}
+
+functions {
+    /// Interpolated, raw and multiline strings.
+    fn strings() {
+        let name = "Ann"
+        let count = 3
+        print(f"{name} has {count} items, ratio {0.5}, ready {true}")
+        print(f"literal braces {{}} and {join(["a", "b"], ", ")}")
+        print(f"nested {f"<{name}>"}, point {Point { x: 1, y: 2 }}, color {Color.Green}")
+        print(r"a raw string keeps \n and {braces}")
+        let help = """
+            usage: tour <command>
+
+            commands:
+                run    show everything
+            """
+        print(help)
+        let shown: List<Display> = [1, "two", 3.0, Color.Red]
+        for value in shown {
+            print(show(value))
+        }
+    }
+
+    fn show<T: Display>(value: T) -> String {
+        f"[{value}]"
+    }
+
+    /// Destructuring `let`, `if let` and `while let`.
+    fn patterns() {
+        let Point { x, y } = Point { x: 5, y: 6 }
+        print(f"x = {x}, y = {y}")
+        if let Some(at) = "wolfpack".find("pack") {
+            print(f"found at {at}")
+        } else if let Some(at) = "wolf".find("w") {
+            print(f"else at {at}")
+        }
+        var stack = [1, 2, 3]
+        while let Some(top) = stack.pop() {
+            print(f"pop {top}")
+        }
+    }
+
+    /// `loop` with a value, labels.
+    fn loops() {
+        var i = 0
+        let first_big = loop {
+            i += 1
+            if i * i > 20 {
+                break i
+            }
+        }
+        print(f"first square above 20: {first_big}^2")
+        rows: for row in 0..3 {
+            for col in 0..3 {
+                if col > row {
+                    continue rows
+                }
+                if row == 2 {
+                    break rows
+                }
+                print(f"cell {row},{col}")
+            }
+        }
+    }
+
+    /// The update syntax.
+    fn updates() {
+        let bolts = Item { name: "bolts", count: 10, tags: ["metal"] }
+        let more = Item { count: 25, ..bolts }
+        print(f"{more.name}: {more.count}, tags {join(more.tags, ", ")}")
+    }
+
+    /// `error(message)` and `assert_eq`.
+    fn errors() {
+        match parse_count("12") {
+            Ok(n) => print(f"count {n}")
+            Err(e) => print(f"error: {e.message()}")
+        }
+        match parse_count("-4") {
+            Ok(n) => print(f"count {n}")
+            Err(e) => print(f"error: {e.message()}")
+        }
+        assert_eq(1 + 2, 3)
+        assert_eq(Point { x: 1, y: 2 }, Point { x: 1, y: 2 })
+    }
+
+    fn parse_count(text: String) -> Result<Int, Error> {
+        let n = text.parse_int()?
+        if n < 0 {
+            return Err(error(f"a count cannot be negative: {n}"))
+        }
+        Ok(n)
+    }
+}

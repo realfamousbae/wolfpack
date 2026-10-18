@@ -1,0 +1,13 @@
+module main
+
+config {
+    a: String = """text
+        more
+        """
+    b: String = """
+        x"""
+    c: String = """
+        x
+      y
+        """
+}

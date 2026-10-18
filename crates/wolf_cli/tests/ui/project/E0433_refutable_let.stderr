@@ -1,0 +1,9 @@
+error[E0433]: this pattern may not match
+  --> src/main.wolf:4:9
+  |
+4 |     let Some(x) = find(1)
+  |         ^^^^^^^ `let` needs a pattern that always matches
+  |
+  = help: use `if let` or `match` to handle the other values
+
+error: aborting due to 1 error

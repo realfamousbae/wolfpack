@@ -36,6 +36,10 @@ impl {
         intrinsic fn compare(self, other: Self) -> Ordering
     }
 
+    String: Display {
+        intrinsic fn to_string(self) -> String
+    }
+
     ParseError: Error {
         fn message(self) -> String {
             "cannot parse " + self.input

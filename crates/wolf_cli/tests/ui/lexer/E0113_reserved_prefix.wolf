@@ -1,6 +1,6 @@
 module main
 
 config {
-    a: String = f"{name}"
-    b: String = r"raw"
+    a: String = b"bytes"
+    b: String = fr"raw {x}"
 }

@@ -1,0 +1,11 @@
+error[E0438]: the label `rows` is already used by an enclosing loop
+  --> src/main.wolf:5:9
+  |
+4 |     rows: for i in 0..3 {
+  |     ---- the enclosing loop with this label
+5 |         rows: for j in 0..3 {
+  |         ^^^^ this label repeats an outer one
+  |
+  = help: give the inner loop another label
+
+error: aborting due to 1 error

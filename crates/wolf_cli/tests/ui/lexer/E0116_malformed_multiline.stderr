@@ -1,0 +1,25 @@
+error[E0116]: text after the opening `"""`
+  --> lexer/E0116_malformed_multiline.wolf:4:20
+  |
+4 |     a: String = """text
+  |                    ^^^^ the opening `"""` must be the last thing on its line
+  |
+  = help: start the content on the next line
+
+error[E0116]: the closing `"""` is not on its own line
+  --> lexer/E0116_malformed_multiline.wolf:8:10
+  |
+8 |         x"""
+  |          ^^^ this ends the string
+  |
+  = help: move the closing `"""` to the next line
+
+error[E0116]: a line of a multiline string is less indented than its closing `"""`
+   --> lexer/E0116_malformed_multiline.wolf:11:1
+   |
+11 |       y
+   | ^^^^^^ this indentation does not start with the indentation of the closing `"""`
+   |
+   = help: indent the line at least as far as the closing `"""`, with the same spaces or tabs
+
+error: aborting due to 3 errors

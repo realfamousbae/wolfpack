@@ -23,9 +23,9 @@ pub(crate) struct Body {
     pub(crate) self_ty: Option<Ty>,
     /// The result types of the enclosing function and closures, innermost last.
     pub(crate) returns: Vec<Ty>,
-    /// For the enclosing function and each closure: the loops around the current point, and
-    /// whether each has a `break` of its own.
-    pub(crate) loops: Vec<Vec<bool>>,
+    /// For the enclosing function and each closure: the loops around the current point,
+    /// innermost last.
+    pub(crate) loops: Vec<Vec<LoopFrame>>,
     pub(crate) locals: BTreeMap<LocalId, Ty>,
     /// Checks that wait until the types are known.
     pub(crate) deferred: Vec<Deferred>,
@@ -36,6 +36,18 @@ pub(crate) struct Body {
     /// `match` expressions whose scrutinee type was not known yet: the scrutinee span, its type,
     /// and the patterns with whether each arm has a guard.
     pub(crate) matches: Vec<PendingMatch>,
+}
+
+/// A loop around the current point (chapter 4, section 6, rules 9 and 9a).
+pub(crate) struct LoopFrame {
+    /// Its label.
+    pub(crate) label: Option<String>,
+    /// Whether it is a `loop`, which may end with `break value`.
+    pub(crate) is_loop: bool,
+    /// Whether it has a `break` of its own.
+    pub(crate) has_break: bool,
+    /// For a `loop`: the type of its `break` values, once one is seen or expected.
+    pub(crate) value: Option<Ty>,
 }
 
 /// See [`Body::matches`].
@@ -500,20 +512,23 @@ impl<'a> Checker<'a> {
     pub(crate) fn discard(&mut self, b: &mut Body, e: &ast::Expr) -> Ty {
         let void = self.void();
         let ty = match &e.kind {
-            ExprKind::If { .. } | ExprKind::Match { .. } | ExprKind::Block(_) => {
-                self.expr(b, e, Some(&void))
-            }
+            ExprKind::If { .. }
+            | ExprKind::IfLet { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Block(_) => self.expr(b, e, Some(&void)),
             _ => self.expr(b, e, None),
         };
         let allowed = match &e.kind {
             ExprKind::Call { .. }
             | ExprKind::If { .. }
+            | ExprKind::IfLet { .. }
+            | ExprKind::Loop { .. }
             | ExprKind::Match { .. }
             | ExprKind::Block(_)
             | ExprKind::Unit
             | ExprKind::Return(_)
-            | ExprKind::Break
-            | ExprKind::Continue
+            | ExprKind::Break { .. }
+            | ExprKind::Continue { .. }
             | ExprKind::Error => true,
             ExprKind::Try(inner) => matches!(inner.kind, ExprKind::Call { .. }),
             _ => false,
@@ -564,6 +579,15 @@ impl<'a> Checker<'a> {
             }
             ExprKind::Float(_) => self.float(),
             ExprKind::Str(_) => self.string(),
+            ExprKind::FStr(parts) => {
+                for part in parts {
+                    if let ast::FStrPart::Expr(value) = part {
+                        let t = self.expr(b, value, None);
+                        self.require_display(b, &t, value.span, "an interpolated value");
+                    }
+                }
+                self.string()
+            }
             ExprKind::Bool(_) => self.bool(),
             ExprKind::Unit => self.void(),
             ExprKind::Name(_) => match self.res(b, e.id) {
@@ -612,11 +636,7 @@ impl<'a> Checker<'a> {
                 }
                 self.b.map.map_or(Ty::Error, |m| Ty::Named(m, vec![k, v]))
             }
-            ExprKind::StructLit {
-                path,
-                type_args,
-                fields,
-            } => self.struct_lit(b, e, path, type_args, fields, expected),
+            ExprKind::StructLit { .. } => self.struct_lit(b, e, expected),
             ExprKind::Field { base, name } => match self.res(b, e.id) {
                 Some(res) => self.path_value(b, res, name.span, None),
                 None => self.field_access(b, base, name),
@@ -648,32 +668,39 @@ impl<'a> Checker<'a> {
             } => {
                 let bool_ty = self.bool();
                 self.expr(b, cond, Some(&bool_ty));
-                match otherwise {
-                    None => {
-                        let void = self.void();
-                        self.block(b, then, Some(&void), None);
-                        void
-                    }
-                    Some(other) => match expected {
-                        Some(x) => {
-                            let t1 = self.block(b, then, Some(x), None);
-                            let t2 = self.expr(b, other, Some(x));
-                            if self.is_never(&t1) && self.is_never(&t2) {
-                                Ty::Never
-                            } else {
-                                x.clone()
-                            }
-                        }
-                        None => {
-                            let t1 = self.block(b, then, None, None);
-                            if self.is_never(&t1) {
-                                self.expr(b, other, None)
-                            } else {
-                                let t2 = self.expr(b, other, Some(&t1));
-                                if self.is_never(&t2) { t1 } else { t2 }
-                            }
-                        }
-                    },
+                self.if_branches(b, then, otherwise.as_deref(), expected)
+            }
+            ExprKind::IfLet {
+                pattern,
+                value,
+                then,
+                otherwise,
+                ..
+            } => {
+                let t = self.expr(b, value, None);
+                self.pattern(b, pattern, &t);
+                self.if_branches(b, then, otherwise.as_deref(), expected)
+            }
+            ExprKind::Loop { label, body } => {
+                let value = expected
+                    .filter(|x| !self.is_void(x) && !self.is_error(x))
+                    .cloned();
+                if let Some(loops) = b.loops.last_mut() {
+                    loops.push(LoopFrame {
+                        label: label.as_ref().map(|l| l.name.clone()),
+                        is_loop: true,
+                        has_break: false,
+                        value,
+                    });
+                }
+                let void = self.void();
+                self.block(b, body, Some(&void), None);
+                let frame = b.loops.last_mut().and_then(|l| l.pop());
+                match frame {
+                    // Without a `break` of its own a `loop` never ends (rule 6.9).
+                    Some(f) if !f.has_break => Ty::Never,
+                    Some(f) => f.value.unwrap_or_else(|| self.void()),
+                    None => Ty::Error,
                 }
             }
             ExprKind::Match {
@@ -694,32 +721,133 @@ impl<'a> Checker<'a> {
                 }
                 Ty::Never
             }
-            ExprKind::Break | ExprKind::Continue => {
-                let word = if matches!(e.kind, ExprKind::Break) {
-                    "break"
-                } else {
-                    "continue"
-                };
+            ExprKind::Break { label, value } => {
+                self.break_expr(b, e, label.as_ref(), value.as_deref());
+                Ty::Never
+            }
+            ExprKind::Continue { label } => {
                 let in_closure = b.loops.len() > 1;
-                match b.loops.last_mut().and_then(|l| l.last_mut()) {
-                    Some(has_break) => {
-                        if word == "break" {
-                            *has_break = true;
-                        }
-                    }
-                    None => {
-                        let mut d =
-                            Diagnostic::new(codes::E0430, format!("`{word}` outside a loop"))
-                                .primary(e.span, "not inside `while` or `for`");
-                        if in_closure {
-                            d = d.note("the body of a closure is not part of the loop around it");
-                        }
-                        self.report(d);
-                    }
+                let inside = b.loops.last().is_some_and(|l| !l.is_empty());
+                if !inside {
+                    self.outside_loop(e.span, "continue", in_closure);
                 }
+                let _ = label;
                 Ty::Never
             }
             ExprKind::Error => Ty::Error,
+        }
+    }
+
+    /// `if` and `if let` after the condition: the branches and the type.
+    fn if_branches(
+        &mut self,
+        b: &mut Body,
+        then: &ast::Block,
+        otherwise: Option<&ast::Expr>,
+        expected: Option<&Ty>,
+    ) -> Ty {
+        match otherwise {
+            None => {
+                let void = self.void();
+                self.block(b, then, Some(&void), None);
+                void
+            }
+            Some(other) => match expected {
+                Some(x) => {
+                    let t1 = self.block(b, then, Some(x), None);
+                    let t2 = self.expr(b, other, Some(x));
+                    if self.is_never(&t1) && self.is_never(&t2) {
+                        Ty::Never
+                    } else {
+                        x.clone()
+                    }
+                }
+                None => {
+                    let t1 = self.block(b, then, None, None);
+                    if self.is_never(&t1) {
+                        self.expr(b, other, None)
+                    } else {
+                        let t2 = self.expr(b, other, Some(&t1));
+                        if self.is_never(&t2) { t1 } else { t2 }
+                    }
+                }
+            },
+        }
+    }
+
+    /// Reports `break` or `continue` outside a loop (E0430).
+    fn outside_loop(&mut self, span: Span, word: &str, in_closure: bool) {
+        let mut d = Diagnostic::new(codes::E0430, format!("`{word}` outside a loop"))
+            .primary(span, "not inside `while`, `for` or `loop`");
+        if in_closure {
+            d = d.note("the body of a closure is not part of the loop around it");
+        }
+        self.report(d);
+    }
+
+    /// `break`, `break label` and `break value` (chapter 4, section 6, rules 9a and 10).
+    fn break_expr(
+        &mut self,
+        b: &mut Body,
+        e: &ast::Expr,
+        label: Option<&ast::Ident>,
+        value: Option<&ast::Expr>,
+    ) {
+        let in_closure = b.loops.len() > 1;
+        let target = b.loops.last().and_then(|loops| match label {
+            Some(l) => loops
+                .iter()
+                .rposition(|f| f.label.as_deref() == Some(l.name.as_str())),
+            None => loops.len().checked_sub(1),
+        });
+        let Some(index) = target else {
+            if label.is_none() {
+                self.outside_loop(e.span, "break", in_closure);
+            }
+            // An unknown label was reported by name resolution.
+            if let Some(v) = value {
+                self.expr(b, v, None);
+            }
+            return;
+        };
+        let (is_loop, expected) = match b.loops.last_mut().and_then(|l| l.get_mut(index)) {
+            Some(frame) => {
+                frame.has_break = true;
+                (frame.is_loop, frame.value.clone())
+            }
+            None => return,
+        };
+        if !is_loop {
+            if let Some(v) = value {
+                self.expr(b, v, None);
+                // `break name` with an unknown name was reported as an unknown label.
+                if matches!(v.kind, ExprKind::Name(_)) && self.res(b, v.id).is_none() {
+                    return;
+                }
+                self.report(
+                    Diagnostic::new(codes::E0435, "`break` with a value in a `while` or a `for`")
+                        .primary(v.span, "only a `loop` ends with a value")
+                        .help(
+                            "use `loop { ... }`, or store the value in a variable before `break`",
+                        ),
+                );
+            }
+            return;
+        }
+        let found = match value {
+            Some(v) => self.expr(b, v, expected.as_ref()),
+            None => {
+                let void = self.void();
+                match &expected {
+                    Some(x) => self.coerce(b, None, e.span, &void, x),
+                    None => void,
+                }
+            }
+        };
+        if expected.is_none() && !self.is_never(&found) {
+            if let Some(frame) = b.loops.last_mut().and_then(|l| l.get_mut(index)) {
+                frame.value = Some(found);
+            }
         }
     }
 
@@ -959,15 +1087,29 @@ impl<'a> Checker<'a> {
         (params, sig.ret.subst(&map))
     }
 
-    fn struct_lit(
-        &mut self,
-        b: &mut Body,
-        e: &ast::Expr,
-        path: &ast::Path,
-        type_args: &[ast::Ty],
-        fields: &[ast::FieldInit],
-        expected: Option<&Ty>,
-    ) -> Ty {
+    fn struct_lit(&mut self, b: &mut Body, e: &ast::Expr, expected: Option<&Ty>) -> Ty {
+        let ExprKind::StructLit {
+            path,
+            type_args,
+            fields,
+            base,
+        } = &e.kind
+        else {
+            return Ty::Error;
+        };
+        let base = base.as_deref();
+        if let (Some(base), Some(Res::Def(def))) = (base, self.res(b, e.id)) {
+            if matches!(self.def_kind(def), Some(DefKind::Variant { .. })) {
+                self.report(
+                    Diagnostic::new(
+                        codes::E0434,
+                        "the update syntax `..base` is for structs only",
+                    )
+                    .primary(base.span, "a variant cannot be built from another value")
+                    .help("write every field of the variant"),
+                );
+            }
+        }
         let Some(Res::Def(def)) = self.res(b, e.id) else {
             for f in fields {
                 if let Some(v) = &f.value {
@@ -1126,6 +1268,11 @@ impl<'a> Checker<'a> {
                     }
                 }
             }
+        }
+        if let Some(base) = base {
+            // The fields that are not listed come from the base (chapter 3, section 5, rule 6).
+            self.expr(b, base, Some(&ty));
+            return ty;
         }
         let missing: Vec<String> = infos
             .iter()
@@ -2389,19 +2536,49 @@ impl<'a> Checker<'a> {
                 }
                 false
             }
-            StmtKind::While { cond, body } => {
+            StmtKind::LetPattern { pattern, value, .. } => {
+                let t = self.expr(b, value, None);
+                self.pattern(b, pattern, &t);
+                if !self.irrefutable(b, pattern) {
+                    self.report(
+                        Diagnostic::new(codes::E0433, "this pattern may not match")
+                            .primary(pattern.span, "`let` needs a pattern that always matches")
+                            .help("use `if let` or `match` to handle the other values"),
+                    );
+                }
+                self.is_never(&t)
+            }
+            StmtKind::While { label, cond, body } => {
                 let bool_ty = self.bool();
                 self.expr(b, cond, Some(&bool_ty));
-                if let Some(loops) = b.loops.last_mut() {
-                    loops.push(false);
-                }
+                self.push_loop(b, label.as_ref(), false);
                 let void = self.void();
                 self.block(b, body, Some(&void), None);
-                let has_break = b.loops.last_mut().and_then(|l| l.pop()).unwrap_or(true);
+                let has_break = self.pop_loop(b);
                 // `while true` without its own `break` never ends (chapter 4, rule 6.9).
                 matches!(cond.kind, ExprKind::Bool(true)) && !has_break
             }
-            StmtKind::For { var, iter, body } => {
+            StmtKind::WhileLet {
+                label,
+                pattern,
+                value,
+                body,
+                ..
+            } => {
+                let t = self.expr(b, value, None);
+                self.pattern(b, pattern, &t);
+                self.push_loop(b, label.as_ref(), false);
+                let void = self.void();
+                self.block(b, body, Some(&void), None);
+                self.pop_loop(b);
+                false
+            }
+            StmtKind::For {
+                label,
+                var,
+                iter,
+                body,
+            } => {
                 let elem = match iter {
                     ForIter::Collection { expr, .. } => {
                         let t = self.expr(b, expr, None);
@@ -2443,20 +2620,47 @@ impl<'a> Checker<'a> {
                     }
                 };
                 self.declare(b, var, elem);
-                if let Some(loops) = b.loops.last_mut() {
-                    loops.push(false);
-                }
+                self.push_loop(b, label.as_ref(), false);
                 let void = self.void();
                 self.block(b, body, Some(&void), None);
-                if let Some(loops) = b.loops.last_mut() {
-                    loops.pop();
-                }
+                self.pop_loop(b);
                 false
             }
             StmtKind::Expr(e) => {
                 let t = self.discard(b, e);
                 self.is_never(&t)
             }
+        }
+    }
+
+    fn push_loop(&mut self, b: &mut Body, label: Option<&ast::Ident>, is_loop: bool) {
+        if let Some(loops) = b.loops.last_mut() {
+            loops.push(LoopFrame {
+                label: label.map(|l| l.name.clone()),
+                is_loop,
+                has_break: false,
+                value: None,
+            });
+        }
+    }
+
+    /// Leaves a loop; whether it had a `break` of its own.
+    fn pop_loop(&mut self, b: &mut Body) -> bool {
+        b.loops
+            .last_mut()
+            .and_then(|l| l.pop())
+            .is_none_or(|f| f.has_break)
+    }
+
+    /// Requires `ty` to implement `Display` (chapter 4, section 9).
+    pub(crate) fn require_display(&mut self, b: &mut Body, ty: &Ty, span: Span, why: &str) {
+        if let Some(display) = self.b.display {
+            b.deferred.push(Deferred::Bound {
+                ty: ty.clone(),
+                interface: display,
+                span,
+                why: why.to_string(),
+            });
         }
     }
 

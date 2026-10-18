@@ -31,6 +31,10 @@ pub(crate) enum Doc {
     /// Items separated by a space or a newline: in a broken group each item goes on the current
     /// line if it fits there, else on a new line.
     Fill(Vec<Doc>),
+    /// A multiline string: the opening line, the lines of the content relative to the closing
+    /// quotes, and the closing quotes. The content and the closing quotes are indented one level
+    /// deeper than the current line; the content is printed as it is, trailing spaces included.
+    Verbatim(String, Vec<String>, String),
 }
 
 pub(crate) fn text(s: impl Into<String>) -> Doc {
@@ -67,7 +71,7 @@ pub(crate) fn has_hard(d: &Doc) -> bool {
 /// The width of the document on one line, or `None` if it cannot be on one line.
 pub(crate) fn flat_width(d: &Doc) -> Option<usize> {
     match d {
-        Doc::Text(s) => Some(s.chars().count()),
+        Doc::Text(s) | Doc::Verbatim(s, _, _) => Some(s.chars().count()),
         Doc::Line => Some(1),
         Doc::Soft | Doc::IfBreak(_) => Some(0),
         Doc::Hard => None,
@@ -123,6 +127,21 @@ pub(crate) fn print(d: &Doc) -> String {
             Doc::Text(s) => {
                 out.push_str(s);
                 col += s.chars().count();
+            }
+            Doc::Verbatim(first, lines, close) => {
+                out.push_str(first);
+                let inner = " ".repeat(ind + INDENT);
+                for line in lines {
+                    out.push('\n');
+                    if !line.is_empty() {
+                        out.push_str(&inner);
+                        out.push_str(line);
+                    }
+                }
+                out.push('\n');
+                out.push_str(&inner);
+                out.push_str(close);
+                col = ind + INDENT + close.chars().count();
             }
             Doc::Line | Doc::Soft if mode == Mode::Flat => {
                 if matches!(d, Doc::Line) {
@@ -197,7 +216,7 @@ fn fits(room: usize, d: &Doc, rest: &[Cmd<'_>]) -> bool {
             return room >= 0;
         };
         match d {
-            Doc::Text(s) => room -= s.chars().count() as isize,
+            Doc::Text(s) | Doc::Verbatim(s, _, _) => room -= s.chars().count() as isize,
             Doc::Line | Doc::Soft | Doc::Hard if mode == Mode::Break => return room >= 0,
             Doc::Hard => return false,
             Doc::Line => room -= 1,

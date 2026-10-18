@@ -1,0 +1,12 @@
+module main
+
+main {
+    for i in 0..3 {
+        if i == 1 {
+            continue outer
+        }
+        if i == 2 {
+            break inner
+        }
+    }
+}

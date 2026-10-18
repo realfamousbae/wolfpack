@@ -30,6 +30,7 @@ pub(crate) struct Builtins {
     pub(crate) copyable: Option<DefId>,
     pub(crate) hashable: Option<DefId>,
     pub(crate) error: Option<DefId>,
+    pub(crate) display: Option<DefId>,
 }
 
 impl Builtins {
@@ -57,6 +58,7 @@ impl Builtins {
             copyable: get("std.prelude", "Copyable"),
             hashable: get("std.prelude", "Hashable"),
             error: get("std.prelude", "Error"),
+            display: get("std.prelude", "Display"),
         }
     }
 }

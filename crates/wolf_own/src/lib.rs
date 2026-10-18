@@ -146,6 +146,7 @@ struct Borrow {
 /// declared inside.
 #[derive(Default)]
 struct LoopCtx {
+    label: Option<String>,
     breaks: Vec<State>,
     continues: Vec<State>,
 }
@@ -354,16 +355,32 @@ impl<'p> Checker<'p> {
                     },
                 );
             }
+            Stmt::LetPattern {
+                pattern,
+                mutable,
+                value,
+            } => {
+                // An owning position, like `match own` (chapter 5, section 7.4, rule 6).
+                self.expr(value, Use::Own);
+                let mut binds = Vec::new();
+                bound(pattern, &mut binds);
+                for l in binds {
+                    let mut f = owned_binding(l);
+                    f.mutable = *mutable;
+                    self.declare(l, f);
+                }
+            }
             Stmt::Assign { target, op, value } => {
                 self.expr(value, if op.is_some() { Use::Read } else { Use::Own });
                 self.assign(target, op.is_none());
             }
-            Stmt::While { cond, body } => {
+            Stmt::While { label, cond, body } => {
                 let infinite = matches!(cond.kind, ExprKind::Bool(true));
                 self.expr(cond, Use::Read);
-                self.loop_body(body, infinite, |c, b| c.block(b, Use::Read));
+                self.loop_body(label, body, infinite, |c, b| c.block(b, Use::Read));
             }
             Stmt::ForList {
+                label,
                 var,
                 mode,
                 list,
@@ -410,7 +427,7 @@ impl<'p> Checker<'p> {
                     }
                 };
                 let borrowed = matches!(mode, Mode::Read | Mode::Mut) && place.is_some();
-                self.loop_body(body, false, |c, b| {
+                self.loop_body(label, body, false, |c, b| {
                     c.declare(*var, facts);
                     c.block(b, Use::Read);
                 });
@@ -419,6 +436,7 @@ impl<'p> Checker<'p> {
                 }
             }
             Stmt::ForRange {
+                label,
                 var,
                 start,
                 end,
@@ -427,7 +445,7 @@ impl<'p> Checker<'p> {
             } => {
                 self.expr(start, Use::Read);
                 self.expr(end, Use::Read);
-                self.loop_body(body, false, |c, b| {
+                self.loop_body(label, body, false, |c, b| {
                     c.declare(*var, owned_binding(*var));
                     c.block(b, Use::Read);
                 });
@@ -438,9 +456,18 @@ impl<'p> Checker<'p> {
 
     /// A loop body: walked once; moves of outer variables that reach the next iteration are
     /// errors (chapter 5, rule 4.4).
-    fn loop_body(&mut self, body: &Block, infinite: bool, walk: impl FnOnce(&mut Self, &Block)) {
+    fn loop_body(
+        &mut self,
+        label: &Option<String>,
+        body: &Block,
+        infinite: bool,
+        walk: impl FnOnce(&mut Self, &Block),
+    ) {
         let entry = self.state.clone();
-        self.loops.push(LoopCtx::default());
+        self.loops.push(LoopCtx {
+            label: label.clone(),
+            ..LoopCtx::default()
+        });
         self.declared.push(BTreeSet::new());
         walk(self, body);
         let ctx = self.loops.pop().unwrap_or_default();
@@ -719,6 +746,11 @@ impl<'p> Checker<'p> {
             | ExprKind::FnValue(_)
             | ExprKind::Const(_)
             | ExprKind::None => {}
+            ExprKind::Interpolate(parts) => {
+                for p in parts {
+                    self.expr(p, Use::Read);
+                }
+            }
             ExprKind::Call { callee, args } => self.call(e, callee, args),
             ExprKind::Slice {
                 base, start, end, ..
@@ -728,9 +760,13 @@ impl<'p> Checker<'p> {
                     self.expr(b, Use::Read);
                 }
             }
-            ExprKind::Struct { fields, .. } => {
+            ExprKind::Struct { fields, base, .. } => {
                 for (_, v) in fields {
                     self.expr(v, Use::Own);
+                }
+                // The base is moved as a whole (chapter 5, section 3, rule 2).
+                if let Some(b) = base {
+                    self.expr(b, Use::Own);
                 }
             }
             ExprKind::Variant { values, .. } | ExprKind::List(values) => {
@@ -778,16 +814,22 @@ impl<'p> Checker<'p> {
                 }
                 self.state.unreachable = true;
             }
-            ExprKind::Break => {
+            ExprKind::Loop { label, body } => {
+                self.loop_body(label, body, true, |c, b| c.block(b, Use::Read));
+            }
+            ExprKind::Break { label, value } => {
+                if let Some(v) = value {
+                    self.expr(v, Use::Own);
+                }
                 let s = self.state.clone();
-                if let Some(l) = self.loops.last_mut() {
+                if let Some(l) = self.target_loop(label) {
                     l.breaks.push(s);
                 }
                 self.state.unreachable = true;
             }
-            ExprKind::Continue => {
+            ExprKind::Continue { label } => {
                 let s = self.state.clone();
-                if let Some(l) = self.loops.last_mut() {
+                if let Some(l) = self.target_loop(label) {
                     l.continues.push(s);
                 }
                 self.state.unreachable = true;
@@ -802,6 +844,18 @@ impl<'p> Checker<'p> {
         }
         if matches!(e.ty, Type::Never) {
             self.state.unreachable = true;
+        }
+    }
+
+    /// The loop that a `break` or a `continue` with `label` leaves.
+    fn target_loop(&mut self, label: &Option<String>) -> Option<&mut LoopCtx> {
+        match label {
+            None => self.loops.last_mut(),
+            Some(name) => self
+                .loops
+                .iter_mut()
+                .rev()
+                .find(|l| l.label.as_deref() == Some(name.as_str())),
         }
     }
 
@@ -1241,11 +1295,17 @@ impl Free {
                     self.expr(value);
                     self.inner.insert(*local);
                 }
+                Stmt::LetPattern { pattern, value, .. } => {
+                    self.expr(value);
+                    let mut b = Vec::new();
+                    bound(pattern, &mut b);
+                    self.inner.extend(b);
+                }
                 Stmt::Assign { target, value, .. } => {
                     self.expr(target);
                     self.expr(value);
                 }
-                Stmt::While { cond, body } => {
+                Stmt::While { cond, body, .. } => {
                     self.expr(cond);
                     self.block(body);
                 }
@@ -1305,7 +1365,15 @@ impl Free {
                     self.expr(b);
                 }
             }
-            ExprKind::Struct { fields, .. } => fields.iter().for_each(|(_, v)| self.expr(v)),
+            ExprKind::Struct { fields, base, .. } => {
+                fields.iter().for_each(|(_, v)| self.expr(v));
+                if let Some(b) = base {
+                    self.expr(b);
+                }
+            }
+            ExprKind::Interpolate(parts) => parts.iter().for_each(|p| self.expr(p)),
+            ExprKind::Loop { body, .. } => self.block(body),
+            ExprKind::Break { value: Some(v), .. } => self.expr(v),
             ExprKind::Variant { values, .. } | ExprKind::List(values) => {
                 values.iter().for_each(|v| self.expr(v));
             }

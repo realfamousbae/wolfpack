@@ -49,7 +49,7 @@ fn every_example_runs_and_prints_expected_output() {
         .filter(|p| p.join("wolfpack.toml").is_file())
         .collect();
     projects.sort();
-    assert_eq!(projects.len(), 11);
+    assert_eq!(projects.len(), 12);
     let mut failures = Vec::new();
     for project in projects {
         let name = project.file_name().unwrap().to_string_lossy().into_owned();

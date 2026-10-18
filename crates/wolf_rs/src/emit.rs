@@ -110,6 +110,7 @@ pub(crate) struct Emitter<'p> {
     dyn_ifaces: BTreeSet<DefRef>,
     error_iface: Option<DefRef>,
     comparable: Option<DefRef>,
+    display: Option<DefRef>,
     equatable: Option<DefRef>,
     copyable: Option<DefRef>,
     hashable: Option<DefRef>,
@@ -297,7 +298,8 @@ impl Scan<'_> {
                 }
                 self.expr(value);
             }
-            IrStmt::While { cond, body } => {
+            IrStmt::LetPattern { value, .. } => self.expr(value),
+            IrStmt::While { cond, body, .. } => {
                 self.expr(cond);
                 self.block(body);
             }
@@ -380,9 +382,12 @@ impl Scan<'_> {
                     self.expr(s);
                 }
             }
-            ExprKind::Struct { fields, .. } => {
+            ExprKind::Struct { fields, base, .. } => {
                 for (_, v) in fields {
                     self.expr(v);
+                }
+                if let Some(b) = base {
+                    self.expr(b);
                 }
             }
             ExprKind::Variant { values, .. } | ExprKind::List(values) => {
@@ -433,8 +438,14 @@ impl Scan<'_> {
                     self.block(&a.body);
                 }
             }
-            ExprKind::Block(b) => self.block(b),
+            ExprKind::Block(b) | ExprKind::Loop { body: b, .. } => self.block(b),
             ExprKind::Return(Some(v)) => self.expr(v),
+            ExprKind::Break { value: Some(v), .. } => self.expr(v),
+            ExprKind::Interpolate(parts) => {
+                for p in parts {
+                    self.expr(p);
+                }
+            }
             ExprKind::Try { value, .. } | ExprKind::Coerce { value, .. } => self.expr(value),
             ExprKind::Panic { message, .. } => self.expr(message),
             ExprKind::Assert { cond, .. } => self.expr(cond),
@@ -464,6 +475,7 @@ impl<'p> Emitter<'p> {
             dyn_ifaces: BTreeSet::new(),
             error_iface: None,
             comparable: None,
+            display: None,
             equatable: None,
             copyable: None,
             hashable: None,
@@ -531,6 +543,7 @@ impl<'p> Emitter<'p> {
                         if std {
                             match i.name.as_str() {
                                 "Comparable" => self.comparable = Some(i.def),
+                                "Display" => self.display = Some(i.def),
                                 "Equatable" => self.equatable = Some(i.def),
                                 "Copyable" => self.copyable = Some(i.def),
                                 "Hashable" => self.hashable = Some(i.def),
@@ -601,6 +614,7 @@ impl<'p> Emitter<'p> {
                         let piece = match i.name.as_str() {
                             "Error" => "Error",
                             "Comparable" => "Comparable",
+                            "Display" => "Display",
                             _ => continue,
                         };
                         self.std_names
@@ -2017,22 +2031,32 @@ impl<'p> Emitter<'p> {
                 let s = self.assign(target, *op, value)?;
                 out.push(Stmt::Expr(s));
             }
-            IrStmt::While { cond, body } => {
+            IrStmt::LetPattern {
+                pattern,
+                mutable: _,
+                value,
+            } => {
+                let v = self.expr(value, Want::Own)?;
+                let pat = self.pattern(pattern, &value.ty, BindKind::Val)?;
+                out.push(Stmt::Let(pat, None, Some(v)));
+            }
+            IrStmt::While { label, cond, body } => {
                 if matches!(cond.kind, ExprKind::Bool(true)) {
                     if let Some(s) = self.while_let(body)? {
-                        out.push(s);
+                        out.push(labeled(label, s));
                         return Ok(());
                     }
                 }
                 let b = self.block(body, Want::Own)?;
                 if matches!(cond.kind, ExprKind::Bool(true)) {
-                    out.push(Stmt::Loop(b));
+                    out.push(labeled(label, Stmt::Loop(b)));
                 } else {
                     let c = self.expr(cond, Want::Op)?;
-                    out.push(Stmt::While(c, b));
+                    out.push(labeled(label, Stmt::While(c, b)));
                 }
             }
             IrStmt::ForList {
+                label,
                 var,
                 mode,
                 list,
@@ -2079,9 +2103,10 @@ impl<'p> Emitter<'p> {
                 self.f.locals.insert(*var, local);
                 let b = self.block(body, Want::Own)?;
                 let pat = if used { pat } else { Pat::Wild };
-                out.push(Stmt::For(pat, iter, b));
+                out.push(labeled(label, Stmt::For(pat, iter, b)));
             }
             IrStmt::ForRange {
+                label,
                 var,
                 start,
                 end,
@@ -2102,11 +2127,23 @@ impl<'p> Emitter<'p> {
                 } else {
                     Pat::Wild
                 };
-                out.push(Stmt::For(
-                    pat,
-                    Expr::Range(Box::new(s), Box::new(e), *inclusive),
-                    b,
+                out.push(labeled(
+                    label,
+                    Stmt::For(pat, Expr::Range(Box::new(s), Box::new(e), *inclusive), b),
                 ));
+            }
+            IrStmt::Expr(IrExpr {
+                kind: ExprKind::Loop { label, body },
+                ty: IrType::Void,
+                ..
+            }) => {
+                // `loop { match e { p => body, _ => break } }` is `while let p = e { body }`.
+                if let Some(s) = self.while_let(body)? {
+                    out.push(labeled(label, s));
+                } else {
+                    let b = self.block(body, Want::Own)?;
+                    out.push(labeled(label, Stmt::Loop(b)));
+                }
             }
             IrStmt::Expr(e) => {
                 let v = self.expr(e, Want::Own)?;
@@ -2141,8 +2178,20 @@ impl<'p> Emitter<'p> {
         let breaks = |a: &Arm| {
             a.guard.is_none()
                 && match (a.body.stmts.as_slice(), &a.body.tail) {
-                    ([], Some(t)) => matches!(t.kind, ExprKind::Break),
-                    ([IrStmt::Expr(t)], None) => matches!(t.kind, ExprKind::Break),
+                    ([], Some(t)) => matches!(
+                        t.kind,
+                        ExprKind::Break {
+                            label: None,
+                            value: None
+                        }
+                    ),
+                    ([IrStmt::Expr(t)], None) => matches!(
+                        t.kind,
+                        ExprKind::Break {
+                            label: None,
+                            value: None
+                        }
+                    ),
                     _ => false,
                 }
         };
@@ -2471,14 +2520,24 @@ impl<'p> Emitter<'p> {
                 };
                 self.shape(v, t, want, false)
             }
-            ExprKind::Struct { def, fields } => {
+            ExprKind::Struct { def, fields, base } => {
                 let mut list = Vec::new();
-                for (i, (n, v)) in fields.iter().enumerate() {
+                let positions: Vec<String> = self
+                    .structs
+                    .get(def)
+                    .map(|st| st.fields.iter().map(|f| f.name.clone()).collect())
+                    .unwrap_or_default();
+                for (n, v) in fields {
                     let mut x = self.expr(v, Want::Own)?;
+                    let i = positions.iter().position(|f| f == n).unwrap_or(usize::MAX);
                     if self.boxed.contains(&(*def, i)) {
                         x = call(path("Box::new"), vec![x]);
                     }
                     list.push((value(n), x));
+                }
+                if let Some(b) = base {
+                    // `..base` moves the other fields out of the base.
+                    list.push(("..".to_string(), self.expr(b, Want::Own)?));
                 }
                 let name = self.def_path(*def);
                 self.shape(Expr::Struct(name, list), t, want, false)
@@ -2633,21 +2692,41 @@ impl<'p> Emitter<'p> {
                 Some(v) => Expr::Return(Some(Box::new(self.expr(v, Want::Own)?))),
                 None => Expr::Return(None),
             },
-            ExprKind::Break => Expr::Break,
-            ExprKind::Continue => Expr::Continue,
+            ExprKind::Loop { label, body } => {
+                Expr::Loop(label.clone(), self.block(body, Want::Own)?)
+            }
+            ExprKind::Break { label, value } => Expr::Break(
+                label.clone(),
+                match value {
+                    Some(v) => Some(Box::new(self.expr(v, Want::Own)?)),
+                    None => None,
+                },
+            ),
+            ExprKind::Continue { label } => Expr::Continue(label.clone()),
+            ExprKind::Interpolate(parts) => {
+                let list: Vec<&'p IrExpr> = parts.iter().collect();
+                let v = self.format_parts(list)?;
+                self.shape(v, t, want, false)
+            }
             ExprKind::Try { value, .. } => {
                 let v = self.expr(value, Want::Own)?;
                 let x = Expr::Try(Box::new(v));
                 self.shape(x, t, want, false)
             }
-            ExprKind::Coerce { value, .. } => match want {
-                // A read argument of an interface type is a `&dyn Trait`.
-                Want::Read(_) => self.expr(value, Want::Read(true))?,
-                _ => {
-                    let v = self.expr(value, Want::Own)?;
-                    call(path("Box::new"), vec![v])
-                }
-            },
+            ExprKind::Coerce { value, .. } => {
+                // A number literal needs its type: `Box::new(1i64)` (a `Display` value).
+                let saved = self.f.suffix;
+                self.f.suffix = true;
+                let v = match want {
+                    // A read argument of an interface type is a `&dyn Trait`.
+                    Want::Read(_) => self.expr(value, Want::Read(true)),
+                    _ => self
+                        .expr(value, Want::Own)
+                        .map(|v| call(path("Box::new"), vec![v])),
+                };
+                self.f.suffix = saved;
+                v?
+            }
             ExprKind::Copy(v) => {
                 let x = self.expr(v, Want::Op)?;
                 let c = if self.copy(&v.ty) {
@@ -2867,12 +2946,42 @@ impl<'p> Emitter<'p> {
         }
         flatten(lhs, &mut parts);
         flatten(rhs, &mut parts);
+        self.format_parts(parts)
+    }
+
+    /// `format!` of string parts: literals are written into the format, `to_string` of `Int`
+    /// and `Bool` is left to `format!`.
+    fn format_parts(&mut self, parts: Vec<&'p IrExpr>) -> Result<Expr, Error> {
+        // A nested interpolated string is written into the outer format.
+        fn inline<'a>(e: &'a IrExpr, out: &mut Vec<&'a IrExpr>) {
+            match &e.kind {
+                ExprKind::Interpolate(inner) => inner.iter().for_each(|p| inline(p, out)),
+                _ => out.push(e),
+            }
+        }
+        let mut flat = Vec::new();
+        for p in parts {
+            inline(p, &mut flat);
+        }
+        let parts = flat;
         let mut fmt = String::new();
         let mut args = Vec::new();
         for p in parts {
             if let ExprKind::Str(s) = &p.kind {
                 fmt.push_str(&s.replace('{', "{{").replace('}', "}}"));
                 continue;
+            }
+            // A literal is written into the format (clippy's `print_literal`).
+            match displayed(p).map(|inner| &inner.kind) {
+                Some(ExprKind::Int(v)) => {
+                    fmt.push_str(&v.to_string());
+                    continue;
+                }
+                Some(ExprKind::Bool(v)) => {
+                    fmt.push_str(&v.to_string());
+                    continue;
+                }
+                _ => {}
             }
             let v = match displayed(p) {
                 Some(inner) => self.expr(inner, Want::Op)?,
@@ -2978,6 +3087,12 @@ impl<'p> Emitter<'p> {
                     }
                 }
             }
+            Callee::Method { method: m, recv } if self.display_method(*m) => {
+                // `wolf_rt::Display::to_string(&x)`: with the trait imported, `to_string` of the
+                // built-in types would be ambiguous with `std::string::ToString`.
+                let r = self.receiver(recv, Mode::Read)?;
+                self.display_call(r)
+            }
             Callee::Method { method: m, recv } => {
                 let mut r = self.receiver(recv, info.self_mode.unwrap_or(Mode::Read))?;
                 if info.boxed_self {
@@ -2987,6 +3102,12 @@ impl<'p> Emitter<'p> {
                     self.trait_in_scope(*m, owner);
                 }
                 Expr::Method(Box::new(r), self.name_of(*m), Vec::new(), argv)
+            }
+            Callee::Interface {
+                interface, recv, ..
+            } if Some(*interface) == self.display => {
+                let r = self.receiver(recv, Mode::Read)?;
+                self.display_call(r)
             }
             Callee::Interface {
                 interface,
@@ -3019,6 +3140,30 @@ impl<'p> Emitter<'p> {
                 call(paren_callee(fv), argv)
             }
         })
+    }
+
+    /// Whether a method is `to_string` of an implementation of `Display`.
+    fn display_method(&self, method: DefRef) -> bool {
+        let Some(DefKind::Method { owner, .. }) = self.p.def(method).map(|d| d.kind) else {
+            return false;
+        };
+        self.structs
+            .get(&owner)
+            .map(|s| &s.methods)
+            .or_else(|| self.enums.get(&owner).map(|e| &e.methods))
+            .and_then(|ms| ms.iter().find(|f| f.def == method))
+            .and_then(|f| f.interface)
+            .is_some_and(|i| Some(i) == self.display)
+    }
+
+    /// `wolf_rt::Display::to_string(&x)`.
+    fn display_call(&mut self, recv: Expr) -> Expr {
+        let f = self.rt_path("Display", "Display::to_string");
+        let r = match recv {
+            Expr::Unary("&", _) => recv,
+            other => reference(other),
+        };
+        call(f, vec![r])
     }
 
     /// A method of an interface implementation needs its trait in scope.
@@ -3141,6 +3286,10 @@ impl<'p> Emitter<'p> {
                 let n = read(self, 0)?;
                 method(call(path("std::env::var"), vec![n]), "ok", Vec::new())
             }
+            "prelude.error" => {
+                let m = read(self, 0)?;
+                self.rt_call("ExternError", "text_error", vec![m])
+            }
             "prelude.replace" => {
                 let p = get(0)?;
                 let pl = self.expr(p, Want::Mut)?;
@@ -3148,6 +3297,7 @@ impl<'p> Emitter<'p> {
                 call(path("std::mem::replace"), vec![pl, v])
             }
             "prelude.Bool.to_string" | "math.Int.to_string" => to_string(op(self, 0)?),
+            "string.String.to_string" => method(op(self, 0)?, "clone", Vec::new()),
             "math.Int.to_float" => Expr::Cast(Box::new(op(self, 0)?), Type::name("f64")),
             "math.Int.abs" | "math.Float.abs" => method(op(self, 0)?, "abs", Vec::new()),
             "math.Int.pow" => {
@@ -3250,7 +3400,7 @@ impl<'p> Emitter<'p> {
                 self.rt_call("parse", "parse_float", vec![s])
             }
             "string.join" => {
-                let parts = op(self, 0)?;
+                let parts = iter_recv(op(self, 0)?);
                 method(parts, "join", vec![read(self, 1)?])
             }
             "list.List.new" => call(path("Vec::new"), Vec::new()),
@@ -3471,6 +3621,13 @@ impl<'p> Emitter<'p> {
             Mode::Own => (self.expr(scrutinee, Want::Own)?, BindKind::Val),
             Mode::Read if place => {
                 let mut v = self.expr(scrutinee, Want::Op)?;
+                // A boxed binding is matched through the box.
+                if let ExprKind::Local(l) = &scrutinee.kind {
+                    if let Some(Local::Boxed(n)) = self.f.locals.get(l) {
+                        let inner = Expr::Unary("*", Box::new(path(n)));
+                        v = Expr::Unary("&", Box::new(inner));
+                    }
+                }
                 if let ExprKind::Field { base, name } = &scrutinee.kind {
                     if self.field_boxed(&base.ty, name)
                         && !matches!(scrutinee.ty, IrType::Named(..))
@@ -3650,9 +3807,22 @@ impl<'p> Emitter<'p> {
                     _ => BTreeMap::new(),
                 };
                 let mut subs = Vec::new();
-                for (sp, f) in fields.iter().zip(&s.fields) {
+                for (i, (sp, f)) in fields.iter().zip(&s.fields).enumerate() {
                     let t = subst(&f.ty, &map);
-                    subs.push((value(&f.name), self.pattern(sp, &t, kind)?));
+                    let sub = self.pattern(sp, &t, kind)?;
+                    // A boxed field binds the box.
+                    if self.boxed.contains(&(*def, i)) {
+                        if let Pattern::Bind(l) = sp {
+                            let name = self.local_name(*l);
+                            let local = match kind {
+                                BindKind::Val => Local::Boxed(name),
+                                BindKind::Ref => Local::Ref(name),
+                                BindKind::Mut => Local::Mut(name),
+                            };
+                            self.f.locals.insert(*l, local);
+                        }
+                    }
+                    subs.push((value(&f.name), sub));
                 }
                 Pat::Struct(spath, subs, false)
             }
@@ -3769,6 +3939,14 @@ fn displayed(e: &IrExpr) -> Option<&IrExpr> {
 fn is_to_string(e: &IrExpr) -> bool {
     matches!(&e.kind, ExprKind::Call { callee: Callee::Method { .. }, args } if args.is_empty())
         && matches!(e.ty, IrType::String)
+}
+
+/// A loop statement with its label, if it has one.
+fn labeled(label: &Option<String>, s: Stmt) -> Stmt {
+    match label {
+        Some(l) => Stmt::Labeled(l.clone(), Box::new(s)),
+        None => s,
+    }
 }
 
 /// Functions of one `impl` block: the interface, the bounds and the functions.

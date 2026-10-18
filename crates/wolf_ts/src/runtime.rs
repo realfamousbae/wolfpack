@@ -441,6 +441,20 @@ export function compare<T>(a: T, b: T): Ordering {
 }"#,
     },
     Piece {
+        name: "display",
+        deps: &["floatToString"],
+        code: r#"/** `x.to_string()` for `Display` values: built-in types or a type with `toString`. */
+export function display(x: unknown): string {
+  if (typeof x === "number") {
+    return floatToString(x);
+  }
+  if (typeof x === "bigint" || typeof x === "boolean" || typeof x === "string") {
+    return String(x);
+  }
+  return (x as { toString(): string }).toString();
+}"#,
+    },
+    Piece {
         name: "floatToString",
         deps: &[],
         code: r#"/** The canonical format of `Float` (spec chapter 7, section 4.1). */
@@ -934,6 +948,14 @@ export function toNumber(value: bigint): number {
     fail("integer too large for extern code");
   }
   return n;
+}"#,
+    },
+    Piece {
+        name: "textError",
+        deps: &[],
+        code: r#"/** `error(message)`: an `Error` with this message. */
+export function textError(text: string): { message(): string } {
+  return { message: () => text };
 }"#,
     },
     Piece {

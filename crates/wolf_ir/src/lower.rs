@@ -63,6 +63,16 @@ pub fn lower(
         program.modules.push(module);
     }
     program.defs = std::mem::take(&mut l.defs);
+    for (i, (name, ty)) in l.extra_locals.iter().enumerate() {
+        let id = LocalRef(u32::try_from(resolved.locals.len() + i).unwrap_or(u32::MAX));
+        program.locals.insert(
+            id,
+            LocalInfo {
+                name: name.clone(),
+                ty: ty.clone(),
+            },
+        );
+    }
     for (i, local) in resolved.locals.iter().enumerate() {
         let id = LocalRef(u32::try_from(i).unwrap_or(u32::MAX));
         let ty = typed
@@ -100,6 +110,8 @@ struct Builtins {
     err: Option<DefId>,
     panic: Option<DefId>,
     assert: Option<DefId>,
+    assert_eq: Option<DefId>,
+    display: Option<DefId>,
 }
 
 struct Lowerer<'a> {
@@ -118,6 +130,8 @@ struct Lowerer<'a> {
     method_at: BTreeMap<Span, usize>,
     /// Type parameters of `impl` blocks renamed to those of their type.
     param_rename: BTreeMap<Span, String>,
+    /// Locals made by the lowering, numbered after those of name resolution.
+    extra_locals: Vec<(String, Type)>,
 }
 
 /// Where code being lowered is.
@@ -172,6 +186,8 @@ impl<'a> Lowerer<'a> {
             err: member(result, "Err"),
             panic: get("std.prelude", "panic"),
             assert: get("std.prelude", "assert"),
+            assert_eq: get("std.prelude", "assert_eq"),
+            display: get("std.prelude", "Display"),
         };
         let def_at = resolved
             .defs
@@ -191,7 +207,15 @@ impl<'a> Lowerer<'a> {
             method_by_name: BTreeMap::new(),
             method_at: BTreeMap::new(),
             param_rename: BTreeMap::new(),
+            extra_locals: Vec::new(),
         }
+    }
+
+    /// A new local of the lowering.
+    fn fresh_local(&mut self, name: &str, ty: Type) -> LocalRef {
+        let id = self.resolved.locals.len() + self.extra_locals.len();
+        self.extra_locals.push((name.to_string(), ty));
+        LocalRef(u32::try_from(id).unwrap_or(u32::MAX))
     }
 
     fn dref(def: DefId) -> DefRef {
@@ -864,17 +888,87 @@ impl<'a> Lowerer<'a> {
                     None => Stmt::Expr(value),
                 }
             }
+            StmtKind::LetPattern {
+                mutable,
+                pattern,
+                value,
+            } => Stmt::LetPattern {
+                value: self.expr(ctx, value)?,
+                pattern: self.pattern(ctx, pattern)?,
+                mutable: *mutable,
+            },
             StmtKind::Assign { target, op, value } => Stmt::Assign {
                 target: self.expr(ctx, target)?,
                 op: assign_op(*op),
                 value: self.expr(ctx, value)?,
             },
-            StmtKind::While { cond, body } => Stmt::While {
+            StmtKind::While { label, cond, body } => Stmt::While {
+                label: label_name(label),
                 cond: self.expr(ctx, cond)?,
                 body: self.block(ctx, body, true)?,
             },
-            StmtKind::For { var, iter, body } => match iter {
+            StmtKind::WhileLet {
+                label,
+                pattern,
+                mode,
+                value,
+                body,
+            } => {
+                // `loop { match value { pattern => body, _ => break } }`
+                let value = self.expr(ctx, value)?;
+                let span = stmt.span;
+                let stop = Expr {
+                    kind: ExprKind::Break {
+                        label: None,
+                        value: None,
+                    },
+                    ty: Type::Never,
+                    span,
+                };
+                let arms = vec![
+                    Arm {
+                        pattern: self.pattern(ctx, pattern)?,
+                        guard: None,
+                        body: self.block(ctx, body, true)?,
+                    },
+                    Arm {
+                        pattern: Pattern::Wild,
+                        guard: None,
+                        body: Block {
+                            stmts: vec![Stmt::Expr(stop)],
+                            tail: None,
+                        },
+                    },
+                ];
+                let matched = Expr {
+                    kind: ExprKind::Match {
+                        scrutinee: Box::new(value),
+                        mode: *mode,
+                        arms,
+                    },
+                    ty: Type::Void,
+                    span,
+                };
+                Stmt::Expr(Expr {
+                    kind: ExprKind::Loop {
+                        label: label_name(label),
+                        body: Block {
+                            stmts: vec![Stmt::Expr(matched)],
+                            tail: None,
+                        },
+                    },
+                    ty: Type::Void,
+                    span,
+                })
+            }
+            StmtKind::For {
+                label,
+                var,
+                iter,
+                body,
+            } => match iter {
                 ast::ForIter::Collection { mode, expr } => Stmt::ForList {
+                    label: label_name(label),
                     var: self.local(var),
                     mode: *mode,
                     list: self.expr(ctx, expr)?,
@@ -885,6 +979,7 @@ impl<'a> Lowerer<'a> {
                     end,
                     inclusive,
                 } => Stmt::ForRange {
+                    label: label_name(label),
                     var: self.local(var),
                     start: self.expr(ctx, start)?,
                     end: self.expr(ctx, end)?,
@@ -933,6 +1028,23 @@ impl<'a> Lowerer<'a> {
             ),
             AstExpr::Float(v) => ExprKind::Float(*v),
             AstExpr::Str(s) => ExprKind::Str(s.clone()),
+            AstExpr::FStr(parts) => {
+                let mut list = Vec::with_capacity(parts.len());
+                for part in parts {
+                    match part {
+                        ast::FStrPart::Text(text) => list.push(Expr {
+                            kind: ExprKind::Str(text.clone()),
+                            ty: Type::String,
+                            span: e.span,
+                        }),
+                        ast::FStrPart::Expr(value) => {
+                            let value = self.expr(ctx, value)?;
+                            list.push(self.display(value)?);
+                        }
+                    }
+                }
+                ExprKind::Interpolate(list)
+            }
             AstExpr::Bool(v) => ExprKind::Bool(*v),
             AstExpr::Unit => ExprKind::Unit,
             AstExpr::SelfValue => ExprKind::SelfValue,
@@ -964,7 +1076,9 @@ impl<'a> Lowerer<'a> {
                     .map(|(k, v)| Ok((self.expr(ctx, k)?, self.expr(ctx, v)?)))
                     .collect::<Result<_, LowerError>>()?,
             ),
-            AstExpr::StructLit { fields, .. } => self.struct_lit(ctx, e, fields)?,
+            AstExpr::StructLit { fields, base, .. } => {
+                self.struct_lit(ctx, e, fields, base.as_deref())?
+            }
             AstExpr::Call { callee, args } => self.call(ctx, e, callee, args)?,
             AstExpr::Index { base, index } => ExprKind::Index {
                 base: self.boxed(ctx, base)?,
@@ -1085,12 +1199,54 @@ impl<'a> Lowerer<'a> {
                     arms: list,
                 }
             }
+            AstExpr::IfLet {
+                pattern,
+                mode,
+                value,
+                then,
+                otherwise,
+            } => {
+                // `match value { pattern => then, _ => otherwise }`
+                let discard = matches!(ty, Type::Void);
+                let otherwise = match otherwise {
+                    Some(o) => self.expr_block(ctx, o, discard)?,
+                    None => Block::default(),
+                };
+                ExprKind::Match {
+                    scrutinee: self.boxed(ctx, value)?,
+                    mode: *mode,
+                    arms: vec![
+                        Arm {
+                            pattern: self.pattern(ctx, pattern)?,
+                            guard: None,
+                            body: self.block(ctx, then, discard)?,
+                        },
+                        Arm {
+                            pattern: Pattern::Wild,
+                            guard: None,
+                            body: otherwise,
+                        },
+                    ],
+                }
+            }
+            AstExpr::Loop { label, body } => ExprKind::Loop {
+                label: label_name(label),
+                body: self.block(ctx, body, true)?,
+            },
             AstExpr::Return(value) => ExprKind::Return(match value {
                 Some(v) => Some(self.boxed(ctx, v)?),
                 None => None,
             }),
-            AstExpr::Break => ExprKind::Break,
-            AstExpr::Continue => ExprKind::Continue,
+            AstExpr::Break { label, value } => ExprKind::Break {
+                label: label_name(label),
+                value: match value {
+                    Some(v) => Some(self.boxed(ctx, v)?),
+                    None => None,
+                },
+            },
+            AstExpr::Continue { label } => ExprKind::Continue {
+                label: label_name(label),
+            },
             AstExpr::Error => return Err(unsupported("an expression with an error")),
         };
         Ok(Expr {
@@ -1145,6 +1301,7 @@ impl<'a> Lowerer<'a> {
         ctx: Ctx,
         e: &'a ast::Expr,
         fields: &'a [ast::FieldInit],
+        base: Option<&'a ast::Expr>,
     ) -> Result<ExprKind, LowerError> {
         let Some(Res::Def(def)) = self.res(ctx, e.id) else {
             return Err(unsupported("struct literal without a type"));
@@ -1207,12 +1364,158 @@ impl<'a> Lowerer<'a> {
             Some(RDef::Struct) => ExprKind::Struct {
                 def: Lowerer::dref(def),
                 fields: ordered,
+                base: match base {
+                    Some(b) => Some(self.boxed(ctx, b)?),
+                    None => None,
+                },
             },
             _ => ExprKind::Variant {
                 def: Lowerer::dref(def),
                 values: ordered.into_iter().map(|(_, v)| v).collect(),
             },
         })
+    }
+
+    /// The text of a value for an interpolated string: the value itself for a `String`, else a
+    /// call of `to_string` of `Display` (chapter 4, section 9).
+    fn display(&mut self, value: Expr) -> Result<Expr, LowerError> {
+        let span = value.span;
+        let owner = match &value.ty {
+            Type::String => return Ok(value),
+            Type::Int => self.b.int,
+            Type::Float => self.b.float,
+            Type::Bool => self.b.bool,
+            Type::Named(def, _) => {
+                let def = DefId(def.0);
+                match self.resolved.def(def).map(|d| d.kind) {
+                    Some(RDef::Interface) => None,
+                    _ => Some(def),
+                }
+            }
+            _ => None,
+        };
+        let callee = match owner {
+            Some(owner) => {
+                let method = self
+                    .method_by_name
+                    .get(&(owner, "to_string".to_string()))
+                    .copied()
+                    .ok_or_else(|| unsupported("`to_string` of an interpolated value"))?;
+                Callee::Method {
+                    method,
+                    recv: Box::new(value),
+                }
+            }
+            None => {
+                let display = self
+                    .b
+                    .display
+                    .ok_or_else(|| unsupported("the interface `Display`"))?;
+                Callee::Interface {
+                    interface: Lowerer::dref(display),
+                    name: "to_string".to_string(),
+                    recv: Box::new(value),
+                }
+            }
+        };
+        Ok(Expr {
+            kind: ExprKind::Call {
+                callee,
+                args: Vec::new(),
+            },
+            ty: Type::String,
+            span,
+        })
+    }
+
+    /// `assert_eq(a, b)`: `{ let left = a; let right = b; if left != right { panic(...) } }`
+    /// (chapter 7, section 3, rule 2).
+    fn assert_eq(
+        &mut self,
+        ctx: Ctx,
+        e: &'a ast::Expr,
+        args: &'a [ast::Arg],
+    ) -> Result<ExprKind, LowerError> {
+        let [a, b] = args else {
+            return Err(unsupported("assert_eq without two arguments"));
+        };
+        let span = e.span;
+        let left_value = self.expr(ctx, &a.value)?;
+        let right_value = self.expr(ctx, &b.value)?;
+        let ty = left_value.ty.clone();
+        let left = self.fresh_local("left", ty.clone());
+        let right = self.fresh_local("right", ty.clone());
+        let local = |l: LocalRef| Expr {
+            kind: ExprKind::Local(l),
+            ty: ty.clone(),
+            span,
+        };
+        let text = |t: String| Expr {
+            kind: ExprKind::Str(t),
+            ty: Type::String,
+            span,
+        };
+        let head = format!(
+            "assertion failed: {} == {} (left: ",
+            self.source_text(a.value.span),
+            self.source_text(b.value.span)
+        );
+        let message = Expr {
+            kind: ExprKind::Interpolate(vec![
+                text(head),
+                self.display(local(left))?,
+                text(", right: ".to_string()),
+                self.display(local(right))?,
+                text(")".to_string()),
+            ]),
+            ty: Type::String,
+            span,
+        };
+        let differ = Expr {
+            kind: ExprKind::Binary {
+                op: ast::BinaryOp::NotEq,
+                lhs: Box::new(local(left)),
+                rhs: Box::new(local(right)),
+            },
+            ty: Type::Bool,
+            span,
+        };
+        let fail = Expr {
+            kind: ExprKind::Panic {
+                message: Box::new(message),
+                location: self.location(span),
+            },
+            ty: Type::Never,
+            span,
+        };
+        let check = Expr {
+            kind: ExprKind::If {
+                cond: Box::new(differ),
+                then: Block {
+                    stmts: vec![Stmt::Expr(fail)],
+                    tail: None,
+                },
+                otherwise: None,
+            },
+            ty: Type::Void,
+            span,
+        };
+        Ok(ExprKind::Block(Block {
+            stmts: vec![
+                Stmt::Let {
+                    local: left,
+                    mutable: false,
+                    value: left_value,
+                },
+                Stmt::Let {
+                    local: right,
+                    mutable: false,
+                    value: right_value,
+                },
+                Stmt::Expr(check),
+            ],
+            tail: None,
+        }))
     }
 
     fn args(&mut self, ctx: Ctx, args: &'a [ast::Arg]) -> Result<Vec<Arg>, LowerError> {
@@ -1299,6 +1602,9 @@ impl<'a> Lowerer<'a> {
                     message: self.boxed(ctx, &message.value)?,
                     location: self.location(e.span),
                 });
+            }
+            if Some(def) == self.b.assert_eq {
+                return self.assert_eq(ctx, e, args);
             }
             if Some(def) == self.b.assert {
                 let cond = args
@@ -1459,6 +1765,11 @@ impl<'a> Lowerer<'a> {
             ),
         })
     }
+}
+
+/// The name of a loop label.
+fn label_name(label: &Option<ast::Ident>) -> Option<String> {
+    label.as_ref().map(|l| l.name.clone())
 }
 
 fn assign_op(op: ast::AssignOp) -> Option<BinaryOp> {

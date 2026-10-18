@@ -1,0 +1,6 @@
+module main
+
+config {
+    a: String = f"x = {}"
+    b: String = f"y = {  }"
+}

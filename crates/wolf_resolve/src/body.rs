@@ -57,6 +57,11 @@ pub(crate) struct Locals {
     /// How each local was introduced, and whether it was used.
     kinds: Vec<Kind>,
     used: Vec<bool>,
+    /// The labels of the enclosing loops of the current body, innermost last (chapter 3,
+    /// section 4, rule 5).
+    labels: Vec<Ident>,
+    /// Inside the pattern of a destructuring `let`: a lone name is always a binding.
+    let_pattern: bool,
 }
 
 impl Resolver<'_> {
@@ -88,6 +93,8 @@ impl Resolver<'_> {
             scopes: Vec::new(),
             kinds: Vec::new(),
             used: Vec::new(),
+            labels: Vec::new(),
+            let_pattern: false,
         };
         match &item.kind {
             ItemKind::Struct(decl) => {
@@ -601,15 +608,43 @@ impl Resolver<'_> {
                     self.declare(name, locals, kind);
                 }
             }
+            StmtKind::LetPattern { pattern, value, .. } => {
+                self.expr(ctx, value, locals);
+                locals.let_pattern = true;
+                self.pattern(ctx, pattern, locals);
+                locals.let_pattern = false;
+            }
             StmtKind::Assign { target, value, .. } => {
                 self.expr(ctx, value, locals);
                 self.expr(ctx, target, locals);
             }
-            StmtKind::While { cond, body } => {
+            StmtKind::While { label, cond, body } => {
                 self.expr(ctx, cond, locals);
+                self.push_label(label, locals);
                 self.block(ctx, body, locals, false);
+                self.pop_label(label, locals);
             }
-            StmtKind::For { var, iter, body } => {
+            StmtKind::WhileLet {
+                label,
+                pattern,
+                value,
+                body,
+                ..
+            } => {
+                self.expr(ctx, value, locals);
+                locals.scopes.push(Scope::default());
+                self.pattern(ctx, pattern, locals);
+                self.push_label(label, locals);
+                self.block(ctx, body, locals, true);
+                self.pop_label(label, locals);
+                self.pop_scope(locals);
+            }
+            StmtKind::For {
+                label,
+                var,
+                iter,
+                body,
+            } => {
                 match iter {
                     ForIter::Collection { expr, .. } => self.expr(ctx, expr, locals),
                     ForIter::Range { start, end, .. } => {
@@ -621,10 +656,64 @@ impl Resolver<'_> {
                 self.style(var, false, "loop variable");
                 // Loop variables are exempt from E0618 (chapter 6, 3.2 rule 6).
                 self.declare(var, locals, Kind::Exempt);
+                self.push_label(label, locals);
                 self.block(ctx, body, locals, true);
+                self.pop_label(label, locals);
                 self.pop_scope(locals);
             }
             StmtKind::Expr(expr) => self.expr(ctx, expr, locals),
+        }
+    }
+
+    /// Enters a loop with `label`; a label of an enclosing loop cannot be reused (E0438).
+    fn push_label(&mut self, label: &Option<Ident>, locals: &mut Locals) {
+        let Some(label) = label else {
+            return;
+        };
+        self.style(label, false, "label");
+        if let Some(outer) = locals.labels.iter().find(|l| l.name == label.name) {
+            let outer = outer.span;
+            self.report(
+                Diagnostic::new(
+                    codes::E0438,
+                    format!(
+                        "the label `{}` is already used by an enclosing loop",
+                        label.name
+                    ),
+                )
+                .primary(label.span, "this label repeats an outer one")
+                .secondary(outer, "the enclosing loop with this label")
+                .help("give the inner loop another label"),
+            );
+        }
+        locals.labels.push(label.clone());
+    }
+
+    fn pop_label(&mut self, label: &Option<Ident>, locals: &mut Locals) {
+        if label.is_some() {
+            locals.labels.pop();
+        }
+    }
+
+    /// Checks the label of a `break` or a `continue` (E0436, E0437).
+    fn jump_label(&mut self, label: &Ident, locals: &Locals) {
+        if !locals.labels.iter().any(|l| l.name == label.name) {
+            self.report(
+                Diagnostic::new(codes::E0436, format!("unknown loop label `{}`", label.name))
+                    .primary(label.span, "no enclosing loop has this label")
+                    .help("labels are written before a loop: `outer: for x in xs { ... }`"),
+            );
+        } else if let Some(id) = self.lookup_local(&label.name, locals) {
+            let mut d = Diagnostic::new(
+                codes::E0437,
+                format!("`{}` is both a loop label and a variable", label.name),
+            )
+            .primary(label.span, "a label or a value?")
+            .help("rename the label or the variable");
+            if let Some(local) = self.locals.get(id.0 as usize) {
+                d = d.secondary(local.span, "the variable");
+            }
+            self.report(d);
         }
     }
 
@@ -638,9 +727,67 @@ impl Resolver<'_> {
             | ExprKind::Str(_)
             | ExprKind::Bool(_)
             | ExprKind::Unit
-            | ExprKind::Break
-            | ExprKind::Continue
             | ExprKind::Error => {}
+            ExprKind::FStr(parts) => {
+                for part in parts {
+                    if let FStrPart::Expr(e) = part {
+                        self.expr(ctx, e, locals);
+                    }
+                }
+            }
+            ExprKind::Continue { label } => {
+                if let Some(label) = label {
+                    self.jump_label(label, locals);
+                }
+            }
+            ExprKind::Break { label, value } => {
+                if let Some(label) = label {
+                    self.jump_label(label, locals);
+                }
+                if let Some(value) = value {
+                    // `break name` with an unknown name: a label was most likely meant.
+                    let unknown = match &value.kind {
+                        ExprKind::Name(name) => {
+                            self.lookup_local(&name.name, locals).is_none()
+                                && self
+                                    .lookup_module_level(
+                                        ctx.module,
+                                        &name.name,
+                                        ctx.in_tests,
+                                        false,
+                                    )
+                                    .is_none()
+                                && !self.is_poisoned(ctx.module, &name.name)
+                        }
+                        _ => false,
+                    };
+                    match &value.kind {
+                        ExprKind::Name(name) if unknown => self.jump_label(name, locals),
+                        _ => self.expr(ctx, value, locals),
+                    }
+                }
+            }
+            ExprKind::Loop { label, body } => {
+                self.push_label(label, locals);
+                self.block(ctx, body, locals, false);
+                self.pop_label(label, locals);
+            }
+            ExprKind::IfLet {
+                pattern,
+                value,
+                then,
+                otherwise,
+                ..
+            } => {
+                self.expr(ctx, value, locals);
+                locals.scopes.push(Scope::default());
+                self.pattern(ctx, pattern, locals);
+                self.block(ctx, then, locals, true);
+                self.pop_scope(locals);
+                if let Some(other) = otherwise {
+                    self.expr(ctx, other, locals);
+                }
+            }
             ExprKind::Name(name) => {
                 if let Some(res) = self.value_name(ctx, name, locals) {
                     self.record((file, expr.id), res);
@@ -675,7 +822,11 @@ impl Resolver<'_> {
                 path,
                 type_args,
                 fields,
+                base,
             } => {
+                if let Some(base) = base {
+                    self.expr(ctx, base, locals);
+                }
                 for arg in type_args {
                     self.ty(ctx, arg);
                 }
@@ -718,6 +869,8 @@ impl Resolver<'_> {
                 self.expr(ctx, rhs, locals);
             }
             ExprKind::Closure { params, ret, body } => {
+                // A closure body is not inside the loops around the closure.
+                let outer_labels = std::mem::take(&mut locals.labels);
                 locals.scopes.push(Scope::default());
                 for param in params {
                     if let Some(ty) = &param.ty {
@@ -734,6 +887,7 @@ impl Resolver<'_> {
                     _ => self.expr(ctx, body, locals),
                 }
                 self.pop_scope(locals);
+                locals.labels = outer_labels;
             }
             ExprKind::Block(block) => self.block(ctx, block, locals, false),
             ExprKind::If {
@@ -892,22 +1046,23 @@ impl Resolver<'_> {
             | PatKind::Error => {}
             PatKind::Name(name) => {
                 // A lone name is a binding, unless it is a payload-less variant or a constant
-                // (chapter 3, section 7, rule 3).
+                // (chapter 3, section 7, rule 3). In a destructuring `let` it is always a binding.
                 let existing =
                     self.lookup_module_level(ctx.module, &name.name, ctx.in_tests, false);
-                let constant = match existing {
-                    Some(Binding::Def(def)) => self.def(def).is_some_and(|d| {
-                        matches!(
-                            d.kind,
-                            DefKind::Config
-                                | DefKind::Variant {
-                                    payload: Payload::None,
-                                    ..
-                                }
-                        )
-                    }),
-                    _ => false,
-                };
+                let constant = !locals.let_pattern
+                    && match existing {
+                        Some(Binding::Def(def)) => self.def(def).is_some_and(|d| {
+                            matches!(
+                                d.kind,
+                                DefKind::Config
+                                    | DefKind::Variant {
+                                        payload: Payload::None,
+                                        ..
+                                    }
+                            )
+                        }),
+                        _ => false,
+                    };
                 if constant {
                     if let Some(Binding::Def(def)) =
                         self.lookup_module_level(ctx.module, &name.name, ctx.in_tests, true)

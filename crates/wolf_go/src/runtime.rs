@@ -283,6 +283,29 @@ type Error interface {
 }"#,
     },
     Piece {
+        name: "TextError",
+        deps: &["Error"],
+        imports: &[],
+        code: r#"// TextError is the error of error(message).
+type TextError struct {
+	text string
+}
+
+// NewTextError is error(message): an Error with this message.
+func NewTextError(text string) Error {
+	return TextError{text: text}
+}
+
+// Message is the text of the error.
+func (e TextError) Message() string {
+	return e.text
+}
+
+func (e TextError) Error() string {
+	return e.text
+}"#,
+    },
+    Piece {
         name: "Panic",
         deps: &[],
         imports: &[],
@@ -610,6 +633,57 @@ func SliceStrFrom(text string, start int64) string {
         code: r#"// StrLen is the length in Unicode scalar values.
 func StrLen(text string) int64 {
 	return int64(utf8.RuneCountInString(text))
+}"#,
+    },
+    Piece {
+        name: "Display",
+        deps: &["FloatString"],
+        imports: &["strconv"],
+        code: r#"// Display is a value that can be shown as text.
+type Display interface {
+	ToString() string
+}
+
+// IntString is to_string of Int.
+func IntString(x int64) string {
+	return strconv.FormatInt(x, 10)
+}
+
+// StringString is to_string of String.
+func StringString(x string) string {
+	return x
+}
+
+// ShowInt is an Int used as a Display value.
+type ShowInt int64
+
+// ToString shows the Int.
+func (x ShowInt) ToString() string {
+	return strconv.FormatInt(int64(x), 10)
+}
+
+// ShowFloat is a Float used as a Display value.
+type ShowFloat float64
+
+// ToString shows the Float.
+func (x ShowFloat) ToString() string {
+	return FloatString(float64(x))
+}
+
+// ShowBool is a Bool used as a Display value.
+type ShowBool bool
+
+// ToString shows the Bool.
+func (x ShowBool) ToString() string {
+	return strconv.FormatBool(bool(x))
+}
+
+// ShowString is a String used as a Display value.
+type ShowString string
+
+// ToString shows the String.
+func (x ShowString) ToString() string {
+	return string(x)
 }"#,
     },
     Piece {

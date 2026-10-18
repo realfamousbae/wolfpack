@@ -1,0 +1,123 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+assertion_line: 79
+expression: result.dump
+---
+file
+  module main
+  (section imports (import std.string (names join)))
+  section types
+    (struct doc " A point on a grid." Point (field x Int) (field y Int))
+    struct
+      doc " An item of the inventory."
+      Item
+      (field name String)
+      (field count Int)
+      (field tags (List String))
+    (enum Color (variant Red) (variant Green))
+  section impl
+    impl
+      Point
+      (for Display)
+      (fn to_string (params self) (-> String) (block (f "(" (. self x) ", " (. self y) ")")))
+    impl
+      Color
+      (for Display)
+      fn
+        to_string
+        (params self)
+        (-> String)
+        (block (match self (=> Color.Red "red") (=> Color.Green "green")))
+  section main
+    (fn main () (block (call strings) (call patterns) (call loops) (call updates) (call errors)))
+  section functions
+    fn
+      doc " Interpolated, raw and multiline strings."
+      strings
+      ()
+      block
+        (let name "Ann")
+        (let count 3)
+        (call print (f name " has " count " items, ratio " 0.5 ", ready " true))
+        (call print (f "literal braces {} and " (call join (list "a" "b") ", ")))
+        call
+          print
+          f
+            "nested "
+            (f "<" name ">")
+            ", point "
+            (struct Point (x: 1) (y: 2))
+            ", color "
+            (. Color Green)
+        (call print "a raw string keeps \\n and {braces}")
+        (let help "usage: tour <command>\n\ncommands:\n    run    show everything")
+        (call print help)
+        (let shown (List Display) (list 1 "two" 3.0 (. Color Red)))
+        (for value shown (block (call print (call show value))))
+    (fn show (generics (T Display)) (params (value T)) (-> String) (block (f "[" value "]")))
+    fn
+      doc " Destructuring `let`, `if let` and `while let`."
+      patterns
+      ()
+      block
+        (let (Point {} x y) (struct Point (x: 5) (y: 6)))
+        (call print (f "x = " x ", y = " y))
+        if let
+          (Some at)
+          (call (. "wolfpack" find) "pack")
+          (block (call print (f "found at " at)))
+          else
+            (if let (Some at) (call (. "wolf" find) "w") (block (call print (f "else at " at))))
+        (var stack (list 1 2 3))
+        (while let (Some top) (call (. stack pop)) (block (call print (f "pop " top))))
+    fn
+      doc " `loop` with a value, labels."
+      loops
+      ()
+      block
+        (var i 0)
+        (let first_big (loop (block (+= i 1) (if (> (* i i) 20) (block (break i))))))
+        (call print (f "first square above 20: " first_big "^2"))
+        rows:
+          for
+            row
+            (.. 0 3)
+            block
+              for
+                col
+                (.. 0 3)
+                block
+                  (if (> col row) (block (continue rows:)))
+                  (if (== row 2) (block (break rows:)))
+                  (call print (f "cell " row "," col))
+    fn
+      doc " The update syntax."
+      updates
+      ()
+      block
+        (let bolts (struct Item (name: "bolts") (count: 10) (tags: (list "metal"))))
+        (let more (struct Item (count: 25) (.. bolts)))
+        (call print (f (. more name) ": " (. more count) ", tags " (call join (. more tags) ", ")))
+    fn
+      doc " `error(message)` and `assert_eq`."
+      errors
+      ()
+      block
+        match
+          (call parse_count "12")
+          (=> (Ok n) (call print (f "count " n)))
+          (=> (Err e) (call print (f "error: " (call (. e message)))))
+        match
+          (call parse_count "-4")
+          (=> (Ok n) (call print (f "count " n)))
+          (=> (Err e) (call print (f "error: " (call (. e message)))))
+        (call assert_eq (+ 1 2) 3)
+        (call assert_eq (struct Point (x: 1) (y: 2)) (struct Point (x: 1) (y: 2)))
+    fn
+      parse_count
+      (params (text String))
+      (-> (Result Int Error))
+      block
+        (let n (? (call (. text parse_int))))
+        (if (< n 0) (block (return (call Err (call error (f "a count cannot be negative: " n))))))
+        (call Ok n)

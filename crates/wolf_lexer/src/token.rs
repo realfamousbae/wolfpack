@@ -13,8 +13,11 @@ pub enum TokenKind {
     Int(u64),
     /// A float literal.
     Float(f64),
-    /// A string literal, with escapes already resolved.
+    /// A string literal, with escapes already resolved. Raw (`r"..."`) and multiline (`"""`)
+    /// strings are string literals too.
     Str(String),
+    /// An interpolated string `f"..."` (spec chapter 1, section 5.3a), split into its parts.
+    FStr(Vec<FPart>),
     /// An outer doc comment (`///` or `/** */`) with its text after the marker.
     DocOuter(String),
     /// An inner doc comment (`//!` or `/*! */`) with its text after the marker.
@@ -62,6 +65,8 @@ pub enum TokenKind {
     Break,
     /// `continue`
     Continue,
+    /// `loop`
+    Loop,
     /// `mut`
     Mut,
     /// `own`
@@ -202,6 +207,7 @@ impl TokenKind {
             "return" => TokenKind::Return,
             "break" => TokenKind::Break,
             "continue" => TokenKind::Continue,
+            "loop" => TokenKind::Loop,
             "mut" => TokenKind::Mut,
             "own" => TokenKind::Own,
             "self" => TokenKind::SelfValue,
@@ -238,6 +244,7 @@ impl TokenKind {
             Return => "return",
             Break => "break",
             Continue => "continue",
+            Loop => "loop",
             Mut => "mut",
             Own => "own",
             SelfValue => "self",
@@ -292,8 +299,8 @@ impl TokenKind {
             CaretEq => "^=",
             ShlEq => "<<=",
             ShrEq => ">>=",
-            Ident | Int(_) | Float(_) | Str(_) | DocOuter(_) | DocInner(_) | Newline | Error
-            | Eof => return None,
+            Ident | Int(_) | Float(_) | Str(_) | FStr(_) | DocOuter(_) | DocInner(_) | Newline
+            | Error | Eof => return None,
         })
     }
 }
@@ -307,7 +314,7 @@ impl fmt::Display for TokenKind {
             TokenKind::Ident => write!(f, "identifier"),
             TokenKind::Int(_) => write!(f, "integer literal"),
             TokenKind::Float(_) => write!(f, "float literal"),
-            TokenKind::Str(_) => write!(f, "string literal"),
+            TokenKind::Str(_) | TokenKind::FStr(_) => write!(f, "string literal"),
             TokenKind::DocOuter(_) | TokenKind::DocInner(_) => write!(f, "doc comment"),
             TokenKind::Newline => write!(f, "new line"),
             TokenKind::Error => write!(f, "invalid token"),
@@ -323,6 +330,16 @@ pub struct Token {
     pub kind: TokenKind,
     /// Where the token is in the source.
     pub span: Span,
+}
+
+/// A part of an interpolated string.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FPart {
+    /// Text, with escapes resolved and `{{` / `}}` turned into single braces.
+    Text(String),
+    /// An interpolation: the tokens of its expression, ending with an `Eof` token at the closing
+    /// `}`, and the span of the braces with their content.
+    Expr(Vec<Token>, Span),
 }
 
 /// An ordinary comment. It has no meaning for the language, but is kept for `wolf fmt`.

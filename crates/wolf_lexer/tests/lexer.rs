@@ -1,6 +1,6 @@
 //! Unit tests for every token form and every lexical error of spec chapter 1.
 
-use wolf_lexer::{TokenKind, lex};
+use wolf_lexer::{FPart, TokenKind, lex};
 use wolf_span::SourceMap;
 
 use TokenKind::*;
@@ -36,7 +36,7 @@ fn keywords_and_identifiers() {
             Module, Fn, Let, Var, SelfValue, SelfType, Ident, Ident, Ident, Underscore, Ident
         ]
     );
-    assert_eq!(kinds("async await"), [Async, Await]);
+    assert_eq!(kinds("async await loop"), [Async, Await, Loop]);
 }
 
 #[test]
@@ -258,9 +258,119 @@ fn e0112_unterminated_block_comment() {
 
 #[test]
 fn e0113_reserved_prefix() {
-    assert_eq!(errors(r#"f"x""#), ["E0113"]);
-    assert_eq!(errors(r#"r"x""#), ["E0113"]);
+    assert_eq!(errors(r#"b"x""#), ["E0113"]);
+    assert_eq!(errors(r#"fr"x""#), ["E0113"]);
+    assert_eq!(errors(r#"rf"x""#), ["E0113"]);
     assert!(errors(r#"f "x""#).is_empty());
+}
+
+// ----- interpolated, raw and multiline strings (section 5.3a) ----------------------------------
+
+/// The parts of the only token of `text`, an interpolated string, as text and the kinds of the
+/// interpolated tokens.
+fn fstring(text: &str) -> Vec<String> {
+    let kinds = kinds(text);
+    let [FStr(parts)] = kinds.as_slice() else {
+        // Fails the comparison of the caller.
+        return vec![format!("not one interpolated string: {kinds:?}")];
+    };
+    parts
+        .iter()
+        .map(|part| match part {
+            FPart::Text(text) => format!("{text:?}"),
+            FPart::Expr(tokens, _) => {
+                let kinds: Vec<String> = tokens.iter().map(|t| format!("{:?}", t.kind)).collect();
+                format!("{{{}}}", kinds.join(" "))
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn interpolated_strings() {
+    assert_eq!(fstring(r#"f"plain""#), [r#""plain""#]);
+    assert_eq!(fstring(r#"f"""#), Vec::<String>::new());
+    assert_eq!(
+        fstring(r#"f"a {x} b""#),
+        [r#""a ""#, "{Ident Eof}", r#"" b""#]
+    );
+    assert_eq!(
+        fstring(r#"f"{a + 1}{b}""#),
+        ["{Ident Plus Int(1) Eof}", "{Ident Eof}"]
+    );
+    assert_eq!(fstring(r#"f"{{x}} \n""#), [r#""{x} \n""#]);
+    assert_eq!(
+        fstring(r#"f"{names.join(", ")}!""#),
+        [r#"{Ident Dot Ident LParen Str(", ") RParen Eof}"#, r#""!""#]
+    );
+    // A map literal and a struct literal inside: braces are counted.
+    assert_eq!(fstring(r#"f"{[1: 2].len()} {P { x: 1 }.x}""#).len(), 3);
+    // Nested interpolated strings.
+    assert_eq!(fstring(r#"f"<{f"{x}"}>""#).len(), 3);
+}
+
+#[test]
+fn raw_strings() {
+    assert_eq!(kinds(r#"r"\d+\.""#), [Str(r"\d+\.".to_string())]);
+    assert_eq!(kinds(r#"r"{x}""#), [Str("{x}".to_string())]);
+    assert_eq!(errors("r\"a\u{7}\""), ["E0109"]);
+}
+
+#[test]
+fn multiline_strings() {
+    let text = "\"\"\"\n    usage:\n\n        build\n    \"\"\"";
+    assert_eq!(kinds(text), [Str("usage:\n\n    build".to_string())]);
+    // The line ends inside are tokens of the string, not `Newline` tokens; CR LF becomes LF.
+    let text = "let s = \"\"\"\r\n  a\r\n  b\r\n  \"\"\"\r\nx";
+    assert_eq!(
+        kinds(text),
+        [Let, Ident, Eq, Str("a\nb".to_string()), Newline, Ident]
+    );
+    // An empty multiline string, blank lines shorter than the indentation, escapes and quotes.
+    assert_eq!(kinds("\"\"\"\n\"\"\""), [Str(String::new())]);
+    assert_eq!(
+        kinds("\"\"\"\n    a \"q\" \\t\n\n  \n    \\\"\"\"\n    \"\"\""),
+        [Str("a \"q\" \t\n\n\n\"\"\"".to_string())]
+    );
+    // Raw and interpolated multiline strings.
+    assert_eq!(kinds("r\"\"\"\n  \\d\n  \"\"\""), [Str("\\d".to_string())]);
+    assert_eq!(fstring("f\"\"\"\n  a {x}\n  b\n  \"\"\"").len(), 3);
+}
+
+#[test]
+fn e0103_unterminated_multiline_string() {
+    assert_eq!(errors("\"\"\"\n  abc\n"), ["E0103"]);
+}
+
+#[test]
+fn e0114_unbalanced_brace() {
+    assert_eq!(errors(r#"f"{x""#), ["E0114"]);
+    assert_eq!(errors(r#"f"{x(")")""#), ["E0114"]);
+    assert_eq!(errors(r#"f"{x"#), ["E0114", "E0103"]);
+    assert_eq!(errors(r#"f"a } b""#), ["E0114"]);
+}
+
+#[test]
+fn e0115_empty_interpolation() {
+    assert_eq!(errors(r#"f"{}""#), ["E0115"]);
+    assert_eq!(errors(r#"f"{  }""#), ["E0115"]);
+}
+
+#[test]
+fn e0116_malformed_multiline_string() {
+    assert_eq!(errors("\"\"\"abc\n  x\n  \"\"\""), ["E0116"]);
+    assert_eq!(errors("\"\"\"abc\"\"\""), ["E0116"]);
+    assert_eq!(errors("\"\"\"\n  x\"\"\""), ["E0116"]);
+    assert_eq!(errors("\"\"\"\n  x\n y\n  \"\"\""), ["E0116"]);
+}
+
+#[test]
+fn deeply_nested_interpolations_do_not_overflow() {
+    let mut text = String::from("x");
+    for _ in 0..200 {
+        text = format!("f\"{{{text}}}\"");
+    }
+    assert!(errors(&text).contains(&"E0314"));
 }
 
 #[test]

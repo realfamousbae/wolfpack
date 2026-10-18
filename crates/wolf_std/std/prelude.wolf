@@ -48,6 +48,11 @@ interfaces {
         fn message(self) -> String
     }
 
+    /// A value that can be shown as text, in interpolated strings and in `assert_eq`.
+    pub interface Display {
+        fn to_string(self) -> String
+    }
+
     /// A total order.
     pub interface Comparable {
         fn compare(self, other: Self) -> Ordering
@@ -67,9 +72,9 @@ interfaces {
 }
 
 impl {
-    Bool {
+    Bool: Display {
         /// `true` or `false`.
-        pub intrinsic fn to_string(self) -> String
+        intrinsic fn to_string(self) -> String
     }
 }
 
@@ -79,6 +84,12 @@ functions {
 
     /// Panics if `condition` is `false`.
     pub intrinsic fn assert(condition: Bool)
+
+    /// Panics if `left != right`, showing both values.
+    pub intrinsic fn assert_eq<T: Equatable + Display>(left: T, right: T)
+
+    /// An `Error` with this message, for errors that need no type of their own.
+    pub intrinsic fn error(message: String) -> Error
 
     /// Stores `value` in `place` and returns the old value.
     pub intrinsic fn replace<T>(mut place: T, own value: T) -> T

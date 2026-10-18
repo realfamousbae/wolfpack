@@ -5,16 +5,53 @@ use wolf_span::{FileId, Span};
 
 use crate::Lexed;
 use crate::cursor::Cursor;
-use crate::token::{Comment, Token, TokenKind};
+use crate::token::{Comment, FPart, Token, TokenKind};
 
 /// The largest integer literal: 2^63, valid only directly under a unary minus.
 const INT_LIMIT: u128 = 1 << 63;
+
+/// How deep interpolated strings may nest inside each other's interpolations.
+const MAX_FSTRING_DEPTH: u32 = 32;
 
 pub(crate) struct Lexer<'a> {
     file: FileId,
     text: &'a str,
     cursor: Cursor,
     out: Lexed,
+    /// How many interpolations the lexer is inside.
+    fstring_depth: u32,
+}
+
+/// The form of a string literal (spec chapter 1, sections 5.3 and 5.3a).
+#[derive(Clone, Copy)]
+struct Form {
+    /// `f"..."`
+    interpolated: bool,
+    /// `r"..."`
+    raw: bool,
+}
+
+/// One line of the content of a string while it is read.
+#[derive(Default)]
+struct Line {
+    /// The spaces and tabs at the start of the line (multiline strings only).
+    lead: String,
+    /// Offset of the start of the line.
+    start: u32,
+    parts: Vec<FPart>,
+}
+
+impl Line {
+    fn push_char(&mut self, c: char) {
+        match self.parts.last_mut() {
+            Some(FPart::Text(text)) => text.push(c),
+            _ => self.parts.push(FPart::Text(c.to_string())),
+        }
+    }
+
+    fn is_blank(&self) -> bool {
+        self.parts.is_empty()
+    }
 }
 
 impl<'a> Lexer<'a> {
@@ -24,6 +61,7 @@ impl<'a> Lexer<'a> {
             text,
             cursor: Cursor::new(text),
             out: Lexed::default(),
+            fstring_depth: 0,
         }
     }
 
@@ -31,34 +69,45 @@ impl<'a> Lexer<'a> {
         // A byte order mark is ignored, but only at the very start (rule 1.2).
         self.cursor.eat('\u{feff}');
         while let Some(c) = self.cursor.peek(0) {
-            let start = self.cursor.offset();
-            match c {
-                ' ' | '\t' => {
-                    self.cursor.bump();
-                }
-                '\n' => {
-                    self.cursor.bump();
-                    self.line_end(start);
-                }
-                '\r' => {
-                    self.cursor.bump();
-                    if self.cursor.eat('\n') {
-                        self.line_end(start);
-                    } else {
-                        self.lone_cr(start);
-                    }
-                }
-                '/' if self.cursor.peek(1) == Some('/') => self.line_comment(start),
-                '/' if self.cursor.peek(1) == Some('*') => self.block_comment(start),
-                '"' => self.string(start),
-                '0'..='9' => self.number(start),
-                c if is_ident_start(c) => self.ident(start),
-                _ => self.punctuation(start, c),
-            }
+            self.step(c);
         }
         let end = self.cursor.offset();
         self.push(TokenKind::Eof, end, end);
         self.out
+    }
+
+    /// Lexes the text that starts with `c`.
+    fn step(&mut self, c: char) {
+        let start = self.cursor.offset();
+        match c {
+            ' ' | '\t' => {
+                self.cursor.bump();
+            }
+            '\n' => {
+                self.cursor.bump();
+                self.line_end(start);
+            }
+            '\r' => {
+                self.cursor.bump();
+                if self.cursor.eat('\n') {
+                    self.line_end(start);
+                } else {
+                    self.lone_cr(start);
+                }
+            }
+            '/' if self.cursor.peek(1) == Some('/') => self.line_comment(start),
+            '/' if self.cursor.peek(1) == Some('*') => self.block_comment(start),
+            '"' => self.string(
+                start,
+                Form {
+                    interpolated: false,
+                    raw: false,
+                },
+            ),
+            '0'..='9' => self.number(start),
+            c if is_ident_start(c) => self.ident(start),
+            _ => self.punctuation(start, c),
+        }
     }
 
     // ----- helpers -------------------------------------------------------------------------
@@ -247,7 +296,24 @@ impl<'a> Lexer<'a> {
             return;
         }
         if self.cursor.peek(0) == Some('"') {
-            // `f"..."`, `r"..."`: reserved for future string forms (rule 5.3.5).
+            // `f"..."` and `r"..."` (section 5.3a); other prefixes are reserved (rule 5.3.5).
+            match text {
+                "f" => {
+                    let form = Form {
+                        interpolated: true,
+                        raw: false,
+                    };
+                    return self.string(start, form);
+                }
+                "r" => {
+                    let form = Form {
+                        interpolated: false,
+                        raw: true,
+                    };
+                    return self.string(start, form);
+                }
+                _ => {}
+            }
             let span = self.span(start, end + 1);
             self.error(
                 Diagnostic::new(codes::E0113, format!("reserved literal prefix `{text}`"))
@@ -457,57 +523,427 @@ impl<'a> Lexer<'a> {
 
     // ----- strings -------------------------------------------------------------------------
 
-    fn string(&mut self, start: u32) {
-        self.cursor.bump(); // opening quote
-        let mut value = String::new();
+    /// Lexes a string literal whose opening `"` is next. `start` is where the token starts,
+    /// before a prefix (sections 5.3 and 5.3a).
+    fn string(&mut self, start: u32, form: Form) {
+        let multiline = self.cursor.peek(1) == Some('"') && self.cursor.peek(2) == Some('"');
+        let lines = if multiline {
+            for _ in 0..3 {
+                self.cursor.bump();
+            }
+            self.multiline_body(start, form)
+        } else {
+            self.cursor.bump();
+            let mut line = Line {
+                start: self.cursor.offset(),
+                ..Line::default()
+            };
+            self.single_body(start, form, &mut line);
+            vec![line.parts]
+        };
+        let end = self.cursor.offset();
+        let mut parts: Vec<FPart> = Vec::new();
+        for (i, line) in lines.into_iter().enumerate() {
+            if i > 0 {
+                push_text(&mut parts, "\n");
+            }
+            for part in line {
+                match part {
+                    FPart::Text(text) => push_text(&mut parts, &text),
+                    expr => parts.push(expr),
+                }
+            }
+        }
+        let kind = if form.interpolated {
+            TokenKind::FStr(parts)
+        } else {
+            let mut value = String::new();
+            for part in parts {
+                if let FPart::Text(text) = part {
+                    value.push_str(&text);
+                }
+            }
+            TokenKind::Str(value)
+        };
+        self.push(kind, start, end);
+    }
+
+    /// The content of a `"..."` string after the opening quote, up to and including the closing
+    /// quote.
+    fn single_body(&mut self, start: u32, form: Form, line: &mut Line) {
         loop {
             let at = self.cursor.offset();
             match self.cursor.peek(0) {
                 None | Some('\n') => {
                     self.unterminated(start, at);
-                    break;
+                    return;
                 }
                 Some('\r') if self.cursor.peek(1) == Some('\n') => {
                     self.unterminated(start, at);
-                    break;
+                    return;
                 }
                 Some('"') => {
                     self.cursor.bump();
+                    return;
+                }
+                Some(c) => self.content_char(c, form, line, at),
+            }
+        }
+    }
+
+    /// The content of a `"""` string after the opening quotes, up to and including the closing
+    /// quotes, as lines with the indentation removed (section 5.3a, rule 3).
+    fn multiline_body(&mut self, start: u32, form: Form) -> Vec<Vec<FPart>> {
+        let open_end = self.cursor.offset();
+        // The opening `"""` must be the last thing on its line.
+        let mut extra = None;
+        loop {
+            match self.cursor.peek(0) {
+                Some(' ' | '\t') => {
+                    self.cursor.bump();
+                }
+                Some('\n') => {
+                    self.cursor.bump();
                     break;
                 }
-                Some('\\') => {
+                Some('\r') if self.cursor.peek(1) == Some('\n') => {
                     self.cursor.bump();
-                    if let Some(c) = self.escape(at) {
-                        value.push(c);
-                    }
+                    self.cursor.bump();
+                    break;
                 }
-                Some('\r') => {
-                    self.cursor.bump();
-                    self.lone_cr(at);
+                None => {
+                    self.unterminated_multiline(start, open_end);
+                    return Vec::new();
                 }
-                Some(c) => {
-                    self.cursor.bump();
-                    if (c.is_control() && c != '\t') || c == '\u{7f}' {
-                        let span = self.span(at, self.cursor.offset());
-                        self.error(
-                            Diagnostic::new(
-                                codes::E0109,
-                                format!(
-                                    "unescaped control character U+{:04X} in a string",
-                                    c as u32
-                                ),
-                            )
-                            .primary(span, "control characters must be escaped")
-                            .help(format!("write it as `\\u{{{:x}}}`", c as u32)),
-                        );
-                    } else {
-                        value.push(c);
+                Some('"') if self.closing_quotes() => {
+                    // `"""text"""` on one line.
+                    let at = self.cursor.offset();
+                    for _ in 0..3 {
+                        self.cursor.bump();
                     }
+                    let span = self.span(open_end, at);
+                    self.error(
+                        Diagnostic::new(codes::E0116, "a multiline string on one line")
+                            .primary(span, "the content must start on the next line")
+                            .help("use `\"...\"` for a string on one line"),
+                    );
+                    return Vec::new();
+                }
+                Some(_) => {
+                    extra.get_or_insert(self.cursor.offset());
+                    self.cursor.bump();
                 }
             }
         }
-        let end = self.cursor.offset();
-        self.push(TokenKind::Str(value), start, end);
+        if let Some(at) = extra {
+            let end = self.text_line_end(at);
+            let span = self.span(at, end);
+            self.error(
+                Diagnostic::new(codes::E0116, "text after the opening `\"\"\"`")
+                    .primary(
+                        span,
+                        "the opening `\"\"\"` must be the last thing on its line",
+                    )
+                    .help("start the content on the next line"),
+            );
+        }
+
+        let mut lines: Vec<Line> = Vec::new();
+        loop {
+            let mut line = Line {
+                start: self.cursor.offset(),
+                ..Line::default()
+            };
+            while let Some(c @ (' ' | '\t')) = self.cursor.peek(0) {
+                line.lead.push(c);
+                self.cursor.bump();
+            }
+            if self.closing_quotes() {
+                for _ in 0..3 {
+                    self.cursor.bump();
+                }
+                let indent = line.lead;
+                return self.strip_indentation(lines, &indent);
+            }
+            loop {
+                let at = self.cursor.offset();
+                match self.cursor.peek(0) {
+                    None => {
+                        self.unterminated_multiline(start, open_end);
+                        lines.push(line);
+                        return lines.into_iter().map(|l| l.parts).collect();
+                    }
+                    Some('\n') => {
+                        self.cursor.bump();
+                        break;
+                    }
+                    Some('\r') if self.cursor.peek(1) == Some('\n') => {
+                        self.cursor.bump();
+                        self.cursor.bump();
+                        break;
+                    }
+                    Some('"') if self.closing_quotes() => {
+                        for _ in 0..3 {
+                            self.cursor.bump();
+                        }
+                        let span = self.span(at, at + 3);
+                        self.error(
+                            Diagnostic::new(
+                                codes::E0116,
+                                "the closing `\"\"\"` is not on its own line",
+                            )
+                            .primary(span, "this ends the string")
+                            .help("move the closing `\"\"\"` to the next line"),
+                        );
+                        lines.push(line);
+                        return lines.into_iter().map(|l| l.parts).collect();
+                    }
+                    Some('\\')
+                        if !form.raw && matches!(self.cursor.peek(1), None | Some('\n' | '\r')) =>
+                    {
+                        self.cursor.bump();
+                        let span = self.span(at, at + 1);
+                        self.error(
+                            Diagnostic::new(codes::E0104, "`\\` at the end of a line")
+                                .primary(span, "not a valid escape")
+                                .help("a line end in a `\"\"\"` string is part of the text; remove the `\\`"),
+                        );
+                    }
+                    Some(c) => self.content_char(c, form, &mut line, at),
+                }
+            }
+            lines.push(line);
+        }
+    }
+
+    /// Removes the indentation of the closing quotes from every line (section 5.3a, rule 3).
+    fn strip_indentation(&mut self, lines: Vec<Line>, indent: &str) -> Vec<Vec<FPart>> {
+        let mut out = Vec::with_capacity(lines.len());
+        for line in lines {
+            let mut parts = Vec::new();
+            match line.lead.strip_prefix(indent) {
+                Some(rest) => push_text(&mut parts, rest),
+                None if line.is_blank() => {}
+                None => {
+                    let end = line.start + u32::try_from(line.lead.len()).unwrap_or(0);
+                    let span = self.span(line.start, end);
+                    self.error(
+                        Diagnostic::new(
+                            codes::E0116,
+                            "a line of a multiline string is less indented than its closing `\"\"\"`",
+                        )
+                        .primary(span, "this indentation does not start with the indentation of the closing `\"\"\"`")
+                        .help("indent the line at least as far as the closing `\"\"\"`, with the same spaces or tabs"),
+                    );
+                    push_text(&mut parts, &line.lead);
+                }
+            }
+            for part in line.parts {
+                match part {
+                    FPart::Text(text) => push_text(&mut parts, &text),
+                    expr => parts.push(expr),
+                }
+            }
+            out.push(parts);
+        }
+        out
+    }
+
+    /// Whether the next three characters are `"""`.
+    fn closing_quotes(&self) -> bool {
+        (0..3).all(|n| self.cursor.peek(n) == Some('"'))
+    }
+
+    /// The offset of the end of the line that contains `at`.
+    fn text_line_end(&self, at: u32) -> u32 {
+        let rest = self.text.get(at as usize..).unwrap_or("");
+        let len = rest.find(['\n', '\r']).unwrap_or(rest.len());
+        at + u32::try_from(len).unwrap_or(0)
+    }
+
+    /// One character (or escape, or interpolation) of the content of a string, at `at`.
+    fn content_char(&mut self, c: char, form: Form, line: &mut Line, at: u32) {
+        match c {
+            '\\' if !form.raw => {
+                self.cursor.bump();
+                if let Some(c) = self.escape(at) {
+                    line.push_char(c);
+                }
+            }
+            '{' if form.interpolated => {
+                if self.cursor.peek(1) == Some('{') {
+                    self.cursor.bump();
+                    self.cursor.bump();
+                    line.push_char('{');
+                } else {
+                    self.interpolation(line, at);
+                }
+            }
+            '}' if form.interpolated => {
+                self.cursor.bump();
+                if self.cursor.eat('}') {
+                    line.push_char('}');
+                } else {
+                    let span = self.span(at, at + 1);
+                    self.error(
+                        Diagnostic::new(codes::E0114, "unmatched `}` in an interpolated string")
+                            .primary(span, "this `}` closes nothing")
+                            .help("write `}}` for the character `}`"),
+                    );
+                }
+            }
+            '\r' => {
+                self.cursor.bump();
+                self.lone_cr(at);
+            }
+            c => {
+                self.cursor.bump();
+                if (c.is_control() && c != '\t') || c == '\u{7f}' {
+                    let span = self.span(at, self.cursor.offset());
+                    self.error(
+                        Diagnostic::new(
+                            codes::E0109,
+                            format!("unescaped control character U+{:04X} in a string", c as u32),
+                        )
+                        .primary(span, "control characters must be escaped")
+                        .help(format!("write it as `\\u{{{:x}}}`", c as u32)),
+                    );
+                } else {
+                    line.push_char(c);
+                }
+            }
+        }
+    }
+
+    /// An interpolation `{expr}` of an `f` string; the `{` at `at` is next.
+    fn interpolation(&mut self, line: &mut Line, at: u32) {
+        self.cursor.bump(); // `{`
+        if self.fstring_depth >= MAX_FSTRING_DEPTH {
+            let span = self.span(at, at + 1);
+            self.error(
+                Diagnostic::new(codes::E0314, "interpolated strings are nested too deeply")
+                    .primary(span, "this interpolation is too deep")
+                    .help("move the inner strings into variables"),
+            );
+            self.skip_interpolation();
+            return;
+        }
+        if !self.interpolation_closes() {
+            // Most often the `}` was forgotten: the interpolation ends where the string does.
+            let span = self.span(at, at + 1);
+            self.error(
+                Diagnostic::new(codes::E0114, "unclosed `{` in an interpolated string")
+                    .primary(span, "this `{` is not closed")
+                    .help("close the interpolation with `}`, or write `{{` for the character `{`"),
+            );
+            while let Some(c) = self.cursor.peek(0) {
+                if matches!(c, '"' | '\n' | '\r') {
+                    break;
+                }
+                self.cursor.bump();
+            }
+            return;
+        }
+        let saved = std::mem::take(&mut self.out.tokens);
+        self.fstring_depth += 1;
+        let mut depth = 0u32;
+        let closed = loop {
+            match self.cursor.peek(0) {
+                None | Some('\n' | '\r') => break false,
+                Some('}') if depth == 0 => break true,
+                Some(c) => {
+                    match c {
+                        '{' => depth += 1,
+                        '}' => depth -= 1,
+                        _ => {}
+                    }
+                    self.step(c);
+                }
+            }
+        };
+        self.fstring_depth -= 1;
+        let inner_end = self.cursor.offset();
+        let tokens = std::mem::replace(&mut self.out.tokens, saved);
+        if !closed {
+            let span = self.span(at, at + 1);
+            self.error(
+                Diagnostic::new(codes::E0114, "unclosed `{` in an interpolated string")
+                    .primary(span, "this `{` is not closed on its line")
+                    .help("close the interpolation with `}`, or write `{{` for the character `{`"),
+            );
+            return;
+        }
+        self.cursor.bump(); // `}`
+        let span = self.span(at, self.cursor.offset());
+        if tokens.is_empty() {
+            self.error(
+                Diagnostic::new(codes::E0115, "empty interpolation")
+                    .primary(span, "there is no expression between the braces")
+                    .help(
+                        "write an expression inside the braces, or `{{}}` for the characters `{}`",
+                    ),
+            );
+            return;
+        }
+        let mut tokens = tokens;
+        tokens.push(Token {
+            kind: TokenKind::Eof,
+            span: self.span(inner_end, inner_end),
+        });
+        line.parts.push(FPart::Expr(tokens, span));
+    }
+
+    /// Whether the interpolation that starts after the `{` before the cursor has its matching `}`
+    /// on this line. Nested strings are skipped.
+    fn interpolation_closes(&self) -> bool {
+        let mut depth = 0u32;
+        let mut n = 0;
+        loop {
+            match self.cursor.peek(n) {
+                None | Some('\n' | '\r') => return false,
+                Some('{') => depth += 1,
+                Some('}') if depth == 0 => return true,
+                Some('}') => depth -= 1,
+                Some('"') => loop {
+                    n += 1;
+                    match self.cursor.peek(n) {
+                        None | Some('\n' | '\r') => return false,
+                        Some('\\') => n += 1,
+                        Some('"') => break,
+                        Some(_) => {}
+                    }
+                },
+                Some(_) => {}
+            }
+            n += 1;
+        }
+    }
+
+    /// Skips an interpolation without lexing it, up to its closing `}` or the end of the line.
+    fn skip_interpolation(&mut self) {
+        let mut depth = 0u32;
+        while let Some(c) = self.cursor.peek(0) {
+            match c {
+                '\n' | '\r' => return,
+                '{' => depth += 1,
+                '}' if depth == 0 => {
+                    self.cursor.bump();
+                    return;
+                }
+                '}' => depth -= 1,
+                _ => {}
+            }
+            self.cursor.bump();
+        }
+    }
+
+    fn unterminated_multiline(&mut self, start: u32, open_end: u32) {
+        let span = self.span(start, open_end);
+        self.error(
+            Diagnostic::new(codes::E0103, "unterminated multiline string")
+                .primary(span, "this `\"\"\"` is never closed")
+                .help("close the string with `\"\"\"` on a line of its own"),
+        );
     }
 
     fn unterminated(&mut self, start: u32, at: u32) {
@@ -745,6 +1181,17 @@ enum LineKind {
 
 /// Starts an identifier. Non-ASCII letters are accepted here only to report E0111 for the whole
 /// word instead of one error per character.
+/// Appends text to a list of parts, joining it with a text part at the end.
+fn push_text(parts: &mut Vec<FPart>, s: &str) {
+    if s.is_empty() {
+        return;
+    }
+    match parts.last_mut() {
+        Some(FPart::Text(text)) => text.push_str(s),
+        _ => parts.push(FPart::Text(s.to_string())),
+    }
+}
+
 fn is_ident_start(c: char) -> bool {
     c.is_ascii_alphabetic() || c == '_' || (!c.is_ascii() && c.is_alphabetic())
 }

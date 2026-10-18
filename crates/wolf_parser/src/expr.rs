@@ -179,19 +179,13 @@ impl Parser<'_> {
     fn stmt(&mut self) -> Option<Stmt> {
         let start = self.peek_span();
         let token = self.nth(0).clone();
+        if token.kind == TokenKind::Ident && self.raw(1).kind == TokenKind::Colon {
+            return self.labelled_stmt();
+        }
         match &token.kind {
             TokenKind::Let | TokenKind::Var => return self.let_stmt(),
-            TokenKind::While => {
-                self.bump();
-                let cond = self.expr_with(NO_STRUCT);
-                self.check_no_assignment();
-                let body = self.block()?;
-                return Some(Stmt {
-                    kind: StmtKind::While { cond, body },
-                    span: self.span_from(start),
-                });
-            }
-            TokenKind::For => return self.for_stmt(),
+            TokenKind::While => return self.while_stmt(start, None),
+            TokenKind::For => return self.for_stmt(start, None),
             TokenKind::DocOuter(_) | TokenKind::DocInner(_) => {
                 self.report(
                     Diagnostic::new(codes::E0212, "doc comment inside a function body")
@@ -258,9 +252,122 @@ impl Parser<'_> {
         })
     }
 
+    /// `label: while ...`, `label: for ...`, `label: loop { }` (spec chapter 3, section 4, rule 5).
+    fn labelled_stmt(&mut self) -> Option<Stmt> {
+        let start = self.peek_span();
+        let label = self.ident("a label")?;
+        self.bump(); // `:`
+        match self.peek() {
+            TokenKind::While => self.while_stmt(start, Some(label)),
+            TokenKind::For => self.for_stmt(start, Some(label)),
+            TokenKind::Loop => {
+                let expr = self.loop_expr(start, Some(label));
+                Some(Stmt {
+                    span: expr.span,
+                    kind: StmtKind::Expr(expr),
+                })
+            }
+            _ => {
+                let span = self.peek_span();
+                self.report(
+                    Diagnostic::new(codes::E0315, "a label that does not stand before a loop")
+                        .primary(label.span, "this label")
+                        .secondary(span, "expected `while`, `for` or `loop` here")
+                        .help("labels name loops: `outer: for x in xs { ... }`"),
+                );
+                self.recover();
+                None
+            }
+        }
+    }
+
+    /// Parses a loop body with `label` added to the enclosing labels.
+    fn loop_body(&mut self, label: &Option<Ident>) -> Option<Block> {
+        if let Some(l) = label {
+            self.labels.push(l.name.clone());
+        }
+        let body = self.block();
+        if label.is_some() {
+            self.labels.pop();
+        }
+        body
+    }
+
+    fn while_stmt(&mut self, start: Span, label: Option<Ident>) -> Option<Stmt> {
+        self.bump(); // `while`
+        if self.eat(&TokenKind::Let) {
+            let pattern = self.pattern();
+            if self
+                .expect(&TokenKind::Eq, "`=` and the matched value")
+                .is_none()
+            {
+                self.recover();
+                return None;
+            }
+            let mode = self.mode();
+            let value = self.expr_with(NO_STRUCT);
+            self.check_no_assignment();
+            let body = self.loop_body(&label)?;
+            return Some(Stmt {
+                kind: StmtKind::WhileLet {
+                    label,
+                    pattern,
+                    mode,
+                    value,
+                    body,
+                },
+                span: self.span_from(start),
+            });
+        }
+        let cond = self.expr_with(NO_STRUCT);
+        self.check_no_assignment();
+        let body = self.loop_body(&label)?;
+        Some(Stmt {
+            kind: StmtKind::While { label, cond, body },
+            span: self.span_from(start),
+        })
+    }
+
+    /// `loop { body }`, at the `loop` keyword.
+    fn loop_expr(&mut self, start: Span, label: Option<Ident>) -> Expr {
+        self.bump(); // `loop`
+        let Some(body) = self.loop_body(&label) else {
+            self.recover();
+            return self.error_expr(start);
+        };
+        let span = self.span_from(start);
+        self.expr_node(ExprKind::Loop { label, body }, span)
+    }
+
     fn let_stmt(&mut self) -> Option<Stmt> {
         let start = self.peek_span();
         let mutable = self.bump().kind == TokenKind::Var;
+        // A pattern starts with the path of a struct: `let Point { x, y } = p`.
+        let destructuring = (self.at(&TokenKind::Ident)
+            && !matches!(self.nth(1).kind, TokenKind::Colon | TokenKind::Eq))
+            || self.at(&TokenKind::SelfType);
+        if destructuring {
+            // A destructuring `let` (chapter 3, section 4, rule 2).
+            let pattern = self.pattern();
+            if self
+                .expect(&TokenKind::Eq, "`=` and the initial value")
+                .is_none()
+            {
+                self.recover();
+                return None;
+            }
+            self.skip_newlines();
+            let value = self.expr();
+            self.check_no_assignment();
+            return Some(Stmt {
+                kind: StmtKind::LetPattern {
+                    mutable,
+                    pattern,
+                    value,
+                },
+                span: self.span_from(start),
+            });
+        }
         let name = if self.at(&TokenKind::Underscore) {
             let span = self.bump().span;
             if mutable {
@@ -299,8 +406,8 @@ impl Parser<'_> {
         })
     }
 
-    fn for_stmt(&mut self) -> Option<Stmt> {
-        let start = self.bump().span; // `for`
+    fn for_stmt(&mut self, start: Span, label: Option<Ident>) -> Option<Stmt> {
+        self.bump(); // `for`
         let var = self.ident("a loop variable")?;
         if self.expect(&TokenKind::In, "`in`").is_none() {
             self.recover();
@@ -326,9 +433,14 @@ impl Parser<'_> {
         } else {
             ForIter::Collection { mode, expr: first }
         };
-        let body = self.block()?;
+        let body = self.loop_body(&label)?;
         Some(Stmt {
-            kind: StmtKind::For { var, iter, body },
+            kind: StmtKind::For {
+                label,
+                var,
+                iter,
+                body,
+            },
             span: self.span_from(start),
         })
     }
@@ -545,6 +657,7 @@ impl Parser<'_> {
         let first = &self.raw(ahead).kind;
         let second = &self.raw(ahead + 1).kind;
         (ahead == 1 && matches!(first, TokenKind::RBrace))
+            || *first == TokenKind::DotDot
             || (*first == TokenKind::Ident
                 && matches!(
                     second,
@@ -722,6 +835,7 @@ impl Parser<'_> {
             }
             fields
         });
+        let base = self.ignore_lines(|p| p.struct_base());
         let stuck = self.ignore_lines(|p| !p.at(&TokenKind::RBrace) && !p.at(&TokenKind::Error));
         if stuck {
             self.ignore_lines(|p| p.unexpected("a field name or `}`"));
@@ -733,9 +847,37 @@ impl Parser<'_> {
                 path,
                 type_args,
                 fields,
+                base,
             },
             span,
         )
+    }
+
+    /// The `..base` of the update syntax at the end of a struct literal (chapter 3, section 5,
+    /// rule 6).
+    fn struct_base(&mut self) -> Option<Box<Expr>> {
+        if !self.at(&TokenKind::DotDot) {
+            return None;
+        }
+        self.bump();
+        let base = self.expr();
+        self.check_no_assignment();
+        // A trailing `,` is accepted; anything else after the base is not.
+        if self.eat(&TokenKind::Comma) && !self.at(&TokenKind::RBrace) {
+            let span = base.span;
+            self.report(
+                Diagnostic::new(
+                    codes::E0316,
+                    "`..base` is not the last item of the struct literal",
+                )
+                .primary(span, "the base must come after every field")
+                .help("move `..base` to the end, before `}`"),
+            );
+            while !self.at(&TokenKind::RBrace) && !self.at(&TokenKind::Eof) {
+                self.bump();
+            }
+        }
+        Some(Box::new(base))
     }
 
     fn primary(&mut self, ctx: Ctx) -> Expr {
@@ -753,6 +895,10 @@ impl Parser<'_> {
             TokenKind::Str(value) => {
                 self.bump();
                 ExprKind::Str(value)
+            }
+            TokenKind::FStr(parts) => {
+                self.bump();
+                ExprKind::FStr(self.fstring_parts(parts))
             }
             TokenKind::True => {
                 self.bump();
@@ -781,19 +927,11 @@ impl Parser<'_> {
             TokenKind::LBracket => return self.list_or_map(),
             TokenKind::If => return self.if_expr(),
             TokenKind::Match => return self.match_expr(),
+            TokenKind::Loop => return self.loop_expr(span, None),
             TokenKind::Pipe | TokenKind::OrOr => return self.closure(ctx),
             TokenKind::Return => {
                 self.bump();
-                let ends = matches!(
-                    self.raw(0).kind,
-                    TokenKind::Newline
-                        | TokenKind::Eof
-                        | TokenKind::RBrace
-                        | TokenKind::RParen
-                        | TokenKind::RBracket
-                        | TokenKind::Comma
-                );
-                if ends {
+                if self.value_ends() {
                     ExprKind::Return(None)
                 } else {
                     let value = self.expr_with(ctx);
@@ -803,11 +941,32 @@ impl Parser<'_> {
             }
             TokenKind::Break => {
                 self.bump();
-                ExprKind::Break
+                if self.value_ends() {
+                    ExprKind::Break {
+                        label: None,
+                        value: None,
+                    }
+                } else if self.at_label() {
+                    let label = self.ident("a label");
+                    ExprKind::Break { label, value: None }
+                } else {
+                    let value = self.expr_with(ctx);
+                    let full = span.to(value.span);
+                    let kind = ExprKind::Break {
+                        label: None,
+                        value: Some(Box::new(value)),
+                    };
+                    return self.expr_node(kind, full);
+                }
             }
             TokenKind::Continue => {
                 self.bump();
-                ExprKind::Continue
+                let label = if self.raw(0).kind == TokenKind::Ident {
+                    self.ident("a label")
+                } else {
+                    None
+                };
+                ExprKind::Continue { label }
             }
             TokenKind::Error => {
                 self.bump();
@@ -830,6 +989,67 @@ impl Parser<'_> {
         };
         let span = self.span_from(span);
         self.expr_node(kind, span)
+    }
+
+    /// Whether no value follows `return` or `break`.
+    fn value_ends(&self) -> bool {
+        matches!(
+            self.raw(0).kind,
+            TokenKind::Newline
+                | TokenKind::Eof
+                | TokenKind::RBrace
+                | TokenKind::RParen
+                | TokenKind::RBracket
+                | TokenKind::Comma
+        )
+    }
+
+    /// Whether the next token after `break` is the label of an enclosing loop, alone on the rest
+    /// of the line.
+    fn at_label(&self) -> bool {
+        let token = self.raw(0);
+        token.kind == TokenKind::Ident
+            && self.labels.iter().any(|l| l == self.source(token.span))
+            && matches!(
+                self.raw(1).kind,
+                TokenKind::Newline
+                    | TokenKind::Eof
+                    | TokenKind::RBrace
+                    | TokenKind::RParen
+                    | TokenKind::RBracket
+                    | TokenKind::Comma
+            )
+    }
+
+    /// The parts of an interpolated string; each interpolation is parsed on its own tokens.
+    fn fstring_parts(&mut self, parts: Vec<wolf_lexer::FPart>) -> Vec<FStrPart> {
+        let mut out = Vec::with_capacity(parts.len());
+        for part in parts {
+            match part {
+                wolf_lexer::FPart::Text(text) => out.push(FStrPart::Text(text)),
+                wolf_lexer::FPart::Expr(tokens, _) => {
+                    let mut sub = Parser::new(self.file, self.text, &tokens);
+                    sub.next_id = self.next_id;
+                    sub.depth = self.depth;
+                    sub.labels = self.labels.clone();
+                    let expr = sub.ignore_lines(|p| {
+                        let expr = p.expr();
+                        p.check_no_assignment();
+                        if !p.at(&TokenKind::Eof) {
+                            p.unexpected("`}` at the end of the interpolation");
+                        }
+                        expr
+                    });
+                    self.next_id = sub.next_id;
+                    self.depth_reported |= sub.depth_reported;
+                    for d in sub.diagnostics {
+                        self.report(d);
+                    }
+                    out.push(FStrPart::Expr(expr));
+                }
+            }
+        }
+        out
     }
 
     fn paren(&mut self) -> Expr {
@@ -914,6 +1134,9 @@ impl Parser<'_> {
 
     fn if_expr(&mut self) -> Expr {
         let start = self.bump().span; // `if`
+        if self.eat(&TokenKind::Let) {
+            return self.if_let(start);
+        }
         let cond = self.expr_with(NO_STRUCT);
         self.check_no_assignment();
         let Some(then) = self.block() else {
@@ -921,22 +1144,7 @@ impl Parser<'_> {
             return self.error_expr(start);
         };
         // `else` must be on the line of `}`; a newline in between ends the `if` (E0304 later).
-        let otherwise = if self.raw(0).kind == TokenKind::Else {
-            self.bump();
-            if self.at(&TokenKind::If) {
-                Some(Box::new(self.if_expr()))
-            } else {
-                match self.block() {
-                    Some(block) => {
-                        let span = block.span;
-                        Some(Box::new(self.expr_node(ExprKind::Block(block), span)))
-                    }
-                    None => None,
-                }
-            }
-        } else {
-            None
-        };
+        let otherwise = self.else_branch();
         let span = self.span_from(start);
         self.expr_node(
             ExprKind::If {
@@ -946,6 +1154,56 @@ impl Parser<'_> {
             },
             span,
         )
+    }
+
+    /// `if let pattern = mode? value { } else ...`, after `if let`.
+    fn if_let(&mut self, start: Span) -> Expr {
+        let pattern = self.pattern();
+        if self
+            .expect(&TokenKind::Eq, "`=` and the matched value")
+            .is_none()
+        {
+            self.recover();
+            return self.error_expr(start);
+        }
+        let mode = self.mode();
+        let value = self.expr_with(NO_STRUCT);
+        self.check_no_assignment();
+        let Some(then) = self.block() else {
+            self.recover();
+            return self.error_expr(start);
+        };
+        let otherwise = self.else_branch();
+        let span = self.span_from(start);
+        self.expr_node(
+            ExprKind::IfLet {
+                pattern,
+                mode,
+                value: Box::new(value),
+                then,
+                otherwise,
+            },
+            span,
+        )
+    }
+
+    /// The `else` branch of an `if`, if there is one on the line of `}`.
+    fn else_branch(&mut self) -> Option<Box<Expr>> {
+        if self.raw(0).kind != TokenKind::Else {
+            return None;
+        }
+        self.bump();
+        if self.at(&TokenKind::If) {
+            Some(Box::new(self.if_expr()))
+        } else {
+            match self.block() {
+                Some(block) => {
+                    let span = block.span;
+                    Some(Box::new(self.expr_node(ExprKind::Block(block), span)))
+                }
+                None => None,
+            }
+        }
     }
 
     fn match_expr(&mut self) -> Expr {
@@ -1081,6 +1339,7 @@ impl Parser<'_> {
         } else {
             None
         };
+        let outer_labels = std::mem::take(&mut self.labels);
         let body = if self.at(&TokenKind::LBrace) {
             match self.block() {
                 Some(block) => {
@@ -1103,6 +1362,7 @@ impl Parser<'_> {
             }
             self.expr_with(ctx)
         };
+        self.labels = outer_labels;
         let span = start.to(body.span);
         self.expr_node(
             ExprKind::Closure {

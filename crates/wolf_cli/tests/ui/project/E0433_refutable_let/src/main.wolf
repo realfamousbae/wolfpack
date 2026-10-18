@@ -1,0 +1,12 @@
+module main
+
+main {
+    let Some(x) = find(1)
+    print(x.to_string())
+}
+
+functions {
+    fn find(n: Int) -> Option<Int> {
+        if n > 0 { Some(n) } else { None }
+    }
+}

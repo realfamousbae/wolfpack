@@ -1,0 +1,10 @@
+module main
+
+main {
+    let found = 3
+    found: for i in 0..found {
+        if i == 1 {
+            break found
+        }
+    }
+}

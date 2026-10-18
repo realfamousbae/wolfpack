@@ -1,0 +1,11 @@
+module main
+
+main {
+    rows: for i in 0..3 {
+        rows: for j in 0..3 {
+            if i == j {
+                continue rows
+            }
+        }
+    }
+}

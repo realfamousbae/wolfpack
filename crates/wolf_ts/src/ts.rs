@@ -47,7 +47,7 @@ pub enum Expr {
     This,
     /// `[a, b]`
     Array(Vec<Expr>),
-    /// `{ a: x, b }`
+    /// `{ a: x, b }`; an entry with an empty name is a spread `...x`.
     Object(Vec<(String, Expr)>),
     /// `{ get v() { return x; }, set v(value) { x = value; } }`: a reference to a place.
     RefTo(Box<Expr>),
@@ -71,6 +71,8 @@ pub enum Expr {
     As(Box<Expr>, Type),
     /// `[...a]`
     Spread(Box<Expr>),
+    /// A template literal: string parts are text, the others are `${...}`.
+    Template(Vec<Expr>),
 }
 
 /// The body of an arrow function.
@@ -105,8 +107,8 @@ pub enum Stmt {
     Return(Option<Expr>),
     /// `break;` or `break label;`
     Break(Option<String>),
-    /// `continue;`
-    Continue,
+    /// `continue;` or `continue label;`
+    Continue(Option<String>),
     /// `throw e;`
     Throw(Expr),
     /// `label: { ... }` or `label: while ...`
@@ -545,7 +547,10 @@ impl Printer {
                 Some(l) => self.line(&format!("break {l};")),
                 None => self.line("break;"),
             },
-            Stmt::Continue => self.line("continue;"),
+            Stmt::Continue(l) => match l {
+                Some(l) => self.line(&format!("continue {l};")),
+                None => self.line("continue;"),
+            },
             Stmt::Throw(e) => self.line(&format!("throw {};", expr(e))),
             Stmt::Labeled(l, inner) => match inner.as_ref() {
                 Stmt::Block(body) => {
@@ -740,6 +745,7 @@ pub fn expr(e: &Expr) -> String {
             let items: Vec<String> = fields
                 .iter()
                 .map(|(n, v)| match v {
+                    _ if n.is_empty() => format!("...{}", expr(v)),
                     Expr::Ident(i) if i == n => n.clone(),
                     _ => format!("{n}: {}", expr(v)),
                 })
@@ -813,5 +819,35 @@ pub fn expr(e: &Expr) -> String {
         Expr::Cond(c, a, b) => format!("{} ? {} : {}", wrap(c, 3), wrap(a, 2), wrap(b, 2)),
         Expr::As(a, t) => format!("{} as {}", wrap(a, 10), ty(t)),
         Expr::Spread(a) => format!("...{}", wrap(a, 2)),
+        Expr::Template(parts) => {
+            let mut out = String::from("`");
+            for part in parts {
+                match part {
+                    Expr::Str(text) => out.push_str(&template_text(text)),
+                    other => out.push_str(&format!("${{{}}}", expr(other))),
+                }
+            }
+            out.push('`');
+            out
+        }
     }
+}
+
+/// Text of a template literal with `` ` ``, `\` and `${` escaped.
+fn template_text(s: &str) -> String {
+    let mut out = String::new();
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '`' => out.push_str("\\`"),
+            '\\' => out.push_str("\\\\"),
+            '$' if chars.peek() == Some(&'{') => out.push_str("\\$"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
 }

@@ -463,6 +463,15 @@ pub enum Stmt {
         /// The initializer.
         value: Expr,
     },
+    /// `let Point { x, y } = value`: a destructuring `let` (0.2). The pattern always matches.
+    LetPattern {
+        /// The pattern; its bindings stay in scope after the statement.
+        pattern: Pattern,
+        /// `var`
+        mutable: bool,
+        /// The value; it is moved into the bindings.
+        value: Expr,
+    },
     /// `place = value` or `place op= value`.
     Assign {
         /// A local, a field or an index.
@@ -474,6 +483,8 @@ pub enum Stmt {
     },
     /// `while cond { ... }`
     While {
+        /// The label of the loop.
+        label: Option<String>,
         /// The condition.
         cond: Expr,
         /// The body.
@@ -481,6 +492,8 @@ pub enum Stmt {
     },
     /// `for x in list { ... }`
     ForList {
+        /// The label of the loop.
+        label: Option<String>,
         /// The loop variable.
         var: LocalRef,
         /// `read`, `mut` or `own`.
@@ -492,6 +505,8 @@ pub enum Stmt {
     },
     /// `for i in a..b { ... }`
     ForRange {
+        /// The label of the loop.
+        label: Option<String>,
         /// The loop variable.
         var: LocalRef,
         /// The start.
@@ -561,6 +576,8 @@ pub enum ExprKind {
     Float(f64),
     /// A `String` literal.
     Str(String),
+    /// An interpolated string: the parts, each of type `String`, joined (0.2).
+    Interpolate(Vec<Expr>),
     /// A `Bool` literal.
     Bool(bool),
     /// `()`
@@ -609,8 +626,10 @@ pub enum ExprKind {
     Struct {
         /// The struct.
         def: DefRef,
-        /// The field values, in declaration order.
+        /// The field values, in declaration order. With a `base`, only the written fields.
         fields: Vec<(String, Expr)>,
+        /// `..base`: the other fields are moved out of this value (0.2).
+        base: Option<Box<Expr>>,
     },
     /// A variant with its payload values, in declaration order.
     Variant {
@@ -676,10 +695,25 @@ pub enum ExprKind {
     Block(Block),
     /// `return`
     Return(Option<Box<Expr>>),
-    /// `break`
-    Break,
-    /// `continue`
-    Continue,
+    /// `loop { ... }` (0.2); its type is the type of its `break` values, `Void` or Never.
+    Loop {
+        /// The label of the loop.
+        label: Option<String>,
+        /// The body.
+        body: Block,
+    },
+    /// `break`, `break label` or `break value`.
+    Break {
+        /// The labelled loop it leaves; `None` for the innermost loop.
+        label: Option<String>,
+        /// The value of the `loop` it leaves.
+        value: Option<Box<Expr>>,
+    },
+    /// `continue` or `continue label`.
+    Continue {
+        /// The labelled loop it continues; `None` for the innermost loop.
+        label: Option<String>,
+    },
     /// `value?`; for a `Result`, `coerce_error` is the interface the error is converted to.
     Try {
         /// The `Result` or `Option`.

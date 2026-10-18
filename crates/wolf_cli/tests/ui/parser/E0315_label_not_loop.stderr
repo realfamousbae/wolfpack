@@ -1,0 +1,11 @@
+error[E0315]: a label that does not stand before a loop
+  --> parser/E0315_label_not_loop.wolf:4:5
+  |
+4 |     outer: let x = 1
+  |     ^^^^^  --- expected `while`, `for` or `loop` here
+  |     |       
+  |     this label
+  |
+  = help: labels name loops: `outer: for x in xs { ... }`
+
+error: aborting due to 1 error

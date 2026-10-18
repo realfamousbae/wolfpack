@@ -728,6 +728,15 @@ impl<'a> Fmt<'a> {
                 head.push(text(" = "));
                 self.assigned(cat(head), value)
             }
+            StmtKind::LetPattern {
+                mutable,
+                pattern,
+                value,
+            } => {
+                let kw = if *mutable { "var" } else { "let" };
+                let head = text(format!("{kw} {} = ", self.pat(pattern)));
+                self.assigned(head, value)
+            }
             StmtKind::Assign { target, op, value } => {
                 let head = cat(vec![
                     self.expr(target),
@@ -735,14 +744,36 @@ impl<'a> Fmt<'a> {
                 ]);
                 self.assigned(head, value)
             }
-            StmtKind::While { cond, body } => cat(vec![
-                text("while "),
+            StmtKind::While { label, cond, body } => cat(vec![
+                text(format!("{}while ", label_text(label))),
                 self.expr(cond),
                 text(" "),
                 self.block(body, true),
             ]),
-            StmtKind::For { var, iter, body } => {
-                let mut parts = vec![text(format!("for {} in ", var.name))];
+            StmtKind::WhileLet {
+                label,
+                pattern,
+                mode: m,
+                value,
+                body,
+            } => cat(vec![
+                text(format!(
+                    "{}while let {} = {}",
+                    label_text(label),
+                    self.pat(pattern),
+                    mode(*m)
+                )),
+                self.expr(value),
+                text(" "),
+                self.block(body, true),
+            ]),
+            StmtKind::For {
+                label,
+                var,
+                iter,
+                body,
+            } => {
+                let mut parts = vec![text(format!("{}for {} in ", label_text(label), var.name))];
                 match iter {
                     ForIter::Collection { mode: m, expr } => {
                         parts.push(text(mode(*m)));
@@ -799,9 +830,8 @@ impl<'a> Fmt<'a> {
 
     fn expr(&mut self, e: &ast::Expr) -> Doc {
         match &e.kind {
-            ExprKind::Int(_) | ExprKind::Float(_) | ExprKind::Str(_) | ExprKind::Error => {
-                text(self.src(e.span))
-            }
+            ExprKind::Int(_) | ExprKind::Float(_) | ExprKind::Error => text(self.src(e.span)),
+            ExprKind::Str(_) | ExprKind::FStr(_) => self.string(e.span),
             ExprKind::Bool(b) => text(b.to_string()),
             ExprKind::Unit => text("()"),
             ExprKind::Name(n) => text(n.name.clone()),
@@ -829,22 +859,26 @@ impl<'a> Fmt<'a> {
                 path: p,
                 type_args,
                 fields,
+                base,
             } => {
                 let mut head = path(p);
                 if !type_args.is_empty() {
                     let a: Vec<String> = type_args.iter().map(|t| self.ty_text(t)).collect();
                     head.push_str(&format!(".<{}>", a.join(", ")));
                 }
-                if fields.is_empty() {
+                if fields.is_empty() && base.is_none() {
                     return text(format!("{head} {{}}"));
                 }
-                let docs: Vec<Doc> = fields
+                let mut docs: Vec<Doc> = fields
                     .iter()
                     .map(|fi| match &fi.value {
                         Some(v) => cat(vec![text(format!("{}: ", fi.name.name)), self.expr(v)]),
                         None => text(fi.name.name.clone()),
                     })
                     .collect();
+                if let Some(b) = base {
+                    docs.push(cat(vec![text(".."), self.expr(b)]));
+                }
                 cat(vec![text(format!("{head} ")), spaced_braces(docs)])
             }
             ExprKind::Field { .. }
@@ -894,7 +928,7 @@ impl<'a> Fmt<'a> {
                 cat(vec![text(format!("{head} ")), self.expr(body)])
             }
             ExprKind::Block(b) => self.block(b, true),
-            ExprKind::If { .. } => {
+            ExprKind::If { .. } | ExprKind::IfLet { .. } => {
                 // An `if` whose blocks are all on one line is one group: on one line, or every
                 // block broken.
                 if let Some(d) = self.if_one_line(e) {
@@ -929,22 +963,90 @@ impl<'a> Fmt<'a> {
                 Some(x) => cat(vec![text("return "), self.expr(x)]),
                 None => text("return"),
             },
-            ExprKind::Break => text("break"),
-            ExprKind::Continue => text("continue"),
+            ExprKind::Loop { label, body } => cat(vec![
+                text(format!("{}loop ", label_text(label))),
+                self.block(body, true),
+            ]),
+            ExprKind::Break { label, value } => match (label, value) {
+                (Some(l), _) => text(format!("break {}", l.name)),
+                (None, Some(v)) => cat(vec![text("break "), self.expr(v)]),
+                (None, None) => text("break"),
+            },
+            ExprKind::Continue { label } => match label {
+                Some(l) => text(format!("continue {}", l.name)),
+                None => text("continue"),
+            },
+        }
+    }
+
+    /// A string literal as written. A multiline string keeps its content and moves with the
+    /// indentation of the code (chapter 3, section 8a, rule 8).
+    fn string(&self, span: Span) -> Doc {
+        let source = self.src(span);
+        let lines: Vec<&str> = source
+            .split('\n')
+            .map(|l| l.trim_end_matches('\r'))
+            .collect();
+        let (Some(first), Some(last)) = (lines.first(), lines.last()) else {
+            return text(source);
+        };
+        if lines.len() < 2 {
+            return text(source);
+        }
+        let indent = &last[..last.len() - last.trim_start().len()];
+        let content = lines
+            .get(1..lines.len() - 1)
+            .unwrap_or_default()
+            .iter()
+            .map(|l| match l.strip_prefix(indent) {
+                Some(rest) => rest.to_string(),
+                None => l.trim_start().to_string(),
+            })
+            .collect();
+        Doc::Verbatim(
+            first.trim_end().to_string(),
+            content,
+            last.trim_start().to_string(),
+        )
+    }
+
+    /// The head of an `if` or an `if let` up to its first block, the block and the `else` part.
+    fn if_head<'e>(
+        &mut self,
+        e: &'e ast::Expr,
+    ) -> Option<(Vec<Doc>, &'e ast::Block, Option<&'e ast::Expr>)> {
+        match &e.kind {
+            ExprKind::If {
+                cond,
+                then,
+                otherwise,
+            } => Some((
+                vec![text("if "), self.expr(cond), text(" ")],
+                then,
+                otherwise.as_deref(),
+            )),
+            ExprKind::IfLet {
+                pattern,
+                mode: m,
+                value,
+                then,
+                otherwise,
+            } => Some((
+                vec![
+                    text(format!("if let {} = {}", self.pat(pattern), mode(*m))),
+                    self.expr(value),
+                    text(" "),
+                ],
+                then,
+                otherwise.as_deref(),
+            )),
+            _ => None,
         }
     }
 
     fn if_one_line(&mut self, e: &ast::Expr) -> Option<Doc> {
-        let ExprKind::If {
-            cond,
-            then,
-            otherwise,
-        } = &e.kind
-        else {
-            return None;
-        };
         let saved = self.next;
-        let mut parts = vec![text("if "), self.expr(cond), text(" ")];
+        let (mut parts, then, otherwise) = self.if_head(e)?;
         let Some(t) = self.one_line(then) else {
             self.next = saved;
             return None;
@@ -954,7 +1056,7 @@ impl<'a> Fmt<'a> {
             parts.push(text(" else "));
             let rest = match &o.kind {
                 ExprKind::Block(b) => self.one_line(b),
-                ExprKind::If { .. } => self.if_one_line(o),
+                ExprKind::If { .. } | ExprKind::IfLet { .. } => self.if_one_line(o),
                 _ => None,
             };
             let Some(r) = rest else {
@@ -967,25 +1069,15 @@ impl<'a> Fmt<'a> {
     }
 
     fn if_lines(&mut self, e: &ast::Expr) -> Doc {
-        let ExprKind::If {
-            cond,
-            then,
-            otherwise,
-        } = &e.kind
-        else {
+        let Some((mut parts, then, otherwise)) = self.if_head(e) else {
             return self.expr(e);
         };
-        let mut parts = vec![
-            text("if "),
-            self.expr(cond),
-            text(" "),
-            self.multi_line(then),
-        ];
+        parts.push(self.multi_line(then));
         if let Some(o) = otherwise {
             parts.push(text(" else "));
             match &o.kind {
                 ExprKind::Block(b) => parts.push(self.multi_line(b)),
-                ExprKind::If { .. } => parts.push(self.if_lines(o)),
+                ExprKind::If { .. } | ExprKind::IfLet { .. } => parts.push(self.if_lines(o)),
                 _ => parts.push(self.expr(o)),
             }
         }
@@ -1194,8 +1286,19 @@ fn huggable(e: &ast::Expr) -> bool {
 fn block_like(e: &ast::Expr) -> bool {
     matches!(
         e.kind,
-        ExprKind::Block(_) | ExprKind::Match { .. } | ExprKind::If { .. }
+        ExprKind::Block(_)
+            | ExprKind::Match { .. }
+            | ExprKind::If { .. }
+            | ExprKind::IfLet { .. }
+            | ExprKind::Loop { .. }
     )
+}
+
+/// `label: ` before a loop, or nothing.
+fn label_text(label: &Option<ast::Ident>) -> String {
+    label
+        .as_ref()
+        .map_or(String::new(), |l| format!("{}: ", l.name))
 }
 
 /// The operands and operators of a chain of binary operators of one precedence.
