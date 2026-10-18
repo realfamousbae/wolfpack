@@ -244,9 +244,22 @@ is missing.
 
 ### Update
 
-Run the installer again: the [quick install](#quick-install) command, or the newest graphical
-installer. It replaces `wolf` and keeps your settings and projects. Run `wolf setup` afterwards,
-because a new `wolf` may use new versions of the target tools.
+From 0.2 on, `wolf` updates itself:
+
+```bash
+wolf self update
+```
+
+It downloads the latest release, checks its SHA-256 sum, replaces `wolf` and runs `wolf setup`
+for the tools of the new version. `wolf self update --check` only says whether a newer release
+exists, and `wolf self update --version 0.2.0` installs a given release. Once a day `wolf` also
+looks for a new release in the background and asks `Update now? [y/N]` before the next command,
+only in a terminal. To turn the question off, set `WOLFPACK_NO_UPDATE_CHECK=1`, or write
+`update.check = false` into `~/.wolfpack/config.toml`; it is never asked in CI.
+
+A `wolf` installed with Cargo or Homebrew is updated with that tool. Older versions are updated
+by running the installer again: the [quick install](#quick-install) command, or the newest
+graphical installer.
 
 ### Uninstall
 

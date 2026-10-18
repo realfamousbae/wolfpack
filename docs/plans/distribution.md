@@ -1,6 +1,7 @@
 # Plan: installing wolf everywhere
 
-Status: **draft plan** (2026-10-17). Stage D1 is done; the other stages wait for the author.
+Status: **draft plan** (2026-10-17). Stage D1 is done; `wolf self update` of stage D4 is done in
+0.2 (2026-10-18); the other stages wait for the author.
 
 ## 1. Goal
 

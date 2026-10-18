@@ -17,6 +17,9 @@ All notable changes are recorded here at the end of each milestone.
 - New diagnostics E0114 to E0116, E0315, E0316 and E0433 to E0438.
 - The example `syntax-tour`; the guide shows the new forms in chapters 2, 3, 5, 7, 9 and 11.
 - `wolf fmt` keeps the content of `"""` strings and moves them with the code.
+- `wolf self update` installs the latest release (or `--version`), and `wolf` asks once a day,
+  in a terminal, whether to update when a newer release exists (spec chapter 8, section 2b;
+  E0805). `WOLFPACK_NO_UPDATE_CHECK=1` or `update.check = false` turn the question off.
 
 ## 0.1.1 (2026-10-17)
 
