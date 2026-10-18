@@ -1,0 +1,4 @@
+[package]
+name = "comparable-copy-enum"
+version = "0.1.0"
+kind = "cli"

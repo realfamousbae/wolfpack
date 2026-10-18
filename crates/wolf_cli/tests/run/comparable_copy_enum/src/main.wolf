@@ -1,0 +1,43 @@
+//! An implementation of `Comparable` on an enum without payloads, a copy type: Rust's trait takes
+//! the other value by reference.
+module main
+
+types {
+    enum Size {
+        Small
+        Medium
+        Large
+    }
+}
+
+impl {
+    Size: Comparable {
+        fn compare(self, other: Size) -> Ordering {
+            rank(self).compare(rank(other))
+        }
+    }
+}
+
+main {
+    print(name(Size.Large.compare(Size.Small)))
+    let s = Size.Medium
+    print(name(s.compare(Size.Medium)) + " " + name(s.compare(Size.Large)))
+}
+
+functions {
+    fn rank(s: Size) -> Int {
+        match s {
+            Size.Small => 1
+            Size.Medium => 2
+            Size.Large => 3
+        }
+    }
+
+    fn name(o: Ordering) -> String {
+        match o {
+            Ordering.Less => "less"
+            Ordering.Equal => "equal"
+            Ordering.Greater => "greater"
+        }
+    }
+}

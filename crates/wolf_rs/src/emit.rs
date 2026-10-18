@@ -647,6 +647,24 @@ impl<'p> Emitter<'p> {
                 self.reexported.insert(r.def, n);
             }
         }
+        // A read parameter of a copy type takes a reference where the trait's parameter is not a
+        // copy type (`other: &Self` of `Comparable`).
+        let mut by_ref = Vec::new();
+        for f in self
+            .structs
+            .values()
+            .flat_map(|s| &s.methods)
+            .chain(self.enums.values().flat_map(|e| &e.methods))
+        {
+            for i in self.trait_ref_params(f) {
+                by_ref.push((f.def, i));
+            }
+        }
+        for (def, i) in by_ref {
+            if let Some(p) = self.fns.get_mut(&def).and_then(|f| f.params.get_mut(i)) {
+                p.1 = IrType::SelfType;
+            }
+        }
         self.mut_methods = self
             .fns
             .iter()
@@ -662,6 +680,25 @@ impl<'p> Emitter<'p> {
         self.recursion();
         self.derives();
         self.dyn_types();
+    }
+
+    /// The read parameters of a copy type of an interface method's implementation whose type in
+    /// the interface is not a copy type: Rust's trait takes them by reference.
+    fn trait_ref_params(&self, f: &ir::Function) -> Vec<usize> {
+        let Some(decl) = f
+            .interface
+            .and_then(|i| self.ifaces.get(&i))
+            .and_then(|i| i.methods.iter().find(|m| m.name == f.name))
+        else {
+            return Vec::new();
+        };
+        f.params
+            .iter()
+            .zip(&decl.params)
+            .enumerate()
+            .filter(|(_, (p, d))| p.mode == Mode::Read && self.copy(&p.ty) && !self.copy(&d.ty))
+            .map(|(i, _)| i)
+            .collect()
     }
 
     /// The types a type contains directly (also through `Option` and `Result`), by field.
@@ -1452,10 +1489,15 @@ impl<'p> Emitter<'p> {
             .to_string()
         });
         let _ = self_ty;
+        let by_ref = self.trait_ref_params(f);
+        let mut rebind = Vec::new();
         let mut params = Vec::new();
-        for p in &f.params {
+        for (i, p) in f.params.iter().enumerate() {
             let n = self.local_name(p.local);
-            let t = self.param_ty(p.mode, &p.ty)?;
+            let mut t = self.param_ty(p.mode, &p.ty)?;
+            if by_ref.contains(&i) {
+                t = Type::Ref(Box::new(t));
+            }
             let l = match p.mode {
                 Mode::Own => Local::Val(n.clone()),
                 Mode::Mut => Local::Mut(n.clone()),
@@ -1472,11 +1514,25 @@ impl<'p> Emitter<'p> {
                 && !self.f.reads.contains(&p.local)
                 && !self.f.mutated.contains(&p.local);
             let n = if unused { format!("_{n}") } else { n };
-            params.push((Pat::Bind(n, mutable), t));
+            if by_ref.contains(&i) && !unused {
+                rebind.push(Stmt::Let(
+                    Pat::Bind(n.clone(), mutable),
+                    None,
+                    Some(deref(path(&n))),
+                ));
+                params.push((Pat::Bind(n, false), t));
+            } else {
+                params.push((Pat::Bind(n, mutable), t));
+            }
         }
         let ret = self.ret_ty(&f.ret)?;
         let body = match &f.body {
-            Some(b) => Some(self.block(b, Want::Own)?),
+            Some(b) => {
+                let mut b = self.block(b, Want::Own)?;
+                rebind.append(&mut b.stmts);
+                b.stmts = rebind;
+                Some(b)
+            }
             None => None,
         };
         self.f = FnState::default();
