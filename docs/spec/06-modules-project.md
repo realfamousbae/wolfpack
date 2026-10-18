@@ -219,6 +219,8 @@ my-app/
     storage_flow.wolf       module tests.storage_flow
   examples/
     quick_start.wolf        module examples.quick_start
+  native/                   your own target code (0.2, rule 7)
+    ts/  go/  rust/
   out/                      generated, not in git
 ```
 
@@ -237,6 +239,12 @@ my-app/
 5. `out/` is generated and is not part of the source; `wolf new` adds it to `.gitignore`.
 6. `wolf new <name> --kind cli|lib` creates `wolfpack.toml`, the entry file with a minimal valid
    program, empty `tests/` and `examples/`, and `.gitignore` **[PLAN]**.
+7. **`native/`** (0.2, author, 2026-10-18) holds code of the project written in a target language,
+   called through `extern` with a `native:` path (chapter 7, section 8.2a): `native/ts/` holds
+   `.ts` files, `native/go/` Go packages (one directory per package), `native/rust/` `.rs`
+   files. Each subdirectory is optional. `native/` may contain no other directories (E0612). The
+   compiler does not read these files; it copies them into the generated project of their target
+   (chapter 8, section 8a).
 
 ## 8. Explicitly discarding a value
 
@@ -282,3 +290,4 @@ Proposed range E06xx (confirmed in chapter 9).
 | D6.5 | `let _ = expr` to discard a value explicitly (grammar change in chapter 3) | **answered**: yes |
 | D6.6 | Manifest details: package name and version format, optional `[targets]` with defaults, `[config.<module>]` override format with exact types, unknown keys are errors | **answered**: yes |
 | D6.7 | Rest: scopes and conflicts, no private types in public signatures, panic exit code 101, `assert` usable outside tests, prelude names cannot be redeclared, diagnostics | **answered**: yes |
+| D6.8 | 0.2: the directory `native/` with `ts/`, `go/` and `rust/` (section 7, rule 7) | **answered** (author, 2026-10-18): yes |

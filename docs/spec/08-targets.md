@@ -362,6 +362,20 @@ copy defensively.
      parameter, `integer overflow` for a result, on every target.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
+## 8a. Code of the project (`native/`)
+
+Added in 0.2 (author, 2026-10-18). `wolf build` copies the files of `native/<target>/` byte for
+byte into the generated project of that target, and the generated code imports them:
+
+| Target | Copied to | A call of `"native:slug#slugify"` / `"native:slug.Slugify"` / `"native:slug::slugify"` |
+| --- | --- | --- |
+| TS | `out/ts/src/native/` | `import { slugify } from "./native/slug.js"`, relative to the module |
+| Go | `out/go/native/` (packages of the generated module) | `import "<module>/native/slug"`, then `slug.Slugify(...)` |
+| Rust | `out/rust/src/native/`, with a generated `src/native/mod.rs` declaring the modules | `crate::native::slug::slugify(...)` |
+
+The conversions at the boundary are those of section 8. The files are copied only for the target
+being built; the playground has no native code.
+
 ## 9. Diagnostics
 
 Added in M6 (author, 2026-10-09). Like driver errors, these have no source range.
@@ -373,6 +387,7 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it |
 | E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16) |
 | E0805 | `wolf self update` could not download, check or install a release (section 2b); the URL or the file and the reason are shown (0.2) |
+| E0806 | A tool of the target rejected code in `native/` (section 8a); the output of the tool is shown. Unlike E0802 it is not a bug of `wolf` (0.2) |
 
 ## 10. Decisions for the author
 
@@ -384,4 +399,5 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.4 | Extern boundary conversions (section 8), in particular `Int` as a checked `number` for TS libraries | **answered**: yes |
 | D8.5 | Review the **[INTERNAL]** choices: generated runtime contents, entry wrapper, Go dictionary passing for bounds, temporaries for expression `if`/`match`, panic message translation | **answered**: accepted |
 | D8.6 | 0.2: `wolf self update` and the daily question at start (section 2b) | **answered** (author, 2026-10-18): yes; a background check once a day, `[y/N]` only in a terminal |
+| D8.8 | 0.2: where the files of `native/` are copied and how the generated code imports them (section 8a), code E0806 | **answered** (author, 2026-10-18): yes |
 | D8.7 | 0.2: the details of section 2b: no prerelease, update to an older version with `--version`, package managers left alone, `update.check` in `<home>/config.toml`, the same release asked about once a day, code E0805 | **answered** (author, 2026-10-18): yes |

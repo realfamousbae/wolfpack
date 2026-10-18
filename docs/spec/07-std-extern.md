@@ -288,6 +288,47 @@ the target's form is an error (E0705).
 The path of a Go **opaque type** may start with `*` for a pointer type (author, 2026-10-14):
 `type Regex from "*regexp.Regexp"`.
 
+### 8.2a Code of the project: `native:` paths
+
+Added in 0.2 (author, 2026-10-18). A path string that starts with `native:` names code in the
+`native/<target>/` directory of the project (chapter 6, section 7, rule 7). The rest of the path
+has the form of the target:
+
+| Target | Form | Example | Names |
+| --- | --- | --- | --- |
+| TS | `native:<file>#<export>` | `"native:text/slug#slugify"` | the export `slugify` of `native/ts/text/slug.ts` |
+| Go | `native:<package dir>.<Name>` | `"native:slug.Slugify"` | the function `Slugify` of the package in `native/go/slug/` |
+| Rust | `native:<module path>::<name>` | `"native:slug::slugify"` | the function `slugify` of `native/rust/slug.rs` |
+
+```
+extern {
+    ts {
+        pub fn slugify(s: String) -> String from "native:slug#slugify"
+    }
+    go {
+        pub fn slugify(s: String) -> String from "native:slug.Slugify"
+    }
+    rust {
+        pub fn slugify(s: String) -> String from "native:slug::slugify"
+    }
+}
+```
+
+1. All the rules of extern declarations apply unchanged: the boundary types (section 8.4),
+   `Result` and panics, the contract of read parameters, opaque types
+   (`type Index from "native:search.Index"`) and target binding (section 8.5).
+2. The file, the Go package directory or the Rust module named by the path must exist in
+   `native/<target>/` (E0709, at the path string). Whether the function exists and has the declared
+   signature is checked by `tsc`, `go build` or `cargo`. An error that their tool reports in a
+   native file is not a bug of `wolf`: it is E0806 (chapter 8), with the output of the tool.
+3. Native code may use the dependencies of `[extern.<target>.dependencies]` and the standard
+   library of its language, but not the runtime of the generated code, whose contents are
+   internal.
+4. A native file or package whose generated path is taken by the compiler (the runtime, or a
+   module of `src/`) is an error (E0710, naming both).
+5. `wolf test` does not run tests written in the native files; they run with the tools of the
+   target in `out/<target>/`.
+
 ### 8.3 Opaque types
 
 `type Hasher from "hash.Hash"` (Go) declares an **opaque type** (author):
@@ -345,6 +386,8 @@ Proposed range E07xx (confirmed in chapter 9).
 | E0706 | Generic extern function or `mut` parameter in an extern function |
 | E0707 | Operation not available on an opaque type |
 | E0708 | Extern name declared twice in one target block |
+| E0709 | A `native:` path names a file, a package or a module that `native/<target>/` does not have (0.2) |
+| E0710 | A native file or package takes a path of the generated project (0.2) |
 
 ## 10. Decisions for the author
 
@@ -361,3 +404,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.9 | Rest: method lists of `String`, `List`, `Map`; `std.io`, `std.fs`, `std.process`; target binding; diagnostics | **answered**: yes |
 | D7.10 | 0.2: `error(message) -> Error` and `assert_eq` with `Display`, in the prelude | **answered** (author, 2026-10-18): yes |
 | D7.11 | 0.2: the panic text of `assert_eq` (section 3, rule 2) | **answered** (author, 2026-10-18): yes |
+| D7.12 | 0.2: code of the project in `native/<target>/`, called with `native:` paths (section 8.2a; the recommendations Q1 to Q3 of `docs/plans/native-code.md`) | **answered** (author, 2026-10-18): yes |
