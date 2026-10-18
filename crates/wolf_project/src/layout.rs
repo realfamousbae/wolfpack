@@ -77,6 +77,38 @@ pub fn find_root(start: &Path) -> Option<PathBuf> {
     None
 }
 
+/// The directories of `native/`, one per target (spec chapter 6, section 7, rule 7).
+pub const NATIVE_DIRS: &[&str] = &["ts", "go", "rust"];
+
+/// The files of `native/<target>/` with their paths relative to it, in a fixed order; empty
+/// when the directory does not exist. Hidden files and directories are left out.
+pub fn native_files(root: &Path, target: &str) -> Vec<(PathBuf, PathBuf)> {
+    fn walk(dir: &Path, rel: &Path, out: &mut Vec<(PathBuf, PathBuf)>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        let mut entries: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+        entries.sort();
+        for path in entries {
+            let Some(name) = path.file_name() else {
+                continue;
+            };
+            if name.to_string_lossy().starts_with('.') {
+                continue;
+            }
+            let rel = rel.join(name);
+            if path.is_dir() {
+                walk(&path, &rel, out);
+            } else {
+                out.push((rel, path));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(&root.join("native").join(target), Path::new(""), &mut out);
+    out
+}
+
 /// Lists the `.wolf` files of the project in a fixed order and reports layout errors (E0612).
 pub fn discover(root: &Path, manifest: &Manifest) -> (Vec<ModuleFile>, Vec<Diagnostic>) {
     let mut out = Walk {
@@ -102,6 +134,7 @@ pub fn discover(root: &Path, manifest: &Manifest) -> (Vec<ModuleFile>, Vec<Diagn
             out.walk(&path, &mut vec![prefix.to_string()], area);
         }
     }
+    out.check_native();
     out.check_entry(manifest);
     out.files.sort_by(|a, b| a.display.cmp(&b.display));
     (out.files, out.diagnostics)
@@ -121,6 +154,28 @@ struct Walk {
 }
 
 impl Walk {
+    /// `native/` holds only the directories of the targets.
+    fn check_native(&mut self) {
+        let Ok(entries) = std::fs::read_dir(self.root.join("native")) else {
+            return;
+        };
+        let mut names: Vec<String> = entries
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| !n.starts_with('.'))
+            .filter(|n| {
+                !(NATIVE_DIRS.contains(&n.as_str()) && self.root.join("native").join(n).is_dir())
+            })
+            .collect();
+        names.sort();
+        for name in names {
+            self.diagnostics.push(
+                Diagnostic::new(codes::E0612, format!("unexpected `native/{name}`"))
+                    .help("`native/` holds only the directories `ts`, `go` and `rust`"),
+            );
+        }
+    }
+
     fn display(&self, path: &Path) -> String {
         path.strip_prefix(&self.root)
             .unwrap_or(path)

@@ -6,7 +6,7 @@ mod manifest;
 use std::fs;
 use std::path::Path;
 
-pub use layout::{ModuleFile, Role, discover, find_root, is_snake_case};
+pub use layout::{ModuleFile, NATIVE_DIRS, Role, discover, find_root, is_snake_case, native_files};
 pub use manifest::{
     ConfigOverride, ConfigValue, Kind, Manifest, Target, is_kebab_case, parse_manifest,
 };
