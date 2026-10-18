@@ -141,6 +141,48 @@ and `tsc` for TypeScript, `go` for Go, `cargo` for Rust (author, 2026-10-16).
    The archives contain only `wolf`: they change no `PATH` and do not run `wolf setup`. The
    terminal scripts check the download against the `SHA256SUMS.txt` of the release.
 
+## 2b. Updating `wolf`
+
+Added in 0.2 (author, 2026-10-18). `wolf` can replace itself with a newer release, by a command
+and after a question at start.
+
+1. **Releases.** A release is a tag `v<x.y.z>` of the GitHub repository `realfamousbae/wolfpack`
+   with the archives of section 2a, rule 5 and `SHA256SUMS.txt`. Only such releases count; a
+   prerelease never does. Versions are compared as three numbers.
+2. **`wolf self update`** installs the latest release, `wolf self update --version <x.y.z>` the
+   given one (also an older one). It downloads the archive of the system and `SHA256SUMS.txt`,
+   checks the sum, unpacks the new `wolf` next to the running one and runs `wolf --version` with
+   it. Only when all of this succeeds is the old file replaced; otherwise it stays as it was. On
+   Windows the running `wolf.exe` is renamed to `wolf.old.exe` first and removed by a later
+   start. At the end the new `wolf` runs `wolf setup` (section 2a), which installs the tools that
+   the new version fixes, if they changed. Already on the latest release, it says so and changes
+   nothing.
+3. **`wolf self update --check`** only asks: it prints the current and the latest version and
+   exits with code 0 when they are equal, 1 when a newer release exists.
+4. **Installations that `wolf` does not replace.** A `wolf` installed by a package manager is
+   updated by that manager: under `~/.cargo/bin` (or `$CARGO_HOME/bin`) `wolf self update` prints
+   `cargo install --locked wolfpack-lang`, under a Homebrew prefix (`/opt/homebrew`,
+   `/usr/local/Cellar`, `linuxbrew`) `brew upgrade wolfpack`, and it changes nothing. A `wolf`
+   whose directory cannot be written is not replaced either; the error names the directory and
+   the installer command.
+5. **The question at start.** At most once a day `wolf` asks GitHub for the latest release in the
+   background: the command that runs does not wait for the answer, and a failure is silent. The
+   answer is kept in `<home>/update-check.json`. When it names a newer release, the next command
+   asks first, on standard error:
+   ```
+   wolf 0.3.0 is available (you have 0.2.0). Update now? [y/N]
+   ```
+   `y` runs `wolf self update` and then the command that was asked for, with the new `wolf`. Any
+   other answer runs the command as it is, and the same release is asked about again only on a
+   later day.
+6. **When there is no question.** Never in a pipe or a script: only when standard input and
+   standard error are terminals. Never with the environment variable `CI`, never with
+   `WOLFPACK_NO_UPDATE_CHECK=1`, and never when `<home>/config.toml` has `update.check = false`.
+   Never for `wolf self ...`, `wolf --version`, `wolf --help`, `wolf explain` and the background
+   check itself. In these cases nothing is asked and nothing is fetched.
+7. A failed update is E0805, with the URL or the file and the reason. Like the other E08xx
+   errors, it has no source range.
+
 ## 3. Names
 
 | Wolfpack | TS | Go | Rust |
@@ -330,6 +372,7 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | E0804 | `wolf setup` could not download or install a tool (section 2a); the tool, the URL and the reason are shown (author, 2026-10-16) |
 | E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it |
 | E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16) |
+| E0805 | `wolf self update` could not download, check or install a release (section 2b); the URL or the file and the reason are shown (0.2) |
 
 ## 10. Decisions for the author
 
@@ -340,3 +383,5 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.3 | Name mapping rules, including `aB_1` for `a_b_1` (section 3) | **answered**: yes |
 | D8.4 | Extern boundary conversions (section 8), in particular `Int` as a checked `number` for TS libraries | **answered**: yes |
 | D8.5 | Review the **[INTERNAL]** choices: generated runtime contents, entry wrapper, Go dictionary passing for bounds, temporaries for expression `if`/`match`, panic message translation | **answered**: accepted |
+| D8.6 | 0.2: `wolf self update` and the daily question at start (section 2b) | **answered** (author, 2026-10-18): yes; a background check once a day, `[y/N]` only in a terminal |
+| D8.7 | 0.2: the details of section 2b: no prerelease, update to an older version with `--version`, package managers left alone, `update.check` in `<home>/config.toml`, the same release asked about once a day, code E0805 | **answered** (author, 2026-10-18): yes |
