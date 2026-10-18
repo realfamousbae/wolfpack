@@ -112,9 +112,11 @@ type_args  = "<" sep(type, ",") ">"
 block      = "{" NL* ( stmt ( NL+ stmt )* NL* )? "}"
            // the last statement may be an expression: it is the value of the block
 stmt       = let_stmt | assign_stmt | expr_stmt
-           | while_stmt | for_stmt
+           | ( label )? ( while_stmt | for_stmt | loop_expr )
 let_stmt   = ( "let" | "var" ) IDENT ( ":" type )? "=" expr
            | "let" "_" "=" expr
+           | ( "let" | "var" ) pattern "=" expr      // destructuring, rule 2
+label      = IDENT ":"
 assign_stmt = place assign_op expr
 assign_op  = "=" | "+=" | "-=" | "*=" | "/=" | "%="
            | "&=" | "|=" | "^=" | "<<=" | ">>="
@@ -122,6 +124,7 @@ place      = IDENT ( "." IDENT | "[" expr "]" )*
            | "self" ( "." IDENT | "[" expr "]" )*
 expr_stmt  = expr
 while_stmt = "while" expr_no_struct block
+           | "while" "let" pattern "=" mode? expr_no_struct block
 for_stmt   = "for" IDENT "in" ( range | mode? expr_no_struct ) block
 range      = expr ( ".." | "..=" ) expr
 ```
@@ -130,15 +133,38 @@ range      = expr ( ".." | "..=" ) expr
    expression is the value of the block **[PLAN]** (`None` and `Ok(())` at the end of functions in
    sections 3 and 5). A block without a final expression has the value `()`.
 2. `let` and `var` always have an initializer. **[PROPOSAL]** `let _ = expr` evaluates `expr` and
-   drops the value; it is the explicit way to discard a value such as a `Result` (chapter 6, D6.5). The binding is a plain name; there is
-   no destructuring in `let` and no `if let` in v1 (use `match`). **[PROPOSAL]** (see D3.4)
+   drops the value; it is the explicit way to discard a value such as a `Result` (chapter 6, D6.5).
+   **Destructuring** (added in 0.2, author, 2026-10-18): the left side may be a pattern of section 7
+   that always matches, such as `let Point { x, y } = p` or `var Config { name, port, .. } = load()`.
+   A pattern that may fail (`let Some(x) = find(id)`) is an error (E0433, with the hint to use
+   `if let` or `match`). In `let` a lone name is always a new binding, never a comparison with a
+   constant or a variant (section 7, rule 3 does not apply). A type annotation is written only
+   after a plain name. `var` makes every binding of the pattern mutable. Ownership of the parts is
+   in chapter 5, section 7.4.
 3. **Assignment is a statement, not an expression.** `a = b = c` does not parse. **[PROPOSAL]**
 4. `return`, `break` and `continue` are **expressions** of type Never (chapter 4, D4.2), so they can
    stand in a `match` arm: `None => return 0`. `return` without a value returns `()`. A `return`
    inside a closure returns from the closure. The value after `return` extends to the end of the
    line, as for any expression.
-5. `break` and `continue` have no labels and no values. There is no `loop`; write `while true`.
-   **[PROPOSAL]**
+5. **`loop`, labels and `break` with a value** (added in 0.2, author, 2026-10-18).
+   - `loop { ... }` repeats its body until a `break`. It is an expression: `break value` ends it
+     with `value`, as in Rust: `let line = loop { ... break text ... }`. A `loop` without a `break`
+     of its own never ends (chapter 4, section 6, rule 9). `while true` keeps working.
+   - `while`, `for` and `loop` may have a **label** at the start of the statement:
+     `outer: for row in rows { ... }`. A label is a lower-case name followed by `:` on the line of
+     the loop. `break outer` and `continue outer` leave or continue the labelled loop instead of
+     the innermost one. A loop inside another loop cannot reuse an enclosing label (E0438). A
+     label before anything that is not a loop is an error (E0315). A labelled `loop` is a
+     statement, so its value is not used.
+   - `break value` is allowed only in a `loop` and always ends the innermost loop (E0435 in a
+     `while` or a `for`). A `break` with both a label and a value does not exist.
+   - The parser reads `break name` as `break` with an expression. Name resolution decides: if an
+     enclosing loop has the label `name`, it is a labelled `break`; otherwise `name` is the value.
+     A name that is both an enclosing label and a variable in scope is an error (E0437). After
+     `continue` a name is always a label (E0436 if no enclosing loop has it; E0436 also for a
+     `break name` where `name` is neither a label nor a variable).
+   - `while let pattern = expr { ... }` repeats while the value matches the pattern; the bindings
+     are visible in the body: `while let Some(task) = queue.pop() { ... }`.
 6. `for x in collection` iterates a collection **[PLAN]**; `for i in 0..n` and `for i in 1..=n`
    iterate integers (author). The loop variable is a plain name. **[PROPOSAL]** The collection may
    be marked `mut` or `own` (`for u in mut users`, `for u in own users`); the meaning is in
@@ -166,18 +192,23 @@ arg        = mode? expr
 slice      = expr? ( ".." | "..=" ) expr?
 
 primary    = INT | FLOAT | STRING | "true" | "false"
+           | FSTRING
            | IDENT | "self" | "Self"
            | "(" expr ")" | "(" ")"
            | list_lit | map_lit | struct_lit
            | if_expr | match_expr
-           | "return" expr? | "break" | "continue"
+           | "return" expr? | "break" expr? | "continue" IDENT?
+           | loop_expr
+loop_expr  = "loop" block
 list_lit   = "[" sep(expr, ",")? "]"
 map_lit    = "[" sep(expr ":" expr, ",") "]" | "[" ":" "]"
-struct_lit = path ( "." "<" sep(type, ",") ">" )? "{" sep(field_init, ",")? "}"
+struct_lit = path ( "." "<" sep(type, ",") ">" )? "{" sep(field_init, ",")? ( ","? ".." expr )? "}"
 path       = ( IDENT | "Self" ) ( "." IDENT )*
 field_init = IDENT ( ":" expr )?
 
-if_expr    = "if" expr_no_struct block ( "else" ( if_expr | block ) )?
+if_expr    = "if" condition block ( "else" ( if_expr | block ) )?
+condition  = expr_no_struct
+           | "let" pattern "=" mode? expr_no_struct      // `if let`, rule 14
 match_expr = "match" mode? expr_no_struct "{" NL* arm ( NL+ arm )* NL* "}"
 arm        = pattern ( "if" expr )? "=>" ( expr | block )
 ```
@@ -202,8 +233,13 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
    Inside an `impl` block the path may start with `Self`, which names the type of the block:
    `Self { count: 0 }`, `Self.Leaf` (author, 2026-10-08). Outside `impl` blocks `Self` is an
    error reported by name resolution. A field whose value is a
-   variable of the same name may be shortened: `User { id, name }` **[PROPOSAL]**. There is no
-   update syntax (`..other`).
+   variable of the same name may be shortened: `User { id, name }` **[PROPOSAL]**.
+   **Update syntax** (added in 0.2, author, 2026-10-18): `User { name: "B", ..old }`. The
+   `..base` comes last, after the listed fields (E0316 otherwise, or when it appears twice). The
+   base is an expression of the same struct type with the same type arguments (E0401); every field
+   that is not listed takes its value from the base. The listed fields are evaluated first, left
+   to right, then the base. The update syntax is for structs only, not for enum variants with
+   named fields (E0434). Ownership of the base is in chapter 5, section 3.
 7. **Struct literals in conditions.** In the condition of `if`, `while`, the scrutinee of `match`
    and the collection of `for` (`expr_no_struct`), a struct literal must be in parentheses:
    `if p == (Point { x: 0, y: 0 }) { }`. Otherwise `if x == Point {` would be ambiguous. This is
@@ -218,6 +254,13 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
     An `if` without `else` has the value `()`.
 12. `else` must be on the same line as the closing `}` of the previous branch (chapter 1, section 7).
 13. `()` is the `Void` value **[PLAN]**.
+14. **`if let`** (added in 0.2, author, 2026-10-18): `if let Some(user) = find(id) { ... } else
+    { ... }` runs the first block with the bindings of the pattern when the value matches, and the
+    `else` branch otherwise. The value may be marked `mut` or `own` as the scrutinee of `match`
+    (chapter 5, section 7.4). `if let` is an expression with the typing of `if`. There are no
+    chains such as `if let A = x && y`; nested `if` or `match` do that.
+15. **`FSTRING`** is an interpolated string (chapter 1, section 5.3a); its interpolations are
+    expressions of this section.
 
 ## 6. Operator precedence
 
@@ -259,7 +302,8 @@ field_pat   = IDENT ( ":" pattern )?
 path        = ( IDENT | "Self" ) ( "." IDENT )*
 ```
 
-1. Patterns appear only in `match` arms in v1. **[PROPOSAL]**
+1. Patterns appear in `match` arms, and since 0.2 in `let` / `var` (only patterns that always
+   match), `if let` and `while let`.
 2. Forms **[PROPOSAL]** (see D3.6): wildcard `_`; binding `name`; literal; variant without payload
    `StorageError.Full`, `None`; variant with positional payload `Some(x)`, `StorageError.Io(msg)`;
    variant or struct with named fields `Moved { x, y: 0 }`, `Point { x, .. }`; alternatives
@@ -340,6 +384,10 @@ that would change and changes nothing. A file with syntax errors is not formatte
 7. **Comments.** Doc comments and ordinary comments are kept as written. A comment on its own line
    stays before the statement, member or item that follows it; a comment after code on the same line
    stays at the end of that line, after one space.
+8. **Strings** (0.2). A string literal is kept as written, including the expressions inside
+   `f"..."`. When a `"""` string moves to another indentation level, every line of its content and
+   the closing `"""` move by the same amount, so its value stays the same; trailing spaces inside
+   it are kept. A label stays on the line of its loop: `outer: for x in xs {`.
 
 ## 9. Diagnostics
 
@@ -362,6 +410,8 @@ parser may add specific codes for frequent mistakes.
 | E0312 | Float literal in a pattern |
 | E0313 | Two statements on one line (hint: there is no `;`, use a new line) |
 | E0314 | Nesting too deep (more than 256 levels of expressions, blocks, types or patterns). Protects the compiler from stack overflow; added in M2 |
+| E0315 | A label that is not followed by `while`, `for` or `loop` (added in 0.2) |
+| E0316 | `..base` that is not the last item of a struct literal, or appears twice (added in 0.2) |
 
 Recovery **[PLAN]** (section 9): on an error the parser skips to the next `NL` at the current nesting
 level, or to the closing delimiter, and continues.
@@ -377,3 +427,5 @@ level, or to the closing delimiter, and continues.
 | D3.5 | Receiver of a method with `mut self` or `own self` is marked at the call site or not | **answered**: not marked |
 | D3.6 | Pattern forms in section 7, including `\|` alternatives and `if` guards | **answered**: yes |
 | D3.7 | Rest: separators (section 1), associated functions `Type.name()`, `pub` fields, function types `fn(A) -> B`, assignment as a statement, no `loop`/labels/free blocks, field shorthand in struct literals, struct literal restriction in conditions, precedence table, diagnostic list | **answered**: yes |
+| D3.8 | 0.2: destructuring `let`, `if let`, `while let`, `loop` with `break value`, labels `outer: while`, update syntax `..base` (reverses D3.4 and part of D3.7) | **answered** (author, 2026-10-18): yes; labels without `'` |
+| D3.9 | 0.2: the details of section 4 rules 2 and 5 and section 5 rules 6 and 14 (no `break label value`, the name after `break` resolved as a label first, no `if let` chains, `..base` for structs only), codes E0315, E0316 | **answered** (author, 2026-10-18): yes |

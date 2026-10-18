@@ -179,8 +179,22 @@ Decisions already taken by the author for this chapter (2026-10-07):
    loop or closure). Such a loop has type Never, so `fn next() -> Int { while true { ... } }`
    needs no value after the loop. Only the literal `true` counts; conditions are not evaluated.
    Every other loop has type `Void`. (Author, 2026-10-09; Go has the same rule for `for {}`.)
+   A `loop` (0.2) follows the same rule without a condition: without a `break` of its own it has
+   type Never. A `break` of a labelled outer loop belongs to that outer loop.
+9a. **The type of a `loop`** (0.2). A `loop` with `break` of its own has the type of its `break`
+   values: all of them must have one type, and a `break` without a value counts as `()` (E0401
+   when they differ). So `loop { if done { break } }` has type `Void`, and
+   `let n = loop { break 5 }` has type `Int`. `break value` in a `while` or a `for` is an error
+   (E0435).
+9b. **Patterns outside `match`** (0.2). The pattern of a destructuring `let` must be
+   **irrefutable**: a name, `_`, or a struct pattern (not a variant) whose sub-patterns are
+   irrefutable (E0433 otherwise). `if let` and `while let` accept any pattern; their bindings have
+   the types they would have in a `match` arm. Exhaustiveness (E0410) does not apply to them.
 10. `break` and `continue` are allowed only inside a loop body. The body of a closure is not
-    inside the loop around the closure (E0430).
+    inside the loop around the closure (E0430). Labels are resolved as in chapter 3, section 4,
+    rule 5 (E0436, E0437, E0438).
+11. **Interpolated strings** (0.2). The value of every interpolation in `f"..."` must be of a type
+    that implements `Display` (section 9; E0404 otherwise). The result has type `String`.
 
 ## 7. User types
 
@@ -286,6 +300,7 @@ bounds. Associated functions are called as `Type.f(args)`.
 | `Copyable` | `.copy()` is defined | **derived automatically**: every type except function types and types containing them. Interface values are `Copyable` (author, 13b) |
 | `Hashable` | can be a `Map` key | **closed**: `Int`, `String`, `Bool` and enums without payloads (G3). Cannot be implemented by the user |
 | `Comparable` | `fn compare(self, other: Self) -> Ordering` | built in for `Int` and `String`; implemented by the user for own types like any interface |
+| `Display` | `fn to_string(self) -> String` (0.2) | built in for `Int`, `Float`, `Bool`, `String`; implemented by the user for own types like any interface |
 
 1. `Equatable` and `Copyable` cannot be implemented by hand: there is no custom equality or copy
    in v1 (no operator overloading, PLAN section 3). **[PROPOSAL]**
@@ -298,6 +313,12 @@ bounds. Associated functions are called as `Type.f(args)`.
 5. Name note: G7 called the copy interface `Copy`. It is named `Copyable` to avoid confusion with
    Rust's `Copy` (implicit copies), which in wolfpack applies only to `Int`, `Float`, `Bool`
    (chapter 5).
+6. **`Display`** (0.2, author, 2026-10-18) gives the text of a value for interpolated strings
+   (chapter 1, section 5.3a) and `assert_eq` (chapter 7). It is object-safe, so `Display` is
+   also usable as a type. Its built-in implementations are the conversions of chapter 7,
+   section 4.1; for `String` it returns a copy of the string. By the coherence rule (section 8.3)
+   a user cannot implement it for `List`, `Option` or other built-in types; `f"{items}"` with a
+   list is an error, and the text is built with std functions (`join`).
 
 ## 10. Type inference
 
@@ -369,6 +390,12 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0430 | `break` or `continue` outside a loop |
 | E0431 | Implementation that cannot be written: not an interface, a derived built-in interface (`Equatable`, `Copyable`, `Hashable`), or an interface implemented twice (added in M5) |
 | E0432 | A method of a struct with the name of one of its fields (section 8.3, rule 6; added in M12) |
+| E0433 | A pattern that may fail in `let` or `var` (hint: `if let` or `match`; added in 0.2) |
+| E0434 | Update syntax `..base` in a literal of an enum variant (added in 0.2) |
+| E0435 | `break` with a value in a `while` or a `for` (added in 0.2) |
+| E0436 | Unknown loop label (added in 0.2) |
+| E0437 | A name after `break` that is both an enclosing label and a variable (added in 0.2) |
+| E0438 | A label that repeats the label of an enclosing loop (added in 0.2) |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
@@ -393,4 +420,6 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.8 | `Int` semantics: truncating `/`, sign of `%`, panics for overflow and division by zero, shift amount `0..=63`, `<<` discards bits | **answered**: yes |
 | D4.9 | Unreachable `match` arm is an error | **answered**: yes |
 | D4.10 | No `s[i]` on strings; `for` over `List` and ranges only (other collections through std functions returning `List`) | **answered**: yes |
+| D4.12 | 0.2: the built-in interface `Display`, implemented for `Int`, `Float`, `Bool`, `String` and by the user | **answered** (author, 2026-10-18): yes |
+| D4.13 | 0.2: the typing of `loop` (rules 9 and 9a), irrefutable patterns in `let` (rule 9b), `f"..."` needs `Display` (rule 11), codes E0433 to E0438 | **answered** (author, 2026-10-18): yes |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |

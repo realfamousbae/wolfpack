@@ -55,7 +55,11 @@ Decisions already taken by the author for this chapter (2026-10-07):
    - a field value in a struct literal, an element in a list or map literal, a variant payload:
      `Wrapper { inner: a }`, `[a]`, `Some(a)`;
    - a capture by a closure (section 8);
-   - the scrutinee of `match own a`, the collection of `for x in own a`.
+   - the scrutinee of `match own a`, the collection of `for x in own a`;
+   - the value of a destructuring `let` and of `if let` / `while let` marked `own` (section 7.4);
+   - the base of a struct update `User { name: "B", ..a }` (0.2): `a` is moved as a whole,
+     and the fields that are not listed are taken from it. The fields of `a` that the literal
+     replaces are dropped. To keep `a`, write `..a.copy()`.
 3. **Only whole variables can be moved** (author). The place in an owning position must be a local
    variable or an `own` parameter, never a field path or an index. `let n = user.name` is an error
    with three suggestions: copy it (`user.name.copy()`), take the whole value apart with
@@ -172,6 +176,14 @@ Two places **overlap** if one is a prefix of the other: `user` and `user.name` o
    mutable access to the parts: `match mut shape { Shape.Circle(r) => { r *= 2.0 } }` (an arm
    that assigns is a block, since an assignment is a statement, chapter 3). Inside the arm the
    place itself cannot be used except through the bindings. The place must be a mutable place.
+5. **`if let` and `while let`** (0.2) follow the rules of `match` with one arm: `if let P = place`
+   borrows the place for reading in the first block, `if let P = mut place` borrows it
+   exclusively, and `if let P = own place` or a temporary moves the value and the bindings own the
+   parts. In `while let` the value is evaluated again before every iteration, so
+   `while let Some(x) = stack.pop()` moves each element out of the temporary result.
+6. **A destructuring `let`** (0.2) is an owning position: `let Point { x, y } = p` moves `p` (if
+   `Point` is a move type) and the bindings own the parts, as in `match own p`. The value must
+   therefore be a whole variable or a temporary (section 3, rule 3).
 
 ### 7.5 Assignment
 
@@ -250,3 +262,4 @@ Each rule of this chapter gets a pair of tests: correct code and code with the e
 | D5.5 | Overlap: disjoint fields are independent, any two indices into one list overlap | **answered**: yes |
 | D5.6 | Closures capture whole variables, not individual fields | **answered**: yes |
 | D5.7 | Rest: moves only of whole variables, flow-sensitive move check and loop rule, mutable place rule, `match` borrows the place in each arm, diagnostics | **answered**: yes |
+| D5.8 | 0.2: `if let` / `while let` as one-arm `match`, destructuring `let` and the base of `..base` are owning positions (sections 3 and 7.4) | **answered** (author, 2026-10-18): yes |

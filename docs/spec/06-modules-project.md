@@ -119,10 +119,14 @@ Available in every module without imports (author):
 - the built-in types `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Map`, `Option`, `Result`,
   `Ordering`;
 - the variants `Some`, `None`, `Ok`, `Err`;
-- the built-in interfaces `Equatable`, `Copyable`, `Hashable`, `Comparable`, and the error interface
-  `Error` (chapter 7);
-- the functions `print` (defined in `std.io`, re-exported by the prelude), `panic`, `assert` and
-  `replace` (chapter 7).
+- the built-in interfaces `Equatable`, `Copyable`, `Hashable`, `Comparable`, `Display` (0.2), and
+  the error interface `Error` (chapter 7);
+- the functions `print` (defined in `std.io`, re-exported by the prelude), `panic`, `assert`,
+  `assert_eq` (0.2), `error` (0.2) and `replace` (chapter 7).
+
+The names added in 0.2 cannot be declared again at the top level (E0617), so a 0.1 program with a
+top-level `fn error` or `type Display` must rename it. Local variables named `error` are fine: they
+shadow the prelude function (section 3.2).
 
 `assert` is usable everywhere, not only in tests **[PROPOSAL]**. Its exact signature and the
 behaviour of a failed assertion are in chapter 7.

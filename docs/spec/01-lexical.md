@@ -87,12 +87,16 @@ Reserved:
 module   extern   impl     fn       pub      let      var      type
 struct   enum     interface
 if       else     match    while    for      in       return   break    continue
-mut      own      self     Self     true     false
+loop     mut      own      self     Self     true     false
 async    await
 ```
 
 `async` and `await` are reserved for a future version and have no meaning in v1. They are reserved
 now so that adding them later does not break existing code.
+
+`loop` was added in 0.2 (author, 2026-10-18; chapter 3, section 4). It is reserved and not
+contextual: as a contextual word, `if loop { }` with a variable `loop` would be ambiguous. A
+program of 0.1 that names something `loop` must rename it.
 
 Contextual:
 
@@ -171,16 +175,67 @@ dec_digits = [0-9] ( "_"? [0-9] )*
    Any other escape is an error (E0104). A `\u{...}` that is empty, too long, a surrogate
    (U+D800 to U+DFFF) or above U+10FFFF is an error (E0105), as is a `\x` escape above `7F`.
 3. Control characters other than tab must be escaped (E0109).
-4. There is no string interpolation, no raw string and no multiline string in v1, and no character
-   literal, because there is no `Char` type in `PLAN.md`. These are recorded in `docs/ideas.md`.
-5. **Reserved for the future: literal prefixes.** An identifier immediately followed by `"` is an
-   error (E0113): `f"..."`, `r"..."`, `b"..."`. This is the Rust 2021 rule. It means a future
-   interpolated string can be `f"{name}"` while `{` in a plain string stays an ordinary character
-   forever, and raw strings can be `r"..."`, without breaking any valid program.
+4. Interpolated, raw and multiline strings are in section 5.3a. There is no character literal,
+   because there is no `Char` type in `PLAN.md`; it is recorded in `docs/ideas.md`.
+5. **Literal prefixes.** An identifier immediately followed by `"` is a literal prefix. `f` and `r`
+   are prefixes (section 5.3a); any other identifier there is an error (E0113): `b"..."`,
+   `fr"..."`, `x"..."`. This is the Rust 2021 rule. It is why `{` in a plain string is an ordinary
+   character and stays one, while `f"{name}"` interpolates.
 6. **Reserved for the future: `'`.** The character `'` is not used in v1 and is an error (E0102,
    with a hint that strings use `"`). It stays free for a possible `Char` literal.
 7. Forbidding raw newlines in strings is also deliberate: allowing them later is a compatible
-   change, while forbidding them later would not be.
+   change, while forbidding them later would not be. Strings that span lines are written with
+   `"""` (section 5.3a); a `"..."` string still ends at the end of its line.
+
+### 5.3a Interpolated, raw and multiline strings
+
+Added in 0.2 (author, 2026-10-18). The forms combine as follows: `f"..."`, `r"..."`, `"""..."""`,
+`f"""..."""`, `r"""..."""`. A raw string has no interpolation, so `fr` and `rf` do not exist
+(E0113).
+
+1. **Interpolated string** `f"..."`. The text between `{` and its matching `}` is an expression
+   (chapter 3, section 5). Its value is converted to a string with the `Display` interface
+   (chapter 4, section 9) and inserted in place of the braces:
+   ```
+   let line = f"{user.name} has {items.len()} items, total {total}"
+   ```
+   - `{{` and `}}` stand for the characters `{` and `}`. Escape sequences work as in a plain
+     string.
+   - The expression is lexed as ordinary source text. It may contain string literals, including
+     other interpolated strings, parentheses, brackets and closures; it ends at the `}` that matches
+     its `{`, counting the braces inside it. It may not contain a line end or a comment.
+   - An interpolation that is empty or holds only spaces (`{}`, `{ }`) is an error (E0115). A `{`
+     without its matching `}` before the end of the string, and a `}` that closes nothing, are
+     errors (E0114, with the hint to write `{{` or `}}`).
+   - There are no format specifications such as `{x:>5}`; widths and precision are std functions.
+     A `:` inside the braces belongs to the expression (`f"{[1: 2].len()}"`).
+2. **Raw string** `r"..."`. The text is taken as written: `\` is an ordinary character and there
+   are no escape sequences, so `r"\d+\.\d+"` is the five-character regular expression `\d+\.\d+`.
+   A raw string cannot contain `"`; write it with `r"""..."""`. Control characters other than tab
+   are still an error (E0109).
+3. **Multiline string** `"""..."""` (Swift's rules):
+   ```
+   let help = """
+       usage: wolf <command>
+
+       commands:
+           build   compile the project
+       """
+   ```
+   - The opening `"""` is the last thing on its line, and the closing `"""` stands on a line of its
+     own, with only spaces or tabs before it. Otherwise it is an error (E0116).
+   - The whitespace before the closing `"""` is the **indentation** of the string. It is removed
+     from the start of every line of the content. A line that is not blank and does not start with
+     exactly that indentation is an error (E0116). Blank lines may be shorter.
+   - The line end after the opening `"""` and the line end before the closing line are not part of
+     the value. The value above is `"usage: wolf <command>\n\ncommands:\n    build   compile the
+     project"`. A line end inside the content is always `\n`, also when the file uses `CR LF`.
+   - Escape sequences work in `"""` and `f"""`; a `\"` writes a quote, so `\"""` puts three quotes
+     into the content. In `r"""` there are no escapes, and the content cannot contain `"""`.
+   - A multiline string is one token: the line ends inside it are not `Newline` tokens (section 7).
+     A `"""` that is never closed is an unterminated string (E0103) at the opening quotes.
+4. All three forms have type `String`. `"""` has no other meaning: today `""` followed by `"` is
+   already an error, so the form breaks no valid program.
 
 ### 5.4 Other values
 
@@ -276,7 +331,10 @@ The complete list of errors the lexer reports. This is the scope of milestone M1
 | E0110 | Carriage return without line feed | lone `CR` |
 | E0111 | Non-ASCII character in identifier | `naïve` (hint: identifiers are ASCII only) |
 | E0112 | Unterminated block comment | `/* a /* b */` at the end of the file |
-| E0113 | Reserved literal prefix | `f"x"`, `r"x"` (hint: add a space or remove the prefix) |
+| E0113 | Reserved literal prefix | `b"x"`, `fr"x"` (hint: add a space or remove the prefix) |
+| E0114 | Unbalanced brace in an interpolated string (added in 0.2) | `f"{name"`, `f"a } b"` (hint: `{{`, `}}`) |
+| E0115 | Empty interpolation (added in 0.2) | `f"x = {}"` |
+| E0116 | Malformed multiline string (added in 0.2) | text after the opening `"""`, closing `"""` not on its own line, a line less indented than the closing `"""` |
 
 Recovery: after an error the lexer emits an `Error` token covering the bad text and continues, so
 that all lexical errors of a file are reported at once **[PLAN]** (section 9). The lexer never
@@ -295,3 +353,6 @@ panics on any input; fuzzing in `fuzz/` checks this **[PLAN]** (section 12).
 | D1.7 | Extra operators in v1: compound assignment `+=` etc., range `..` (`for i in 0..n`), bitwise and shift | **answered**: all three are in v1 (against the drafter's recommendation) |
 | D1.8 | Literal rules in section 5 | **answered**: delegated to the drafter with future extensions in mind; rules as in section 5 |
 | D1.9 | Lexical error list in section 8 | **answered**: yes |
+| D1.10 | 0.2: `f"..."` with `Display`, `r"..."`, `"""..."""` with the indentation of the closing quotes (section 5.3a) | **answered** (author, 2026-10-18): yes |
+| D1.11 | 0.2: `loop` is a reserved word, not a contextual one (section 4) | **answered** (author, 2026-10-18): yes |
+| D1.12 | 0.2: the details of section 5.3a (nested strings in `{}`, no format specifications, no `fr`, no trailing `\n` in `"""`) and codes E0114 to E0116 | **answered** (author, 2026-10-18): yes |

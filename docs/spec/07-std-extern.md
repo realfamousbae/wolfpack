@@ -62,6 +62,10 @@ pub interface Error {
    (section 4). `?` coerces them to `Error` where needed.
 4. When `main` returns `Err(e)`, the program prints `error: ` followed by `e.message()` to standard
    error and exits with code 1 (chapter 6, section 5).
+5. **`error(message)`** (0.2, author, 2026-10-18) makes an `Error` from a message, without
+   declaring an error type: `return Err(error(f"{path} is empty"))`. Its `message()` returns the
+   message. The value is of an internal type of std that implements only `Error`; it can be used
+   only as `Error`.
 
 ## 3. Prelude functions
 
@@ -70,6 +74,8 @@ pub interface Error {
 | `fn print(s: String)` | writes `s` and a line feed to standard output (author: `String` only) |
 | `fn panic(message: String) -> Never` | stops the program (below) |
 | `fn assert(condition: Bool)` | panics if `condition` is `false` (below) |
+| `fn assert_eq<T: Equatable + Display>(left: T, right: T)` | panics if `left != right`, showing both (below; 0.2) |
+| `fn error(message: String) -> Error` | an `Error` with this message (section 2, rule 5; 0.2) |
 | `fn replace<T>(mut place: T, own value: T) -> T` | stores `value` in `place` and returns the old value (chapter 5, section 3; author, 2026-10-07) |
 
 1. **Panic output** **[PROPOSAL]**: the program writes
@@ -83,11 +89,18 @@ pub interface Error {
    readable. A debug build flag with locations is in `docs/ideas.md`.)
 2. **`assert`** failing panics with the message `assertion failed: <source text of the condition>`.
    The compiler inserts the text. There is no second message parameter (no overloading).
+   **`assert_eq(a, b)`** (0.2) failing panics with
+   `assertion failed: <text of a> == <text of b> (left: <a>, right: <b>)`, where the texts are the
+   source of the two arguments and the values are shown with `Display`:
+   `panic at src/main.wolf:7:5: assertion failed: total(cart) == 30 (left: 25, right: 30)`.
 3. Output is identical on every target, so it can be compared in tests.
 
 ## 4. `Int`, `Float`, `Bool`, `String` (modules `std.math`, `std.string`)
 
 ### 4.1 Conversions and formatting
+
+Since 0.2 the `to_string` methods of this table are the implementations of `Display` (chapter 4,
+section 9); `String` implements it too and returns a copy.
 
 | Method | Result |
 | --- | --- |
@@ -346,3 +359,5 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.7 | Extern functions: no generics, no `mut` parameters; result error type is `Error`; target errors and exceptions become `Err` or a panic | **answered**: yes |
 | D7.8 | Read parameters are passed to extern code without copies (unchecked contract) | **answered**: yes |
 | D7.9 | Rest: method lists of `String`, `List`, `Map`; `std.io`, `std.fs`, `std.process`; target binding; diagnostics | **answered**: yes |
+| D7.10 | 0.2: `error(message) -> Error` and `assert_eq` with `Display`, in the prelude | **answered** (author, 2026-10-18): yes |
+| D7.11 | 0.2: the panic text of `assert_eq` (section 3, rule 2) | **answered** (author, 2026-10-18): yes |
