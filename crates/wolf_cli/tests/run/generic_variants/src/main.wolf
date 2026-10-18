@@ -1,4 +1,5 @@
-//! A variant passed for a parameter of a generic type: the type argument is the enum.
+//! A variant passed for a parameter of a generic type, alone or inside an option, a result or a
+//! list: the type argument is the enum.
 module main
 
 types {
@@ -29,7 +30,18 @@ main {
     }
     match same(Some(Token.Num(7))) {
         Some(Token.Num(n)) => print(n.to_string())
-        _ => print("other")
+        Some(Token.Word(w)) => print(w)
+        None => print("none")
+    }
+    match same([Token.Word("x")])[0] {
+        Token.Num(n) => print(n.to_string())
+        Token.Word(w) => print(w)
+    }
+    let r: Result<Token, String> = Ok(Token.Word("ok"))
+    match same(own r) {
+        Ok(Token.Word(w)) => print(w)
+        Ok(Token.Num(_)) => print("num")
+        Err(e) => print(e)
     }
 }
 

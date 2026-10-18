@@ -619,6 +619,20 @@ impl<'p> Emitter<'p> {
             .collect()
     }
 
+    /// Whether a value is built from a variant of an enum with payloads, whose TypeScript type is
+    /// the variant's class.
+    fn holds_variant(&self, e: &IrExpr) -> bool {
+        match &e.kind {
+            ExprKind::Variant { .. } => !self.plain_enum(&e.ty),
+            ExprKind::Some(v) | ExprKind::Ok(v) | ExprKind::Err(v) => self.holds_variant(v),
+            ExprKind::List(items) => items.iter().any(|v| self.holds_variant(v)),
+            ExprKind::Map(entries) => entries
+                .iter()
+                .any(|(k, v)| self.holds_variant(k) || self.holds_variant(v)),
+            _ => false,
+        }
+    }
+
     /// Whether a type is a payload-less enum (a union of string literals in TypeScript).
     fn plain_enum(&self, t: &IrType) -> bool {
         matches!(t, IrType::Named(d, _) if self.enums.get(d).is_some_and(|e| e.variants.iter().all(|v| v.payload.is_empty())))
@@ -2496,16 +2510,14 @@ impl<'p> Emitter<'p> {
             .into_iter()
             .map(|v| v.unwrap_or_else(|| evaluated.next().unwrap_or(Expr::Undefined)))
             .collect();
-        // A variant passed for a parameter of a generic type: TypeScript would infer the type
-        // argument as the variant's class, not the enum.
+        // A variant passed for a parameter of a generic type, also inside an option, a result,
+        // a list or a map: TypeScript would infer the type argument from the variant's class,
+        // not the enum.
         if let Some(f) = &info {
             let skip = usize::from(recv.is_some());
             for (i, a) in args.iter().enumerate() {
                 let generic = f.params.get(i).is_some_and(|(_, t)| generic(t));
-                if generic
-                    && matches!(a.value.kind, ExprKind::Variant { .. })
-                    && !self.plain_enum(&a.value.ty)
-                {
+                if generic && self.holds_variant(&a.value) {
                     if let Some(v) = all.get_mut(i + skip) {
                         let t = self.ty(&a.value.ty);
                         *v = Expr::As(Box::new(std::mem::replace(v, Expr::Undefined)), t);
