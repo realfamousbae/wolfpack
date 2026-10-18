@@ -397,3 +397,125 @@ fn setup_check_lists_missing_tools() {
     );
     assert_eq!(output.status.code(), Some(1));
 }
+
+/// A minimal release server for `wolf self update`: `/releases/latest` redirects to the tag of
+/// `version`, and the files of the release are served from memory.
+#[cfg(unix)]
+fn release_server(version: &str, files: Vec<(String, Vec<u8>)>) -> String {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let tag = format!("{origin}/releases/tag/v{version}");
+    let prefix = format!("/releases/download/v{version}/");
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            let _ = reader.read_line(&mut line);
+            loop {
+                let mut header = String::new();
+                if reader.read_line(&mut header).unwrap_or(0) <= 2 {
+                    break;
+                }
+            }
+            let path = line.split_whitespace().nth(1).unwrap_or("").to_string();
+            let mut stream = stream;
+            if path == "/releases/latest" {
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 302 Found\r\nLocation: {tag}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                );
+                continue;
+            }
+            let body = path
+                .strip_prefix(&prefix)
+                .and_then(|name| files.iter().find(|(n, _)| n == name))
+                .map(|(_, b)| b.clone());
+            match body {
+                Some(b) => {
+                    let _ = write!(
+                        stream,
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        b.len()
+                    );
+                    let _ = stream.write_all(&b);
+                }
+                None => {
+                    let _ = write!(
+                        stream,
+                        "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    );
+                }
+            }
+        }
+    });
+    origin
+}
+
+/// `wolf self update` replaces a copy of `wolf` with the release of the server: the archive is
+/// checked, its `wolf` runs, and `wolf self update --check` sees the newer release.
+#[cfg(unix)]
+#[test]
+fn self_update_replaces_wolf() {
+    use std::os::unix::fs::PermissionsExt;
+    let asset = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", _) => "wolfpack-macos-universal.tar.gz",
+        ("linux", "x86_64") => "wolfpack-linux-x64.tar.gz",
+        ("linux", "aarch64") => "wolfpack-linux-arm64.tar.gz",
+        _ => return,
+    };
+    // The new `wolf` of the release: a script that answers `--version` and `setup`.
+    let script = b"#!/bin/sh\necho wolf 9.9.9\n";
+    let mut archive = Vec::new();
+    {
+        let gz = flate2::write::GzEncoder::new(&mut archive, flate2::Compression::fast());
+        let mut tar = tar::Builder::new(gz);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(script.len() as u64);
+        header.set_mode(0o755);
+        header.set_cksum();
+        tar.append_data(&mut header, "wolf", &script[..]).unwrap();
+        tar.into_inner().unwrap().finish().unwrap();
+    }
+    use sha2::Digest;
+    let sum: String = sha2::Sha256::digest(&archive)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let sums = format!("{sum}  {asset}\n").into_bytes();
+    let origin = release_server(
+        "9.9.9",
+        vec![
+            (asset.to_string(), archive),
+            ("SHA256SUMS.txt".to_string(), sums),
+        ],
+    );
+
+    let dir = tmp("self_update");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("bin")).unwrap();
+    let copy = dir.join("bin/wolf");
+    fs::copy(env!("CARGO_BIN_EXE_wolf"), &copy).unwrap();
+    fs::set_permissions(&copy, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let check = Command::new(&copy)
+        .args(["self", "update", "--check"])
+        .env("WOLF_TEST_UPDATE_MIRROR", &origin)
+        .output()
+        .unwrap();
+    assert_eq!(check.status.code(), Some(1), "{check:?}");
+    assert!(String::from_utf8_lossy(&check.stdout).contains("latest release 9.9.9"));
+
+    let update = Command::new(&copy)
+        .args(["self", "update"])
+        .env("WOLF_TEST_UPDATE_MIRROR", &origin)
+        .env("WOLFPACK_HOME", dir.join("home"))
+        .output()
+        .unwrap();
+    assert!(update.status.success(), "{update:?}");
+    let version = Command::new(&copy).arg("--version").output().unwrap();
+    assert_eq!(String::from_utf8_lossy(&version.stdout), "wolf 9.9.9\n");
+    let left: Vec<_> = fs::read_dir(dir.join("bin")).unwrap().flatten().collect();
+    assert_eq!(left.len(), 1, "{left:?}");
+}

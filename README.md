@@ -431,7 +431,7 @@ Next:
 - a bytecode virtual machine (`wolf run --vm`);
 - your own target code in a project, and a wider `extern` boundary
   ([plan](docs/plans/native-code.md));
-- package managers (Homebrew, Scoop, winget), signed installers and `wolf self update`
+- package managers (Homebrew, Scoop, winget) and signed installers
   ([plan](docs/plans/distribution.md));
 - later: a language server for editors, async, and web and GUI projects.
 
