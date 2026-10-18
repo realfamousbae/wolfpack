@@ -1,0 +1,36 @@
+//! `compare` called on a concrete type only inside an implementation of `Comparable`: Rust has the
+//! trait in scope there, so the file imports it only if other code needs it.
+module main
+
+imports {
+    std.list
+    std.string
+}
+
+types {
+    struct Version {
+        major: Int
+        minor: Int
+    }
+}
+
+impl {
+    Version: Comparable {
+        fn compare(self, other: Version) -> Ordering {
+            match self.major.compare(other.major) {
+                Ordering.Equal => self.minor.compare(other.minor)
+                o => o
+            }
+        }
+    }
+}
+
+main {
+    var vs = [
+        Version { major: 2, minor: 0 },
+        Version { major: 1, minor: 5 },
+        Version { major: 1, minor: 2 },
+    ]
+    list.sort(mut vs)
+    print(string.join(vs.map(|v| v.major.to_string() + "." + v.minor.to_string()), " "))
+}

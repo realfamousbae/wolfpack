@@ -82,6 +82,9 @@ struct FnState {
     unsized_params: BTreeSet<LocalRef>,
     /// Literals reach a type parameter: integers get a suffix, strings become `&String`.
     suffix: bool,
+    /// The body of `compare` of an implementation of `Comparable`: the trait is in scope there,
+    /// and an import used only there would be unused.
+    in_comparable: bool,
 }
 
 pub(crate) struct Emitter<'p> {
@@ -940,6 +943,15 @@ impl<'p> Emitter<'p> {
     }
 
     /// Brings a trait of the runtime into scope, for its methods.
+    /// Imports `Comparable` for a method call, unless it is in scope already.
+    fn comparable_in_scope(&mut self) {
+        if self.f.in_comparable {
+            self.rt.insert("Comparable");
+        } else {
+            self.rt_trait("Comparable", "Comparable");
+        }
+    }
+
     fn rt_trait(&mut self, piece: &'static str, name: &str) {
         self.rt.insert(piece);
         let base = if self.outside() {
@@ -1466,6 +1478,7 @@ impl<'p> Emitter<'p> {
         }
         self.f.reads = scan.reads;
         self.f.mutated = scan.mutated;
+        self.f.in_comparable = f.interface.is_some() && f.interface == self.comparable;
         let generics = self.generics(&f.generics)?;
         let self_param = f.self_mode.map(|m| {
             match m {
@@ -3178,7 +3191,7 @@ impl<'p> Emitter<'p> {
                 if param || dyn_value {
                     // The bound or the trait object brings the method into scope.
                 } else if Some(*interface) == self.comparable {
-                    self.rt_trait("Comparable", "Comparable");
+                    self.comparable_in_scope();
                 } else if Some(*interface) == self.error_iface {
                     self.rt_trait("Error", "Error");
                 } else {
@@ -3235,7 +3248,7 @@ impl<'p> Emitter<'p> {
             if Some(i) == self.error_iface {
                 self.rt_trait("Error", "Error");
             } else if Some(i) == self.comparable {
-                self.rt_trait("Comparable", "Comparable");
+                self.comparable_in_scope();
             } else if self.def_module(i) != Some(self.module) {
                 let _ = self.def_path(i);
             }
@@ -3370,7 +3383,7 @@ impl<'p> Emitter<'p> {
                 method(a, "max", vec![op(self, 1)?])
             }
             "math.Int.compare" | "string.String.compare" => {
-                self.rt_trait("Comparable", "Comparable");
+                self.comparable_in_scope();
                 let a = op(self, 0)?;
                 method(a, "compare", vec![read(self, 1)?])
             }
