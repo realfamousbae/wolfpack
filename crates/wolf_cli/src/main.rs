@@ -9,6 +9,7 @@ mod check;
 mod fmt;
 mod setup;
 mod tools;
+mod update;
 
 use std::io::{self, IsTerminal, Write};
 use std::panic;
@@ -51,6 +52,32 @@ enum Command {
     Explain(ExplainArgs),
     /// Install the tools of the targets (Node.js, TypeScript, Go, Rust) for `wolf run`.
     Setup(SetupArgs),
+    /// Manage `wolf` itself.
+    #[command(name = "self", subcommand)]
+    SelfCmd(SelfCommand),
+}
+
+/// The subcommands of `wolf self`.
+#[derive(Subcommand)]
+enum SelfCommand {
+    /// Replace `wolf` with the latest release, or with `--version`.
+    Update(UpdateArgs),
+}
+
+/// Options of `wolf self update`.
+#[derive(clap::Args)]
+struct UpdateArgs {
+    /// Install this release (for example `0.2.0`) instead of the latest one.
+    #[arg(long)]
+    version: Option<String>,
+
+    /// Install nothing; exit with code 1 when a newer release exists.
+    #[arg(long)]
+    check: bool,
+
+    /// Remember the latest release for the question at start (run in the background).
+    #[arg(long, hide = true)]
+    refresh_cache: bool,
 }
 
 /// Options of `wolf setup`.
@@ -250,7 +277,14 @@ fn run() -> ExitCode {
         Ok(cli) => cli,
         Err(error) => return usage_error(&error),
     };
+    update::clean_old();
+    if !matches!(cli.command, Command::SelfCmd(_) | Command::Explain(_)) {
+        if let Some(code) = update::at_start() {
+            return code;
+        }
+    }
     match cli.command {
+        Command::SelfCmd(SelfCommand::Update(args)) => self_update(&args),
         Command::New(args) => new_project(&args),
         Command::Build(args) => {
             let target = match target(args.target, true) {
@@ -399,6 +433,55 @@ fn setup(args: &SetupArgs) -> ExitCode {
     });
     let _ = wolf_diag::render_human(&SourceMap::new(), &diagnostics, &mut stderr);
     ExitCode::from(EXIT_ERRORS)
+}
+
+/// `wolf self update` (spec chapter 8, section 2b).
+fn self_update(args: &UpdateArgs) -> ExitCode {
+    if args.refresh_cache {
+        update::refresh();
+        return ExitCode::SUCCESS;
+    }
+    let current = update::Version::current();
+    if args.check {
+        return match update::latest() {
+            Ok(latest) => {
+                let _ = writeln!(io::stdout(), "wolf {current}, latest release {latest}");
+                if latest > current {
+                    ExitCode::from(EXIT_ERRORS)
+                } else {
+                    ExitCode::SUCCESS
+                }
+            }
+            Err(e) => {
+                render_plain(&[Diagnostic::new(
+                    codes::E0805,
+                    format!("cannot find the latest release: {e}"),
+                )]);
+                ExitCode::from(EXIT_ERRORS)
+            }
+        };
+    }
+    match update::update(args.version.as_deref()) {
+        Ok(Some(_)) => ExitCode::SUCCESS,
+        Ok(None) => {
+            let _ = writeln!(io::stdout(), "wolf {current} is the latest release");
+            ExitCode::SUCCESS
+        }
+        Err(d) => {
+            render_plain(&[*d]);
+            ExitCode::from(EXIT_ERRORS)
+        }
+    }
+}
+
+/// Diagnostics without a source, on standard error.
+pub(crate) fn render_plain(diagnostics: &[Diagnostic]) {
+    let mut stderr = StandardStream::stderr(if io::stderr().is_terminal() {
+        ColorChoice::Auto
+    } else {
+        ColorChoice::Never
+    });
+    let _ = wolf_diag::render_human(&SourceMap::new(), diagnostics, &mut stderr);
 }
 
 /// `wolf explain <code>` (spec chapter 9, section 2, rule 8).

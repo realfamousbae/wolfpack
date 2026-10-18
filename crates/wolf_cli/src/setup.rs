@@ -452,7 +452,7 @@ fn entry_path(dir: &Path, name: &Path, strip: usize) -> Option<PathBuf> {
     (parts > 0).then_some(out)
 }
 
-fn untar(archive: &Path, dir: &Path, strip: usize) -> io::Result<()> {
+pub(crate) fn untar(archive: &Path, dir: &Path, strip: usize) -> io::Result<()> {
     let file = fs::File::open(archive)?;
     let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(file));
     for entry in tar.entries()? {
@@ -469,7 +469,7 @@ fn untar(archive: &Path, dir: &Path, strip: usize) -> io::Result<()> {
     Ok(())
 }
 
-fn unzip(archive: &Path, dir: &Path, strip: usize) -> io::Result<()> {
+pub(crate) fn unzip(archive: &Path, dir: &Path, strip: usize) -> io::Result<()> {
     let file = fs::File::open(archive)?;
     let mut zip = zip::ZipArchive::new(file).map_err(io::Error::other)?;
     for i in 0..zip.len() {
@@ -494,13 +494,13 @@ fn unzip(archive: &Path, dir: &Path, strip: usize) -> io::Result<()> {
 }
 
 #[cfg(unix)]
-fn executable(path: &Path) -> io::Result<()> {
+pub(crate) fn executable(path: &Path) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(0o755))
 }
 
 #[cfg(not(unix))]
-fn executable(_: &Path) -> io::Result<()> {
+pub(crate) fn executable(_: &Path) -> io::Result<()> {
     Ok(())
 }
 

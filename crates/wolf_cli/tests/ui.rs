@@ -149,6 +149,7 @@ fn every_code_has_a_ui_test() {
     );
     // `wolf setup` has no project: E0804 is tested by `e0804_setup_cannot_download` there.
     names.push("E0804_setup_cannot_download".to_string());
+    names.push("E0805_update_cannot_download".to_string());
     for code in wolf_diag::codes::ALL {
         if !code.id().starts_with("E00") {
             assert!(

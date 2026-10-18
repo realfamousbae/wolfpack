@@ -351,6 +351,35 @@ fn e0804_setup_cannot_download() {
     assert!(left.is_empty(), "{left:?}");
 }
 
+/// E0805: `wolf self update` cannot reach the releases (the tests send it to a port where nothing
+/// listens); the running `wolf` stays as it is.
+#[test]
+fn e0805_update_cannot_download() {
+    let output = Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .args(["self", "update", "--version", "0.2.0"])
+        .env("WOLF_TEST_UPDATE_MIRROR", "http://127.0.0.1:9")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(
+            "error[E0805]: cannot download http://127.0.0.1:9/releases/download/v0.2.0/SHA256SUMS.txt"
+        ),
+        "{stderr}"
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let check = Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .args(["self", "update", "--check"])
+        .env("WOLF_TEST_UPDATE_MIRROR", "http://127.0.0.1:9")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&check.stderr);
+    assert!(
+        stderr.starts_with("error[E0805]: cannot find the latest release"),
+        "{stderr}"
+    );
+}
+
 /// `wolf setup --check` lists the missing tools and exits with 1.
 #[test]
 fn setup_check_lists_missing_tools() {
