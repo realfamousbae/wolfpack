@@ -42,7 +42,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
 | Target | Layout of `out/<target>/` |
 | --- | --- |
 | TS | `package.json` (`"type": "module"`), `tsconfig.json` (strict, target ES2022, module NodeNext), `src/**/*.ts`, `src/wolf_rt.ts`. Built with `tsc` into `dist/` (root `.`, so `src/` and `examples/` keep their paths), run with `node dist/src/main.js` |
-| Go | `go.mod` (module path = package name, `go 1.24`), `main.go` (package `main`) for `cli`, one directory per module, `wolfrt/` package |
+| Go | `go.mod` (module path = package name, or `wolfpack.local/<name>` if Go's standard library has a package of that name, such as `cmp`; `go 1.24`), `main.go` (package `main`) for `cli`, one directory per module, `wolfrt/` package |
 | Rust | `Cargo.toml` (edition 2024), `src/main.rs` or `src/lib.rs`, one file per module, `src/wolf_rt.rs` |
 
 1. **Directory structure follows `src/`** **[PLAN]**: `src/users/storage.wolf` becomes
