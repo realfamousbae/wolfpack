@@ -59,6 +59,9 @@ tests {
   build: `wolf build` and `wolf run` leave them out.
 - `assert` works anywhere, not only in tests. Since `==` compares lists and structs by value,
   `assert(all_of([1, 2, 4]) == ["1", "2", "4"])` checks a whole result at once.
+- `assert_eq(a, b)` checks `a == b` and, when it fails, shows both values:
+  `assertion failed: fizz(10) == "Buzz" (left: Fizz, right: Buzz)`. The values must implement
+  `Display` (chapter 9).
 
 ## Running the tests
 

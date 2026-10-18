@@ -5,8 +5,8 @@ Do not implement anything listed here without an approved spec change.
 
 ## Lexical (from chapter 1)
 
-- String interpolation as `f"Hello, {name}"`. The prefix is already reserved (E0113).
-- Raw strings `r"..."` and multiline string literals.
+- Format specifications in interpolated strings (`f"{x:>5}"`, `f"{price:.2}"`); for now widths and
+  precision are std functions.
 - A `Char` type with `'a'` literals. The `'` character is already reserved.
 - Numeric type suffixes (`5i32`) together with sized integer types. Suffixes are already reserved.
 
@@ -14,11 +14,11 @@ Do not implement anything listed here without an approved spec change.
 
 - Default method bodies in interfaces.
 - Super-interfaces: `interface Ordered: Comparable { }`.
-- `if let` and `while let`.
-- Destructuring `let` for irrefutable patterns: `let Point { x, y } = p`.
-- Loop labels, `loop`, `break` with a value.
+- Chains in conditions: `if let Some(x) = a && x > 0` (taken in 0.2 without chains).
+- `break label value`: leaving a labelled outer `loop` with a value (0.2 has `break label` and
+  `break value` separately).
 - Variants with a payload as function values: `names.map(Some)` (declined for v1, 2026-10-09).
-- Struct update syntax: `User { name: "B", ..old }`.
+- The update syntax `..base` for enum variants with named fields (E0434 in 0.2).
 - `impl` blocks for a concrete instantiation of a generic type (`Stack<Int> { }`).
 
 ## Standard library (from chapter 7)
@@ -26,8 +26,8 @@ Do not implement anything listed here without an approved spec change.
 - Bounds on individual methods (`fn contains(self, item: T) -> Bool where T: Equatable`), so that
   `items.contains(x)` and `items.sort()` can be methods instead of free functions in `std.list`.
 - Full Unicode case mapping (`to_upper`), once the targets can be made to agree.
-- A small helper to create an `Error` from a message without declaring a type.
-- `assert_eq(a, b)` that prints both values.
+- `Display` for `List`, `Option` and `Map` when their elements are `Display`, so that `f"{items}"`
+  works.
 - A debug build flag (`wolf build --debug`) that adds `.wolf` source locations to built-in panics
   (overflow, index out of range).
 - A `Bytes` type for byte arrays, so that hashing, encodings and binary files work, and so that

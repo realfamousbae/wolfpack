@@ -236,6 +236,45 @@ An interface is used in two ways:
   value supports the methods of the interface and `.copy()`, but not `==`, and it cannot be turned
   back into its concrete type.
 
+The built-in interface `Display` gives the text of a value: `fn to_string(self) -> String`. `Int`,
+`Float`, `Bool` and `String` implement it, and so can your own types. Interpolated strings
+(chapter 2) and `assert_eq` (chapter 11) take any `Display` value:
+
+```wolf
+module main
+
+types {
+    struct Money {
+        cents: Int
+    }
+}
+
+impl {
+    Money: Display {
+        fn to_string(self) -> String {
+            f"{self.cents / 100}.{self.cents % 100} EUR"
+        }
+    }
+}
+
+main {
+    let price = Money { cents: 1250 }
+    print(f"price: {price}")
+    print(labelled("total", price))
+}
+
+functions {
+    fn labelled<T: Display>(label: String, value: T) -> String {
+        f"{label} = {value}"
+    }
+}
+```
+
+```output
+price: 12.50 EUR
+total = 12.50 EUR
+```
+
 Not every interface can be a type. When a method uses `Self` other than as the receiver, as in
 `compare(self, other: Self)`, two values of the same type are needed, and a list of mixed shapes
 could not provide them. `Comparable` is therefore only a bound.

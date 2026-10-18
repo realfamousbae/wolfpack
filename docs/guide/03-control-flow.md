@@ -82,9 +82,10 @@ Ann
 Cid
 ```
 
-`break` leaves the innermost loop and `continue` starts its next round; neither has a label or a
-value. There is no `loop` keyword: write `while true`. Such a loop is known to never end unless a
-`break` leaves it, so a function may end with it without a value after it:
+`break` leaves the innermost loop and `continue` starts its next round. `loop { ... }` repeats
+until a `break`; it is an expression, and `break value` gives it its value. A `loop` (or a
+`while true`) without a `break` of its own never ends, so a function may end with it without a
+value after it:
 
 ```wolf
 module main
@@ -96,7 +97,7 @@ main {
 functions {
     fn first_square_above(limit: Int) -> Int {
         var i = 1
-        while true {
+        loop {
             if i * i > limit {
                 return i * i
             }
@@ -108,6 +109,43 @@ functions {
 
 ```output
 64
+```
+
+A loop may have a **label**, a name and a `:` before it. `break label` and `continue label` leave
+or continue that loop from a loop inside it:
+
+```wolf
+module main
+
+main {
+    var tries = 0
+    let found = loop {
+        tries += 1
+        if tries * 7 % 5 == 1 {
+            break tries
+        }
+    }
+    print(f"found {found}")
+
+    rows: for row in 0..3 {
+        for col in 0..3 {
+            if col > row {
+                continue rows
+            }
+            if row == 2 {
+                break rows
+            }
+            print(f"{row},{col}")
+        }
+    }
+}
+```
+
+```output
+found 3
+0,0
+1,0
+1,1
 ```
 
 Ranges are not values: they are written only in a `for` and inside the brackets of a slice

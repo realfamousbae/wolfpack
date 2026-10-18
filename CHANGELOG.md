@@ -2,6 +2,22 @@
 
 All notable changes are recorded here at the end of each milestone.
 
+## 0.2.0 (unreleased)
+
+- Interpolated strings `f"{name} has {items.len()} items"`, raw strings `r"\d+"` and multiline
+  strings `"""` whose indentation is that of the closing quotes (spec chapter 1, section 5.3a).
+- The built-in interface `Display` (`to_string`), implemented by `Int`, `Float`, `Bool`, `String`
+  and by your own types; interpolated strings and `assert_eq` use it.
+- Destructuring `let Point { x, y } = p`, `if let` and `while let`.
+- `loop` with `break value`, and labelled loops: `outer: for ...`, `break outer`, `continue outer`.
+  `loop` is now a reserved word.
+- The update syntax `User { name: "B", ..old }`.
+- `error(message)` makes an `Error` without a type of its own; `assert_eq(a, b)` shows both values
+  when it fails.
+- New diagnostics E0114 to E0116, E0315, E0316 and E0433 to E0438.
+- The example `syntax-tour`; the guide shows the new forms in chapters 2, 3, 5, 7, 9 and 11.
+- `wolf fmt` keeps the content of `"""` strings and moves them with the code.
+
 ## 0.1.1 (2026-10-17)
 
 - Installation from a terminal on every system: `install.sh` (macOS, Linux) checks the download

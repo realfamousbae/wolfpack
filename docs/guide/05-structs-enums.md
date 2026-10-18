@@ -42,6 +42,36 @@ true
   no `==`.
 - Types are nominal: two structs with the same fields are still different types.
 
+A struct can also be taken apart by a `let` with a pattern, and built from another one with the
+**update syntax** `..base`, which takes the fields that are not written from `base`:
+
+```wolf
+module main
+
+types {
+    struct Item {
+        name: String
+        count: Int
+        price: Float
+    }
+}
+
+main {
+    let bolts = Item { name: "bolts", count: 10, price: 0.25 }
+    let more = Item { count: 40, ..bolts }
+    let Item { name, count, .. } = more
+    print(f"{count} {name}")
+}
+```
+
+```output
+40 bolts
+```
+
+- `..base` comes last. The base is moved into the new value; write `..bolts.copy()` to keep it.
+- The pattern of such a `let` must always match: names, `_`, `..` and nested struct patterns. For
+  enums and `Option` use `if let` or `match` (chapter 7).
+
 ## Methods
 
 Methods go into the `impl` section, in a block named after the type. The first parameter of a

@@ -232,8 +232,58 @@ tab	quote" backslash\
   `repeat`. `to_upper_ascii` changes only ASCII letters, because the targets disagree on full
   Unicode case mapping.
 - Strings use double quotes. The escapes are `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, `\xHH` (ASCII) and
-  `\u{...}`. A string cannot span several lines.
+  `\u{...}`. A `"..."` string ends on its line; strings over several lines are written with `"""`
+  (below).
 - `"text".parse_int()` and `parse_float()` read numbers; they return a `Result` (chapter 7).
+
+### Interpolated, raw and multiline strings
+
+An **interpolated string** `f"..."` puts the values of expressions into the text. Anything that
+implements `Display` can stand in the braces: numbers, `Bool`, `String` and your own types
+(chapter 9). `{{` and `}}` write a brace:
+
+```wolf
+module main
+
+main {
+    let name = "Ann"
+    let items = ["tea", "jam"]
+    print(f"{name} has {items.len()} items, the first is {items[0]}")
+    print(f"half of 3 is {3.0 / 2.0}, braces: {{}}")
+}
+```
+
+```output
+Ann has 2 items, the first is tea
+half of 3 is 1.5, braces: {}
+```
+
+A **raw string** `r"..."` has no escapes: `r"\d+"` is the four characters `\d+`. A **multiline
+string** starts with `"""` at the end of a line and ends with `"""` on a line of its own; the
+indentation of the closing quotes is removed from every line. `f"""` and `r"""` combine both:
+
+```wolf
+module main
+
+main {
+    let name = "tour"
+    print(r"C:\files\new")
+    print(f"""
+        usage: {name} <command>
+
+        commands:
+            run    show everything
+        """)
+}
+```
+
+```output
+C:\files\new
+usage: tour <command>
+
+commands:
+    run    show everything
+```
 
 ## Void
 

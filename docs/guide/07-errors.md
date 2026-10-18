@@ -41,7 +41,31 @@ not found
 ```
 
 A value of type `Option<Int>` is not an `Int`: to use the number inside, the code has to say what
-happens when there is none, usually with a `match`.
+happens when there is none, usually with a `match`. When only one case matters, `if let` is
+shorter, and `while let` repeats while the value matches:
+
+```wolf
+module main
+
+main {
+    if let Some(at) = "wolfpack".find("pack") {
+        print(f"found at {at}")
+    } else {
+        print("not found")
+    }
+    var stack = [1, 2, 3]
+    while let Some(top) = stack.pop() {
+        print(f"took {top}")
+    }
+}
+```
+
+```output
+found at 4
+took 3
+took 2
+took 1
+```
 
 ## `Result`: a value or an error
 
@@ -142,6 +166,32 @@ port 70000 is out of range
 can pass on the `ParseError` of `parse_int`, and `Err(PortError.OutOfRange(port))` is accepted
 too. Where a function promises a specific error type instead, such as `Result<Int, PortError>`,
 `?` passes on only errors of exactly that type.
+
+An error that needs no type of its own is made with `error(message)`:
+
+```wolf
+module main
+
+main {
+    match half(7) {
+        Ok(n) => print(f"half is {n}")
+        Err(e) => print(e.message())
+    }
+}
+
+functions {
+    fn half(n: Int) -> Result<Int, Error> {
+        if n % 2 != 0 {
+            return Err(error(f"{n} is odd"))
+        }
+        Ok(n / 2)
+    }
+}
+```
+
+```output
+7 is odd
+```
 
 ## When `main` fails
 
