@@ -120,14 +120,16 @@ impl Checker<'_> {
                 if !self.crosses(&ty) {
                     valid = false;
                     let shown = self.show(&ty);
-                    self.report(
-                        Diagnostic::new(
-                            codes::E0702,
-                            format!("`{shown}` cannot cross the extern boundary"),
-                        )
-                        .primary(span, "not allowed in an extern signature")
-                        .note("extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, and extern types"),
-                    );
+                    let mut d = Diagnostic::new(
+                        codes::E0702,
+                        format!("`{shown}` cannot cross the extern boundary"),
+                    )
+                    .primary(span, "not allowed in an extern signature")
+                    .note("extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, and extern types");
+                    if self.map_of_opaque(&ty) {
+                        d = d.help("a map is copied at the boundary, and values of extern types cannot be copied: pass a `List` of them, or the keys and the values separately");
+                    }
+                    self.report(d);
                 }
             }
             match first.get(&def) {
@@ -194,8 +196,9 @@ impl Checker<'_> {
                         [Ty::Named(k, _), v] => {
                             [self.b.int, self.b.string, self.b.bool].contains(&Some(*k))
                                 && self.crosses(v)
+                                && !self.has_opaque(v)
                         }
-                        [Ty::Error, v] => self.crosses(v),
+                        [Ty::Error, v] => self.crosses(v) && !self.has_opaque(v),
                         _ => false,
                     }
                 } else if d == self.b.result {
@@ -206,6 +209,29 @@ impl Checker<'_> {
                 } else {
                     d.and_then(|d| self.def_kind(d)) == Some(DefKind::ExternType)
                 }
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether a type contains a `Map` whose values hold an opaque extern type.
+    fn map_of_opaque(&self, ty: &Ty) -> bool {
+        match ty {
+            Ty::Named(d, args) => {
+                (Some(*d) == self.b.map && args.get(1).is_some_and(|v| self.has_opaque(v)))
+                    || args.iter().any(|a| self.map_of_opaque(a))
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether a type is or contains an opaque extern type, which a map at the boundary cannot
+    /// hold (chapter 7, section 8.4, rule 1).
+    fn has_opaque(&self, ty: &Ty) -> bool {
+        match ty {
+            Ty::Named(d, args) => {
+                self.def_kind(*d) == Some(DefKind::ExternType)
+                    || args.iter().any(|a| self.has_opaque(a))
             }
             _ => false,
         }

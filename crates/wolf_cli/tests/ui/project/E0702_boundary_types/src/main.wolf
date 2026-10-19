@@ -6,6 +6,8 @@ extern {
         fn origin() -> Point from "lib#origin"
         fn check(s: String) -> Result<Int, String> from "lib#check"
         fn names() -> List<Option<String>> from "lib#names"
+        type Handle from "lib#Handle"
+        fn handles() -> Map<String, Handle> from "lib#handles"
     }
 }
 

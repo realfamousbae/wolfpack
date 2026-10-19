@@ -22,4 +22,13 @@ error[E0702]: `Result<Int, String>` cannot cross the extern boundary
   |
   = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, and extern types
 
-error: aborting due to 3 errors
+error[E0702]: `Map<String, Handle>` cannot cross the extern boundary
+   --> src/main.wolf:10:25
+   |
+10 |         fn handles() -> Map<String, Handle> from "lib#handles"
+   |                         ^^^^^^^^^^^^^^^^^^^ not allowed in an extern signature
+   |
+   = help: a map is copied at the boundary, and values of extern types cannot be copied: pass a `List` of them, or the keys and the values separately
+   = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, and extern types
+
+error: aborting due to 4 errors
