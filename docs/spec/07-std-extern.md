@@ -447,9 +447,10 @@ no tool of the target for it, so `wolf check` works without Node.js, Go or Cargo
 map becomes a name of the module; every other item is not available, and using it is E0713 with
 the reason (`its parameter is a &mut reference`), so nothing is left out silently.
 
-1. **Readers.** In 0.2 the compiler reads Rust (step N3a). Go and TypeScript follow in steps N3b and
-   N3c; until then the `.go` and `.ts` files of a native module are only copied, and its names are
-   available for Rust only.
+1. **Readers.** In 0.2 the compiler reads Rust (step N3a) and Go (step N3b, rules 8 to 11;
+   author, 2026-10-20, D7.17). TypeScript follows in step N3c; until then the `.ts` files of a
+   native module are only copied, and its names are available only for the targets it has a reader
+   for.
 2. **Rust items.** At the top level of the module file, outside `mod` blocks and items with a
    `#[cfg(...)]` attribute:
    - a `pub fn`, not generic except for callback parameters (rule 4), not `async` and not
@@ -472,7 +473,7 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
    | `Map<K, V>` | `&HashMap<K, V>`, `HashMap<K, V>`; as a result also `BTreeMap<K, V>`; keys `Int`, `String` or `Bool` |
    | `Option<T>` | `Option<T>` |
    | `Result<T, Error>` | `Result<T, E>` as a result; `E` must implement `Display`, whose text is the message |
-   | a record or opaque type of the module | the struct, enum or type itself, or `&` of it |
+   | a record or opaque type of the module | the struct, enum or type itself as a result; `&` of it as a parameter, since values of opaque types cannot be copied (author, 2026-10-20) |
 
    A `char`, a tuple, a `&mut` reference, a lifetime parameter other than elided ones, a type from
    another module or crate, and every other type make the item not available.
@@ -481,10 +482,42 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
 5. **Names.** The Rust names are kept: they already follow the wolfpack style. A name that is a
    reserved keyword of wolfpack makes the item not available.
 6. **Calls.** A function of a native module is called as if it were declared in a `rust` block
-   with the path `native:<module path>::<name>` (section 8.2a): the conversions of chapter 8,
-   section 8 apply, and `cargo` checks the rest (E0806).
+   with the path `native:<module path>::<name>`, or in a `go` block with the path
+   `native:<package dir>.<Name>` (section 8.2a): the conversions of chapter 8, section 8 apply,
+   with the integer and float types the reader found, and `cargo` or `go` checks the rest (E0806).
 7. A Rust file that cannot be parsed is E0714, with the message of the parser and the position in
    the file.
+8. **Go items.** The `.go` files directly in `native/go/<path>/` are read, except `_test.go` files
+   and files with a `//go:build` line. At their top level:
+   - an exported `func` without a receiver and without type parameters becomes a function; its
+     name becomes `snake_case` (`Slugify` is `slugify`, `CountWords` is `count_words`, `ParseURL`
+     is `parse_url`);
+   - an exported `type X struct { ... }` whose fields are all exported and of the field types of
+     rule 9 becomes a record (as in rule 2); any other exported struct type becomes an opaque type
+     used as `*X`; any other exported named type an opaque type used as `X`.
+   Methods are not available in N3b.
+9. **Go types.** A parameter is always a read parameter:
+
+   | Wolfpack | Go |
+   | --- | --- |
+   | `Int` | `int`, `int8` to `int64`, `uint`, `uint8` to `uint64` (converted with a check) |
+   | `Float` | `float64`; `float32` (converted) |
+   | `Bool`, `String` | `bool`, `string` |
+   | `Void` | no result |
+   | `List<T>` | `[]T` |
+   | `Map<K, V>` | `map[K]V`; keys `Int`, `String` or `Bool` |
+   | `Option<T>` | the results `(T, bool)` |
+   | `Result<T, Error>` | the results `(T, error)`; `Result<Void, Error>` for the result `error` |
+   | a callback | `func(A, ..) R`, with the forms of rule 4 in Go types (`int64`, `float64`, `bool`, `string`, `[]T`, `*X`) |
+   | an opaque type `X` of the module | `*X` for a struct type, `X` for another named type, as declared by rule 8 |
+
+   An `Option` parameter, a pointer to anything but a struct of the module, an interface (other
+   than `error`), a channel, an array, a variadic parameter, a type from another package, and other
+   result lists make the function not available.
+10. **Agreement.** A name declared in several targets must map to the same wolfpack signature in
+    each; otherwise the name is not available, and importing the module reports E0715 with both
+    signatures. A name declared in only some targets binds the importing module to them (E0704).
+11. A Go file that cannot be parsed is E0714.
 
 ## 9. Diagnostics
 
@@ -505,6 +538,7 @@ Proposed range E07xx (confirmed in chapter 9).
 | E0712 | `pub` import of a native module (0.2; chapter 6, section 1a) |
 | E0713 | A name of a native module that the compiler could not map; the reason is shown (0.2) |
 | E0714 | A native file that the compiler cannot read: a syntax error in the target language (0.2) |
+| E0715 | A name of a native module that maps to different wolfpack signatures in different targets (0.2) |
 | E0711 | `struct Name from "path"` in an extern block does not name a non-generic struct of the module (0.2) |
 
 ## 10. Decisions for the author
@@ -527,3 +561,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.14 | 0.2: callbacks, parameters of a function type of extern functions, called only during the call (section 8.4, rule 7) | **answered** (author, 2026-10-19): yes |
 | D7.15 | 0.2: records: a struct of the module bound to a struct type of each target with `struct Name from "path"`, copied field by field (section 8.4a), code E0711 | **answered** (author, 2026-10-19): yes |
 | D7.16 | 0.2: native modules: declarations read from Rust code (section 8.7), the type mapping of rule 3, codes E0713 and E0714 | **answered** (author, 2026-10-20): yes |
+| D7.17 | 0.2: native modules read from Go code (section 8.7, rules 8 to 11), the agreement of targets, code E0715 | **answered** (author, 2026-10-20): yes |
