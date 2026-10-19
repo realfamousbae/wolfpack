@@ -54,7 +54,7 @@ impl Checker<'_> {
                         ),
                     )
                     .primary(decl.from.span, "malformed path")
-                    .help(path_help(t, is_type)),
+                    .help(path_help(t, &decl.from.value, is_type)),
                 );
             }
             let ExternDeclKind::Fn(sig) = &decl.kind else {
@@ -235,7 +235,16 @@ fn target_name(t: &str) -> &'static str {
     }
 }
 
-fn path_help(t: &str, is_type: bool) -> &'static str {
+fn path_help(t: &str, path: &str, is_type: bool) -> &'static str {
+    if path.starts_with(NATIVE) {
+        return match t {
+            "go" => "write `native:<package dir>.Name`, such as `native:slug.Slugify`",
+            "ts" => {
+                "write `native:<file>#<export>` without `.ts`, such as `native:text/slug#slugify`"
+            }
+            _ => "write `native:<module path>::<name>`, such as `native:slug::slugify`",
+        };
+    }
     match (t, is_type) {
         ("go", false) => {
             "write `import/path.Name`, or a method expression: `(*bytes.Buffer).WriteString`"
@@ -246,12 +255,47 @@ fn path_help(t: &str, is_type: bool) -> &'static str {
     }
 }
 
-/// Whether `path` has the form of chapter 7, section 8.2 for the target `t`.
+/// The prefix of a path to code of the project in `native/<target>/` (chapter 7, section 8.2a).
+const NATIVE: &str = "native:";
+
+/// Whether `path` has the form of chapter 7, section 8.2 (or 8.2a) for the target `t`.
 fn path_ok(t: &str, path: &str, is_type: bool) -> bool {
+    if let Some(rest) = path.strip_prefix(NATIVE) {
+        return native_path_ok(t, rest, is_type);
+    }
     match t {
         "go" => go_path(path, is_type),
         "ts" => ts_path(path),
         _ => rust_path(path),
+    }
+}
+
+/// A `native:` path: the form of the target, with a file, package directory or module path
+/// inside `native/<target>/`. Every segment of it is an identifier, so that it can neither
+/// leave the directory nor name a file that is not valid in the generated project.
+fn native_path_ok(t: &str, rest: &str, is_type: bool) -> bool {
+    let segments = |s: &str, sep: &str| !s.is_empty() && s.split(sep).all(|p| ident(p, false));
+    match t {
+        "ts" => rest
+            .split_once('#')
+            .is_some_and(|(file, export)| segments(file, "/") && ident(export, true)),
+        "go" => {
+            let rest = if is_type {
+                rest.strip_prefix('*').unwrap_or(rest)
+            } else {
+                rest
+            };
+            let check = |p: &str| go_qualified(p).is_some_and(|(pkg, _)| segments(pkg, "/"));
+            if !is_type {
+                if let Some(inner) = rest.strip_prefix('(') {
+                    let inner = inner.split_once(").").map_or("", |(i, _)| i);
+                    let inner = inner.strip_prefix('*').unwrap_or(inner);
+                    return check(inner) && go_path(rest, false);
+                }
+            }
+            check(rest) && go_path(rest, is_type)
+        }
+        _ => rust_path(rest) && rest.contains("::"),
     }
 }
 
@@ -337,5 +381,31 @@ mod tests {
         assert!(rust_path("str::to_uppercase"));
         assert!(!rust_path("strsim:levenshtein"));
         assert!(!rust_path("a::"));
+    }
+
+    #[test]
+    fn native_path_forms() {
+        assert!(path_ok("ts", "native:slug#slugify", false));
+        assert!(path_ok("ts", "native:text/slug#slugify", false));
+        assert!(path_ok("ts", "native:search#Index", true));
+        assert!(!path_ok("ts", "native:slug", false));
+        assert!(!path_ok("ts", "native:slug.ts#slugify", false));
+        assert!(!path_ok("ts", "native:../slug#slugify", false));
+        assert!(!path_ok("ts", "native:/slug#slugify", false));
+        assert!(!path_ok("ts", "native:#slugify", false));
+        assert!(path_ok("go", "native:slug.Slugify", false));
+        assert!(path_ok("go", "native:text/slug.Slugify", false));
+        assert!(path_ok("go", "native:search.Index.Add", false));
+        assert!(path_ok("go", "native:(*search.Index).Add", false));
+        assert!(!path_ok("go", "*native:search.Index", true));
+        assert!(path_ok("go", "native:*search.Index", true));
+        assert!(!path_ok("go", "native:my-slug.Slugify", false));
+        assert!(!path_ok("go", "native:../slug.Slugify", false));
+        assert!(!path_ok("go", "native:Slugify", false));
+        assert!(path_ok("rust", "native:slug::slugify", false));
+        assert!(path_ok("rust", "native:text::slug::slugify", false));
+        assert!(!path_ok("rust", "native:slugify", false));
+        assert!(!path_ok("rust", "native:slug:slugify", false));
+        assert!(!path_ok("rust", "native:", false));
     }
 }
