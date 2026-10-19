@@ -343,8 +343,9 @@ extern {
 ### 8.4 The boundary
 
 1. Only these types may appear in extern signatures **[PLAN]**: `Int`, `Float`, `Bool`, `String`,
-   `Void`, `List<B>`, `Option<B>`, `Result<B, Error>`, and opaque types, where `B` is again one of
-   these (E0702). `Map`, structs, enums and interfaces do not cross the boundary.
+   `Void`, `List<B>`, `Option<B>`, `Result<B, Error>`, `Map<K, B>` (0.2) and opaque types, where
+   `B` is again one of these and the key `K` is `Int`, `String` or `Bool` (E0702). Structs, enums
+   and interfaces do not cross the boundary.
 2. The error type of a `Result` at the boundary is always `Error` **[PROPOSAL]**: a Go `error`, a
    value thrown in TS, or a Rust `E: Display` becomes an `Error` whose `message()` is the target's
    text.
@@ -353,6 +354,11 @@ extern {
 4. Read parameters are passed without copying. The extern code must not change or keep them; this is
    a contract that the compiler cannot check. **[PROPOSAL]** (see D7.8)
 5. The exact conversions (`Int` to `bigint`, `Option` to `*T`, and so on) are in chapter 8.
+6. A `Map` crosses the boundary as a copy in the map type of the target (chapter 8, section 8),
+   built on every call (0.2). A map that extern code returns is in **increasing order of its
+   keys** on every target, whatever order the target gave it: numbers by value, strings as `<`
+   compares them (chapter 4), `false` before `true`. A key that comes twice keeps its last value.
+   (author, 2026-10-19, D7.13)
 
 ### 8.5 Target binding of modules
 
@@ -406,3 +412,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.10 | 0.2: `error(message) -> Error` and `assert_eq` with `Display`, in the prelude | **answered** (author, 2026-10-18): yes |
 | D7.11 | 0.2: the panic text of `assert_eq` (section 3, rule 2) | **answered** (author, 2026-10-18): yes |
 | D7.12 | 0.2: code of the project in `native/<target>/`, called with `native:` paths (section 8.2a; the recommendations Q1 to Q3 of `docs/plans/native-code.md`) | **answered** (author, 2026-10-18): yes |
+| D7.13 | 0.2: `Map<K, B>` at the extern boundary, keys `Int`, `String`, `Bool`, copied on every call; maps returned by extern code in key order on every target (section 8.4, rules 1 and 6) | **answered** (author, 2026-10-19): yes |

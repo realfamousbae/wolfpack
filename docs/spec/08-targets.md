@@ -363,6 +363,16 @@ copy defensively.
      check; `Result` errors are converted with their `Display` text.
    - A checked conversion that fails is a panic: `integer too large for extern code` for a
      parameter, `integer overflow` for a result, on every target.
+   - `Map<K, V>` (0.2; chapter 7, section 8.4, rule 6) is never passed as the map of the runtime,
+     whose contents are internal. Keys and values inside it are converted by the rules above:
+
+     | | TS | Go | Rust |
+     | --- | --- | --- | --- |
+     | parameter | a new `Map<K, V>` | a new `map[K]V` | `&HashMap<K, V>` of `std::collections`, built for the call |
+     | result | a `Map`, or for `String` keys a plain object (its own enumerable properties) | `map[K]V`; `Int` keys and values of any Go integer type | any `IntoIterator<Item = (K, V)>`: `HashMap`, `BTreeMap`, a `Vec` of pairs; `Int` of any Rust integer type |
+
+     The parameter is built in the insertion order of the wolfpack map where the target type has
+     an order (TS). The result is sorted by key when it is converted.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
 ## 8a. Code of the project (`native/`)
@@ -404,3 +414,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.6 | 0.2: `wolf self update` and the daily question at start (section 2b) | **answered** (author, 2026-10-18): yes; a background check once a day, `[y/N]` only in a terminal |
 | D8.8 | 0.2: where the files of `native/` are copied and how the generated code imports them (section 8a), code E0806 | **answered** (author, 2026-10-18): yes |
 | D8.7 | 0.2: the details of section 2b: no prerelease, update to an older version with `--version`, package managers left alone, `update.check` in `<home>/config.toml`, the same release asked about once a day, code E0805 | **answered** (author, 2026-10-18): yes |
+| D8.9 | 0.2: the target types of `Map` at the extern boundary (section 8, rule 2): `Map` and plain objects in TS, `map[K]V` in Go, `&HashMap` and any iterator of pairs in Rust | **answered** (author, 2026-10-19): yes |
