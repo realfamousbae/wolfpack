@@ -390,7 +390,7 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it |
 | E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16) |
 | E0805 | `wolf self update` could not download, check or install a release (section 2b); the URL or the file and the reason are shown (0.2) |
-| E0806 | A tool of the target rejected code in `native/` (section 8a); the output of the tool is shown. Unlike E0802 it is not a bug of `wolf` (0.2) |
+| E0806 | A tool of the target rejected a project that has code in `native/<target>/` (section 8a); the output of the tool is shown. The error is usually in a native file or in an `extern` declaration that does not match it, so unlike E0802 it is reported for every rejection of such a project (author, 2026-10-19) (0.2) |
 
 ## 10. Decisions for the author
 

@@ -320,7 +320,8 @@ extern {
 2. The file, the Go package directory or the Rust module named by the path must exist in
    `native/<target>/` (E0709, at the path string). Whether the function exists and has the declared
    signature is checked by `tsc`, `go build` or `cargo`. An error that their tool reports in a
-   native file is not a bug of `wolf`: it is E0806 (chapter 8), with the output of the tool.
+   native file, or in a generated call that does not match the native function, is not a bug of
+   `wolf`: it is E0806 (chapter 8), with the output of the tool.
 3. Native code may use the dependencies of `[extern.<target>.dependencies]` and the standard
    library of its language, but not the runtime of the generated code, whose contents are
    internal.
