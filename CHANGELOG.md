@@ -28,6 +28,8 @@ All notable changes are recorded here at the end of each milestone.
 - Fixed: a variant passed for a generic parameter in TypeScript and Go, `Comparable` on a plain
   enum in Rust, `Display` and `Comparable` of plain enums through a type parameter in TypeScript,
   and a Go module named like a package of Go's standard library (such as `cmp`).
+- Fixed: in Go, an error returned by extern code is now an `Error` whose `message()` is its text,
+  as chapter 7, section 8.4 says; before, calling `message()` on it panicked.
 
 ## 0.1.1 (2026-10-17)
 

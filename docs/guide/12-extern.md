@@ -189,7 +189,10 @@ Everything else about extern declarations stays the same: the types allowed at t
 `Result` for errors, opaque types and the binding of modules to targets. `wolf build` copies the
 files of `native/<target>/` into the generated project unchanged and imports them from there:
 `src/native/` for TypeScript and Rust (where `wolf` also writes the `mod.rs` files that declare the
-modules), and `native/` for Go, as packages of the generated module.
+modules), and `native/` for Go, as packages of the generated module. A Go package of `native/go/`
+that imports another one uses the module path of the generated project: the package name, such as
+`my-app/native/text`, or `wolfpack.local/<name>` when Go's standard library has a package of that
+name.
 
 `wolf check` reports a `native:` path whose file, package or module is missing (`wolf explain
 E0709`). Whether the function exists and has the declared types is checked by `tsc`, `go` and
