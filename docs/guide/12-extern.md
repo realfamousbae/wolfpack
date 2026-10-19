@@ -53,9 +53,13 @@ wolfpack parameter becomes the receiver.
 ## What crosses the boundary
 
 Only types that every target can convert are allowed in extern signatures: `Int`, `Float`, `Bool`,
-`String`, `Void`, `List` and `Option` of these, `Result<T, Error>`, and opaque types. Maps,
-structs, enums and interfaces are converted by wolfpack code around the extern call.
+`String`, `Void`, `List`, `Option` and `Map` of these, `Result<T, Error>`, and opaque types. Map
+keys must be `Int`, `String` or `Bool`. Structs, enums and interfaces are converted by wolfpack
+code around the extern call.
 
+- A `Map` is copied into the map type of the target on every call: a `Map` in TypeScript, a
+  `map[K]V` in Go, a `&HashMap<K, V>` in Rust. A map that comes back is sorted by its keys, the
+  same on every target, because Go and Rust maps have no order of their own.
 - Integers are checked when they cross: a Go `int32` or a Rust `usize` that does not fit, for
   example, is a panic, not a silent change of the value.
 - A declared `Result` catches the failure of the target: a Go `error`, an exception thrown in

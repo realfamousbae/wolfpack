@@ -25,6 +25,9 @@ All notable changes are recorded here at the end of each milestone.
   project and imports it; new diagnostics E0709 (missing native file), E0710 (native file in a
   generated path) and E0806 (a target tool rejected a project with native code). The example
   `native-slug` and a section of guide chapter 12.
+- `Map<K, V>` crosses the extern boundary, with `Int`, `String` or `Bool` keys: it is copied into a
+  `Map`, a Go `map[K]V` or a Rust `&HashMap<K, V>`, and a map that comes back is sorted by key on
+  every target (spec chapter 7, section 8.4).
 - Fixed: a variant passed for a generic parameter in TypeScript and Go, `Comparable` on a plain
   enum in Rust, `Display` and `Comparable` of plain enums through a type parameter in TypeScript,
   and a Go module named like a package of Go's standard library (such as `cmp`).
