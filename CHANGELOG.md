@@ -20,6 +20,14 @@ All notable changes are recorded here at the end of each milestone.
 - `wolf self update` installs the latest release (or `--version`), and `wolf` asks once a day,
   in a terminal, whether to update when a newer release exists (spec chapter 8, section 2b;
   E0805). `WOLFPACK_NO_UPDATE_CHECK=1` or `update.check = false` turn the question off.
+- Your own target code in `native/ts/`, `native/go/` and `native/rust/`, called through `extern`
+  with `native:` paths (spec chapter 7, section 8.2a). `wolf build` copies it into the generated
+  project and imports it; new diagnostics E0709 (missing native file), E0710 (native file in a
+  generated path) and E0806 (a target tool rejected a project with native code). The example
+  `native-slug` and a section of guide chapter 12.
+- Fixed: a variant passed for a generic parameter in TypeScript and Go, `Comparable` on a plain
+  enum in Rust, `Display` and `Comparable` of plain enums through a type parameter in TypeScript,
+  and a Go module named like a package of Go's standard library (such as `cmp`).
 
 ## 0.1.1 (2026-10-17)
 

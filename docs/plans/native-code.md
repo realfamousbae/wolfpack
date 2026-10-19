@@ -1,8 +1,10 @@
 # Plan: calling your own TypeScript, Go and Rust code
 
-Status: **draft plan** (2026-10-17). Nothing here is part of the language yet. Each stage starts
-with an edit of `docs/spec/` in its own commit and needs the author's approval, as every language
-change does. The open questions at the end are for the author.
+Status: **N1 done** (2026-10-19, for 0.2): `native/<target>/`, `native:` paths, E0709, E0710 and
+E0806 (spec chapter 7, section 8.2a; chapter 8, section 8a), the example `examples/native-slug`.
+N2 and N3 are still a plan. Each stage starts with an edit of `docs/spec/` in its own commit and
+needs the author's approval, as every language change does. The open questions at the end are for
+the author.
 
 ## 1. Where we are
 

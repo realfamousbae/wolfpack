@@ -188,7 +188,8 @@ library can name it.
 
 ## Tests and examples
 
-Next to `src/`, a project has two more directories:
+Next to `src/`, a project has two more directories, and a third one for code in the target
+languages:
 
 - `tests/` holds **integration tests**. Each file is a module `tests.<name>` with only `imports`,
   helper `functions` and `tests`. It sees the project from outside: a library through its API
@@ -196,5 +197,7 @@ Next to `src/`, a project has two more directories:
   covers tests.
 - `examples/` holds **usage examples**: small programs `examples.<name>`, each with its own
   `main` section, which see the project the same way. `wolf run --example <name>` runs one.
+- `native/` holds your own TypeScript, Go and Rust code in `native/ts/`, `native/go/` and
+  `native/rust/`, called through `extern` (chapter 12).
 
 The generated code goes to `out/`, which is not part of the source and is ignored by git.

@@ -22,7 +22,7 @@ first project.
    values.
 10. [Modules and projects](10-modules-projects.md): imports, visibility, `config`, libraries.
 11. [Testing](11-testing.md): `tests` sections, `tests/` and `wolf test`.
-12. [Using target libraries](12-extern.md): the `extern` section.
+12. [Using target libraries](12-extern.md): the `extern` section and your own code in `native/`.
 13. [What the compiler generates](13-targets.md): the TypeScript, Go and Rust code.
 
 ## The examples

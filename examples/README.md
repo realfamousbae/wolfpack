@@ -1,6 +1,6 @@
 # Examples
 
-Eleven example projects written against the specification in `docs/spec/`. They are the acceptance
+Thirteen example projects written against the specification in `docs/spec/`. They are the acceptance
 tests of the milestones in `PLAN.md`: every example must pass `wolf check` (M5), run on every target
 and print exactly `expected.txt` (M6, M9, M10, M11), and run its `tests` sections (M7).
 
@@ -20,6 +20,8 @@ is the output of `wolf run --example demo`.
 | `bank` | cli | `mut` and `own` parameters, moves, errors | no | yes |
 | `textkit` | lib | re-exports in `lib.wolf`, `extern` for all three targets, `tests/`, `examples/` | no | yes |
 | `fuzzy` | cli | `extern` with a package of each target in `[extern.<target>.dependencies]`, `config` | no | yes |
+| `syntax-tour` | cli | the forms of 0.2: interpolated, raw and multiline strings, `Display`, `if let`, `while let`, destructuring `let`, `loop` with a value, labels, `..base`, `error`, `assert_eq` | no | no |
+| `native-slug` | cli | your own code of each target in `native/`, called with `native:` paths | no | yes |
 
 Coverage of the matrix in `docs/spec/00-overview.md`, section 4:
 
@@ -32,4 +34,5 @@ Coverage of the matrix in `docs/spec/00-overview.md`, section 4:
 | generics, interfaces, closures (M5), at least 3 | word_count, shapes, generic_stack |
 | `extern` for all three targets (M11) | textkit, fuzzy |
 | packages of the target languages (M11) | fuzzy |
+| own code of the target languages in `native/` (0.2) | native-slug |
 | kind `lib` (M3) | textkit |

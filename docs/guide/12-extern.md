@@ -127,3 +127,73 @@ target, with the version syntax of that target's package manager:
 They are copied into `package.json`, `go.mod` and `Cargo.toml` of the generated projects, and
 fetched when the program is built and run. The example `examples/fuzzy` of the repository uses
 exactly these three packages.
+
+## Your own target code
+
+Sometimes the function you need is not in any package: you want to write it yourself, in the target
+language. Put such code in the directory `native/` of the project, next to `src/`, with one
+directory per target: `native/ts/` holds `.ts` files, `native/go/` Go packages (one directory per
+package) and `native/rust/` `.rs` files. A path that starts with `native:` then names that code,
+in the form of each target:
+
+```wolf
+module main
+
+extern {
+    ts {
+        fn shout(s: String) -> String from "native:shout#shout"
+    }
+    go {
+        fn shout(s: String) -> String from "native:shout.Shout"
+    }
+    rust {
+        fn shout(s: String) -> String from "native:shout::shout"
+    }
+}
+
+main {
+    print(shout("hello"))
+}
+
+// file: native/ts/shout.ts
+export function shout(s: string): string {
+  return s.toUpperCase() + "!";
+}
+
+// file: native/go/shout/shout.go
+package shout
+
+import "strings"
+
+func Shout(s string) string {
+	return strings.ToUpper(s) + "!"
+}
+
+// file: native/rust/shout.rs
+pub fn shout(s: &str) -> String {
+    s.to_uppercase() + "!"
+}
+```
+
+```output
+HELLO!
+```
+
+| Target | Path | Names |
+| --- | --- | --- |
+| TS | `native:<file>#<export>` | the export of `native/ts/<file>.ts` (`text/slug` for a subdirectory) |
+| Go | `native:<package dir>.<Name>` | the function or type of the package in `native/go/<package dir>/` |
+| Rust | `native:<module path>::<name>` | the item of the module `native/rust/<module>.rs` |
+
+Everything else about extern declarations stays the same: the types allowed at the boundary,
+`Result` for errors, opaque types and the binding of modules to targets. `wolf build` copies the
+files of `native/<target>/` into the generated project unchanged and imports them from there:
+`src/native/` for TypeScript and Rust (where `wolf` also writes the `mod.rs` files that declare the
+modules), and `native/` for Go, as packages of the generated module.
+
+`wolf check` reports a `native:` path whose file, package or module is missing (`wolf explain
+E0709`). Whether the function exists and has the declared types is checked by `tsc`, `go` and
+`cargo` when the program is built; when they reject a project with native code, `wolf` shows their
+message with the code E0806: look at the native file and at its declaration. Tests written in the
+native files are not run by `wolf test`. The example `examples/native-slug` of the repository
+calls its own code on all three targets.
