@@ -53,9 +53,11 @@ fn check(main: &str) -> String {
             ast,
         })
         .collect();
+    let native = wolf_resolve::NativeNames::new();
     let project = ProjectInfo {
         kind: Kind::Cli,
         config: &[],
+        native: &native,
     };
     let mut resolved = wolf_resolve::resolve(&inputs, &project);
     diagnostics.append(&mut resolved.diagnostics);

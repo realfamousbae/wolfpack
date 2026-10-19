@@ -284,6 +284,44 @@ pub struct File {
     pub items: Vec<Item>,
 }
 
+/// A `use` item; a group that does not fit on one line is broken as rustfmt does, with as many
+/// names on each line as fit and a trailing comma.
+fn use_item(pad: &str, p: &str) -> String {
+    let line = format!("{pad}use {p};\n");
+    if width(line.trim_end()) <= MAX_WIDTH {
+        return line;
+    }
+    let Some((prefix, group)) = p.split_once('{') else {
+        return line;
+    };
+    let Some(group) = group.strip_suffix('}') else {
+        return line;
+    };
+    let inner = format!("{pad}    ");
+    let mut out = format!("{pad}use {prefix}{{\n");
+    let mut current = String::new();
+    for name in group.split(", ") {
+        let candidate = if current.is_empty() {
+            format!("{inner}{name},")
+        } else {
+            format!("{current} {name},")
+        };
+        if !current.is_empty() && width(&candidate) > MAX_WIDTH {
+            out.push_str(&current);
+            out.push('\n');
+            current = format!("{inner}{name},");
+        } else {
+            current = candidate;
+        }
+    }
+    if !current.is_empty() {
+        out.push_str(&current);
+        out.push('\n');
+    }
+    out.push_str(&format!("{pad}}};\n"));
+    out
+}
+
 /// Prints a file.
 pub fn print(file: &File) -> String {
     let mut out = String::new();
@@ -1275,7 +1313,7 @@ impl Printer {
     fn item(&self, out: &mut String, item: &Item, ind: usize) {
         let pad = spaces(ind);
         match item {
-            Item::Use(p) => out.push_str(&format!("{pad}use {p};\n")),
+            Item::Use(p) => out.push_str(&use_item(&pad, p)),
             Item::Mod(vis, name) => out.push_str(&format!("{pad}{vis}mod {name};\n")),
             Item::Fn(f) => self.func(out, f, ind),
             Item::Struct {

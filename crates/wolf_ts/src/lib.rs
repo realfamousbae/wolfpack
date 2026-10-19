@@ -41,7 +41,7 @@ pub fn generate(
     };
     for (i, m) in program.modules.iter().enumerate() {
         let wanted = match m.role {
-            ModuleRole::Entry | ModuleRole::Src => true,
+            ModuleRole::Entry | ModuleRole::Src | ModuleRole::Native => true,
             ModuleRole::Example => !tests,
             ModuleRole::Test => tests,
             ModuleRole::Std => false,

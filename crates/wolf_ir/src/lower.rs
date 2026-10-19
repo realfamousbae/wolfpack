@@ -422,6 +422,7 @@ impl<'a> Lowerer<'a> {
             Role::Prelude | Role::Std => ModuleRole::Std,
             Role::Entry => ModuleRole::Entry,
             Role::Src => ModuleRole::Src,
+            Role::Native => ModuleRole::Native,
             Role::Test => ModuleRole::Test,
             Role::Example => ModuleRole::Example,
         };

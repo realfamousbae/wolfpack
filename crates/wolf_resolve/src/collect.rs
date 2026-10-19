@@ -5,6 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use wolf_ast::*;
 use wolf_diag::{Diagnostic, codes};
 use wolf_project::Kind;
+
+use crate::UNREADABLE;
 use wolf_span::{FileId, Span};
 
 use crate::names::{is_pascal_case, is_snake_case, suggest, to_pascal, to_snake};
@@ -443,6 +445,33 @@ impl<'a> Resolver<'a> {
         }
     }
 
+    /// E0713 for a name of a native module that the compiler could not map (spec chapter 7,
+    /// section 8.7).
+    /// `Some(None)` when the native file could not be read (E0714 is reported already): its names
+    /// are then not reported again.
+    pub(crate) fn unavailable(
+        &self,
+        module_path: &str,
+        name: &Ident,
+    ) -> Option<Option<Diagnostic>> {
+        let names = self.project.native.get(module_path)?;
+        if names.contains_key(UNREADABLE) {
+            return Some(None);
+        }
+        let reason = names.get(&name.name)?;
+        Some(Some(
+            Diagnostic::new(
+                codes::E0713,
+                format!(
+                    "`{}` of the native module `{module_path}` is not available",
+                    name.name
+                ),
+            )
+            .primary(name.span, "cannot be used from wolfpack")
+            .note(format!("`{}`: {reason}", name.name)),
+        ))
+    }
+
     fn import_inner(&mut self, module: ModuleId, role: Role, import: &Import) {
         if import.public && !self.may_reexport(module) {
             self.report(
@@ -471,6 +500,19 @@ impl<'a> Resolver<'a> {
             return;
         };
         let target_role = self.module(target).map(|m| m.role).unwrap_or(Role::Src);
+        if import.public && target_role == Role::Native {
+            self.report(
+                Diagnostic::new(
+                    codes::E0712,
+                    format!("the native module `{target_path}` cannot be re-exported"),
+                )
+                .primary(import.path.span, "a native module")
+                .help(
+                    "remove `pub`, or write a wolfpack function in `lib` that calls the native one",
+                ),
+            );
+            return;
+        }
         let target_is_lib = self
             .module(target)
             .is_some_and(|m| m.role == Role::Entry && m.path == ["lib"]);
@@ -567,6 +609,12 @@ impl<'a> Resolver<'a> {
                         .module(target)
                         .and_then(|m| m.exports.get(&imported.name.name).copied());
                     let Some(binding) = found else {
+                        if let Some(d) = self.unavailable(&target_path, &imported.name) {
+                            if let Some(d) = d {
+                                self.report(d);
+                            }
+                            continue;
+                        }
                         let private = self
                             .module(target)
                             .is_some_and(|m| m.items.contains_key(&imported.name.name));

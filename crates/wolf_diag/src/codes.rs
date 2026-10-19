@@ -278,6 +278,8 @@ pub const E0619: Code = Code::new("E0619", "section not allowed in a module of `
 
 /// `pub` import outside `src/lib.wolf`.
 pub const E0620: Code = Code::new("E0620", "`pub` import outside `src/lib.wolf`");
+/// A `pub` import of a native module.
+pub const E0712: Code = Code::new("E0712", "native module re-exported");
 
 /// `intrinsic` outside std.
 pub const E0701: Code = Code::new("E0701", "`intrinsic` outside `std`");
@@ -299,6 +301,10 @@ pub const E0708: Code = Code::new("E0708", "extern name declared twice in one ta
 pub const E0709: Code = Code::new("E0709", "native code not found");
 /// A native file that takes a path of the generated project.
 pub const E0710: Code = Code::new("E0710", "native code takes a generated path");
+/// A name of a native module that the compiler could not map.
+pub const E0713: Code = Code::new("E0713", "name of a native module not available");
+/// A native file that the compiler cannot read.
+pub const E0714: Code = Code::new("E0714", "native file cannot be read");
 
 /// A tool of the target is not installed.
 pub const E0801: Code = Code::new("E0801", "target tool not installed");
@@ -324,8 +330,8 @@ pub const ALL: &[Code] = &[
     E0430, E0431, E0432, E0433, E0434, E0435, E0436, E0437, E0438, E0501, E0502, E0503, E0504,
     E0505, E0506, E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605, E0606,
     E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619,
-    E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0709, E0710, E0801, E0802,
-    E0803, E0804, E0805, E0806,
+    E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0709, E0710, E0712, E0713,
+    E0714, E0801, E0802, E0803, E0804, E0805, E0806,
 ];
 
 /// Codes that were used once and must never be used again.

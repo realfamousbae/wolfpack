@@ -1,0 +1,5 @@
+error[E0714]: cannot read `native/rust/slug.rs`
+ = help: correct the Rust code: `wolf` reads its declarations
+ = note: line 3, column 1: cannot parse string into token stream
+
+error: aborting due to 1 error

@@ -237,11 +237,11 @@ impl Walk {
                 }
                 if area == Area::Src
                     && module.is_empty()
-                    && ["std", "tests", "examples"].contains(&name.as_str())
+                    && ["std", "tests", "examples", "native"].contains(&name.as_str())
                 {
                     self.layout_error(
                         format!("`{shown}/` uses the reserved module name `{name}`"),
-                        "`std`, `tests` and `examples` are reserved root names; rename the directory",
+                        "`std`, `tests`, `examples` and `native` are reserved root names; rename the directory",
                     );
                     continue;
                 }
@@ -278,10 +278,13 @@ impl Walk {
                 Area::Examples => Role::Example,
             };
             if area == Area::Src && module.is_empty() {
-                if let Some(reserved) = ["std", "tests", "examples"].iter().find(|r| **r == stem) {
+                if let Some(reserved) = ["std", "tests", "examples", "native"]
+                    .iter()
+                    .find(|r| **r == stem)
+                {
                     self.layout_error(
                         format!("`{shown}` uses the reserved module name `{reserved}`"),
-                        "`std`, `tests` and `examples` are reserved root names; rename the file",
+                        "`std`, `tests`, `examples` and `native` are reserved root names; rename the file",
                     );
                     continue;
                 }

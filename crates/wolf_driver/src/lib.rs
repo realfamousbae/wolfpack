@@ -81,12 +81,14 @@ pub fn analyze(
     map: &SourceMap,
     manifest: &Manifest,
     parsed: Vec<Parsed>,
+    native: &wolf_resolve::NativeNames,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
     let inputs = inputs(&parsed);
     let info = wolf_resolve::ProjectInfo {
         kind: manifest.kind,
         config: &manifest.config,
+        native,
     };
     let mut resolved = wolf_resolve::resolve(&inputs, &info);
     diagnostics.extend(std::mem::take(&mut resolved.diagnostics));

@@ -47,7 +47,7 @@ pub fn generate(program: &Program, wolf_version: &str, tests: bool) -> Result<Pr
         files = Vec::new();
         for (i, m) in program.modules.iter().enumerate() {
             let wanted = match m.role {
-                ModuleRole::Entry | ModuleRole::Src => true,
+                ModuleRole::Entry | ModuleRole::Src | ModuleRole::Native => true,
                 ModuleRole::Example => !tests,
                 ModuleRole::Test => tests,
                 ModuleRole::Std => false,

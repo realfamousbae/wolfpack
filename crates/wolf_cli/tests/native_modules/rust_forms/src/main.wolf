@@ -1,0 +1,29 @@
+module main
+
+imports {
+    native.text.slug
+}
+
+main {
+    print(slug.slugify("Hello World"))
+    print(slug.owned("a"))
+    print(f"{slug.by_ref_string("abc")} {slug.small(1, 2, 3)} {slug.halve(5.0)}")
+    print(f"{slug.sum_vec([1, 2])} {slug.sum_ref_vec([3, 4])} {slug.sum_slice([5, 6])}")
+    print(slug.words(["x", "y"])[1])
+    let k = slug.keys(["b": 2, "a": 1])
+    print(f"{k.keys()[0]} {slug.total(["z": 10])}")
+    match slug.parse("41") {
+        Ok(n) => print(f"{n + 1}")
+        Err(e) => print(e.message())
+    }
+    match slug.parse("x") {
+        Ok(n) => print(f"{n}")
+        Err(e) => print(e.message())
+    }
+    match slug.first(["q"]) {
+        Some(s) => print(s)
+        None => print("none")
+    }
+    let c = slug.counter()
+    print(f"{slug.count(c)} {slug.each(["aa", "b"], |s| s.len() > 1)}")
+}

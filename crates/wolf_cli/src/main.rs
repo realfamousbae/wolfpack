@@ -7,6 +7,7 @@
 mod build;
 mod check;
 mod fmt;
+mod native_modules;
 mod setup;
 mod tools;
 mod update;

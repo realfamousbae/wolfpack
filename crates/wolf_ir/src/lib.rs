@@ -10,6 +10,7 @@
 mod lower;
 
 use std::collections::BTreeMap;
+pub use wolf_ast::{NativeSig, NativeTy};
 
 pub use lower::{LowerError, ProjectMeta, lower};
 pub use wolf_ast::{BinaryOp, Mode, UnaryOp};
@@ -128,6 +129,9 @@ pub enum ModuleRole {
     Test,
     /// A module under `examples/`.
     Example,
+    /// A native module (spec chapter 6, section 1a): only the extern declarations read from its
+    /// target code. Its generated file lives under the native code of the target, in `wolf/`.
+    Native,
 }
 
 /// A module.
@@ -387,7 +391,7 @@ pub struct ExternFn {
     /// The path string of each target that declares it (`ts`, `go`, `rust`).
     pub paths: BTreeMap<String, String>,
     /// For a function of a native module, the Rust types the call must match.
-    pub native: Option<wolf_ast::NativeSig>,
+    pub native: Option<NativeSig>,
 }
 
 /// An opaque `extern` type.

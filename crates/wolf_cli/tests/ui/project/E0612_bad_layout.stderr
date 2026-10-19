@@ -5,7 +5,7 @@ error[E0612]: unexpected file `src/notes.txt`
  = help: `src/` contains only `.wolf` files and directories
 
 error[E0612]: `src/tests/` uses the reserved module name `tests`
- = help: `std`, `tests` and `examples` are reserved root names; rename the directory
+ = help: `std`, `tests`, `examples` and `native` are reserved root names; rename the directory
 
 error[E0612]: `src/type.wolf` uses the keyword `type` as a module name
  = help: rename it

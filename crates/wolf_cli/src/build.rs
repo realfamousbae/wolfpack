@@ -720,10 +720,14 @@ fn rust(
         Err(e) => return internal(result, Target::Rust, &e),
     };
     let native_files = native.files("rust");
-    let mods = if native_files.is_empty() {
+    let wolf = program
+        .modules
+        .iter()
+        .any(|m| m.role == wolf_ir::ModuleRole::Native);
+    let mods = if native_files.is_empty() && !wolf {
         Vec::new()
     } else {
-        wolf_rs::native_modules(native_files)
+        wolf_rs::native_modules(native_files, wolf)
     };
     let list: Vec<(String, &str)> = project
         .files

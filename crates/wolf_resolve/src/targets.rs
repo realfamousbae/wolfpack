@@ -42,6 +42,8 @@ pub fn check_target(
         .map(|(i, m)| (m.path.as_slice(), i))
         .collect();
     let mut imports: Vec<Vec<usize>> = vec![Vec::new(); modules.len()];
+    // Where each module imports another, for native modules (they have no source of their own).
+    let mut import_spans: BTreeMap<(usize, usize), Span> = BTreeMap::new();
     let mut externs: BTreeMap<usize, Externs> = BTreeMap::new();
     for (i, m) in modules.iter().enumerate() {
         if matches!(m.role, Role::Std | Role::Prelude) {
@@ -61,6 +63,7 @@ pub fn check_target(
                             (index.get(path.as_slice()), imports.get_mut(i))
                         {
                             list.push(*j);
+                            import_spans.entry((i, *j)).or_insert(import.path.span);
                         }
                     }
                     ItemKind::ExternTarget(block) => {
@@ -145,6 +148,30 @@ pub fn check_target(
             .map(|n| format!("`{n}`"))
             .collect::<Vec<_>>()
             .join(", ");
+        // A native module (spec chapter 6, section 1a) is reported where it is imported.
+        if modules.get(i).is_some_and(|m| m.role == Role::Native) {
+            let importer = parent.get(&i).copied().flatten();
+            let span = importer.and_then(|p| import_spans.get(&(p, i)).copied());
+            let mut d = Diagnostic::new(
+                codes::E0704,
+                format!("the native module `{name}` is not available for `{target}`"),
+            );
+            if let Some(span) = span {
+                d = d.primary(span, format!("no `{target}` code for {list}"));
+            }
+            if chain.len() > 2 {
+                d = d.note(format!("imported through {}", chain.join(" -> ")));
+            }
+            out.push(d.help(format!(
+                "in this version the compiler reads native modules from Rust code only: build for {}",
+                bound
+                    .iter()
+                    .map(|t| format!("`{t}`"))
+                    .collect::<Vec<_>>()
+                    .join(" or ")
+            )));
+            continue;
+        }
         let mut d = Diagnostic::new(
             codes::E0704,
             format!("module `{name}` is not available for `{target}`"),

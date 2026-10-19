@@ -520,9 +520,117 @@ where
     }
 }
 
+impl FromExtern<f32> for f64 {
+    fn from_extern(value: f32) -> f64 {
+        f64::from(value)
+    }
+}
+
+impl FromExtern<()> for () {
+    fn from_extern(value: ()) {
+        value
+    }
+}
+
+impl<T, U: FromExtern<T>> FromExtern<Option<T>> for Option<U> {
+    fn from_extern(value: Option<T>) -> Option<U> {
+        value.map(U::from_extern)
+    }
+}
+
 /// A value of extern code as a wolfpack value of the type the context expects.
 pub fn from_extern<T, U: FromExtern<T>>(value: T) -> U {
     U::from_extern(value)
+}"#,
+    },
+    Piece {
+        name: "extern_as",
+        deps: &["Map", "extern_int"],
+        code: r#"/// A wolfpack value as the Rust type that a function of a native module takes (spec chapter 7,
+/// section 8.7): integers of any type are checked, lists and maps are copied.
+pub trait ToExternAs<T> {
+    /// The value in that type.
+    fn to_extern_as(&self) -> T;
+}
+
+macro_rules! to_extern_as_int {
+    ($($t:ty),*) => {
+        $(impl ToExternAs<$t> for i64 {
+            fn to_extern_as(&self) -> $t {
+                to_target_int(*self)
+            }
+        })*
+    };
+}
+
+to_extern_as_int!(i8, i16, i32, i64, u8, u16, u32, u64, isize, usize);
+
+impl ToExternAs<f64> for f64 {
+    fn to_extern_as(&self) -> f64 {
+        *self
+    }
+}
+
+impl ToExternAs<f32> for f64 {
+    fn to_extern_as(&self) -> f32 {
+        *self as f32
+    }
+}
+
+impl ToExternAs<bool> for bool {
+    fn to_extern_as(&self) -> bool {
+        *self
+    }
+}
+
+impl ToExternAs<String> for String {
+    fn to_extern_as(&self) -> String {
+        self.clone()
+    }
+}
+
+impl ToExternAs<String> for str {
+    fn to_extern_as(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl<T: ToExternAs<U>, U> ToExternAs<Vec<U>> for [T] {
+    fn to_extern_as(&self) -> Vec<U> {
+        self.iter().map(T::to_extern_as).collect()
+    }
+}
+
+impl<T: ToExternAs<U>, U> ToExternAs<Vec<U>> for Vec<T> {
+    fn to_extern_as(&self) -> Vec<U> {
+        self.as_slice().to_extern_as()
+    }
+}
+
+impl<T: ToExternAs<U>, U> ToExternAs<Option<U>> for Option<T> {
+    fn to_extern_as(&self) -> Option<U> {
+        self.as_ref().map(T::to_extern_as)
+    }
+}
+
+impl<K, V, K2, V2> ToExternAs<std::collections::HashMap<K2, V2>> for Map<K, V>
+where
+    K: std::hash::Hash + Eq + Clone + ToExternAs<K2>,
+    K2: std::hash::Hash + Eq,
+    V: ToExternAs<V2>,
+{
+    fn to_extern_as(&self) -> std::collections::HashMap<K2, V2> {
+        self.keys
+            .iter()
+            .zip(&self.values)
+            .map(|(k, v)| (k.to_extern_as(), v.to_extern_as()))
+            .collect()
+    }
+}
+
+/// `value` as the Rust type that the context expects.
+pub fn to_extern_as<T, U: ToExternAs<T> + ?Sized>(value: &U) -> T {
+    value.to_extern_as()
 }"#,
     },
     Piece {

@@ -388,6 +388,11 @@ impl<'p> Emitter<'p> {
                     Some(format!("test/{}.test.ts", rest.join("/")))
                 }
                 ModuleRole::Test => None,
+                // `native.slug` is written next to the native code: `src/native/wolf/slug.ts`.
+                ModuleRole::Native => {
+                    let rest: Vec<&str> = m.path.iter().skip(1).map(String::as_str).collect();
+                    Some(format!("src/native/wolf/{}.ts", rest.join("/")))
+                }
             };
             self.paths.push(path);
             for item in &m.items {

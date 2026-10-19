@@ -1,0 +1,4 @@
+error[E0612]: `src/native.wolf` uses the reserved module name `native`
+ = help: `std`, `tests`, `examples` and `native` are reserved root names; rename the file
+
+error: aborting due to 1 error

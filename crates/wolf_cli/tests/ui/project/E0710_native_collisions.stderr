@@ -1,13 +1,9 @@
-error[E0710]: `native/ts/util.ts` and the module `native` take the same generated path
- = help: rename the module `native` of `src/`
- = note: the files of `native/ts/` are copied to `out/ts/src/native/`, where the module `native` of `src/` is generated too
-
-error[E0710]: `native/rust/mod.rs` and the module `native` take the same generated path
- = help: rename the module `native` of `src/`
- = note: the files of `native/rust/` are copied to `out/rust/src/native/`, where the module `native` of `src/` is generated too
+error[E0710]: `native/ts/wolf.ts` takes the path of generated code
+ = help: rename it: `wolf` is taken next to the native code
+ = note: `wolf build` writes the code of native modules to `out/ts/src/native/wolf/`
 
 error[E0710]: `native/rust/mod.rs` takes the path of a generated file
  = help: move the code of `native/rust/mod.rs` into a module of its own, such as `native/rust/util.rs`
  = note: `wolf build` generates `src/native/mod.rs`, which declares the modules of `native/rust/`
 
-error: aborting due to 3 errors
+error: aborting due to 2 errors

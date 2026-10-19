@@ -38,7 +38,19 @@ pub enum Role {
     Test,
     /// A module under `examples/`.
     Example,
+    /// A native module, `native.<path>` (spec chapter 6, section 1a): its declarations were read
+    /// from the target code.
+    Native,
 }
+
+/// The names of native modules that the compiler could not map, with the reason (E0713): by
+/// module path (`native.slug`), then by name.
+pub type NativeNames =
+    std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>;
+
+/// The key of [`NativeNames`] for a native module whose file could not be read (E0714): its names
+/// are not reported one by one.
+pub const UNREADABLE: &str = "*";
 
 /// One parsed module given to the resolver.
 pub struct ModuleInput<'a> {
@@ -58,6 +70,8 @@ pub struct ProjectInfo<'a> {
     pub kind: Kind,
     /// Overrides from `[config.*]`, checked against the constants (E0613).
     pub config: &'a [ConfigOverride],
+    /// Names of native modules that are not available, with the reason (E0713).
+    pub native: &'a NativeNames,
 }
 
 /// Identifies a module.

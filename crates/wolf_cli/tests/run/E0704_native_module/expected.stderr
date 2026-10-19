@@ -1,0 +1,9 @@
+error[E0704]: the native module `native.slug` is not available for `ts`
+  --> src/main.wolf:4:5
+  |
+4 |     native.slug
+  |     ^^^^^^^^^^^ no `ts` code for `slugify`
+  |
+  = help: in this version the compiler reads native modules from Rust code only: build for `rust`
+
+error: aborting due to 1 error

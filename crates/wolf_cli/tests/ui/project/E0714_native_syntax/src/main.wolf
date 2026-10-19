@@ -1,0 +1,9 @@
+module main
+
+imports {
+    native.slug
+}
+
+main {
+    print(slug.slugify("A"))
+}

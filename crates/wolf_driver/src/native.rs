@@ -132,29 +132,25 @@ pub fn check_native(native: &Native, parsed: &[Parsed]) -> Vec<Diagnostic> {
             }
         }
     }
-    // A module `native` of `src/` is generated where the native files are copied.
-    let module = parsed.iter().find(|(path, role, _, _)| {
-        matches!(role, Role::Entry | Role::Src)
-            && path.first().map(String::as_str) == Some("native")
-    });
+    // `wolf` next to the native code holds the generated modules of native modules.
     for target in wolf_project::NATIVE_DIRS {
-        let Some(first) = native.files(target).first() else {
-            continue;
-        };
-        if let Some((path, ..)) = module {
+        let taken = native.files(target).iter().find(|f| {
+            f.split('/').next().is_some_and(|first| {
+                first == "wolf"
+                    || first.strip_suffix(".rs").or(first.strip_suffix(".ts")) == Some("wolf")
+            })
+        });
+        if let Some(file) = taken {
             out.push(
                 Diagnostic::new(
                     codes::E0710,
-                    format!(
-                        "`native/{target}/{first}` and the module `{}` take the same generated path",
-                        path.join(".")
-                    ),
+                    format!("`native/{target}/{file}` takes the path of generated code"),
                 )
                 .note(format!(
-                    "the files of `native/{target}/` are copied to `{}`, where the module `native` of `src/` is generated too",
+                    "`wolf build` writes the code of native modules to `{}wolf/`",
                     copied_to(target)
                 ))
-                .help("rename the module `native` of `src/`"),
+                .help("rename it: `wolf` is taken next to the native code"),
             );
         }
     }

@@ -775,9 +775,17 @@ impl<'p> Emitter<'p> {
                         file,
                     })
                 }
-                ModuleRole::Src => {
-                    let dir = m
-                        .path
+                ModuleRole::Src | ModuleRole::Native => {
+                    // `native.slug` is written next to the native code: `native/wolf/slug/`.
+                    let segments: Vec<String> = if m.role == ModuleRole::Native {
+                        ["native".to_string(), "wolf".to_string()]
+                            .into_iter()
+                            .chain(m.path.iter().skip(1).cloned())
+                            .collect()
+                    } else {
+                        m.path.clone()
+                    };
+                    let dir = segments
                         .iter()
                         .map(|s| crate::names::safe(s.clone()))
                         .collect::<Vec<_>>()

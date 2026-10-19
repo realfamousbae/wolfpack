@@ -1,0 +1,12 @@
+module main
+
+imports {
+    native.calc
+    native.calc.{later}
+}
+
+main {
+    calc.change([1])
+    print(calc.ok(1).to_string())
+    later()
+}

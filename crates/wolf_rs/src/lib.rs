@@ -114,14 +114,19 @@ pub(crate) fn uses_native(program: &Program) -> bool {
 
 /// The `mod.rs` files that declare the modules of `native/rust/` (spec chapter 8, section 8a).
 /// `files` are the paths of the files there, relative to `native/rust/` with `/` separators; the
-/// result goes to `src/native/`. A directory gets one unless it has a `mod.rs` or a sibling
+/// result goes to `src/native/`. With `wolf`, the root also declares `wolf`, the generated
+/// modules of the native modules. A directory gets one unless it has a `mod.rs` or a sibling
 /// `<dir>.rs` of its own, which then declares its modules itself. Files whose names are not Rust
 /// identifiers are copied but not declared.
-pub fn native_modules(files: &[String]) -> Vec<OutFile> {
+pub fn native_modules(files: &[String], wolf: bool) -> Vec<OutFile> {
     use std::collections::{BTreeMap, BTreeSet};
     let has = |f: &str| files.iter().any(|x| x == f);
     let mut kids: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    kids.entry(String::new()).or_default();
+    // `wolf`: the generated modules of the native modules (spec chapter 6, section 1a).
+    let root = kids.entry(String::new()).or_default();
+    if wolf {
+        root.insert("wolf".to_string());
+    }
     for file in files.iter().filter(|f| f.ends_with(".rs")) {
         let parts: Vec<&str> = file.split('/').collect();
         let Some((name, dirs)) = parts.split_last() else {
@@ -203,7 +208,7 @@ mod native_tests {
         .iter()
         .map(|s| s.to_string())
         .collect();
-        let out = native_modules(&files);
+        let out = native_modules(&files, false);
         let paths: Vec<&str> = out.iter().map(|f| f.path.as_str()).collect();
         assert_eq!(
             paths,

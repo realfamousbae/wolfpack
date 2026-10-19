@@ -52,7 +52,14 @@ fn resolve(project: &[(&str, Role, &str)], kind: Kind) -> Vec<&'static str> {
             ast,
         })
         .collect();
-    let resolved = wolf_resolve::resolve(&inputs, &ProjectInfo { kind, config: &[] });
+    let resolved = wolf_resolve::resolve(
+        &inputs,
+        &ProjectInfo {
+            kind,
+            config: &[],
+            native: &wolf_resolve::NativeNames::new(),
+        },
+    );
     let rendered = wolf_diag::render_human_to_string(&map, &resolved.diagnostics);
     codes.extend(resolved.diagnostics.iter().map(|d| d.code.id()));
     if codes.is_empty() {

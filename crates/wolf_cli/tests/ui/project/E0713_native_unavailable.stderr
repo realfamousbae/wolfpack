@@ -1,0 +1,17 @@
+error[E0713]: `later` of the native module `native.calc` is not available
+  --> src/main.wolf:5:18
+  |
+5 |     native.calc.{later}
+  |                  ^^^^^ cannot be used from wolfpack
+  |
+  = note: `later`: it is `async`
+
+error[E0713]: `change` of the native module `native.calc` is not available
+  --> src/main.wolf:9:10
+  |
+9 |     calc.change([1])
+  |          ^^^^^^ cannot be used from wolfpack
+  |
+  = note: `change`: its parameter `v`: a `&mut` reference: extern code cannot change wolfpack values
+
+error: aborting due to 2 errors

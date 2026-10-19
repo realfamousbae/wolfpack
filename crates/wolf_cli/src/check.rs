@@ -117,7 +117,17 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
             parsed.push((file.module.clone(), role, id, ast));
         }
     }
-    let analysis = wolf_driver::analyze(&result.map, &manifest, parsed, &mut result.diagnostics);
+    // Native modules imported by the project (spec chapter 6, section 1a).
+    let (native, unavailable, found) = crate::native_modules::load(&root, &parsed, &mut result.map);
+    result.diagnostics.extend(found);
+    parsed.extend(native);
+    let analysis = wolf_driver::analyze(
+        &result.map,
+        &manifest,
+        parsed,
+        &unavailable,
+        &mut result.diagnostics,
+    );
     let native = wolf_driver::Native::load(&root);
     result
         .diagnostics

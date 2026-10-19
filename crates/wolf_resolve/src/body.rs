@@ -384,6 +384,12 @@ impl Resolver<'_> {
         if module == ctx.module {
             return state.items.get(&name.name).map(|d| Binding::Def(*d));
         }
+        if let Some(d) = self.unavailable(&path, name) {
+            if let Some(d) = d {
+                self.report(d);
+            }
+            return None;
+        }
         let private = state.items.contains_key(&name.name);
         let mut d = if private {
             Diagnostic::new(

@@ -1,0 +1,10 @@
+hello-world
+a!
+3 6 2.5
+3 7 11
+Y
+a 10
+42
+invalid digit found in string
+q
+7 1

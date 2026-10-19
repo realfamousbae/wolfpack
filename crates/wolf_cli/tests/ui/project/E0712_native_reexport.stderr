@@ -1,0 +1,9 @@
+error[E0712]: the native module `native.slug` cannot be re-exported
+  --> src/lib.wolf:4:9
+  |
+4 |     pub native.slug
+  |         ^^^^^^^^^^^ a native module
+  |
+  = help: remove `pub`, or write a wolfpack function in `lib` that calls the native one
+
+error: aborting due to 1 error
