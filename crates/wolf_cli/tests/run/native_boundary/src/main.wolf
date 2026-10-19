@@ -1,0 +1,40 @@
+//! Native code at the extern boundary on every target (spec chapter 7, section 8.2a): an opaque
+//! native type, method paths on it, a `Result` whose error is raised in native code, and a Go
+//! package whose `package` clause differs from its directory.
+
+module main
+
+extern {
+    ts {
+        type Counter from "native:counter#Counter"
+        fn start() -> Counter from "native:counter#start"
+        fn bump(c: Counter, n: Int) -> Counter from "native:counter#bump"
+        fn value(c: Counter) -> Int from "native:counter#value"
+        fn parse(s: String) -> Result<Counter, Error> from "native:counter#parse"
+    }
+    go {
+        type Counter from "native:*counter.Counter"
+        fn start() -> Counter from "native:counter.Start"
+        fn bump(c: Counter, n: Int) -> Counter from "native:(*counter.Counter).Bump"
+        fn value(c: Counter) -> Int from "native:counter.Counter.Value"
+        fn parse(s: String) -> Result<Counter, Error> from "native:counter.Parse"
+    }
+    rust {
+        type Counter from "native:counter::Counter"
+        fn start() -> Counter from "native:counter::Counter::new"
+        fn bump(c: Counter, n: Int) -> Counter from "native:counter::Counter::bump"
+        fn value(c: Counter) -> Int from "native:counter::Counter::value"
+        fn parse(s: String) -> Result<Counter, Error> from "native:counter::parse"
+    }
+}
+
+main {
+    let c = bump(bump(start(), 2), 3)
+    print(f"{value(c)}")
+    for text in ["41", "x"] {
+        match parse(text) {
+            Ok(p) => print(f"parsed {value(bump(p, 1))}")
+            Err(e) => print(f"error: {e.message()}")
+        }
+    }
+}
