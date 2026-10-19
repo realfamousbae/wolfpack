@@ -28,6 +28,9 @@ All notable changes are recorded here at the end of each milestone.
 - `Map<K, V>` crosses the extern boundary, with `Int`, `String` or `Bool` keys: it is copied into a
   `Map`, a Go `map[K]V` or a Rust `&HashMap<K, V>`, and a map that comes back is sorted by key on
   every target (spec chapter 7, section 8.4).
+- Callbacks: a parameter of an extern function may be a function, called by the extern code
+  during the call; a panic in it stays a panic (spec chapter 7, section 8.4, rule 7). Values of
+  extern types may not be inside a `Map` at the boundary (E0702).
 - Fixed: a variant passed for a generic parameter in TypeScript and Go, `Comparable` on a plain
   enum in Rust, `Display` and `Comparable` of plain enums through a type parameter in TypeScript,
   and a Go module named like a package of Go's standard library (such as `cmp`).

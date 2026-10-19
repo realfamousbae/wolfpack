@@ -60,6 +60,10 @@ code around the extern call.
 - A `Map` is copied into the map type of the target on every call: a `Map` in TypeScript, a
   `map[K]V` in Go, a `&HashMap<K, V>` in Rust. A map that comes back is sorted by its keys, the
   same on every target, because Go and Rust maps have no order of their own.
+- A parameter may be a **callback**, a function such as `f: fn(String) -> Bool`, whose parameters
+  and result are simple types (`Int`, `Float`, `Bool`, `String`, `Void`, lists of them, opaque
+  types). The extern code may call it only while the extern function runs, and must not keep it.
+  A panic inside the callback stays a panic, even when the extern function returns a `Result`.
 - Integers are checked when they cross: a Go `int32` or a Rust `usize` that does not fit, for
   example, is a panic, not a silent change of the value.
 - A declared `Result` catches the failure of the target: a Go `error`, an exception thrown in
