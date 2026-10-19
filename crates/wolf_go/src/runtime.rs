@@ -455,6 +455,21 @@ func FromTargetInt[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | 
 }"#,
     },
     Piece {
+        name: "externError",
+        deps: &["Error", "TextError"],
+        imports: &[],
+        code: r#"// FromExternError is an error of extern code as an Error whose message is its text.
+func FromExternError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if e, ok := err.(Error); ok {
+		return e
+	}
+	return TextError{text: err.Error()}
+}"#,
+    },
+    Piece {
         name: "int",
         deps: &["Panic"],
         imports: &["math"],

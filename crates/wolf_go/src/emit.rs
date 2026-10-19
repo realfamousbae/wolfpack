@@ -2601,6 +2601,27 @@ impl<'p> Emitter<'p> {
         if count == 0 {
             return vec![Stmt::Expr(c)];
         }
+        // A Go error becomes an `Error` whose message is its text (spec chapter 7, section 8.4).
+        match form {
+            Form::ResErr => {
+                let e = self.rt_call("externError", "FromExternError", vec![c]);
+                return vec![Stmt::Return(vec![e])];
+            }
+            Form::ResPair => {
+                let int = matches!(ret, IrType::Result(a, _) if matches!(**a, IrType::Int));
+                let v = if int {
+                    self.rt_call("extern", "FromTargetInt", vec![id("v")])
+                } else {
+                    id("v")
+                };
+                let e = self.rt_call("externError", "FromExternError", vec![id("err")]);
+                return vec![
+                    Stmt::Define(vec!["v".to_string(), "err".to_string()], vec![c]),
+                    Stmt::Return(vec![v, e]),
+                ];
+            }
+            _ => {}
+        }
         let int_value = match (ret, form) {
             (IrType::Int, _) => Some(false),
             (IrType::Option(a), Form::OptPair) | (IrType::Result(a, _), Form::ResPair)
