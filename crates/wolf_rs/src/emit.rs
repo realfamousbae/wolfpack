@@ -1959,11 +1959,18 @@ impl<'p> Emitter<'p> {
         };
         let mut params = Vec::new();
         let mut args = Vec::new();
+        let mut stmts = Vec::new();
         for (i, (m, t)) in x.params.iter().enumerate() {
             let n = format!("p{i}");
             params.push((Pat::Bind(n.clone(), false), self.param_ty(*m, t)?));
             // An `Int` may be any integer type of the target (spec chapter 8, section 8).
-            let a = if matches!(t, IrType::Int) {
+            let a = if let IrType::Fn(fp, _) = t {
+                // A callback takes the values of the target (spec chapter 8, section 8).
+                let f = format!("f{i}");
+                let closure = self.extern_callback(&n, fp)?;
+                stmts.push(Stmt::Let(Pat::Bind(f.clone(), false), None, Some(closure)));
+                Expr::Unary("&", Box::new(path(&f)))
+            } else if matches!(t, IrType::Int) {
                 self.rt_call("extern_int", "to_target_int", vec![path(&n)])
             } else if extern_needs(t) {
                 // A `Map` is passed as a `&HashMap` built for the call (spec chapter 8,
@@ -1987,10 +1994,16 @@ impl<'p> Emitter<'p> {
         out.push(Item::Fn(rs::Fn {
             docs: Vec::new(),
             // The target's result is converted whatever its type; for some it is already right.
-            attrs: if converts {
-                vec!["#[allow(clippy::useless_conversion)]".to_string()]
-            } else {
-                Vec::new()
+            attrs: {
+                let mut attrs = Vec::new();
+                if converts {
+                    attrs.push("#[allow(clippy::useless_conversion)]".to_string());
+                }
+                // A callback is passed by reference, which `&dyn Fn` parameters need.
+                if !stmts.is_empty() {
+                    attrs.push("#[allow(clippy::needless_borrows_for_generic_args)]".to_string());
+                }
+                attrs
             },
             vis: self.vis(x.public),
             name: self.name_of(x.def),
@@ -1998,9 +2011,40 @@ impl<'p> Emitter<'p> {
             self_param: None,
             params,
             ret,
-            body: Some(block(Vec::new(), Some(body))),
+            body: Some(block(stmts, Some(body))),
         }));
         Ok(())
+    }
+
+    /// A closure that takes the arguments of extern code in the types of the target and calls
+    /// the wolfpack function value `f` with them: `|a0: &str| f(&a0.to_string())`.
+    fn extern_callback(&mut self, f: &str, params: &[(Mode, IrType)]) -> Result<Expr, Error> {
+        let mut pats = Vec::new();
+        let mut args = Vec::new();
+        for (i, (_, t)) in params.iter().enumerate() {
+            let a = format!("a{i}");
+            let (ty, arg) = match t {
+                IrType::String => (
+                    rs::Type::Ref(Box::new(rs::Type::name("str"))),
+                    method(path(&a), "to_string", Vec::new()),
+                ),
+                IrType::List(inner) => (
+                    rs::Type::Ref(Box::new(rs::Type::Slice(Box::new(self.ty(inner)?)))),
+                    method(path(&a), "to_vec", Vec::new()),
+                ),
+                IrType::Int | IrType::Float | IrType::Bool => (self.ty(t)?, path(&a)),
+                _ => {
+                    // An opaque value is passed by reference as it is.
+                    let ty = rs::Type::Ref(Box::new(self.ty(t)?));
+                    pats.push((Pat::Bind(a.clone(), false), Some(ty)));
+                    args.push(path(&a));
+                    continue;
+                }
+            };
+            pats.push((Pat::Bind(a, false), Some(ty)));
+            args.push(Expr::Unary("&", Box::new(arg)));
+        }
+        Ok(Expr::Closure(pats, Box::new(call(path(f), args)), false))
     }
 
     /// The result of extern code as a value of type `t`: strings, integers and errors of the

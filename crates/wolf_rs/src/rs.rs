@@ -774,6 +774,16 @@ impl Printer {
                 let c = col + width(&head);
                 let b = match body.as_ref() {
                     Expr::Block(b) => self.block(b, ind),
+                    // rustfmt puts an `if` that does not fit on one line into a block.
+                    other @ (Expr::If(..) | Expr::IfLet(..)) => {
+                        let one = self.expr(other, ind, c, reserve);
+                        if one.contains('\n') {
+                            let inner = self.expr(other, ind + 1, (ind + 1) * 4, 0);
+                            format!("{{\n{}{inner}\n{}}}", spaces(ind + 1), spaces(ind))
+                        } else {
+                            one
+                        }
+                    }
                     other => self.expr(other, ind, c, reserve),
                 };
                 format!("{head}{b}")
