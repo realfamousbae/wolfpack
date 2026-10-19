@@ -54,7 +54,7 @@ wolfpack parameter becomes the receiver.
 
 Only types that every target can convert are allowed in extern signatures: `Int`, `Float`, `Bool`,
 `String`, `Void`, `List`, `Option` and `Map` of these, `Result<T, Error>`, and opaque types. Map
-keys must be `Int`, `String` or `Bool`. Structs, enums and interfaces are converted by wolfpack
+keys must be `Int`, `String` or `Bool`, and map values may not hold opaque types. Structs, enums and interfaces are converted by wolfpack
 code around the extern call.
 
 - A `Map` is copied into the map type of the target on every call: a `Map` in TypeScript, a
