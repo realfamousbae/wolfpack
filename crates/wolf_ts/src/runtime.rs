@@ -1004,9 +1004,13 @@ export function textError(text: string): { message(): string } {
     },
     Piece {
         name: "externError",
-        deps: &[],
-        code: r#"/** An exception of extern code as an `Error`, with its text. */
+        deps: &["WolfPanic"],
+        code: r#"/** An exception of extern code as an `Error`, with its text. A panic or an exit of a callback
+ * passes through (spec chapter 7, section 8.4, rule 7). */
 export function externError(e: unknown): { message(): string } {
+  if (e instanceof WolfPanic || e instanceof WolfExit) {
+    throw e;
+  }
   const text = e instanceof Error ? e.message : String(e);
   return { message: () => text };
 }"#,

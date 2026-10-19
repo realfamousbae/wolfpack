@@ -1399,10 +1399,32 @@ impl<'p> Emitter<'p> {
                     call(member(e, "map"), vec![f])
                 }
                 IrType::Map(k, v) => self.extern_map(e, k, v, out)?,
+                IrType::Fn(params, ret) => self.extern_callback(e, params, ret)?,
                 _ => call(f, vec![e]),
             },
             None => e,
         })
+    }
+
+    /// A callback passed to extern code: an arrow function that converts its arguments from the
+    /// target and its result to it (spec chapter 8, section 8).
+    fn extern_callback(
+        &mut self,
+        f: Expr,
+        params: &[(Mode, IrType)],
+        ret: &IrType,
+    ) -> Result<Expr, Error> {
+        let names: Vec<String> = (0..params.len()).map(|i| format!("a{i}")).collect();
+        let mut args = Vec::new();
+        for (n, (_, t)) in names.iter().zip(params) {
+            args.push(self.extern_convert(ident(n), t, false)?);
+        }
+        let body = self.extern_convert(call(f, args), ret, true)?;
+        Ok(Expr::Arrow(
+            names.into_iter().map(|n| (n, None)).collect(),
+            None,
+            ArrowBody::Expr(Box::new(body)),
+        ))
     }
 
     /// `rt.toExternMap(m, key, value)` or `rt.fromExternMap(m, key, value)`.
@@ -1437,6 +1459,10 @@ impl<'p> Emitter<'p> {
                 .extern_converter(inner, out)?
                 .map(|f| arrow(call(member(ident("v"), "map"), vec![f]))),
             IrType::Map(k, v) => Some(arrow(self.extern_map(ident("v"), k, v, out)?)),
+            // A callback is only a parameter (chapter 7, section 8.4, rule 7).
+            IrType::Fn(params, ret) if out => {
+                Some(arrow(self.extern_callback(ident("v"), params, ret)?))
+            }
             other => {
                 let side = if out { "parameter" } else { "result" };
                 return Err(format!("extern {side} of type {other:?} for TypeScript"));
