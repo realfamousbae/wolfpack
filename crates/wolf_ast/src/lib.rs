@@ -247,6 +247,67 @@ pub struct ExternDecl {
     pub from: StrLit,
     /// The whole declaration.
     pub span: Span,
+    /// For a function of a native module (spec chapter 7, section 8.7): the Rust types of its
+    /// parameters and result as the reader found them. `None` for written declarations.
+    pub native: Option<NativeSig>,
+}
+
+/// The Rust types of a function of a native module, which the generated call must match.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NativeSig {
+    /// One per parameter.
+    pub params: Vec<NativeTy>,
+    /// The result; `Unit` when there is none.
+    pub ret: NativeTy,
+}
+
+/// A Rust type of a native function, in the forms of spec chapter 7, section 8.7, rule 3.
+#[derive(Clone, Debug, PartialEq)]
+pub enum NativeTy {
+    /// An integer type, by name: `i32`, `usize`.
+    Int(String),
+    /// `f32` or `f64`.
+    Float(String),
+    /// `bool`
+    Bool,
+    /// `&str`
+    Str,
+    /// `String`
+    String,
+    /// `&String`
+    RefString,
+    /// `&[T]`
+    Slice(Box<NativeTy>),
+    /// `Vec<T>`
+    Vec(Box<NativeTy>),
+    /// `&Vec<T>`
+    RefVec(Box<NativeTy>),
+    /// `HashMap<K, V>` or `BTreeMap<K, V>`, by reference or by value.
+    Map {
+        /// `HashMap` or `BTreeMap`
+        kind: String,
+        /// `&`
+        by_ref: bool,
+        /// The key type.
+        key: Box<NativeTy>,
+        /// The value type.
+        value: Box<NativeTy>,
+    },
+    /// `Option<T>`
+    Option(Box<NativeTy>),
+    /// `Result<T, E>`; the error converts with its `Display` text.
+    Result(Box<NativeTy>),
+    /// `()`, or no result.
+    Unit,
+    /// A type of the module, by value or by reference.
+    Named {
+        /// Its name.
+        name: String,
+        /// `&`
+        by_ref: bool,
+    },
+    /// A callback parameter, passed as the backend passes every callback.
+    Callback,
 }
 
 /// What an extern declaration declares.

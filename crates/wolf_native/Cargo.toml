@@ -1,0 +1,20 @@
+[package]
+name = "wolfpack-native"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../INTERNAL.md"
+description = "Readers of the declarations of native modules of wolfpack (Rust code). Internal part of wolfpack-lang, not a stable API"
+
+[lib]
+name = "wolf_native"
+
+[dependencies]
+proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+syn = { version = "2", default-features = false, features = ["clone-impls", "full", "parsing"] }
+wolf_ast = { workspace = true }
+
+[lints]
+workspace = true

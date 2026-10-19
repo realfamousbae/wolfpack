@@ -147,7 +147,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -225,7 +225,7 @@ checksum = "1b034bd7d5f032402a2479444dcc6f74e36a03f31854d41680fb240ef682a1ac"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -558,7 +558,7 @@ checksum = "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.6",
 ]
 
 [[package]]
@@ -610,6 +610,16 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "syn"
+version = "2.0.119"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
+dependencies = [
+ "proc-macro2",
+ "unicode-ident",
+]
 
 [[package]]
 name = "syn"
@@ -797,7 +807,7 @@ dependencies = [
  "bumpalo",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 3.0.6",
  "wasm-bindgen-shared",
 ]
 
@@ -1006,6 +1016,7 @@ dependencies = [
  "wolfpack-go",
  "wolfpack-ir",
  "wolfpack-lexer",
+ "wolfpack-native",
  "wolfpack-own",
  "wolfpack-parser",
  "wolfpack-project",
@@ -1025,6 +1036,15 @@ dependencies = [
  "insta",
  "wolfpack-diag",
  "wolfpack-span",
+]
+
+[[package]]
+name = "wolfpack-native"
+version = "0.1.1"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.119",
+ "wolfpack-ast",
 ]
 
 [[package]]

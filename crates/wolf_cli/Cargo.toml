@@ -18,6 +18,7 @@ wolf_diag = { workspace = true }
 wolf_driver = { workspace = true }
 wolf_fmt = { workspace = true }
 wolf_lexer = { workspace = true }
+wolf_native = { workspace = true }
 wolf_parser = { workspace = true }
 wolf_project = { workspace = true }
 wolf_resolve = { workspace = true }

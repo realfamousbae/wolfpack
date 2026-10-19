@@ -731,6 +731,7 @@ impl<'a> Lowerer<'a> {
                                 params: sig.params.iter().map(|(m, t)| (*m, self.ty(t))).collect(),
                                 ret: self.ty(&sig.ret),
                                 paths,
+                                native: decl.native.clone(),
                             }));
                         }
                         ast::ExternDeclKind::Type(_) => out.push(Item::ExternType(ExternType {

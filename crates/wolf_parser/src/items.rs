@@ -920,6 +920,7 @@ impl Parser<'_> {
             kind,
             from,
             span: self.span_from(start),
+            native: None,
         })
     }
 
