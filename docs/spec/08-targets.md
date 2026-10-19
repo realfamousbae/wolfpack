@@ -409,7 +409,10 @@ byte into the generated project of that target, and the generated code imports t
 | Rust | `out/rust/src/native/`, with a generated `src/native/mod.rs` declaring the modules | `crate::native::slug::slugify(...)` |
 
 The conversions at the boundary are those of section 8. The files are copied only for the target
-being built; the playground has no native code.
+being built; the playground has no native code. A function of a native module (chapter 6, section
+1a) is generated exactly like an extern function with the `native:` path of chapter 7, section 8.7,
+rule 6, and a record of a native module like a struct bound with `struct Name from` (chapter 7,
+section 8.4a).
 
 ## 9. Diagnostics
 

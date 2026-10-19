@@ -27,7 +27,25 @@ Decisions already taken by the author for this chapter (2026-10-07):
 5. Index files for directories do not exist **[PLAN]**: `src/users.wolf` and a directory
    `src/users/` cannot both exist (E0612). A directory is only a namespace.
 6. The root segment `std` is reserved for the standard library. The root segments `tests` and
-   `examples` are reserved for the directories of the same names (section 7).
+   `examples` are reserved for the directories of the same names (section 7), and `native` for
+   native modules (section 1a; 0.2): `src/native.wolf` and `src/native/` are E0612.
+
+## 1a. Native modules
+
+Added in 0.2 (author, 2026-10-20, D6.9).
+
+1. A module path `native.<path>` names a **native module**: code of the project in a target
+   language under `native/<target>/` (section 7, rule 7). `native.text.slug` is the TS file
+   `native/ts/text/slug.ts`, the Go package `native/go/text/slug/` and the Rust module
+   `native/rust/text/slug.rs` (or `native/rust/text/slug/mod.rs`), whichever exist.
+2. A native module is imported like any module, in both forms of section 2.1:
+   `imports { native.slug }` and then `slug.slugify(s)`, or `imports { native.slug.{slugify} }`.
+   An import of a native module that exists for no target is E0602.
+3. Its names are not declared in wolfpack: the compiler reads them from the native files
+   (chapter 7, section 8.7). A name of a native module used in a module binds that module to the
+   targets whose files declare the name, as an extern declaration of only these targets does
+   (chapter 7, section 8.5, E0704).
+4. A native module cannot be re-exported with a `pub` import (E0712).
 
 ## 2. Imports
 
@@ -240,11 +258,12 @@ my-app/
 6. `wolf new <name> --kind cli|lib` creates `wolfpack.toml`, the entry file with a minimal valid
    program, empty `tests/` and `examples/`, and `.gitignore` **[PLAN]**.
 7. **`native/`** (0.2, author, 2026-10-18) holds code of the project written in a target language,
-   called through `extern` with a `native:` path (chapter 7, section 8.2a): `native/ts/` holds
-   `.ts` files, `native/go/` Go packages (one directory per package), `native/rust/` `.rs`
-   files. Each subdirectory is optional. `native/` may contain no other directories (E0612). The
-   compiler does not read these files; it copies them into the generated project of their target
-   (chapter 8, section 8a).
+   imported as a native module (section 1a; 0.2) or called through `extern` with a `native:` path
+   (chapter 7, section 8.2a): `native/ts/` holds `.ts` files, `native/go/` Go packages (one
+   directory per package), `native/rust/` `.rs` files. Each subdirectory is optional. `native/`
+   may contain no other directories (E0612). The compiler reads only the declarations of the
+   files of imported native modules (chapter 7, section 8.7), and copies every file into the
+   generated project of its target (chapter 8, section 8a).
 
 ## 8. Explicitly discarding a value
 
@@ -278,6 +297,7 @@ Proposed range E06xx (confirmed in chapter 9).
 | E0618 | Unused local variable (added by chapter 9; discard with `let _ = expr`) |
 | E0619 | Section not allowed in a module of `tests/` (added in M3) |
 | E0620 | `pub` import outside `src/lib.wolf` (added in M3) |
+| E0712 | `pub` import of a native module (0.2) |
 
 ## 10. Decisions for the author
 
@@ -291,3 +311,4 @@ Proposed range E06xx (confirmed in chapter 9).
 | D6.6 | Manifest details: package name and version format, optional `[targets]` with defaults, `[config.<module>]` override format with exact types, unknown keys are errors | **answered**: yes |
 | D6.7 | Rest: scopes and conflicts, no private types in public signatures, panic exit code 101, `assert` usable outside tests, prelude names cannot be redeclared, diagnostics | **answered**: yes |
 | D6.8 | 0.2: the directory `native/` with `ts/`, `go/` and `rust/` (section 7, rule 7) | **answered** (author, 2026-10-18): yes |
+| D6.9 | 0.2: native modules `native.<path>`, imported like modules; the root segment `native` reserved in `src/`; no re-export (section 1a, E0712) | **answered** (author, 2026-10-20): yes |

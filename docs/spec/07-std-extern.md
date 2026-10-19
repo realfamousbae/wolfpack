@@ -439,6 +439,53 @@ extern {
 are copied verbatim into `package.json`, `go.mod` or `Cargo.toml` (chapter 8); `wolf` does not check
 them. Packages of a target's own standard library need no entry.
 
+### 8.7 Native modules: declarations read from the target code
+
+Added in 0.2 (author, 2026-10-20, D7.16). A native module (chapter 6, section 1a) has no wolfpack
+declarations: the compiler reads the **declarations** of its files, never their bodies, and needs
+no tool of the target for it, so `wolf check` works without Node.js, Go or Cargo. Each item it can
+map becomes a name of the module; every other item is not available, and using it is E0713 with
+the reason (`its parameter is a &mut reference`), so nothing is left out silently.
+
+1. **Readers.** In 0.2 the compiler reads Rust (step N3a). Go and TypeScript follow in steps N3b and
+   N3c; until then the `.go` and `.ts` files of a native module are only copied, and its names are
+   available for Rust only.
+2. **Rust items.** At the top level of the module file, outside `mod` blocks and items with a
+   `#[cfg(...)]` attribute:
+   - a `pub fn`, not generic except for callback parameters (rule 4), not `async` and not
+     `unsafe`, becomes a function of the same name;
+   - a `pub struct` with named fields that are all `pub` and of the field types of rule 3 becomes a
+     **record**: a wolfpack struct with the same fields, built, read and compared like any struct,
+     and copied field by field at the boundary (as in section 8.4a);
+   - any other `pub struct`, a `pub enum` or a `pub type` becomes an **opaque type** (section 8.3).
+   Methods in `impl` blocks are not available in N3a.
+3. **Types.** Each Rust type maps to a wolfpack type; a parameter is always a read parameter:
+
+   | Wolfpack | Rust |
+   | --- | --- |
+   | `Int` | `i8` to `i64`, `u8` to `u64`, `isize`, `usize` (converted with a check, chapter 8, section 8) |
+   | `Float` | `f64`; `f32` (converted with `as`) |
+   | `Bool` | `bool` |
+   | `String` | `&str`, `String`, `&String` |
+   | `Void` | `()`, or no result |
+   | `List<T>` | `&[T]`, `Vec<T>`, `&Vec<T>` |
+   | `Map<K, V>` | `&HashMap<K, V>`, `HashMap<K, V>`; as a result also `BTreeMap<K, V>`; keys `Int`, `String` or `Bool` |
+   | `Option<T>` | `Option<T>` |
+   | `Result<T, Error>` | `Result<T, E>` as a result; `E` must implement `Display`, whose text is the message |
+   | a record or opaque type of the module | the struct, enum or type itself, or `&` of it |
+
+   A `char`, a tuple, a `&mut` reference, a lifetime parameter other than elided ones, a type from
+   another module or crate, and every other type make the item not available.
+4. **Callbacks.** A parameter of type `impl Fn(A, ..) -> R`, `&dyn Fn(A, ..) -> R`, or of a type
+   parameter `F` bounded by `Fn(A, ..) -> R` is a callback `fn(A, ..) -> R` (section 8.4, rule 7).
+5. **Names.** The Rust names are kept: they already follow the wolfpack style. A name that is a
+   reserved keyword of wolfpack makes the item not available.
+6. **Calls.** A function of a native module is called as if it were declared in a `rust` block
+   with the path `native:<module path>::<name>` (section 8.2a): the conversions of chapter 8,
+   section 8 apply, and `cargo` checks the rest (E0806).
+7. A Rust file that cannot be parsed is E0714, with the message of the parser and the position in
+   the file.
+
 ## 9. Diagnostics
 
 Proposed range E07xx (confirmed in chapter 9).
@@ -455,6 +502,9 @@ Proposed range E07xx (confirmed in chapter 9).
 | E0708 | Extern name declared twice in one target block |
 | E0709 | A `native:` path names a file, a package or a module that `native/<target>/` does not have (0.2) |
 | E0710 | A native file or package takes a path of the generated project (0.2) |
+| E0712 | `pub` import of a native module (0.2; chapter 6, section 1a) |
+| E0713 | A name of a native module that the compiler could not map; the reason is shown (0.2) |
+| E0714 | A native file that the compiler cannot read: a syntax error in the target language (0.2) |
 | E0711 | `struct Name from "path"` in an extern block does not name a non-generic struct of the module (0.2) |
 
 ## 10. Decisions for the author
@@ -476,3 +526,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.13 | 0.2: `Map<K, B>` at the extern boundary, keys `Int`, `String`, `Bool`, copied on every call; maps returned by extern code in key order on every target (section 8.4, rules 1 and 6) | **answered** (author, 2026-10-19): yes |
 | D7.14 | 0.2: callbacks, parameters of a function type of extern functions, called only during the call (section 8.4, rule 7) | **answered** (author, 2026-10-19): yes |
 | D7.15 | 0.2: records: a struct of the module bound to a struct type of each target with `struct Name from "path"`, copied field by field (section 8.4a), code E0711 | **answered** (author, 2026-10-19): yes |
+| D7.16 | 0.2: native modules: declarations read from Rust code (section 8.7), the type mapping of rule 3, codes E0713 and E0714 | **answered** (author, 2026-10-20): yes |
