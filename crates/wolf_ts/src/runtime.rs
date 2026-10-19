@@ -790,10 +790,10 @@ export function parseFloatText(text: string): number | undefined {
     },
     Piece {
         name: "listSort",
-        deps: &["compare", "order"],
-        code: r#"/** Stable sort by `compare`. */
-export function listSort<T>(items: T[]): void {
-  items.sort((a, b) => order(compare(a, b)));
+        deps: &["compare", "order", "Ordering"],
+        code: r#"/** Stable sort by `compare`, or by `cmp` for a payload-less enum (a string at run time). */
+export function listSort<T>(items: T[], cmp: (a: T, b: T) => Ordering = compare): void {
+  items.sort((a, b) => order(cmp(a, b)));
 }"#,
     },
     Piece {
@@ -806,11 +806,14 @@ export function listSortBy<T>(items: T[], f: (a: T, b: T) => Ordering): void {
     },
     Piece {
         name: "listMin",
-        deps: &["compare", "copy"],
-        code: r#"export function listMin<T>(items: T[]): T | undefined {
+        deps: &["compare", "copy", "Ordering"],
+        code: r#"export function listMin<T>(
+  items: T[],
+  cmp: (a: T, b: T) => Ordering = compare,
+): T | undefined {
   let best: T | undefined;
   for (const item of items) {
-    if (best === undefined || compare(item, best) === "Less") {
+    if (best === undefined || cmp(item, best) === "Less") {
       best = item;
     }
   }
@@ -819,11 +822,14 @@ export function listSortBy<T>(items: T[], f: (a: T, b: T) => Ordering): void {
     },
     Piece {
         name: "listMax",
-        deps: &["compare", "copy"],
-        code: r#"export function listMax<T>(items: T[]): T | undefined {
+        deps: &["compare", "copy", "Ordering"],
+        code: r#"export function listMax<T>(
+  items: T[],
+  cmp: (a: T, b: T) => Ordering = compare,
+): T | undefined {
   let best: T | undefined;
   for (const item of items) {
-    if (best === undefined || compare(item, best) === "Greater") {
+    if (best === undefined || cmp(item, best) === "Greater") {
       best = item;
     }
   }

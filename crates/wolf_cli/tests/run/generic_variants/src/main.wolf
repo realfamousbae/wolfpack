@@ -1,0 +1,56 @@
+//! A variant passed for a parameter of a generic type, alone or inside an option, a result or a
+//! list: the type argument is the enum.
+module main
+
+types {
+    enum Token {
+        Num(Int)
+        Word(String)
+    }
+
+    enum Color {
+        Red
+        Green
+    }
+}
+
+main {
+    match same(Token.Word("hi")) {
+        Token.Num(_) => print("num")
+        Token.Word(w) => print(w)
+    }
+    match same(Color.Green) {
+        Color.Red => print("red")
+        Color.Green => print("green")
+    }
+    let pair = both(Token.Num(1), Token.Word("b"))
+    match pair[0] {
+        Token.Num(n) => print(n.to_string())
+        Token.Word(w) => print(w)
+    }
+    match same(Some(Token.Num(7))) {
+        Some(Token.Num(n)) => print(n.to_string())
+        Some(Token.Word(w)) => print(w)
+        None => print("none")
+    }
+    match same([Token.Word("x")])[0] {
+        Token.Num(n) => print(n.to_string())
+        Token.Word(w) => print(w)
+    }
+    let r: Result<Token, String> = Ok(Token.Word("ok"))
+    match same(own r) {
+        Ok(Token.Word(w)) => print(w)
+        Ok(Token.Num(_)) => print("num")
+        Err(e) => print(e)
+    }
+}
+
+functions {
+    fn same<T>(own x: T) -> T {
+        x
+    }
+
+    fn both<T>(own a: T, own b: T) -> List<T> {
+        [a, b]
+    }
+}

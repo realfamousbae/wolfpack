@@ -1,0 +1,12 @@
+//! A project named like a Go standard package (`cmp`).
+module main
+
+imports {
+    std.list
+}
+
+main {
+    var xs = [3, 1, 2]
+    list.sort(mut xs)
+    print(xs[0].to_string())
+}

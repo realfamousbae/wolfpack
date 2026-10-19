@@ -1,0 +1,4 @@
+[package]
+name = "comparable-impl-only"
+version = "0.1.0"
+kind = "cli"

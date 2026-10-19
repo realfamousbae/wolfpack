@@ -64,11 +64,26 @@ enum Place {
     Elem(Expr, Expr),
 }
 
+/// A dictionary: the function a bound of a type parameter stands for. A payload-less enum is a
+/// string at run time, so only the caller knows which `to_string` or `compare` to use.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum Dict {
+    /// `to_string` of `Display`.
+    Show,
+    /// `compare` of `Comparable`.
+    Cmp,
+}
+
 /// The signature facts calls need.
 #[derive(Clone)]
 struct FnInfo {
     params: Vec<(Mode, IrType)>,
     ret: IrType,
+    /// The dictionaries it takes after the receiver, by type parameter: those of the `impl`
+    /// block's bounds, then those of its own.
+    dicts: Vec<(String, Dict)>,
+    /// For a method: the type and its type parameters.
+    owner: Option<(DefRef, Vec<String>)>,
 }
 
 /// Facts about the function being emitted.
@@ -82,6 +97,8 @@ struct FnState {
     rets: Vec<(IrType, bool)>,
     /// `mut` parameters passed by reference (lists, maps, structs).
     by_reference: BTreeSet<LocalRef>,
+    /// The dictionary parameters in scope, by type parameter.
+    dicts: BTreeMap<(String, Dict), String>,
     self_expr: Option<Expr>,
     /// The loops around the current point, innermost last: the label and, for a `loop` whose
     /// value is used, where `break value` sends the value.
@@ -137,6 +154,48 @@ fn subst(t: &IrType, map: &BTreeMap<String, IrType>) -> IrType {
 }
 
 /// Whether a function result of this type is `T | undefined` (ADR 0002).
+/// Whether a type mentions a type parameter.
+fn generic(t: &IrType) -> bool {
+    match t {
+        IrType::Param(_) => true,
+        IrType::List(a) | IrType::Option(a) => generic(a),
+        IrType::Map(a, b) | IrType::Result(a, b) => generic(a) || generic(b),
+        IrType::Named(_, args) => args.iter().any(generic),
+        IrType::Fn(ps, r) => ps.iter().any(|(_, t)| generic(t)) || generic(r),
+        _ => false,
+    }
+}
+
+/// Binds the type parameters of `pattern` to the parts of `actual`.
+fn unify(pattern: &IrType, actual: &IrType, map: &mut BTreeMap<String, IrType>) {
+    match (pattern, actual) {
+        (IrType::Param(n), a) => {
+            if !matches!(a, IrType::Never) {
+                map.entry(n.clone()).or_insert_with(|| a.clone());
+            }
+        }
+        (IrType::List(a), IrType::List(b)) | (IrType::Option(a), IrType::Option(b)) => {
+            unify(a, b, map)
+        }
+        (IrType::Map(a, b), IrType::Map(c, d)) | (IrType::Result(a, b), IrType::Result(c, d)) => {
+            unify(a, c, map);
+            unify(b, d, map);
+        }
+        (IrType::Named(d1, a1), IrType::Named(d2, a2)) if d1 == d2 => {
+            for (x, y) in a1.iter().zip(a2) {
+                unify(x, y, map);
+            }
+        }
+        (IrType::Fn(p1, r1), IrType::Fn(p2, r2)) => {
+            for ((_, x), (_, y)) in p1.iter().zip(p2) {
+                unify(x, y, map);
+            }
+            unify(r1, r2, map);
+        }
+        _ => {}
+    }
+}
+
 fn undef_result(t: &IrType) -> bool {
     matches!(t, IrType::Option(inner) if !matches!(**inner, IrType::Option(_) | IrType::Void))
 }
@@ -299,6 +358,8 @@ impl<'p> Emitter<'p> {
         let info = |f: &ir::Function| FnInfo {
             params: f.params.iter().map(|x| (x.mode, x.ty.clone())).collect(),
             ret: f.ret.clone(),
+            dicts: Vec::new(),
+            owner: None,
         };
         let mut type_names: BTreeSet<String> = BTreeSet::new();
         for m in &p.modules {
@@ -386,6 +447,8 @@ impl<'p> Emitter<'p> {
                             FnInfo {
                                 params: x.params.clone(),
                                 ret: x.ret.clone(),
+                                dicts: Vec::new(),
+                                owner: None,
                             },
                         );
                         self.names.insert(x.def, camel(&x.name));
@@ -402,12 +465,111 @@ impl<'p> Emitter<'p> {
                 }
             }
         }
+        // Dictionaries, now that `Display` and `Comparable` are known. An implementation of an
+        // interface keeps the interface's signature and takes none.
+        for m in &p.modules {
+            for item in &m.items {
+                let (owner, methods): (Option<(DefRef, &[ir::Generic])>, &[ir::Function]) =
+                    match item {
+                        ir::Item::Struct(s) => (Some((s.def, &s.generics)), &s.methods),
+                        ir::Item::Enum(e) => (Some((e.def, &e.generics)), &e.methods),
+                        ir::Item::Fn(f) => (None, std::slice::from_ref(f)),
+                        _ => continue,
+                    };
+                for f in methods {
+                    let mut dicts = Vec::new();
+                    if f.interface.is_none() && f.body.is_some() {
+                        if let Some((_, gs)) = owner {
+                            for (g, bounds) in gs.iter().zip(&f.impl_bounds) {
+                                for d in self.dicts_of(bounds) {
+                                    dicts.push((g.name.clone(), d));
+                                }
+                            }
+                        }
+                        for g in &f.generics {
+                            for d in self.dicts_of(&g.bounds) {
+                                dicts.push((g.name.clone(), d));
+                            }
+                        }
+                    }
+                    if let Some(info) = self.fns.get_mut(&f.def) {
+                        info.dicts = dicts;
+                        info.owner =
+                            owner.map(|(d, gs)| (d, gs.iter().map(|g| g.name.clone()).collect()));
+                    }
+                }
+            }
+        }
         // Intrinsic functions have no items; their signatures come from their declarations.
         for (def, d) in &p.defs {
             if d.intrinsic.is_some() {
                 self.names.entry(*def).or_insert_with(|| camel(&d.name));
             }
         }
+    }
+
+    /// The dictionaries of the bounds of a type parameter.
+    fn dicts_of(&self, bounds: &[IrType]) -> Vec<Dict> {
+        let mut out = Vec::new();
+        for b in bounds {
+            let IrType::Named(def, _) = b else { continue };
+            if Some(*def) == self.display {
+                out.push(Dict::Show);
+            } else if Some(*def) == self.comparable {
+                out.push(Dict::Cmp);
+            }
+        }
+        out
+    }
+
+    /// The type of a dictionary for the type `t`.
+    fn dict_ty(&mut self, d: Dict, t: &IrType) -> Type {
+        let t = self.ty(t);
+        match d {
+            Dict::Show => Type::Fn(vec![("x".to_string(), t)], Box::new(Type::name("string"))),
+            Dict::Cmp => {
+                let ordering = self
+                    .comparable
+                    .and_then(|c| self.iface_fns.get(&(c, "compare".to_string())))
+                    .map(|f| f.ret.clone())
+                    .unwrap_or(IrType::Void);
+                let o = self.ty(&ordering);
+                Type::Fn(
+                    vec![("a".to_string(), t.clone()), ("b".to_string(), t)],
+                    Box::new(o),
+                )
+            }
+        }
+    }
+
+    /// The dictionary for the type `t`, or `None` where the runtime's `display` or `compare`
+    /// does the same: it calls the method of a class and handles the built-in types.
+    fn dict_for(&mut self, d: Dict, t: &IrType) -> Option<Expr> {
+        match t {
+            IrType::Param(n) => self.f.dicts.get(&(n.clone(), d)).map(|x| ident(x)),
+            IrType::Named(def, _) => {
+                let e = self.enums.get(def)?;
+                let iface = match d {
+                    Dict::Show => self.display,
+                    Dict::Cmp => self.comparable,
+                };
+                let method = e
+                    .methods
+                    .iter()
+                    .find(|f| f.interface.is_some() && f.interface == iface)?
+                    .def;
+                Some(ident(&self.def_name_local(method, *def)))
+            }
+            _ => None,
+        }
+    }
+
+    /// The dictionary for the type `t`, always.
+    fn dict(&mut self, d: Dict, t: &IrType) -> Expr {
+        self.dict_for(d, t).unwrap_or_else(|| match d {
+            Dict::Show => self.rt("display"),
+            Dict::Cmp => self.rt("compare"),
+        })
     }
 
     fn rt(&mut self, name: &'static str) -> Expr {
@@ -605,6 +767,20 @@ impl<'p> Emitter<'p> {
                 (g.name.clone(), constraint)
             })
             .collect()
+    }
+
+    /// Whether a value is built from a variant of an enum with payloads, whose TypeScript type is
+    /// the variant's class.
+    fn holds_variant(&self, e: &IrExpr) -> bool {
+        match &e.kind {
+            ExprKind::Variant { .. } => !self.plain_enum(&e.ty),
+            ExprKind::Some(v) | ExprKind::Ok(v) | ExprKind::Err(v) => self.holds_variant(v),
+            ExprKind::List(items) => items.iter().any(|v| self.holds_variant(v)),
+            ExprKind::Map(entries) => entries
+                .iter()
+                .any(|(k, v)| self.holds_variant(k) || self.holds_variant(v)),
+            _ => false,
+        }
     }
 
     /// Whether a type is a payload-less enum (a union of string literals in TypeScript).
@@ -1313,6 +1489,20 @@ impl<'p> Emitter<'p> {
         self.f.rets.push((f.ret.clone(), true));
         let generics = self.generics(&f.generics);
         let mut params = Vec::new();
+        let dicts = self
+            .fns
+            .get(&f.def)
+            .map(|i| i.dicts.clone())
+            .unwrap_or_default();
+        for (g, d) in dicts {
+            let name = match d {
+                Dict::Show => format!("$show{g}"),
+                Dict::Cmp => format!("$cmp{g}"),
+            };
+            let ty = self.dict_ty(d, &IrType::Param(g.clone()));
+            self.f.dicts.insert((g, d), name.clone());
+            params.push((name, ty));
+        }
         for p in &f.params {
             let name = self.local_name(p.local);
             let ty = self.param_ty(p.mode, &p.ty);
@@ -1851,19 +2041,36 @@ impl<'p> Emitter<'p> {
                     }
                     _ => {
                         let name = ident(&self.def_name(*def));
-                        // A declared function returning `T | undefined` used as a function value.
+                        // A declared function returning `T | undefined`, or taking dictionaries,
+                        // used as a function value.
                         match self.fns.get(def).cloned() {
-                            Some(info) if undef_result(&info.ret) => {
+                            Some(info) if undef_result(&info.ret) || !info.dicts.is_empty() => {
+                                let mut map = BTreeMap::new();
+                                if let IrType::Fn(ps, r) = &e.ty {
+                                    for ((_, p), (_, a)) in info.params.iter().zip(ps) {
+                                        unify(p, a, &mut map);
+                                    }
+                                    unify(&info.ret, r, &mut map);
+                                }
                                 let params: Vec<(String, Option<Type>)> = info
                                     .params
                                     .iter()
                                     .enumerate()
                                     .map(|(i, (m, t))| {
-                                        (format!("p{i}"), Some(self.param_ty(*m, t)))
+                                        let t = subst(t, &map);
+                                        (format!("p{i}"), Some(self.param_ty(*m, &t)))
                                     })
                                     .collect();
-                                let args = params.iter().map(|(n, _)| ident(n)).collect();
-                                let body = self.rt_call("tagged", vec![call(name, args)]);
+                                let mut args: Vec<Expr> = Vec::new();
+                                for (g, d) in &info.dicts {
+                                    let t = map.get(g).cloned().unwrap_or(IrType::Void);
+                                    args.push(self.dict(*d, &t));
+                                }
+                                args.extend(params.iter().map(|(n, _)| ident(n)));
+                                let mut body = call(name, args);
+                                if undef_result(&info.ret) {
+                                    body = self.rt_call("tagged", vec![body]);
+                                }
                                 tagged(Expr::Arrow(params, None, ArrowBody::Expr(Box::new(body))))
                             }
                             _ => tagged(name),
@@ -2437,6 +2644,8 @@ impl<'p> Emitter<'p> {
                     IrType::Fn(params, ret) => Some(FnInfo {
                         params: params.clone(),
                         ret: (**ret).clone(),
+                        dicts: Vec::new(),
+                        owner: None,
                     }),
                     _ => None,
                 };
@@ -2484,6 +2693,45 @@ impl<'p> Emitter<'p> {
             .into_iter()
             .map(|v| v.unwrap_or_else(|| evaluated.next().unwrap_or(Expr::Undefined)))
             .collect();
+        // A variant passed for a parameter of a generic type, also inside an option, a result,
+        // a list or a map: TypeScript would infer the type argument from the variant's class,
+        // not the enum.
+        if let Some(f) = &info {
+            let skip = usize::from(recv.is_some());
+            for (i, a) in args.iter().enumerate() {
+                let generic = f.params.get(i).is_some_and(|(_, t)| generic(t));
+                if generic && self.holds_variant(&a.value) {
+                    if let Some(v) = all.get_mut(i + skip) {
+                        let t = self.ty(&a.value.ty);
+                        *v = Expr::As(Box::new(std::mem::replace(v, Expr::Undefined)), t);
+                    }
+                }
+            }
+        }
+        // Dictionaries, after the receiver.
+        if let Some(f) = info.as_ref().filter(|f| !f.dicts.is_empty()) {
+            let mut map = BTreeMap::new();
+            if let (Some(r), Some((owner, names))) = (recv, &f.owner) {
+                if let IrType::Named(d, targs) = &r.ty {
+                    if d == owner {
+                        for (n, t) in names.iter().zip(targs) {
+                            map.insert(n.clone(), t.clone());
+                        }
+                    }
+                }
+            }
+            for ((_, p), a) in f.params.iter().zip(args) {
+                unify(p, &a.value.ty, &mut map);
+            }
+            unify(&f.ret, ty, &mut map);
+            let mut ds = Vec::new();
+            for (g, d) in &f.dicts {
+                let t = map.get(g).cloned().unwrap_or(IrType::Void);
+                ds.push(self.dict(*d, &t));
+            }
+            let at = usize::from(recv.is_some()).min(all.len());
+            all.splice(at..at, ds);
+        }
         let ret_repr = match &info {
             _ if matches!(callee, Callee::Value(_)) => Repr::Tagged,
             Some(f)
@@ -2496,6 +2744,15 @@ impl<'p> Emitter<'p> {
             _ => Repr::Tagged,
         };
         if let Some(name) = intrinsic {
+            // Sorting and the smallest or largest item use the elements' `compare`.
+            let short = name.strip_prefix("std.").unwrap_or(&name);
+            if matches!(short, "list.sort" | "list.min" | "list.max") {
+                if let Some(IrType::List(t)) = args.first().map(|a| &a.value.ty) {
+                    if let Some(c) = self.dict_for(Dict::Cmp, t) {
+                        all.push(c);
+                    }
+                }
+            }
             let v = self.intrinsic(&name, all, ty)?;
             let repr = if matches!(ty, IrType::Option(_)) {
                 Repr::Undef
@@ -2552,15 +2809,19 @@ impl<'p> Emitter<'p> {
                 } else {
                     all.remove(0)
                 };
+                let param = matches!(recv.ty, IrType::Param(_));
                 if Some(*interface) == self.display && name == "to_string" {
-                    self.rt_call("display", vec![r])
-                } else if matches!(recv.ty, IrType::Param(_))
-                    && Some(*interface) == self.comparable
-                    && name == "compare"
-                {
+                    if param {
+                        let f = self.dict(Dict::Show, &recv.ty);
+                        call(f, vec![r])
+                    } else {
+                        self.rt_call("display", vec![r])
+                    }
+                } else if param && Some(*interface) == self.comparable && name == "compare" {
                     let mut a = vec![r];
                     a.extend(all);
-                    self.rt_call("compare", a)
+                    let f = self.dict(Dict::Cmp, &recv.ty);
+                    call(f, a)
                 } else {
                     call(member(r, &camel(name)), all)
                 }
