@@ -2,9 +2,20 @@
 
 Status: **N1 done** (2026-10-19, for 0.2): `native/<target>/`, `native:` paths, E0709, E0710 and
 E0806 (spec chapter 7, section 8.2a; chapter 8, section 8a), the example `examples/native-slug`.
-N2: `Map` at the boundary and callbacks done (2026-10-19); records are still a plan, and so is N3. Each stage starts with an edit of `docs/spec/` in its own commit and
-needs the author's approval, as every language change does. The open questions at the end are for
-the author.
+N2: `Map` at the boundary and callbacks done (2026-10-19); records are specified (D7.15) but their
+implementation is paused on the branch `wip/n2-records`. **N3 is revised** (accepted by the author
+2026-10-19, with the recommendations of Q7 to Q11): instead of a command that prints `extern` blocks, native code is
+**imported like a module**, and the compiler reads its declarations itself (section 4). Each stage
+starts with an edit of `docs/spec/` in its own commit and needs the author's approval, as every
+language change does. The open questions at the end are for the author.
+
+### Why the revision
+
+The author's intent for native code is to use code of the target languages **without extra work**:
+no precompilation and no hand-written declarations. N1 and N2 give something narrower: your own
+target code, called through `extern` lines written by hand, one block per target. Every function is
+declared three times (see `examples/native-slug`), and a mistake in a declaration shows up only as
+E0806 from `tsc`, `go` or `cargo`. Section 4 removes the declarations for the project's own code.
 
 ## 1. Where we are
 
@@ -34,7 +45,7 @@ The plan has three stages, in this order, because each one makes the next one mo
 | --- | --- | --- |
 | N1. Native sources | `.ts`, `.go`, `.rs` files inside the project, called through `extern` | spec chapters 6, 7, 8 |
 | N2. A wider boundary | `Map`, functions (callbacks) and records cross `extern` | spec chapters 7, 8 |
-| N3. `wolf bind` | `extern` declarations generated from the target's own code | a new command (PLAN.md section 10, the guide) |
+| N3. Native modules | `imports { native.slug }`: the compiler reads `native/<target>/` and derives the declarations; no `extern` lines | spec chapters 6, 7, 8; readers of TS, Go and Rust in `wolf` |
 
 ## 2. Stage N1: native sources in the project
 
@@ -176,44 +187,120 @@ language feature of its own and goes to `docs/ideas.md`; the boundary rule follo
 One example per item, on all three targets, in the end-to-end tests; the ADR of N2 lists the
 conversions and their costs.
 
-## 4. Stage N3: `wolf bind`
+## 4. Stage N3 (revised): native modules without declarations
 
-A command that reads target code and prints `extern` declarations for it:
+### 4.1 What the user writes
 
-```bash
-wolf bind ts fastest-levenshtein
-wolf bind go github.com/agnivade/levenshtein
-wolf bind rust native
+```
+module main
+
+imports {
+    native.slug
+}
+
+main {
+    print(slug.slugify("Hello, World!"))
+}
 ```
 
-1. **Input.**
-   - TS: the `.d.ts` files of an npm package (after `npm install`) or of `native/ts/`. Read with a
-     TypeScript parser crate (`oxc` or `swc`), no Node.js needed.
-   - Go: a small Go program shipped with `wolf`, run with the Go toolchain of `wolf setup`; it uses
-     `go/packages` and `go/types` and prints the exported functions and types as JSON.
-   - Rust: `native/rust/` parsed with `syn`. Crates from crates.io need rustdoc JSON, which is
-     still nightly-only in Rust; until it is stable, crates are left to hand-written declarations.
-2. **Output.** An `extern` block on standard output, or appended to a chosen `.wolf` file with
-   `--write <file>`. Items whose types cannot cross the boundary are listed as comments with the
-   reason, so nothing is skipped silently.
-3. **Checking.** `wolf check --extern` reuses the same readers to compare existing declarations
-   with the target code and reports a mismatch at the declaration, before `tsc`, `go build` or
-   `cargo` would.
-4. Names follow the wolfpack conventions (`ComputeDistance` becomes `compute_distance`); the path
-   string keeps the target's name.
+`native.slug` is a **native module**: the files `native/ts/slug.ts`, the Go package
+`native/go/slug/` and `native/rust/slug.rs`, whichever exist. There is no `extern` block. The
+compiler reads those files, finds what they export, and gives each exported function, struct and
+type a wolfpack declaration. `slug.slugify` is then an ordinary call, checked by `wolf check` like
+any other.
 
-`wolf bind` changes no language rule, but it is a new command of `wolf` (PLAN.md section 10), so it
-needs the author's approval like any other part of the tool's interface.
+`extern` with `native:` paths (N1) stays: it is still the way to rename a function, to call a
+method in function form, to choose a type the reader would not, and to call packages of npm, Go and
+crates.io.
 
-### 4.1 Done when
+### 4.2 Readers: what `wolf` understands of each language
 
-`wolf bind` reproduces the hand-written declarations of the `fuzzy` example and of the N1 example,
-in tests that run without network access (fixtures of `.d.ts`, Go and Rust files).
+The readers look only at **declarations**, never at bodies, and need no tool of the target: `wolf
+check` keeps working without Node.js, Go or Cargo installed.
+
+| Target | Reader | Reads |
+| --- | --- | --- |
+| Rust | the `syn` crate | `pub fn`, `pub struct`, `pub enum` without payloads (later), `pub type` |
+| Go | a small parser of Go declarations written for `wolf` (top-level `func` and `type` lines only) | exported functions, struct types, other named types |
+| TS | the `oxc_parser` crate | `export function`, `export interface`, `export type`, `export class` |
+
+An item that a reader cannot map (a generic function, an untyped TS parameter, a type from another
+package) is **not visible** in wolfpack. Using it is an error that says why
+(`slug.parse is not available: its parameter has no type in native/ts/slug.ts`), so nothing is
+skipped silently.
+
+### 4.3 Mapping target types to wolfpack types
+
+| Wolfpack | TS | Go | Rust |
+| --- | --- | --- | --- |
+| `Int` | `bigint`; `number` see Q8 | any integer type | any integer type |
+| `Float` | `number` | `float32`, `float64` | `f32`, `f64` |
+| `Bool`, `String` | `boolean`, `string` | `bool`, `string` | `bool`, `&str`, `String` |
+| `List<T>` | `T[]` | `[]T` | `&[T]`, `Vec<T>` |
+| `Map<K, V>` | `Map<K, V>` | `map[K]V` | `&HashMap`, `HashMap`, `BTreeMap` |
+| `Option<T>` | `T \| undefined` | `(T, bool)`; `*T` see Q9 | `Option<T>` |
+| `Result<T, Error>` | see Q8 (exceptions) | `(T, error)`, `error` | `Result<T, E: Display>` |
+| callback | `(a: A) => R` | `func(A) R` | `impl Fn(A) -> R`, `&dyn Fn(A) -> R` |
+| record | `interface` / `type` of plain fields | struct of exported fields | struct of `pub` fields |
+| opaque type | `class`, other types | other named types, `*T` | other `pub` types |
+
+Names follow the wolfpack conventions: `countWords` and `CountWords` become `count_words`,
+`Slugify` becomes `slugify`. Two target names that map to one wolfpack name are an error.
+
+### 4.4 One function, several targets
+
+A native module may exist for one target or for several. For each exported name, the signatures
+derived from the targets that have it must be **the same** wolfpack signature (a new E07xx code
+shows both). Where TS is ambiguous (`number`), the other targets decide. A name that exists only in
+some targets binds the calling module to those targets, exactly as a one-target `extern` block does
+today (E0704).
+
+### 4.5 Records and opaque types
+
+A struct whose fields are all mappable becomes a **record** of the native module: a wolfpack struct
+`slug.Options { max_len: Int }` that the user can build and read, copied field by field at the
+boundary (the conversions of N2 and of D7.15). Any other exported type becomes an opaque type. This
+replaces the hand-written binding `struct Name from "path"` of D7.15 for native code (Q10).
+
+### 4.6 Seeing what the compiler derived
+
+`wolf check --native` (or a later `wolf bind native.slug`) prints the declarations derived from each
+target, as an `extern` block, with the items left out and why. This is the former N3 command, now a
+view of what the compiler already does.
+
+### 4.7 Stages
+
+| Step | Content |
+| --- | --- |
+| N3a | The import form, native modules in name resolution, the Rust reader (`syn`), the mapping of 4.3 for Rust; `examples/native-slug` without `extern` for Rust |
+| N3b | The Go reader |
+| N3c | The TS reader (`oxc_parser`) and the `number` rule |
+| N3d | Agreement between targets (4.4), records and opaque types (4.5), `wolf check --native` |
+
+Every step starts with its spec edit. The playground has no native modules; the VM of M13 does not
+run them either (a diagnostic there).
+
+### 4.8 Costs
+
+- `syn` and `oxc_parser` are new dependencies of `wolf_cli` only, not of the playground; `oxc` is
+  large, so the binary and build time grow.
+- The Go reader is new code to maintain (declarations only, a few hundred lines).
+- The readers cover the declarations people write in practice, not every corner of three languages;
+  the rest stays reachable through explicit `extern`.
+
+### 4.9 Packages of npm, Go and crates.io
+
+Not part of N3: reading them needs the fetched packages (`node_modules/**/*.d.ts`, the Go module
+cache, rustdoc JSON, which is nightly-only for Rust). The same readers can serve them later; until
+then packages keep explicit `extern` declarations.
 
 ## 5. Out of scope
 
 - Calling code of **another** target (Go code from a TypeScript build) through WebAssembly, FFI or
-  a subprocess. Possible in principle, but every target pair needs its own runtime bridge.
+  a subprocess (variant B of the discussion of 2026-10-19). Possible in principle, but every target
+  pair needs its own runtime bridge.
+- Code of languages that are not targets, such as Python or C, through a C ABI or a subprocess
+  (variant C). A separate project.
 - Async functions and promises at the boundary: the language has no async yet (PLAN, after M13).
 - Inline target code inside `.wolf` files (`ts { ... }` bodies). It would make modules unreadable
   for people who know only one of the targets.
@@ -228,3 +315,10 @@ in tests that run without network access (fixtures of `.d.ts`, Go and Rust files
 | Q4 | Order of a map that comes from Go or from a Rust `HashMap` | Sorted by key, so the output is the same on every run |
 | Q5 | Is the callback contract of 3.2 (call only during the extern call, never keep) acceptable? | Yes; it is the same kind of promise as D7.8 |
 | Q6 | When: after M13, or between M13 and the LSP? | N1 right after M13; N2 and N3 by demand |
+| Q7 | The import form of a native module | `imports { native.slug }`, like any module; `native` cannot be a module of `src/` already (E0710) |
+| Q8 | TS `number`, and TS exceptions | `number` is `Float` unless another target of the same function says `Int`; `bigint` is `Int`. A TS function cannot declare that it throws, so its result is never a `Result`; a JSDoc tag `@throws` could make it one later |
+| Q9 | Go `*T` results | `*T` of a record or an opaque type is that type, and `nil` is a panic; `Option` in Go is `(T, bool)` |
+| Q10 | Records of D7.15 (`struct Name from "path"`) | Do not implement them for now: native modules derive records (4.5). Keep D7.15 in the spec until packages need it, or withdraw it |
+| Q11 | Scope of N3 | Only the project's own `native/` code; packages later (4.9) |
+
+Q7 to Q11 are answered (author, 2026-10-19): the recommendations are accepted.
