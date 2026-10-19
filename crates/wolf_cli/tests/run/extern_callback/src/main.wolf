@@ -1,0 +1,57 @@
+//! Callbacks at the extern boundary (spec chapter 7, section 8.4, rule 7): extern code calls a
+//! wolfpack function during the call; a panic in it stays a panic, also through a `Result`.
+
+module main
+
+imports {
+    std.string
+}
+
+extern {
+    ts {
+        fn each(items: List<String>, f: fn(String) -> Void) from "native:calls#each"
+        fn twice(n: Int, f: fn(Int) -> Int) -> Int from "native:calls#twice"
+        fn mapped(xs: List<Int>, f: fn(Int) -> String) -> List<String> from "native:calls#mapped"
+        fn count(
+            items: List<String>,
+            f: fn(String) -> Bool,
+        ) -> Result<Int, Error> from "native:calls#count"
+    }
+    go {
+        fn each(items: List<String>, f: fn(String) -> Void) from "native:calls.Each"
+        fn twice(n: Int, f: fn(Int) -> Int) -> Int from "native:calls.Twice"
+        fn mapped(xs: List<Int>, f: fn(Int) -> String) -> List<String> from "native:calls.Mapped"
+        fn count(
+            items: List<String>,
+            f: fn(String) -> Bool,
+        ) -> Result<Int, Error> from "native:calls.Count"
+    }
+    rust {
+        fn each(items: List<String>, f: fn(String) -> Void) from "native:calls::each"
+        fn twice(n: Int, f: fn(Int) -> Int) -> Int from "native:calls::twice"
+        fn mapped(xs: List<Int>, f: fn(Int) -> String) -> List<String> from "native:calls::mapped"
+        fn count(
+            items: List<String>,
+            f: fn(String) -> Bool,
+        ) -> Result<Int, Error> from "native:calls::count"
+    }
+}
+
+main {
+    let prefix = "> "
+    each(["a", "b"], |s| print(prefix + s))
+    print(f"{twice(5, |n| n * 3)}")
+    print(string.join(mapped([1, 2, 3], |n| f"#{n}"), ","))
+    match count(["x", "yy", "zzz"], |s| s.len() > 1) {
+        Ok(n) => print(f"long: {n}")
+        Err(e) => print(f"error: {e.message()}")
+    }
+    match count([], |s| s.len() > 1) {
+        Ok(n) => print(f"long: {n}")
+        Err(e) => print(f"error: {e.message()}")
+    }
+    match count(["ok", "boom"], |s| if s == "boom" { panic("callback failed") } else { true }) {
+        Ok(n) => print(f"long: {n}")
+        Err(e) => print(f"error: {e.message()}")
+    }
+}
