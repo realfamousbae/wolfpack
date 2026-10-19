@@ -203,6 +203,8 @@ pub struct File {
     pub path: String,
     /// Imports: path to the name used in this file.
     pub imports: BTreeMap<String, String>,
+    /// The import path prefix of the packages of `native/go/`: `<module>/native/`.
+    pub native: String,
     /// The declarations.
     pub decls: Vec<Decl>,
 }
@@ -224,7 +226,10 @@ pub fn print(file: &File) -> String {
         .imports
         .iter()
         .map(|(path, name)| {
-            if path.rsplit('/').next() == Some(name.as_str()) {
+            // A package of `native/go/` is always named: its `package` clause may differ from
+            // its directory (spec chapter 8, section 8a).
+            let native = path.starts_with(&file.native);
+            if path.rsplit('/').next() == Some(name.as_str()) && !native {
                 quote(path)
             } else {
                 format!("{name} {}", quote(path))

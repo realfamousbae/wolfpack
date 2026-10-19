@@ -172,7 +172,7 @@ fn every_example_project_checks_cleanly() {
         .filter(|p| p.join("wolfpack.toml").is_file())
         .collect();
     projects.sort();
-    assert_eq!(projects.len(), 12);
+    assert_eq!(projects.len(), 13);
     for project in projects {
         let output = wolf(&project, &["check", "--color", "never"]);
         let stderr = String::from_utf8_lossy(&output.stderr);

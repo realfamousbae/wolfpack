@@ -1,0 +1,17 @@
+module main
+
+extern {
+    ts {
+        fn twice(n: Int) -> String from "native:twice#twice"
+    }
+    go {
+        fn twice(n: Int) -> String from "native:twice.Twice"
+    }
+    rust {
+        fn twice(n: Int) -> String from "native:twice::twice"
+    }
+}
+
+main {
+    print(twice(21))
+}

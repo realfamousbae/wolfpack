@@ -25,6 +25,7 @@ pub(crate) fn run(cwd: &Path, paths: &[PathBuf], check: bool) -> Outcome {
         map: wolf_span::SourceMap::new(),
         diagnostics: Vec::new(),
         project: None,
+        native: false,
     };
     let mut files = Vec::new();
     if paths.is_empty() {

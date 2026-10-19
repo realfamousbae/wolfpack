@@ -1735,6 +1735,7 @@ impl<'p> Emitter<'p> {
             package: package.to_string(),
             path: path.to_string(),
             imports,
+            native: format!("{}/native/", self.module_path),
             decls,
         })
     }
@@ -2562,6 +2563,7 @@ impl<'p> Emitter<'p> {
             params.push((n.clone(), self.param_ty(*m, t)?));
             args.push(id(&n));
         }
+        let path = &self.extern_path(path);
         // A method expression, `(*pkg.Type).Method` or `pkg.Type.Method`, is called on the first
         // parameter (spec chapter 7, section 8.2).
         let c = match go_target(path) {
@@ -2628,11 +2630,30 @@ impl<'p> Emitter<'p> {
         }
     }
 
+    /// The Go path of an extern path string: a package of `native/go/` is a package of the
+    /// generated module (spec chapter 8, section 8a), `native:*search.Index` becomes
+    /// `*<module>/native/search.Index`.
+    fn extern_path(&self, path: &str) -> String {
+        let Some(rest) = path.strip_prefix(NATIVE) else {
+            return path.to_string();
+        };
+        let (open, rest) = match rest.strip_prefix('(') {
+            Some(r) => ("(", r),
+            None => ("", rest),
+        };
+        let (ptr, rest) = match rest.strip_prefix('*') {
+            Some(r) => ("*", r),
+            None => ("", rest),
+        };
+        format!("{open}{ptr}{}/native/{rest}", self.module_path)
+    }
+
     /// `type pattern = *regexp.Regexp` for an opaque type.
     fn extern_type(&mut self, x: &'p ir::ExternType, out: &mut Vec<Decl>) -> Result<(), Error> {
         let Some(path) = x.paths.get("go") else {
             return Ok(());
         };
+        let path = &self.extern_path(path);
         let (ptr, rest) = match path.strip_prefix('*') {
             Some(rest) => (true, rest),
             None => (false, path.as_str()),
@@ -5405,6 +5426,9 @@ impl Emitter<'_> {
 }
 
 /// What an extern path of Go names.
+/// The prefix of a path to code of the project in `native/go/` (spec chapter 7, section 8.2a).
+pub(crate) const NATIVE: &str = "native:";
+
 enum GoTarget {
     /// A function or type of a package: import path and name.
     Func(String, String),

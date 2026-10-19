@@ -1,0 +1,7 @@
+module native
+
+functions {
+    pub fn greeting() -> String {
+        "hi"
+    }
+}

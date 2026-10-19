@@ -126,6 +126,11 @@ fn analyze(
         tree,
     ));
     let analysis = wolf_driver::analyze(&map, &manifest, parsed, &mut diagnostics);
+    // The playground has no `native/` (spec chapter 8, section 8a).
+    diagnostics.extend(wolf_driver::check_native(
+        &wolf_driver::Native::none(),
+        &analysis.parsed,
+    ));
     (map, diagnostics, Some((manifest, analysis)))
 }
 

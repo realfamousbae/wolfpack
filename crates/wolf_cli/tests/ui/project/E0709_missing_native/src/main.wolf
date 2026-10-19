@@ -1,0 +1,21 @@
+module main
+
+extern {
+    ts {
+        fn found(s: String) -> String from "native:text/case#upper"
+        fn slugify(s: String) -> String from "native:slug#slugify"
+    }
+    go {
+        fn found(s: String) -> String from "native:slug.Upper"
+        fn slugify(s: String) -> String from "native:text/slug.Slugify"
+    }
+    rust {
+        fn found(s: String) -> String from "native:case::Text::upper"
+        fn slugify(s: String) -> String from "native:text::slug::slugify"
+    }
+}
+
+main {
+    print(found("a"))
+    print(slugify("a"))
+}

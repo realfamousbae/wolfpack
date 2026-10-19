@@ -6,6 +6,10 @@
 
 use std::collections::BTreeMap;
 
+mod native;
+
+pub use native::{NATIVE_PREFIX, Native, check_native, copied_to, go_package_dir, native_target};
+
 use wolf_diag::{Diagnostic, codes};
 use wolf_project::{Manifest, Target};
 use wolf_resolve::{ModuleInput, Resolved, Role};

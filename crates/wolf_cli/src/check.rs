@@ -20,6 +20,9 @@ pub(crate) struct CheckResult {
     pub(crate) diagnostics: Vec<Diagnostic>,
     /// The checked project, if one was found and loaded.
     pub(crate) project: Option<Project>,
+    /// The target being built has code in `native/<target>/`: a rejection by its tools is
+    /// E0806, not E0802 (spec chapter 8, section 9).
+    pub(crate) native: bool,
 }
 
 /// A loaded and checked project.
@@ -53,6 +56,7 @@ pub(crate) fn run(args: &CheckArgs) -> CheckResult {
         map: SourceMap::new(),
         diagnostics: Vec::new(),
         project: None,
+        native: false,
     };
     if args.paths.is_empty() {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -114,6 +118,10 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
         }
     }
     let analysis = wolf_driver::analyze(&result.map, &manifest, parsed, &mut result.diagnostics);
+    let native = wolf_driver::Native::load(&root);
+    result
+        .diagnostics
+        .extend(wolf_driver::check_native(&native, &analysis.parsed));
     result.project = Some(Project {
         root,
         manifest,
@@ -129,6 +137,7 @@ pub(crate) fn load(start: &Path, args: &CheckArgs) -> CheckResult {
         map: SourceMap::new(),
         diagnostics: Vec::new(),
         project: None,
+        native: false,
     };
     project(start, args, &mut result);
     result

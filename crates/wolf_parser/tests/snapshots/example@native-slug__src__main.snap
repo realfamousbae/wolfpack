@@ -1,0 +1,37 @@
+---
+source: crates/wolf_parser/tests/parser.rs
+expression: result.dump
+---
+file
+  doc! " Turns titles into URL slugs with code of the project written in each target language and kept"
+  doc! " in `native/` (chapter 7, section 8.2a)."
+  module main
+  section extern
+    extern ts
+      (fn slugify (params (title String)) (-> String) from "native:text/slug#slugify")
+      (fn words (params (title String)) (-> Int) from "native:text/slug#countWords")
+    extern go
+      (fn slugify (params (title String)) (-> String) from "native:text/slug.Slugify")
+      (fn words (params (title String)) (-> Int) from "native:text/slug.CountWords")
+    extern rust
+      (fn slugify (params (title String)) (-> String) from "native:text::slug::slugify")
+      (fn words (params (title String)) (-> Int) from "native:text::slug::count_words")
+  section main
+    fn
+      main
+      ()
+      block
+        for
+          title
+          (list "Hello, World!" "  wolfpack 0.2 is here  " "Native code -- in three targets")
+          block
+            (call print (f title " -> " (call slugify title) " (" (call words title) " words)"))
+  section tests
+    test
+      "runs of other characters become one dash"
+      block
+        (call assert_eq (call slugify "A  b--C") "a-b-c")
+        (call assert_eq (call slugify "--edge--") "edge")
+    test
+      "words are runs of letters and digits"
+      (block (call assert_eq (call words "one, two 3") 3) (call assert_eq (call words "  ") 0))

@@ -75,7 +75,7 @@ fn examples() -> Vec<PathBuf> {
 #[test]
 fn every_example_runs_on_go() {
     let projects = examples();
-    assert_eq!(projects.len(), 12);
+    assert_eq!(projects.len(), 13);
     let mut failures = Vec::new();
     for project in projects {
         let name = project.file_name().unwrap().to_string_lossy().into_owned();
@@ -275,6 +275,19 @@ fn e0802_rejected_by_go() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let expected = fs::read_to_string(dir.join("expected_go.stderr")).unwrap();
     assert_eq!(stderr, expected);
+    assert_eq!(output.status.code(), Some(1));
+}
+
+/// E0806: `go` rejects a project with code in `native/go/`.
+#[test]
+fn e0806_rejected_native_code_by_go() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run/E0806_rejected_native");
+    let output = wolf("run", &dir, &tmp("E0806"), &[], None);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("error[E0806]: Go rejected the code of `native/go/`"),
+        "{stderr}"
+    );
     assert_eq!(output.status.code(), Some(1));
 }
 

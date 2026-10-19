@@ -130,12 +130,13 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
                 Some(d) => d.join(t.name()),
                 None => project.root.join("out").join(t.name()),
             };
-            result = match generate_for(result, t, &program, &out, Then::Nothing) {
+            result = match generate_for(result, t, &program, &project.root, &out, Then::Nothing) {
                 Outcome::Failed(r, code) => return Outcome::Failed(r, code),
                 _ => CheckResult {
                     map: wolf_span::SourceMap::new(),
                     diagnostics: Vec::new(),
                     project: None,
+                    native: false,
                 },
             };
         }
@@ -144,21 +145,44 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
     let out = out_dir
         .map(Path::to_path_buf)
         .unwrap_or_else(|| project.root.join("out").join(target.name()));
-    generate_for(result, target, &program, &out, then)
+    generate_for(result, target, &program, &project.root, &out, then)
 }
 
 fn generate_for(
-    result: CheckResult,
+    mut result: CheckResult,
     target: Target,
     program: &wolf_ir::Program,
+    root: &Path,
     out: &Path,
     then: Then,
 ) -> Outcome {
+    let native = wolf_driver::Native::load(root);
+    result.native = !native.files(target.name()).is_empty();
     match target {
-        Target::Go => go(result, program, out, then),
-        Target::Rust => rust(result, program, out, then),
-        Target::Ts => ts(result, program, out, then),
+        Target::Go => go(result, program, &native, root, out, then),
+        Target::Rust => rust(result, program, &native, root, out, then),
+        Target::Ts => ts(result, program, &native, root, out, then),
     }
+}
+
+/// Copies the files of `native/<target>/` byte for byte to `out/<dest>/` (spec chapter 8,
+/// section 8a).
+fn copy_native(
+    native: &wolf_driver::Native,
+    root: &Path,
+    target: Target,
+    out: &Path,
+    dest: &str,
+) -> std::io::Result<()> {
+    let from = root.join("native").join(target.name());
+    for rel in native.files(target.name()) {
+        let to = out.join(dest).join(rel);
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(from.join(rel), &to)?;
+    }
+    Ok(())
 }
 
 /// The name of a target's backend in messages.
@@ -227,14 +251,25 @@ fn missing_tool(mut result: CheckResult, target: Target, tool: &str, help: &str)
 fn rejected(mut result: CheckResult, target: Target, output: &std::process::Output) -> Outcome {
     let text = String::from_utf8_lossy(&output.stdout).into_owned()
         + &String::from_utf8_lossy(&output.stderr);
-    result.diagnostics.push(
+    let diagnostic = if result.native {
+        let dir = format!("native/{}/", target.name());
+        Diagnostic::new(
+            codes::E0806,
+            format!("{} rejected the code of `{dir}`", backend(target)),
+        )
+        .note(text.trim_end().to_string())
+        .help(format!(
+            "check the files of `{dir}` and that the `extern` declarations match them; if neither is wrong, this is a bug in wolf"
+        ))
+    } else {
         Diagnostic::new(
             codes::E0802,
             format!("{} rejected the generated code", backend(target)),
         )
         .note(text.trim_end().to_string())
-        .help("this is a bug in wolf; please report it with the input that caused it"),
-    );
+        .help("this is a bug in wolf; please report it with the input that caused it")
+    };
+    result.diagnostics.push(diagnostic);
     Outcome::Failed(Box::new(result), crate::EXIT_ERRORS)
 }
 
@@ -252,7 +287,14 @@ fn regex_escape(text: &str) -> String {
 
 // ----- TypeScript ---------------------------------------------------------------------------------
 
-fn ts(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -> Outcome {
+fn ts(
+    result: CheckResult,
+    program: &wolf_ir::Program,
+    native: &wolf_driver::Native,
+    root: &Path,
+    out: &Path,
+    then: Then,
+) -> Outcome {
     let tests = matches!(then, Then::Test { .. });
     let files = match wolf_ts::generate(program, env!("CARGO_PKG_VERSION"), tests) {
         Ok(f) => f,
@@ -262,7 +304,9 @@ fn ts(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -
         .iter()
         .map(|f| (f.path.clone(), f.contents.as_str()))
         .collect();
-    if let Err(e) = write(out, &["src", "examples", "dist"], &list) {
+    if let Err(e) = write(out, &["src", "examples", "dist"], &list)
+        .and_then(|()| copy_native(native, root, Target::Ts, out, "src/native"))
+    {
         return write_failed(result, out, &e);
     }
     // Packages of `[extern.ts.dependencies]` are installed before the project is compiled.
@@ -417,7 +461,14 @@ fn run_ts(result: CheckResult, out: &Path, entry: &str, args: &[String]) -> Outc
 
 // ----- Go -----------------------------------------------------------------------------------------
 
-fn go(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -> Outcome {
+fn go(
+    result: CheckResult,
+    program: &wolf_ir::Program,
+    native: &wolf_driver::Native,
+    root: &Path,
+    out: &Path,
+    then: Then,
+) -> Outcome {
     let tests = matches!(then, Then::Test { .. });
     let project = match wolf_go::generate(program, env!("CARGO_PKG_VERSION"), tests) {
         Ok(p) => p,
@@ -443,7 +494,9 @@ fn go(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -
     } else {
         Vec::new()
     };
-    if let Err(e) = write(out, &clean, &list) {
+    if let Err(e) = write(out, &clean, &list)
+        .and_then(|()| copy_native(native, root, Target::Go, out, "native"))
+    {
         return write_failed(result, out, &e);
     }
     match then {
@@ -653,15 +706,29 @@ fn json_field(line: &str, key: &str) -> Option<String> {
 
 // ----- Rust ---------------------------------------------------------------------------------------
 
-fn rust(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then) -> Outcome {
+fn rust(
+    result: CheckResult,
+    program: &wolf_ir::Program,
+    native: &wolf_driver::Native,
+    root: &Path,
+    out: &Path,
+    then: Then,
+) -> Outcome {
     let tests = matches!(then, Then::Test { .. });
     let project = match wolf_rs::generate(program, env!("CARGO_PKG_VERSION"), tests) {
         Ok(p) => p,
         Err(e) => return internal(result, Target::Rust, &e),
     };
+    let native_files = native.files("rust");
+    let mods = if native_files.is_empty() {
+        Vec::new()
+    } else {
+        wolf_rs::native_modules(native_files)
+    };
     let list: Vec<(String, &str)> = project
         .files
         .iter()
+        .chain(&mods)
         .map(|f| (f.path.clone(), f.contents.as_str()))
         .collect();
     // Every generated file is removed first; the build cache in `target/` stays.
@@ -677,7 +744,9 @@ fn rust(result: CheckResult, program: &wolf_ir::Program, out: &Path, then: Then)
         }
     }
     let clean: Vec<&str> = clean.iter().map(String::as_str).collect();
-    if let Err(e) = write(out, &clean, &list) {
+    if let Err(e) = write(out, &clean, &list)
+        .and_then(|()| copy_native(native, root, Target::Rust, out, "src/native"))
+    {
         return write_failed(result, out, &e);
     }
     match then {

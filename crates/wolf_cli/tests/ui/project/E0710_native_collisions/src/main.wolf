@@ -1,0 +1,9 @@
+module main
+
+imports {
+    native.{greeting}
+}
+
+main {
+    print(greeting())
+}

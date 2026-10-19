@@ -92,6 +92,8 @@ pub(crate) struct Emitter<'p> {
     tests: bool,
     /// The crate name of a library (for examples and integration tests).
     crate_name: String,
+    /// The program calls code of `native/rust/` (spec chapter 8, section 8a).
+    native: bool,
     fns: BTreeMap<DefRef, FnInfo>,
     iface_fns: BTreeMap<(DefRef, String), FnInfo>,
     enums: BTreeMap<DefRef, &'p ir::Enum>,
@@ -463,6 +465,7 @@ impl<'p> Emitter<'p> {
             p,
             tests,
             crate_name: p.name.replace('-', "_"),
+            native: crate::uses_native(p),
             fns: BTreeMap::new(),
             iface_fns: BTreeMap::new(),
             enums: BTreeMap::new(),
@@ -1330,10 +1333,18 @@ impl<'p> Emitter<'p> {
         // Head: module declarations, then imports.
         let mut head = Vec::new();
         if entry {
-            for k in kids {
+            // `mod native` (chapter 8, section 8a) is sorted among the modules, as rustfmt does.
+            let mut mods = kids.clone();
+            if self.native && p.kind != ProgramKind::Lib {
+                mods.insert("native".to_string());
+            }
+            for k in &mods {
                 head.push(Item::Mod(String::new(), k.clone()));
             }
             if p.kind == ProgramKind::Lib {
+                if self.native {
+                    head.push(Item::Raw("#[doc(hidden)]\npub mod native;".to_string()));
+                }
                 head.push(Item::Raw("#[doc(hidden)]\npub mod wolf_rt;".to_string()));
             } else {
                 head.push(Item::Mod(String::new(), "wolf_rt".to_string()));
@@ -1960,7 +1971,8 @@ impl<'p> Emitter<'p> {
             args.push(a);
         }
         let ret = self.ret_ty(&x.ret)?;
-        let body = self.extern_result(call(path(target), args), &x.ret);
+        let target = self.extern_path(target);
+        let body = self.extern_result(call(path(&target), args), &x.ret);
         let converts = needs_conversion(&x.ret);
         out.push(Item::Fn(rs::Fn {
             docs: Vec::new(),
@@ -2031,8 +2043,19 @@ impl<'p> Emitter<'p> {
         }
     }
 
+    /// The Rust path of an extern path string: a `native:` path is in the module `native` of
+    /// the crate (spec chapter 8, section 8a).
+    fn extern_path(&self, target: &str) -> String {
+        match target.strip_prefix(crate::NATIVE) {
+            Some(rest) if self.outside() => format!("{}::native::{rest}", self.crate_name),
+            Some(rest) => format!("crate::native::{rest}"),
+            None => target.to_string(),
+        }
+    }
+
     fn extern_type(&mut self, x: &'p ir::ExternType, out: &mut Vec<Item>) {
         if let Some(target) = x.paths.get("rust") {
+            let target = self.extern_path(target);
             let name = self.name_of(x.def);
             out.push(Item::Raw(format!("pub type {name} = {target};")));
         }

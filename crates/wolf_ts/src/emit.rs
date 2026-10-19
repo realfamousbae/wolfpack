@@ -912,6 +912,11 @@ impl<'p> Emitter<'p> {
             ));
         }
         for (name, from) in std::mem::take(&mut self.externs) {
+            // Code of `native/ts/` is copied to `src/native/` (spec chapter 8, section 8a).
+            let from = match from.strip_prefix("native:") {
+                Some(file) => relative(&path, &format!("src/native/{file}.ts")),
+                None => from,
+            };
             head.push(Item::Import(vec![(name, None)], from));
         }
         let uses_rt = items_use_rt(&items);

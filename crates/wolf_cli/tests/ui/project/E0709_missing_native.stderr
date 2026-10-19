@@ -1,0 +1,25 @@
+error[E0709]: the native file `native/ts/slug.ts` does not exist
+  --> src/main.wolf:6:46
+  |
+6 |         fn slugify(s: String) -> String from "native:slug#slugify"
+  |                                              ^^^^^^^^^^^^^^^^^^^^^ no `native/ts/slug.ts` in the project
+  |
+  = help: create `native/ts/slug.ts`, or correct the path after `native:`
+
+error[E0709]: the native package `native/go/text/slug/` does not exist
+   --> src/main.wolf:10:46
+   |
+10 |         fn slugify(s: String) -> String from "native:text/slug.Slugify"
+   |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^ no `native/go/text/slug/` in the project
+   |
+   = help: create `native/go/text/slug/`, or correct the path after `native:`
+
+error[E0709]: the native module `native/rust/text/slug.rs` does not exist
+   --> src/main.wolf:14:46
+   |
+14 |         fn slugify(s: String) -> String from "native:text::slug::slugify"
+   |                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `native/rust/text/slug.rs` in the project
+   |
+   = help: create `native/rust/text/slug.rs`, or correct the path after `native:`
+
+error: aborting due to 3 errors

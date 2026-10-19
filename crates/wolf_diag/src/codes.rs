@@ -295,6 +295,10 @@ pub const E0706: Code = Code::new("E0706", "generic extern function or `mut` par
 pub const E0707: Code = Code::new("E0707", "operation not available on an opaque type");
 /// An extern name declared twice in one target block.
 pub const E0708: Code = Code::new("E0708", "extern name declared twice in one target block");
+/// A `native:` path to a file, package or module that `native/<target>/` does not have.
+pub const E0709: Code = Code::new("E0709", "native code not found");
+/// A native file that takes a path of the generated project.
+pub const E0710: Code = Code::new("E0710", "native code takes a generated path");
 
 /// A tool of the target is not installed.
 pub const E0801: Code = Code::new("E0801", "target tool not installed");
@@ -306,6 +310,8 @@ pub const E0803: Code = Code::new("E0803", "target dependencies could not be fet
 pub const E0804: Code = Code::new("E0804", "a tool could not be installed");
 /// `wolf self update` could not install a release.
 pub const E0805: Code = Code::new("E0805", "wolf could not be updated");
+/// A tool of the target rejected code in `native/`.
+pub const E0806: Code = Code::new("E0806", "target tool rejected the native code");
 
 /// Every code in use, in order.
 pub const ALL: &[Code] = &[
@@ -318,8 +324,8 @@ pub const ALL: &[Code] = &[
     E0430, E0431, E0432, E0433, E0434, E0435, E0436, E0437, E0438, E0501, E0502, E0503, E0504,
     E0505, E0506, E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605, E0606,
     E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619,
-    E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0801, E0802, E0803, E0804,
-    E0805,
+    E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0709, E0710, E0801, E0802,
+    E0803, E0804, E0805, E0806,
 ];
 
 /// Codes that were used once and must never be used again.

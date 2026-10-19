@@ -1,0 +1,37 @@
+//! Turns titles into URL slugs with code of the project written in each target language and kept
+//! in `native/` (chapter 7, section 8.2a).
+
+module main
+
+extern {
+    ts {
+        fn slugify(title: String) -> String from "native:text/slug#slugify"
+        fn words(title: String) -> Int from "native:text/slug#countWords"
+    }
+    go {
+        fn slugify(title: String) -> String from "native:text/slug.Slugify"
+        fn words(title: String) -> Int from "native:text/slug.CountWords"
+    }
+    rust {
+        fn slugify(title: String) -> String from "native:text::slug::slugify"
+        fn words(title: String) -> Int from "native:text::slug::count_words"
+    }
+}
+
+main {
+    for title in ["Hello, World!", "  wolfpack 0.2 is here  ", "Native code -- in three targets"] {
+        print(f"{title} -> {slugify(title)} ({words(title)} words)")
+    }
+}
+
+tests {
+    test "runs of other characters become one dash" {
+        assert_eq(slugify("A  b--C"), "a-b-c")
+        assert_eq(slugify("--edge--"), "edge")
+    }
+
+    test "words are runs of letters and digits" {
+        assert_eq(words("one, two 3"), 3)
+        assert_eq(words("  "), 0)
+    }
+}

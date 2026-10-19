@@ -78,7 +78,7 @@ fn examples() -> Vec<PathBuf> {
 #[test]
 fn every_example_runs_on_rust() {
     let projects = examples();
-    assert_eq!(projects.len(), 12);
+    assert_eq!(projects.len(), 13);
     let mut failures = Vec::new();
     for project in projects {
         let name = project.file_name().unwrap().to_string_lossy().into_owned();
@@ -303,6 +303,19 @@ fn e0801_missing_cargo() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let expected = fs::read_to_string(dir.join("expected_rust.stderr")).unwrap();
     assert_eq!(stderr, expected);
+    assert_eq!(output.status.code(), Some(1));
+}
+
+/// E0806: `cargo` rejects a project with code in `native/rust/`.
+#[test]
+fn e0806_rejected_native_code_by_cargo() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run/E0806_rejected_native");
+    let output = wolf("run", &dir, &tmp("E0806"), &[], None);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.starts_with("error[E0806]: Rust rejected the code of `native/rust/`"),
+        "{stderr}"
+    );
     assert_eq!(output.status.code(), Some(1));
 }
 
