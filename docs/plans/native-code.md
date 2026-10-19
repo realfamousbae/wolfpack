@@ -4,7 +4,8 @@ Status: **N1 done** (2026-10-19, for 0.2): `native/<target>/`, `native:` paths, 
 E0806 (spec chapter 7, section 8.2a; chapter 8, section 8a), the example `examples/native-slug`.
 N2: `Map` at the boundary and callbacks done (2026-10-19); records are specified (D7.15) but their
 implementation is paused on the branch `wip/n2-records`. **N3 is revised** (accepted by the author
-2026-10-19, with the recommendations of Q7 to Q11): instead of a command that prints `extern` blocks, native code is
+2026-10-19, with the recommendations of Q7 to Q11); **N3a done** (2026-10-20): native modules read
+from Rust code, without records: instead of a command that prints `extern` blocks, native code is
 **imported like a module**, and the compiler reads its declarations itself (section 4). Each stage
 starts with an edit of `docs/spec/` in its own commit and needs the author's approval, as every
 language change does. The open questions at the end are for the author.

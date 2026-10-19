@@ -208,3 +208,47 @@ E0709`). Whether the function exists and has the declared types is checked by `t
 message with the code E0806: look at the native file and at its declaration. Tests written in the
 native files are not run by `wolf test`. The example `examples/native-slug` of the repository
 calls its own code on all three targets.
+
+## Native modules: no declarations at all
+
+Writing an `extern` line for every function is the price of control. For code of your own project
+there is a shorter way: import the file as a **native module**, and the compiler reads its
+declarations itself.
+
+```wolf fragment
+module main
+
+imports {
+    native.text.slug
+}
+
+main {
+    print(slug.slugify("Hello World"))
+}
+```
+
+```rust
+// native/rust/text/slug.rs
+pub fn slugify(title: &str) -> String {
+    title.to_lowercase().replace(' ', "-")
+}
+```
+
+`native.text.slug` is `native/rust/text/slug.rs`. Its `pub fn` items become functions of the
+module, its `pub` types become opaque types, and `wolf check` checks every call against them, with
+no tool of the target installed. The Rust types map to wolfpack types:
+
+| Wolfpack | Rust |
+| --- | --- |
+| `Int` | any integer type, checked when it crosses |
+| `Float` | `f64`, `f32` |
+| `Bool`, `String` | `bool`; `&str`, `String`, `&String` |
+| `List<T>` | `&[T]`, `Vec<T>`, `&Vec<T>` |
+| `Map<K, V>` | `&HashMap`, `HashMap`; as a result also `BTreeMap` |
+| `Option<T>`, `Result<T, Error>` | `Option<T>`; `Result<T, E>` as a result, with `E: Display` |
+| a callback | `impl Fn(..)`, `&dyn Fn(..)`, or `F: Fn(..)` |
+
+An item that does not fit, for example one with a `&mut` parameter or an `async fn`, is simply not
+available, and using it says why (`wolf explain E0713`). In this version the compiler reads Rust
+only, so a program that imports a native module is built for Rust; readers of Go and TypeScript
+come next. Native modules cannot be re-exported from a library (`wolf explain E0712`).
