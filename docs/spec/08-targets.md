@@ -373,6 +373,18 @@ copy defensively.
 
      The parameter is built in the insertion order of the wolfpack map where the target type has
      an order (TS). The result is sorted by key when it is converted.
+   - A callback (0.2; chapter 7, section 8.4, rule 7) is passed as a function of the target that
+     converts its arguments from the target and its result to it, then calls the wolfpack
+     function value:
+
+     | TS | Go | Rust |
+     | --- | --- | --- |
+     | an arrow function, `(a: number) => string` for `fn(Int) -> String` | a function literal of exactly the declared Go types, `func(a int64) string` | a reference to a closure, `&\|a: i64\| -> String { ... }`, which fits parameters of type `impl Fn(..)`, `F: Fn(..)` and `&dyn Fn(..)` |
+
+     In Go and Rust the integer types of a callback are exactly `int64` and `i64`: a function
+     literal or a closure has one type. A read `String` parameter of a callback is `&str` in
+     Rust, a read `List` parameter `&[T]`. In TS a wrapper that turns exceptions of the extern
+     code into `Err` lets a panic of the callback through.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
 ## 8a. Code of the project (`native/`)
@@ -415,3 +427,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.8 | 0.2: where the files of `native/` are copied and how the generated code imports them (section 8a), code E0806 | **answered** (author, 2026-10-18): yes |
 | D8.7 | 0.2: the details of section 2b: no prerelease, update to an older version with `--version`, package managers left alone, `update.check` in `<home>/config.toml`, the same release asked about once a day, code E0805 | **answered** (author, 2026-10-18): yes |
 | D8.9 | 0.2: the target types of `Map` at the extern boundary (section 8, rule 2): `Map` and plain objects in TS, `map[K]V` in Go, `&HashMap` and any iterator of pairs in Rust | **answered** (author, 2026-10-19): yes |
+| D8.10 | 0.2: the target forms of callbacks at the extern boundary (section 8, rule 2): arrow functions, Go function literals of exact types, references to Rust closures | **answered** (author, 2026-10-19): yes |

@@ -360,6 +360,19 @@ extern {
    keys** on every target, whatever order the target gave it: numbers by value, strings as `<`
    compares them (chapter 4), `false` before `true`. A key that comes twice keeps its last value.
    (author, 2026-10-19, D7.13)
+7. A **parameter** of an extern function may have a function type, a **callback**, such as
+   `fn each(items: List<String>, f: fn(String) -> Void) from "..."` (0.2, author, 2026-10-19,
+   D7.14):
+   - its parameters and result are `Int`, `Float`, `Bool`, `String`, `Void`, `List` of these, or
+     opaque types; its parameters are read parameters (no `mut` or `own`);
+   - a callback is passed only as a parameter: not as a result, and not inside a `List`, an
+     `Option` or a `Map` (E0702);
+   - the extern code may call the callback only **during the call** of the extern function, and
+     must not keep it. Like rule 4, this is a contract that the compiler cannot check;
+   - the values that extern code passes to the callback, and the result the callback gives back,
+     are converted by the rules of chapter 8, section 8, in the other direction;
+   - a panic in the callback passes through the extern code and is a panic of the caller again,
+     also when the extern function returns a `Result`: it never becomes an `Err`.
 
 ### 8.5 Target binding of modules
 
@@ -414,3 +427,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.11 | 0.2: the panic text of `assert_eq` (section 3, rule 2) | **answered** (author, 2026-10-18): yes |
 | D7.12 | 0.2: code of the project in `native/<target>/`, called with `native:` paths (section 8.2a; the recommendations Q1 to Q3 of `docs/plans/native-code.md`) | **answered** (author, 2026-10-18): yes |
 | D7.13 | 0.2: `Map<K, B>` at the extern boundary, keys `Int`, `String`, `Bool`, copied on every call; maps returned by extern code in key order on every target (section 8.4, rules 1 and 6) | **answered** (author, 2026-10-19): yes |
+| D7.14 | 0.2: callbacks, parameters of a function type of extern functions, called only during the call (section 8.4, rule 7) | **answered** (author, 2026-10-19): yes |
