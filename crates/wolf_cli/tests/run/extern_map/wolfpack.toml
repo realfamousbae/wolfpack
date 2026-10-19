@@ -1,0 +1,4 @@
+[package]
+name = "extern-map"
+version = "0.1.0"
+kind = "cli"

@@ -1,0 +1,16 @@
+total 42
+apple: 1
+fig: 2
+pear: 3
+-6 -> 0.5
+14 -> 0.25
+20 -> 2.5
+false: 2
+true: 2
+e=1
+h=1
+l=2
+o=1
+y: 1 keys, first c
+z: 2 keys, first a
+width 3

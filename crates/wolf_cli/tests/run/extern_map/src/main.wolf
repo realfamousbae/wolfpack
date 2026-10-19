@@ -1,0 +1,66 @@
+//! `Map` at the extern boundary (spec chapter 7, section 8.4, rules 1 and 6): maps passed to extern
+//! code are copies, maps that come back are in key order on every target.
+
+module main
+
+extern {
+    ts {
+        fn total(m: Map<String, Int>) -> Int from "native:maps#total"
+        fn counts(words: List<String>) -> Map<String, Int> from "native:maps#counts"
+        fn halves(m: Map<Int, Float>) -> Map<Int, Float> from "native:maps#halves"
+        fn split(ns: List<Int>) -> Map<Bool, List<Int>> from "native:maps#split"
+        fn letters(s: String) -> Map<String, Int> from "native:maps#letters"
+        fn nest(
+            m: Map<String, Map<String, Int>>,
+        ) -> Map<String, Map<String, Int>> from "native:maps#nest"
+        fn width(ms: List<Map<String, Int>>) -> Int from "native:maps#width"
+    }
+    go {
+        fn total(m: Map<String, Int>) -> Int from "native:maps.Total"
+        fn counts(words: List<String>) -> Map<String, Int> from "native:maps.Counts"
+        fn halves(m: Map<Int, Float>) -> Map<Int, Float> from "native:maps.Halves"
+        fn split(ns: List<Int>) -> Map<Bool, List<Int>> from "native:maps.Split"
+        fn letters(s: String) -> Map<String, Int> from "native:maps.Letters"
+        fn nest(
+            m: Map<String, Map<String, Int>>,
+        ) -> Map<String, Map<String, Int>> from "native:maps.Nest"
+        fn width(ms: List<Map<String, Int>>) -> Int from "native:maps.Width"
+    }
+    rust {
+        fn total(m: Map<String, Int>) -> Int from "native:maps::total"
+        fn counts(words: List<String>) -> Map<String, Int> from "native:maps::counts"
+        fn halves(m: Map<Int, Float>) -> Map<Int, Float> from "native:maps::halves"
+        fn split(ns: List<Int>) -> Map<Bool, List<Int>> from "native:maps::split"
+        fn letters(s: String) -> Map<String, Int> from "native:maps::letters"
+        fn nest(
+            m: Map<String, Map<String, Int>>,
+        ) -> Map<String, Map<String, Int>> from "native:maps::nest"
+        fn width(ms: List<Map<String, Int>>) -> Int from "native:maps::width"
+    }
+}
+
+main {
+    print(f"total {total(["b": 2, "a": 40])}")
+    let c = counts(["pear", "fig", "pear", "apple", "fig", "pear"])
+    for k in c.keys() {
+        print(f"{k}: {c[k]}")
+    }
+    let h = halves([10: 5.0, -3: 1.0, 7: 0.5])
+    for k in h.keys() {
+        print(f"{k} -> {h[k]}")
+    }
+    let parts = split([5, 2, 9, 4])
+    for k in parts.keys() {
+        print(f"{k}: {parts[k].len()}")
+    }
+    let l = letters("hello")
+    for k in l.keys() {
+        print(f"{k}={l[k]}")
+    }
+    let n = nest(["z": ["b": 1, "a": 2], "y": ["c": 3]])
+    for k in n.keys() {
+        let inner = n[k].keys()
+        print(f"{k}: {inner.len()} keys, first {inner[0]}")
+    }
+    print(f"width {width([["a": 1], ["b": 2, "c": 3]])}")
+}
