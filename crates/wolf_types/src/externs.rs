@@ -103,19 +103,36 @@ impl Checker<'_> {
                 ParamKind::Named { ty, .. } => Some(ty.span),
                 ParamKind::SelfParam => None,
             });
-            let mut types: Vec<(Ty, Span)> = lowered
+            let mut types: Vec<(Ty, Span, bool)> = lowered
                 .params
                 .iter()
                 .map(|(_, t)| t.clone())
                 .zip(named)
+                .map(|(t, span)| (t, span, true))
                 .collect();
             if let Some(ret) = &sig.ret {
-                types.push((lowered.ret.clone(), ret.span));
+                types.push((lowered.ret.clone(), ret.span, false));
             }
-            for (ty, span) in types {
+            for (ty, span, param) in types {
                 // The types of a generic function are already reported with E0706.
                 if !sig.generics.is_empty() {
                     break;
+                }
+                // A callback (chapter 7, section 8.4, rule 7).
+                if let (Ty::Fn(params, ret), true) = (&ty, param) {
+                    if !self.callback_ok(params, ret) {
+                        valid = false;
+                        let shown = self.show(&ty);
+                        self.report(
+                            Diagnostic::new(
+                                codes::E0702,
+                                format!("the callback `{shown}` cannot cross the extern boundary"),
+                            )
+                            .primary(span, "not allowed as a callback")
+                            .note("a callback takes read parameters and returns `Int`, `Float`, `Bool`, `String`, `Void`, a `List` of these, or extern types"),
+                        );
+                    }
+                    continue;
                 }
                 if !self.crosses(&ty) {
                     valid = false;
@@ -125,7 +142,7 @@ impl Checker<'_> {
                         format!("`{shown}` cannot cross the extern boundary"),
                     )
                     .primary(span, "not allowed in an extern signature")
-                    .note("extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, and extern types");
+                    .note("extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, and callbacks as parameters");
                     if self.map_of_opaque(&ty) {
                         d = d.help("a map is copied at the boundary, and values of extern types cannot be copied: pass a `List` of them, or the keys and the values separately");
                     }
@@ -212,6 +229,44 @@ impl Checker<'_> {
             }
             _ => false,
         }
+    }
+
+    /// Whether a function type can be a callback: read parameters, and parameters and result
+    /// of the simple boundary types (chapter 7, section 8.4, rule 7).
+    fn callback_ok(&self, params: &[(Mode, Ty)], ret: &Ty) -> bool {
+        params
+            .iter()
+            .all(|(m, t)| *m == Mode::Read && self.callback_ty(t))
+            && self.callback_ty(ret)
+    }
+
+    fn callback_ty(&self, ty: &Ty) -> bool {
+        match ty {
+            Ty::Error => true,
+            Ty::Named(d, args) => {
+                let d = Some(*d);
+                if [
+                    self.b.int,
+                    self.b.float,
+                    self.b.bool,
+                    self.b.string,
+                    self.b.void,
+                ]
+                .contains(&d)
+                {
+                    true
+                } else if d == self.b.list {
+                    args.iter().all(|a| !self.is_list(a) && self.callback_ty(a))
+                } else {
+                    d.and_then(|d| self.def_kind(d)) == Some(DefKind::ExternType)
+                }
+            }
+            _ => false,
+        }
+    }
+
+    fn is_list(&self, ty: &Ty) -> bool {
+        matches!(ty, Ty::Named(d, _) if Some(*d) == self.b.list)
     }
 
     /// Whether a type contains a `Map` whose values hold an opaque extern type.

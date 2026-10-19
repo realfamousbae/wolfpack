@@ -8,6 +8,10 @@ extern {
         fn names() -> List<Option<String>> from "lib#names"
         type Handle from "lib#Handle"
         fn handles() -> Map<String, Handle> from "lib#handles"
+        fn each(items: List<Int>, f: fn(Int) -> Void) from "lib#each"
+        fn pairs(f: fn(Map<String, Int>) -> Void) from "lib#pairs"
+        fn change(f: fn(mut List<Int>) -> Void) from "lib#change"
+        fn maker() -> fn(Int) -> Int from "lib#maker"
     }
 }
 
