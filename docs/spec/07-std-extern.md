@@ -249,6 +249,7 @@ comes from the target and may differ between targets. **[PROPOSAL]**
 extern_block = ( "ts" | "go" | "rust" ) "{" extern_decl+ "}"
 extern_decl  = visibility "fn" IDENT "(" params? ")" ( "->" type )? "from" STRING
              | visibility "type" IDENT "from" STRING
+             | "struct" IDENT "from" STRING                       (0.2, section 8.4a)
 ```
 
 ```
@@ -374,6 +375,51 @@ extern {
    - a panic in the callback passes through the extern code and is a panic of the caller again,
      also when the extern function returns a `Result`: it never becomes an `Err`.
 
+### 8.4a Records
+
+Added in 0.2 (author, 2026-10-19, D7.15). A struct of the module crosses the boundary **by value**
+when a target block binds it to a struct type of the target:
+
+```
+types {
+    pub struct Point {
+        pub x: Float
+        pub y: Float
+    }
+}
+
+extern {
+    ts {
+        struct Point from "native:geo#Point"
+        fn distance(a: Point, b: Point) -> Float from "native:geo#distance"
+    }
+    go {
+        struct Point from "native:geo.Point"
+        fn distance(a: Point, b: Point) -> Float from "native:geo.Distance"
+    }
+    rust {
+        struct Point from "native:geo::Point"
+        fn distance(a: Point, b: Point) -> Float from "native:geo::distance"
+    }
+}
+```
+
+1. `struct Name from "path"` names a struct declared in the `types` section of the same module,
+   not generic (E0711). It declares no new name: the struct stays an ordinary wolfpack struct,
+   with its fields, methods, literals and derived interfaces. The path names a type of the target
+   in the form of section 8.2 (or 8.2a); in TS it may be an interface or a type alias.
+2. A bound struct is a boundary type of that target block (rule 1 of section 8.4): it may be a
+   parameter or a result of an extern function, and an element of a `List`, an `Option` or a
+   `Map`. In a block that does not bind it, it does not cross (E0702).
+3. Every field of a bound struct has a type that may cross the boundary: the types of rule 1 of
+   section 8.4 without opaque types, or another struct bound in the same block (E0702, at the
+   field). A record is copied field by field on every call, and opaque values cannot be copied.
+4. The target type has exactly these fields, named by the naming rules of chapter 8: `max_size`
+   is `maxSize` in TS, `MaxSize` in Go (always exported) and `max_size` in Rust. Whether it does
+   is checked by the tools of the target (E0806 for native code).
+5. Methods of the target type are not reachable through the record; a target type with methods
+   that wolfpack code needs is declared as an opaque type instead.
+
 ### 8.5 Target binding of modules
 
 **[PLAN]**:
@@ -409,6 +455,7 @@ Proposed range E07xx (confirmed in chapter 9).
 | E0708 | Extern name declared twice in one target block |
 | E0709 | A `native:` path names a file, a package or a module that `native/<target>/` does not have (0.2) |
 | E0710 | A native file or package takes a path of the generated project (0.2) |
+| E0711 | `struct Name from "path"` in an extern block does not name a non-generic struct of the module (0.2) |
 
 ## 10. Decisions for the author
 
@@ -428,3 +475,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.12 | 0.2: code of the project in `native/<target>/`, called with `native:` paths (section 8.2a; the recommendations Q1 to Q3 of `docs/plans/native-code.md`) | **answered** (author, 2026-10-18): yes |
 | D7.13 | 0.2: `Map<K, B>` at the extern boundary, keys `Int`, `String`, `Bool`, copied on every call; maps returned by extern code in key order on every target (section 8.4, rules 1 and 6) | **answered** (author, 2026-10-19): yes |
 | D7.14 | 0.2: callbacks, parameters of a function type of extern functions, called only during the call (section 8.4, rule 7) | **answered** (author, 2026-10-19): yes |
+| D7.15 | 0.2: records: a struct of the module bound to a struct type of each target with `struct Name from "path"`, copied field by field (section 8.4a), code E0711 | **answered** (author, 2026-10-19): yes |

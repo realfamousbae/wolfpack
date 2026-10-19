@@ -385,6 +385,16 @@ copy defensively.
      literal or a closure has one type. A read `String` parameter of a callback is `&str` in
      Rust, a read `List` parameter `&[T]`. In TS a wrapper that turns exceptions of the extern
      code into `Err` lets a panic of the callback through.
+   - A record (0.2; chapter 7, section 8.4a) is built field by field, each field converted by the
+     rules above:
+
+     | | TS | Go | Rust |
+     | --- | --- | --- | --- |
+     | parameter | a plain object `{ maxSize: 3 }` | a value of the struct type, `geo.Point{X: 1.5, Y: 2}` | a value of the struct type, `geo::Point { x: 1.5, y: 2.0 }`; a read parameter by reference |
+     | result | any object with these properties | a value of the struct type | a value of the struct type |
+     | `Int` fields | `number`, checked | exactly `int64` | any Rust integer type, checked |
+
+     Go pointers to records (`*geo.Point`) are not part of 0.2.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
 ## 8a. Code of the project (`native/`)
@@ -428,3 +438,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.7 | 0.2: the details of section 2b: no prerelease, update to an older version with `--version`, package managers left alone, `update.check` in `<home>/config.toml`, the same release asked about once a day, code E0805 | **answered** (author, 2026-10-18): yes |
 | D8.9 | 0.2: the target types of `Map` at the extern boundary (section 8, rule 2): `Map` and plain objects in TS, `map[K]V` in Go, `&HashMap` and any iterator of pairs in Rust | **answered** (author, 2026-10-19): yes |
 | D8.10 | 0.2: the target forms of callbacks at the extern boundary (section 8, rule 2): arrow functions, Go function literals of exact types, references to Rust closures | **answered** (author, 2026-10-19): yes |
+| D8.11 | 0.2: the target forms of records (section 8, rule 2): plain objects in TS, values of the struct type in Go and Rust, `Int` fields exactly `int64` in Go | **answered** (author, 2026-10-19): yes |
