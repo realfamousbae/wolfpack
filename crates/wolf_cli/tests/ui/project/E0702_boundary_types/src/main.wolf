@@ -2,7 +2,7 @@ module main
 
 extern {
     ts {
-        fn keys(m: Map<String, Int>) -> List<String> from "Object.keys"
+        fn keys(m: Map<Color, Int>) -> List<String> from "Object.keys"
         fn origin() -> Point from "lib#origin"
         fn check(s: String) -> Result<Int, String> from "lib#check"
         fn names() -> List<Option<String>> from "lib#names"
@@ -12,6 +12,10 @@ extern {
 types {
     struct Point {
         x: Int
+    }
+
+    enum Color {
+        Red
     }
 }
 

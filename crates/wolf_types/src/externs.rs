@@ -126,7 +126,7 @@ impl Checker<'_> {
                             format!("`{shown}` cannot cross the extern boundary"),
                         )
                         .primary(span, "not allowed in an extern signature")
-                        .note("extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>` and extern types"),
+                        .note("extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, and extern types"),
                     );
                 }
             }
@@ -188,6 +188,16 @@ impl Checker<'_> {
                     true
                 } else if d == self.b.list || d == self.b.option {
                     args.iter().all(|a| self.crosses(a))
+                } else if d == self.b.map {
+                    // Keys are `Int`, `String` or `Bool` (chapter 7, section 8.4, rule 1).
+                    match args.as_slice() {
+                        [Ty::Named(k, _), v] => {
+                            [self.b.int, self.b.string, self.b.bool].contains(&Some(*k))
+                                && self.crosses(v)
+                        }
+                        [Ty::Error, v] => self.crosses(v),
+                        _ => false,
+                    }
                 } else if d == self.b.result {
                     match args.as_slice() {
                         [ok, err] => self.crosses(ok) && self.is_error_iface(err),
