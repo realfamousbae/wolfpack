@@ -455,6 +455,67 @@ func FromTargetInt[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | 
 }"#,
     },
     Piece {
+        name: "externMap",
+        deps: &["Map"],
+        imports: &["cmp", "sort"],
+        code: r#"// Same is a value that crosses the extern boundary as it is.
+func Same[T any](value T) T {
+	return value
+}
+
+// ToExternMap is a Map passed to extern code: a Go map with its keys and values converted.
+func ToExternMap[K comparable, V any, K2 comparable, V2 any](m Map[K, V], key func(K) K2, value func(V) V2) map[K2]V2 {
+	out := make(map[K2]V2, len(m.keys))
+	for i, k := range m.keys {
+		out[key(k)] = value(m.values[i])
+	}
+	return out
+}
+
+// FromExternMap is a map returned by extern code: converted and sorted by key.
+func FromExternMap[K2 comparable, V2 any, K comparable, V any](m map[K2]V2, key func(K2) K, value func(V2) V, compare func(a, b K) int) Map[K, V] {
+	keys := make([]K, 0, len(m))
+	values := make(map[K]V, len(m))
+	for k, v := range m {
+		c := key(k)
+		keys = append(keys, c)
+		values[c] = value(v)
+	}
+	sort.Slice(keys, func(i, j int) bool { return compare(keys[i], keys[j]) < 0 })
+	var out Map[K, V]
+	for _, k := range keys {
+		out.Insert(k, values[k])
+	}
+	return out
+}
+
+// ConvertList converts each element of a list at the extern boundary.
+func ConvertList[T any, U any](list []T, f func(T) U) []U {
+	out := make([]U, len(list))
+	for i, x := range list {
+		out[i] = f(x)
+	}
+	return out
+}
+
+// CompareKey orders Int and String keys of maps from extern code.
+func CompareKey[K int64 | string](a, b K) int {
+	return cmp.Compare(a, b)
+}
+
+// CompareBool orders Bool keys of maps from extern code: false first.
+func CompareBool(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case a:
+		return 1
+	default:
+		return -1
+	}
+}"#,
+    },
+    Piece {
         name: "externError",
         deps: &["Error", "TextError"],
         imports: &[],

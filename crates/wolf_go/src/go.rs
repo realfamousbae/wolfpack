@@ -17,6 +17,8 @@ pub enum Type {
     Slice(Box<Type>),
     /// `*T`
     Ptr(Box<Type>),
+    /// `map[K]V`
+    Map(Box<Type>, Box<Type>),
     /// `func(A, B) (R, S)`
     Func(Vec<Type>, Vec<Type>),
     /// `struct{}`
@@ -423,6 +425,7 @@ impl Printer<'_> {
             }
             Type::Slice(t) => format!("[]{}", self.ty(t)),
             Type::Ptr(t) => format!("*{}", self.ty(t)),
+            Type::Map(k, v) => format!("map[{}]{}", self.ty(k), self.ty(v)),
             Type::Func(params, results) => {
                 format!("func({}){}", self.types(params), self.results(results))
             }

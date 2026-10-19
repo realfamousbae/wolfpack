@@ -2561,7 +2561,7 @@ impl<'p> Emitter<'p> {
         for (i, (m, t)) in x.params.iter().enumerate() {
             let n = format!("p{i}");
             params.push((n.clone(), self.param_ty(*m, t)?));
-            args.push(id(&n));
+            args.push(self.extern_arg(id(&n), t)?);
         }
         let path = &self.extern_path(path);
         // A method expression, `(*pkg.Type).Method` or `pkg.Type.Method`, is called on the first
@@ -2582,7 +2582,7 @@ impl<'p> Emitter<'p> {
         };
         let results = self.results(&x.ret)?;
         let form = self.ret_form(&x.ret);
-        let body = self.extern_body(c, &x.ret, form, results.len());
+        let body = self.extern_body(c, &x.ret, form, results.len())?;
         out.push(Decl::Func(Func {
             docs: Vec::new(),
             recv: None,
@@ -2595,60 +2595,135 @@ impl<'p> Emitter<'p> {
         Ok(())
     }
 
-    /// The body of an extern function: the call, with an integer result of any Go integer type
-    /// converted to `int64` (spec chapter 8, section 8).
-    fn extern_body(&mut self, c: Expr, ret: &IrType, form: Form, count: usize) -> Vec<Stmt> {
+    /// The body of an extern function: the call, with its result converted (spec chapter 8,
+    /// section 8).
+    fn extern_body(
+        &mut self,
+        c: Expr,
+        ret: &IrType,
+        form: Form,
+        count: usize,
+    ) -> Result<Vec<Stmt>, Error> {
         if count == 0 {
-            return vec![Stmt::Expr(c)];
+            return Ok(vec![Stmt::Expr(c)]);
         }
         // A Go error becomes an `Error` whose message is its text (spec chapter 7, section 8.4).
-        match form {
-            Form::ResErr => {
-                let e = self.rt_call("externError", "FromExternError", vec![c]);
-                return vec![Stmt::Return(vec![e])];
-            }
-            Form::ResPair => {
-                let int = matches!(ret, IrType::Result(a, _) if matches!(**a, IrType::Int));
-                let v = if int {
-                    self.rt_call("extern", "FromTargetInt", vec![id("v")])
-                } else {
-                    id("v")
-                };
-                let e = self.rt_call("externError", "FromExternError", vec![id("err")]);
-                return vec![
-                    Stmt::Define(vec!["v".to_string(), "err".to_string()], vec![c]),
-                    Stmt::Return(vec![v, e]),
-                ];
-            }
-            _ => {}
-        }
-        let int_value = match (ret, form) {
-            (IrType::Int, _) => Some(false),
-            (IrType::Option(a), Form::OptPair) | (IrType::Result(a, _), Form::ResPair)
-                if matches!(**a, IrType::Int) =>
-            {
-                Some(true)
-            }
-            _ => None,
+        let pair = |second: &str, ok: &IrType, this: &mut Self| -> Result<Vec<Stmt>, Error> {
+            let v = this.extern_value(id("v"), ok)?;
+            let second_value = if second == "err" {
+                this.rt_call("externError", "FromExternError", vec![id("err")])
+            } else {
+                id(second)
+            };
+            Ok(vec![
+                Stmt::Define(vec!["v".to_string(), second.to_string()], vec![c.clone()]),
+                Stmt::Return(vec![v, second_value]),
+            ])
         };
-        match int_value {
-            Some(false) => vec![Stmt::Return(vec![self.rt_call(
-                "extern",
-                "FromTargetInt",
-                vec![c],
-            )])],
-            Some(true) => {
-                let second = if form == Form::OptPair { "ok" } else { "err" };
-                vec![
-                    Stmt::Define(vec!["v".to_string(), second.to_string()], vec![c]),
-                    Stmt::Return(vec![
-                        self.rt_call("extern", "FromTargetInt", vec![id("v")]),
-                        id(second),
-                    ]),
-                ]
+        Ok(match (form, ret) {
+            (Form::ResErr, _) => {
+                let e = self.rt_call("externError", "FromExternError", vec![c]);
+                vec![Stmt::Return(vec![e])]
             }
-            None => vec![Stmt::Return(vec![c])],
+            (Form::ResPair, IrType::Result(ok, _)) => pair("err", ok, self)?,
+            (Form::OptPair, IrType::Option(inner)) if extern_converts(inner) => {
+                pair("ok", inner, self)?
+            }
+            (Form::Data, t) => vec![Stmt::Return(vec![self.extern_value(c, t)?])],
+            _ => vec![Stmt::Return(vec![c])],
+        })
+    }
+
+    /// A wolfpack value passed to extern code: a `Map` becomes a Go map (spec chapter 8,
+    /// section 8).
+    fn extern_arg(&mut self, e: Expr, t: &IrType) -> Result<Expr, Error> {
+        Ok(match t {
+            IrType::Map(k, v) => {
+                let key = self.extern_out_fn(k)?;
+                let value = self.extern_out_fn(v)?;
+                self.rt_call("externMap", "ToExternMap", vec![e, key, value])
+            }
+            IrType::List(inner) if extern_needs(inner) => {
+                let f = self.extern_out_fn(inner)?;
+                self.rt_call("externMap", "ConvertList", vec![e, f])
+            }
+            _ => e,
+        })
+    }
+
+    /// The function that converts a value of type `t` for extern code.
+    fn extern_out_fn(&mut self, t: &IrType) -> Result<Expr, Error> {
+        let from = self.ty(t)?;
+        if !extern_needs(t) {
+            let same = self.rt("externMap", "Same");
+            return Ok(Expr::Inst(Box::new(same), vec![from]));
         }
+        let to = self.extern_ty(t)?;
+        let body = self.extern_arg(id("v"), t)?;
+        Ok(Expr::FuncLit(
+            vec![("v".to_string(), from)],
+            vec![to],
+            vec![Stmt::Return(vec![body])],
+        ))
+    }
+
+    /// A value returned by extern code: an `Int` of any Go integer type, a Go map sorted by key
+    /// (spec chapter 7, section 8.4, rule 6).
+    fn extern_value(&mut self, e: Expr, t: &IrType) -> Result<Expr, Error> {
+        Ok(match t {
+            IrType::Int => self.rt_call("extern", "FromTargetInt", vec![e]),
+            IrType::Map(k, v) => {
+                let key = self.extern_in_fn(k, true)?;
+                let value = self.extern_in_fn(v, true)?;
+                let compare = match **k {
+                    IrType::Int => {
+                        let f = self.rt("externMap", "CompareKey");
+                        Expr::Inst(Box::new(f), vec![int64()])
+                    }
+                    IrType::String => {
+                        let f = self.rt("externMap", "CompareKey");
+                        Expr::Inst(Box::new(f), vec![Type::name("string")])
+                    }
+                    _ => self.rt("externMap", "CompareBool"),
+                };
+                self.rt_call("externMap", "FromExternMap", vec![e, key, value, compare])
+            }
+            IrType::List(inner) if extern_needs(inner) => {
+                let f = self.extern_in_fn(inner, false)?;
+                self.rt_call("externMap", "ConvertList", vec![e, f])
+            }
+            _ => e,
+        })
+    }
+
+    /// The function that converts a value of type `t` from extern code. With `any_int`, an
+    /// `Int` may be of any Go integer type; Go infers it from the map.
+    fn extern_in_fn(&mut self, t: &IrType, any_int: bool) -> Result<Expr, Error> {
+        if matches!(t, IrType::Int) && any_int {
+            return Ok(self.rt("extern", "FromTargetInt"));
+        }
+        if !extern_needs(t) {
+            return Ok(self.rt("externMap", "Same"));
+        }
+        let from = self.extern_ty(t)?;
+        let to = self.ty(t)?;
+        let body = self.extern_value(id("v"), t)?;
+        Ok(Expr::FuncLit(
+            vec![("v".to_string(), from)],
+            vec![to],
+            vec![Stmt::Return(vec![body])],
+        ))
+    }
+
+    /// The Go type of a value of type `t` on the side of extern code.
+    fn extern_ty(&mut self, t: &IrType) -> Result<Type, Error> {
+        Ok(match t {
+            IrType::Map(k, v) => {
+                Type::Map(Box::new(self.extern_ty(k)?), Box::new(self.extern_ty(v)?))
+            }
+            IrType::List(inner) => Type::Slice(Box::new(self.extern_ty(inner)?)),
+            _ => self.ty(t)?,
+        })
     }
 
     /// The Go path of an extern path string: a package of `native/go/` is a package of the
@@ -5449,6 +5524,21 @@ impl Emitter<'_> {
 /// What an extern path of Go names.
 /// The prefix of a path to code of the project in `native/go/` (spec chapter 7, section 8.2a).
 pub(crate) const NATIVE: &str = "native:";
+
+/// Whether a value of type `t` crosses the extern boundary in another Go type: a `Map`, or a
+/// list of maps.
+fn extern_needs(t: &IrType) -> bool {
+    match t {
+        IrType::Map(..) => true,
+        IrType::List(inner) => extern_needs(inner),
+        _ => false,
+    }
+}
+
+/// Whether a value of type `t` returned by extern code is converted.
+fn extern_converts(t: &IrType) -> bool {
+    matches!(t, IrType::Int) || extern_needs(t)
+}
 
 enum GoTarget {
     /// A function or type of a package: import path and name.
