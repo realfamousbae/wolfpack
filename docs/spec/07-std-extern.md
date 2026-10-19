@@ -344,8 +344,9 @@ extern {
 
 1. Only these types may appear in extern signatures **[PLAN]**: `Int`, `Float`, `Bool`, `String`,
    `Void`, `List<B>`, `Option<B>`, `Result<B, Error>`, `Map<K, B>` (0.2) and opaque types, where
-   `B` is again one of these and the key `K` is `Int`, `String` or `Bool` (E0702). Structs, enums
-   and interfaces do not cross the boundary.
+   `B` is again one of these and the key `K` is `Int`, `String` or `Bool` (E0702). The values of a
+   `Map` contain no opaque type, since a map is copied at the boundary and opaque values cannot
+   be copied (author, 2026-10-19). Structs, enums and interfaces do not cross the boundary.
 2. The error type of a `Result` at the boundary is always `Error` **[PROPOSAL]**: a Go `error`, a
    value thrown in TS, or a Rust `E: Display` becomes an `Error` whose `message()` is the target's
    text.
