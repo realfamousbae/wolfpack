@@ -400,6 +400,132 @@ pub fn from_target_int<T: TryInto<i64>>(value: T) -> i64 {
 }"#,
     },
     Piece {
+        name: "extern_map",
+        deps: &["Map", "extern_int"],
+        code: r#"/// A value as extern code takes it: a `Map` becomes a `HashMap` (spec chapter 8, section 8).
+pub trait ToExtern {
+    /// The type extern code takes.
+    type Out;
+    /// A copy of the value in that type.
+    fn to_extern(&self) -> Self::Out;
+}
+
+macro_rules! to_extern_as_is {
+    ($($t:ty),*) => {
+        $(impl ToExtern for $t {
+            type Out = $t;
+            fn to_extern(&self) -> $t {
+                self.clone()
+            }
+        })*
+    };
+}
+
+to_extern_as_is!(i64, f64, bool, String);
+
+impl<T: ToExtern> ToExtern for [T] {
+    type Out = Vec<T::Out>;
+    fn to_extern(&self) -> Vec<T::Out> {
+        self.iter().map(T::to_extern).collect()
+    }
+}
+
+impl<T: ToExtern> ToExtern for Vec<T> {
+    type Out = Vec<T::Out>;
+    fn to_extern(&self) -> Vec<T::Out> {
+        self.as_slice().to_extern()
+    }
+}
+
+impl<K, V> ToExtern for Map<K, V>
+where
+    K: std::hash::Hash + Eq + Clone + ToExtern,
+    K::Out: std::hash::Hash + Eq,
+    V: ToExtern,
+{
+    type Out = std::collections::HashMap<K::Out, V::Out>;
+    fn to_extern(&self) -> Self::Out {
+        self.keys
+            .iter()
+            .zip(&self.values)
+            .map(|(k, v)| (k.to_extern(), v.to_extern()))
+            .collect()
+    }
+}
+
+/// A value of extern code of type `T` as a wolfpack value: integers of any type are checked, a
+/// map is sorted by key (spec chapter 7, section 8.4).
+pub trait FromExtern<T> {
+    /// The converted value.
+    fn from_extern(value: T) -> Self;
+}
+
+impl<T: TryInto<i64>> FromExtern<T> for i64 {
+    fn from_extern(value: T) -> i64 {
+        from_target_int(value)
+    }
+}
+
+impl<T: Into<String>> FromExtern<T> for String {
+    fn from_extern(value: T) -> String {
+        value.into()
+    }
+}
+
+impl FromExtern<f64> for f64 {
+    fn from_extern(value: f64) -> f64 {
+        value
+    }
+}
+
+impl FromExtern<bool> for bool {
+    fn from_extern(value: bool) -> bool {
+        value
+    }
+}
+
+impl<T: IntoIterator, U: FromExtern<T::Item>> FromExtern<T> for Vec<U> {
+    fn from_extern(value: T) -> Vec<U> {
+        value.into_iter().map(U::from_extern).collect()
+    }
+}
+
+/// A key and a value of a map from extern code.
+pub trait ExternPair<K, V> {
+    /// The converted pair.
+    fn convert(self) -> (K, V);
+}
+
+impl<K2, V2, K: FromExtern<K2>, V: FromExtern<V2>> ExternPair<K, V> for (K2, V2) {
+    fn convert(self) -> (K, V) {
+        (K::from_extern(self.0), V::from_extern(self.1))
+    }
+}
+
+impl<T, K, V> FromExtern<T> for Map<K, V>
+where
+    T: IntoIterator,
+    T::Item: ExternPair<K, V>,
+    K: std::hash::Hash + Eq + Clone + Ord,
+{
+    fn from_extern(value: T) -> Map<K, V> {
+        // Sorted by key; a key that comes twice keeps its last value.
+        let sorted: std::collections::BTreeMap<K, V> =
+            value.into_iter().map(ExternPair::convert).collect();
+        let mut out = Map::new();
+        for (k, v) in sorted {
+            out.insert(k, v);
+        }
+        out
+    }
+}
+
+/// A value of extern code as a wolfpack value of the type the context expects.
+pub fn from_extern<T, U: FromExtern<T>>(value: T) -> U {
+    U::from_extern(value)
+}"#,
+    },
+    Piece {
         name: "ExternError",
         deps: &["Error"],
         code: r#"/// An error of extern code, with the text the target gives it.

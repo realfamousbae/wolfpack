@@ -1965,6 +1965,16 @@ impl<'p> Emitter<'p> {
             // An `Int` may be any integer type of the target (spec chapter 8, section 8).
             let a = if matches!(t, IrType::Int) {
                 self.rt_call("extern_int", "to_target_int", vec![path(&n)])
+            } else if extern_needs(t) {
+                // A `Map` is passed as a `&HashMap` built for the call (spec chapter 8,
+                // section 8).
+                let p = if *m == Mode::Own {
+                    Expr::Unary("&", Box::new(path(&n)))
+                } else {
+                    path(&n)
+                };
+                let copy = self.rt_call("extern_map", "ToExtern::to_extern", vec![p]);
+                Expr::Unary("&", Box::new(copy))
             } else {
                 path(&n)
             };
@@ -2013,6 +2023,8 @@ impl<'p> Emitter<'p> {
                 let f = self.extern_fn_of(inner);
                 method(e, "map", vec![f])
             }
+            // Any iterator of pairs, sorted by key (spec chapter 7, section 8.4, rule 6).
+            IrType::Map(..) => self.rt_call("extern_map", "from_extern", vec![e]),
             IrType::Result(ok, _) => {
                 let e = if needs_conversion(ok) {
                     let f = self.extern_fn_of(ok);
@@ -2032,6 +2044,7 @@ impl<'p> Emitter<'p> {
         match t {
             IrType::Int => self.rt_path("extern_int", "from_target_int"),
             IrType::String => path("String::from"),
+            IrType::Map(..) => self.rt_path("extern_map", "from_extern"),
             _ => {
                 let body = self.extern_result(path("x"), t);
                 Expr::Closure(
@@ -3988,10 +4001,20 @@ fn owned_copy(e: Expr, t: &IrType) -> Expr {
 
 /// The value of `x.to_string()` for an `Int` or a `Bool`, which `format!` writes the same way.
 /// Whether a result of extern code of type `t` is converted (`Int`, `String` and what holds them).
+/// Whether a parameter of type `t` is passed to extern code as another Rust type: a `Map`, or a
+/// list of maps.
+fn extern_needs(t: &IrType) -> bool {
+    match t {
+        IrType::Map(..) => true,
+        IrType::List(inner) => extern_needs(inner),
+        _ => false,
+    }
+}
+
 fn needs_conversion(t: &IrType) -> bool {
     match t {
         IrType::Int | IrType::String | IrType::Result(..) => true,
-        IrType::List(_) => true,
+        IrType::List(_) | IrType::Map(..) => true,
         IrType::Option(a) => needs_conversion(a),
         _ => false,
     }
