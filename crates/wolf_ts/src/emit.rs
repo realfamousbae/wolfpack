@@ -1378,38 +1378,69 @@ impl<'p> Emitter<'p> {
 
     /// A value passed to extern code (spec chapter 8, section 8).
     fn extern_arg(&mut self, e: Expr, t: &IrType) -> Result<Expr, Error> {
-        Ok(match t {
-            IrType::Int => self.rt_call("toNumber", vec![e]),
-            IrType::Float | IrType::Bool | IrType::String | IrType::Void => e,
-            t if self.opaque(t) => e,
-            IrType::List(inner)
-                if matches!(**inner, IrType::Float | IrType::Bool | IrType::String) =>
-            {
-                e
-            }
-            IrType::List(inner) if matches!(**inner, IrType::Int) => {
-                let f = self.rt("toNumber");
-                call(member(e, "map"), vec![f])
-            }
-            other => return Err(format!("extern parameter of type {other:?} for TypeScript")),
-        })
+        self.extern_convert(e, t, true)
     }
 
     fn extern_result(&mut self, e: Expr, t: &IrType) -> Result<Expr, Error> {
+        self.extern_convert(e, t, false)
+    }
+
+    /// `e` converted for extern code (`out`) or from it: `Int` to and from `number`, lists
+    /// element by element, maps copied and, from extern code, sorted by key (spec chapter 7,
+    /// section 8.4).
+    fn extern_convert(&mut self, e: Expr, t: &IrType, out: bool) -> Result<Expr, Error> {
+        Ok(match self.extern_converter(t, out)? {
+            Some(f) => match t {
+                IrType::Int => call(f, vec![e]),
+                IrType::List(inner) => {
+                    let f = self
+                        .extern_converter(inner, out)?
+                        .ok_or("a list without a converter")?;
+                    call(member(e, "map"), vec![f])
+                }
+                IrType::Map(k, v) => self.extern_map(e, k, v, out)?,
+                _ => call(f, vec![e]),
+            },
+            None => e,
+        })
+    }
+
+    /// `rt.toExternMap(m, key, value)` or `rt.fromExternMap(m, key, value)`.
+    fn extern_map(&mut self, e: Expr, k: &IrType, v: &IrType, out: bool) -> Result<Expr, Error> {
+        let f = |t: &IrType, this: &mut Self| -> Result<Expr, Error> {
+            Ok(match this.extern_converter(t, out)? {
+                Some(f) => f,
+                None => this.rt("same"),
+            })
+        };
+        let key = f(k, self)?;
+        let value = f(v, self)?;
+        let name = if out { "toExternMap" } else { "fromExternMap" };
+        Ok(self.rt_call(name, vec![e, key, value]))
+    }
+
+    /// The function that converts a value of type `t` for extern code or from it; `None` if the
+    /// value crosses as it is.
+    fn extern_converter(&mut self, t: &IrType, out: bool) -> Result<Option<Expr>, Error> {
+        let arrow = |body: Expr| {
+            Expr::Arrow(
+                vec![("v".to_string(), None)],
+                None,
+                ArrowBody::Expr(Box::new(body)),
+            )
+        };
         Ok(match t {
-            IrType::Int => self.rt_call("fromNumber", vec![e]),
-            IrType::Float | IrType::Bool | IrType::String | IrType::Void => e,
-            t if self.opaque(t) => e,
-            IrType::List(inner)
-                if matches!(**inner, IrType::Float | IrType::Bool | IrType::String) =>
-            {
-                e
+            IrType::Int => Some(self.rt(if out { "toNumber" } else { "fromNumber" })),
+            IrType::Float | IrType::Bool | IrType::String | IrType::Void => None,
+            t if self.opaque(t) => None,
+            IrType::List(inner) => self
+                .extern_converter(inner, out)?
+                .map(|f| arrow(call(member(ident("v"), "map"), vec![f]))),
+            IrType::Map(k, v) => Some(arrow(self.extern_map(ident("v"), k, v, out)?)),
+            other => {
+                let side = if out { "parameter" } else { "result" };
+                return Err(format!("extern {side} of type {other:?} for TypeScript"));
             }
-            IrType::List(inner) if matches!(**inner, IrType::Int) => {
-                let f = self.rt("fromNumber");
-                call(member(e, "map"), vec![f])
-            }
-            other => return Err(format!("extern result of type {other:?} for TypeScript")),
         })
     }
 

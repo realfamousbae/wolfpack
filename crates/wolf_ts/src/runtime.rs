@@ -957,6 +957,44 @@ export function toNumber(value: bigint): number {
 }"#,
     },
     Piece {
+        name: "same",
+        deps: &[],
+        code: r#"/** A value that crosses the extern boundary as it is. */
+export function same<T>(value: T): T {
+  return value;
+}"#,
+    },
+    Piece {
+        name: "toExternMap",
+        deps: &[],
+        code: r#"/** A `Map` passed to extern code: a new map with its keys and values converted. */
+export function toExternMap<K, V, K2, V2>(
+  map: Map<K, V>,
+  key: (k: K) => K2,
+  value: (v: V) => V2,
+): Map<K2, V2> {
+  return new Map([...map].map(([k, v]) => [key(k), value(v)]));
+}"#,
+    },
+    Piece {
+        name: "fromExternMap",
+        deps: &["cmpStr"],
+        code: r#"/** A map returned by extern code, a `Map` or a plain object: converted and sorted by key. */
+export function fromExternMap<K, V>(
+  map: unknown,
+  key: (k: any) => K,
+  value: (v: any) => V,
+): Map<K, V> {
+  const entries: [unknown, unknown][] =
+    map instanceof Map ? [...map] : Object.entries(map as object);
+  const out = entries.map(([k, v]) => [key(k), value(v)] as [K, V]);
+  out.sort(([a], [b]) =>
+    typeof a === "string" && typeof b === "string" ? cmpStr(a, b) : a < b ? -1 : a > b ? 1 : 0,
+  );
+  return new Map(out);
+}"#,
+    },
+    Piece {
         name: "textError",
         deps: &[],
         code: r#"/** `error(message)`: an `Error` with this message. */
