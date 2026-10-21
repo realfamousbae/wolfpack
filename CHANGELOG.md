@@ -37,6 +37,8 @@ All notable changes are recorded here at the end of each milestone.
   (`native/go/text/slug/`); TypeScript comes later. A struct with only public fields becomes a
   record of the module, copied field by field. New diagnostics E0712 to E0715; `native` is a
   reserved root module name.
+- `Option` parameters of extern functions arrive as `T | undefined` in TS, `*T` in Go and
+  `Option<&T>` in Rust (spec chapter 8, section 8); before, they did not compile on any target.
 - Records: a struct of the module crosses the extern boundary by value when a target block binds
   it with `struct Name from "path"` (spec chapter 7, section 8.4a). New diagnostic E0711.
 - Fixed: a variant passed for a generic parameter in TypeScript and Go, `Comparable` on a plain

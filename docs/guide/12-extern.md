@@ -64,6 +64,10 @@ types. Enums, interfaces and other structs are converted by wolfpack code around
   and result are simple types (`Int`, `Float`, `Bool`, `String`, `Void`, lists of them, opaque
   types). The extern code may call it only while the extern function runs, and must not keep it.
   A panic inside the callback stays a panic, even when the extern function returns a `Result`.
+- An `Option` parameter arrives as the target's own "a value or nothing": `T | undefined` in
+  TypeScript, a pointer `*T` (to a copy, or `nil`) in Go, and `Option<&T>` in Rust, such as
+  `Option<&str>` for `Option<String>`. An `Option<Option<T>>` parameter is not allowed, since
+  those forms cannot tell its two kinds of `None` apart.
 - Integers are checked when they cross: a Go `int32` or a Rust `usize` that does not fit, for
   example, is a panic, not a silent change of the value.
 - A declared `Result` catches the failure of the target: a Go `error`, an exception thrown in
