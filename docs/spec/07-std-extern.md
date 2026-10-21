@@ -447,10 +447,8 @@ no tool of the target for it, so `wolf check` works without Node.js, Go or Cargo
 map becomes a name of the module; every other item is not available, and using it is E0713 with
 the reason (`its parameter is a &mut reference`), so nothing is left out silently.
 
-1. **Readers.** In 0.2 the compiler reads Rust (step N3a) and Go (step N3b, rules 8 to 11;
-   author, 2026-10-20, D7.17). TypeScript follows in step N3c; until then the `.ts` files of a
-   native module are only copied, and its names are available only for the targets it has a reader
-   for.
+1. **Readers.** In 0.2 the compiler reads Rust (step N3a), Go (step N3b, rules 8 to 11;
+   author, 2026-10-20, D7.17) and TypeScript (step N3c, rules 12 to 16; D7.19).
 2. **Rust items.** At the top level of the module file, outside `mod` blocks and items with a
    `#[cfg(...)]` attribute:
    - a `pub fn`, not generic except for callback parameters (rule 4), not `async` and not
@@ -482,9 +480,10 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
 5. **Names.** The Rust names are kept: they already follow the wolfpack style. A name that is a
    reserved keyword of wolfpack makes the item not available.
 6. **Calls.** A function of a native module is called as if it were declared in a `rust` block
-   with the path `native:<module path>::<name>`, or in a `go` block with the path
-   `native:<package dir>.<Name>` (section 8.2a): the conversions of chapter 8, section 8 apply,
-   with the integer and float types the reader found, and `cargo` or `go` checks the rest (E0806).
+   with the path `native:<module path>::<name>`, in a `go` block with the path
+   `native:<package dir>.<Name>`, or in a `ts` block with the path `native:<file>#<name>`
+   (section 8.2a): the conversions of chapter 8, section 8 apply, with the integer and float types
+   the reader found, and `cargo`, `go` or `tsc` checks the rest (E0806).
 7. A Rust file that cannot be parsed is E0714, with the message of the parser and the position in
    the file.
 8. **Go items.** The `.go` files directly in `native/go/<path>/` are read, except `_test.go` files
@@ -520,8 +519,50 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
 10. **Agreement.** A name declared in several targets must map to the same wolfpack signature in
     each, and a record to the same fields in the same order with the same types (D7.18); otherwise
     the name is not available, and importing the module reports E0715 with both signatures. A
-    name declared in only some targets binds the importing module to them (E0704).
+    TypeScript `number` is first settled by rule 14. A name declared in only some targets binds
+    the importing module to them (E0704).
 11. A Go file that cannot be parsed is E0714.
+12. **TypeScript items.** The file `native/ts/<path>.ts` is read (author, 2026-10-21, D7.19). At
+    its top level, a declaration with the `export` keyword:
+    - `export function` (or `export declare function`) with a type on every parameter and a
+      written result type, not generic, not `async`, not a generator and without overloads,
+      becomes a function; its name becomes `snake_case` (`slugify` is `slugify`, `countWords` is
+      `count_words`, `parseURL` is `parse_url`);
+    - `export interface X { ... }` or `export type X = { ... }` whose members are all fields (no
+      methods, no index signatures, no optional fields) of the field types of rule 13 becomes a
+      record (as in rule 2); its fields become `snake_case`, and the generated code uses the TS
+      names, as for Go (D7.18). Two fields with the same `snake_case` name make it not available;
+    - `export class X`, `export enum X`, and any other exported `interface` or `type` become an
+      opaque type `X`, passed and returned as it is.
+    Other exports (`export default`, `export { a as b }`, `export const`, re-exports from other
+    files) are not read; methods of classes are not available in N3c. Two exports whose names give
+    the same `snake_case` name are not available.
+13. **TypeScript types.** A parameter is always a read parameter:
+
+    | Wolfpack | TypeScript |
+    | --- | --- |
+    | `Int` | `bigint` (passed as it is); `number` when rule 14 says so (converted with a check) |
+    | `Float` | `number` |
+    | `Bool`, `String` | `boolean`, `string` |
+    | `Void` | the result `void` |
+    | `List<T>` | `T[]`, `readonly T[]`, `Array<T>`, `ReadonlyArray<T>` |
+    | `Map<K, V>` | `Map<K, V>`, `ReadonlyMap<K, V>`; keys `Int`, `String` or `Bool`; as a result also `Record<string, V>` |
+    | `Option<T>` | `T \| undefined`, and a parameter `x?: T`; as a result also `T \| null` and `T \| null \| undefined` |
+    | a callback | `(a: A, ..) => R` with the types of section 8.4, rule 7 |
+    | a record or opaque type of the module | its name |
+
+    A TS function cannot declare that it throws, so its result is never a `Result`: an exception
+    is a panic (section 8.4, rule 3). `any`, `unknown`, `object`, other unions, tuples, literal
+    types, intersections, `Promise`, a type imported from another file, and every other type make
+    the item not available.
+14. **The `number` rule.** A `number` is `Float`, unless another target of the same native module
+    gives `Int` at the same place (a parameter, the result, a field, or inside one of them): then it
+    is `Int`, passed as a `number` and checked to be a safe integer (chapter 8, section 8). TS code
+    of a module without another target writes `bigint` for an `Int`.
+15. **Calls.** An `Int` passed to a `bigint` comes as it is; a `number` that comes back as an
+    `Int` must be an integer, as for a written extern function (chapter 8, section 8).
+16. A TypeScript file that cannot be parsed is E0714. Only `.ts` files are read: `.tsx`, `.js` and
+    `.d.ts` files of `native/ts/` are copied, not read.
 
 ## 9. Diagnostics
 
@@ -567,3 +608,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.16 | 0.2: native modules: declarations read from Rust code (section 8.7), the type mapping of rule 3, codes E0713 and E0714 | **answered** (author, 2026-10-20): yes |
 | D7.17 | 0.2: native modules read from Go code (section 8.7, rules 8 to 11), the agreement of targets, code E0715 | **answered** (author, 2026-10-20): yes |
 | D7.18 | 0.2: records of native modules: fields of the types the reader found (any integer type, converted with a check; `float32`, `f32`), Go fields with their Go names, and agreement of the fields between targets (section 8.7, rules 8 and 10; chapter 8, section 8a) | **answered** (author, 2026-10-21): yes |
+| D7.19 | 0.2: native modules read from TypeScript (section 8.7, rules 12 to 16): exported functions, records from interfaces and object types, opaque classes; `number` is `Float` unless another target says `Int`; no `Result` results | **answered** (author, 2026-10-21): yes |
