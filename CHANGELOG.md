@@ -34,8 +34,11 @@ All notable changes are recorded here at the end of each milestone.
 - Native modules: `imports { native.text.slug }` imports `native/rust/text/slug.rs` without any
   `extern` lines; the compiler reads its declarations and maps the Rust types (spec chapter 6,
   section 1a; chapter 7, section 8.7). The compiler reads Rust files and Go packages
-  (`native/go/text/slug/`); TypeScript comes later. New diagnostics E0712 to E0715; `native` is a
+  (`native/go/text/slug/`); TypeScript comes later. A struct with only public fields becomes a
+  record of the module, copied field by field. New diagnostics E0712 to E0715; `native` is a
   reserved root module name.
+- Records: a struct of the module crosses the extern boundary by value when a target block binds
+  it with `struct Name from "path"` (spec chapter 7, section 8.4a). New diagnostic E0711.
 - Fixed: a variant passed for a generic parameter in TypeScript and Go, `Comparable` on a plain
   enum in Rust, `Display` and `Comparable` of plain enums through a type parameter in TypeScript,
   and a Go module named like a package of Go's standard library (such as `cmp`).

@@ -53,9 +53,9 @@ wolfpack parameter becomes the receiver.
 ## What crosses the boundary
 
 Only types that every target can convert are allowed in extern signatures: `Int`, `Float`, `Bool`,
-`String`, `Void`, `List`, `Option` and `Map` of these, `Result<T, Error>`, and opaque types. Map
-keys must be `Int`, `String` or `Bool`, and map values may not hold opaque types. Structs, enums and interfaces are converted by wolfpack
-code around the extern call.
+`String`, `Void`, `List`, `Option` and `Map` of these, `Result<T, Error>`, opaque types, and
+records (below). Map keys must be `Int`, `String` or `Bool`, and map values may not hold opaque
+types. Enums, interfaces and other structs are converted by wolfpack code around the extern call.
 
 - A `Map` is copied into the map type of the target on every call: a `Map` in TypeScript, a
   `map[K]V` in Go, a `&HashMap<K, V>` in Rust. A map that comes back is sorted by its keys, the
@@ -72,6 +72,40 @@ code around the extern call.
 - Extern functions are not generic and take no `mut` parameters: extern code cannot change
   wolfpack values. Read parameters are passed without a copy, and the extern code must not keep or
   change them; the compiler cannot check that, so it is a promise of the declaration.
+
+## Records
+
+A struct of your module can cross the boundary **by value**, copied field by field, when a target
+block binds it to a struct type of the target with `struct Name from "path"`:
+
+```wolf fragment
+module main
+
+extern {
+    go {
+        struct Point from "native:geo.Point"
+        fn moved(p: Point, dx: Float) -> Point from "native:geo.Moved"
+    }
+}
+
+types {
+    struct Point {
+        x: Float
+        y: Float
+    }
+}
+
+main {
+    let p = moved(Point { x: 1.0, y: 2.0 }, 0.5)
+    print(f"{p.x} {p.y}")
+}
+```
+
+The struct stays an ordinary wolfpack struct, with its literals, fields and methods. The target
+type has the same fields, named the target's way: `max_size` is `maxSize` in TypeScript and
+`MaxSize` in Go. A record is not generic (`wolf explain E0711`), and its fields have the types of
+extern signatures, without opaque types: an opaque value cannot be copied. It may be a parameter or
+a result, and inside a `List`, an `Option` result or a `Map`.
 
 ## Opaque types
 
@@ -248,6 +282,15 @@ no tool of the target installed. The Rust types map to wolfpack types:
 | `Option<T>`, `Result<T, Error>` | `Option<T>`; `Result<T, E>` as a result, with `E: Display` |
 | a callback | `impl Fn(..)`, `&dyn Fn(..)`, or `F: Fn(..)` |
 
+A `pub struct` whose fields are all `pub` and of these types becomes a **record**: a wolfpack
+struct of the module, which you build, read and compare like your own, and which is copied field by
+field when it crosses. Any other `pub` type is an opaque type.
+
+```wolf fragment
+let s = slug.Size { w: 4, h: 2.5 }
+print(f"{slug.area(s)}")
+```
+
 An item that does not fit, for example one with a `&mut` parameter or an `async fn`, is simply not
 available, and using it says why (`wolf explain E0713`).
 
@@ -276,8 +319,10 @@ func Slugify(title string) string {
 | a callback | `func(..)` with `int64`, `float64`, `bool`, `string` |
 | an opaque type | `*X` for a struct type, `X` for another named type |
 
-When both files declare a function, they must agree on its wolfpack signature; if they do not, the
-function is not available and the import says how they differ (`wolf explain E0715`). A program
+A struct whose fields are all exported is a record here too, with its fields in `snake_case`
+(`MaxSize` is `max_size`, `ID` is `id`); the generated code uses the Go names. When both files
+declare a function or a record, they must agree on its wolfpack signature or fields; if they do
+not, it is not available and the import says how they differ (`wolf explain E0715`). A program
 that imports a native module is built for the targets that have its code; the compiler reads Rust
 and Go in this version, TypeScript comes next. Native modules cannot be re-exported from a library
 (`wolf explain E0712`).
