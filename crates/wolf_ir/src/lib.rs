@@ -222,6 +222,9 @@ pub struct Struct {
     pub methods: Vec<Function>,
     /// Interfaces it implements.
     pub implements: Vec<Type>,
+    /// For a record (spec chapter 7, section 8.4a): the struct type of each target block that
+    /// binds it, `ts`, `go` or `rust` to the path string.
+    pub extern_paths: BTreeMap<String, String>,
 }
 
 /// A field.

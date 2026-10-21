@@ -903,8 +903,14 @@ impl Parser<'_> {
             ExternDeclKind::Fn(decl.sig)
         } else if self.eat(&TokenKind::Type) {
             ExternDeclKind::Type(self.ident("a type name")?)
+        } else if !public && self.eat(&TokenKind::Struct) {
+            ExternDeclKind::Struct(self.ident("the name of a struct")?)
         } else {
-            self.unexpected("`fn` or `type`");
+            self.unexpected(if public {
+                "`fn` or `type`"
+            } else {
+                "`fn`, `type` or `struct`"
+            });
             self.recover();
             return None;
         };

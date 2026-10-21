@@ -2650,9 +2650,26 @@ impl<'p> Emitter<'p> {
             }
             (Form::ResPair, IrType::Result(ok, _)) => pair("err", ok, self)?,
             (Form::OptPair, IrType::Option(inner))
-                if extern_converts(inner) || native_inner.is_some() =>
+                if self.extern_converts(inner) || native_inner.is_some() =>
             {
                 pair("ok", inner, self)?
+            }
+            // A pointer to a record: copied unless it is `nil`.
+            (Form::OptPtr, IrType::Option(inner)) if self.record(inner).is_some() => {
+                let f = self.extern_in_fn(inner, false)?;
+                vec![Stmt::Return(vec![self.rt_call(
+                    "externMap",
+                    "ConvertPtr",
+                    vec![c, f],
+                )])]
+            }
+            // A record is read field by field: the call is made once.
+            (Form::Data, t) if self.record(t).is_some() => {
+                let v = self.extern_value(id("v"), t)?;
+                vec![
+                    Stmt::Define(vec!["v".to_string()], vec![c]),
+                    Stmt::Return(vec![v]),
+                ]
             }
             (Form::Data, t) => {
                 let v = match native {
@@ -2665,6 +2682,70 @@ impl<'p> Emitter<'p> {
         })
     }
 
+    /// Whether a value of type `t` crosses the extern boundary in another Go type: a `Map`, a
+    /// record, or a list of these.
+    fn extern_needs(&self, t: &IrType) -> bool {
+        match t {
+            IrType::Map(..) => true,
+            IrType::List(inner) => self.extern_needs(inner),
+            _ => self.record(t).is_some(),
+        }
+    }
+
+    /// Whether a value of type `t` returned by extern code is converted.
+    fn extern_converts(&self, t: &IrType) -> bool {
+        matches!(t, IrType::Int) || self.extern_needs(t)
+    }
+
+    /// The struct of a record bound to a Go struct type (spec chapter 7, section 8.4a), and that
+    /// type.
+    fn record(&self, t: &IrType) -> Option<(&'p ir::Struct, String)> {
+        let IrType::Named(d, _) = t else {
+            return None;
+        };
+        let s = *self.structs.get(d)?;
+        let path = s.extern_paths.get("go")?;
+        Some((s, self.extern_path(path)))
+    }
+
+    /// The Go struct type of a record on the side of extern code.
+    fn record_ty(&mut self, path: &str) -> Result<Type, Error> {
+        let Some(GoTarget::Func(import, name)) = go_target(path) else {
+            return Err(format!("the Go type path `{path}` of a record"));
+        };
+        self.file.imports.insert(import.clone());
+        Ok(Type::Name(Some(import), name, Vec::new()))
+    }
+
+    /// A record built field by field, each field converted: for extern code (`out`) or from it.
+    fn record_value(
+        &mut self,
+        e: Expr,
+        t: &IrType,
+        s: &'p ir::Struct,
+        path: &str,
+        out: bool,
+    ) -> Result<Expr, Error> {
+        let mut elems = Vec::new();
+        for f in &s.fields {
+            let ours = value_name(&f.name, f.public);
+            let theirs = value_name(&f.name, true);
+            let (from, to) = if out { (ours, theirs) } else { (theirs, ours) };
+            let v = if out {
+                self.extern_arg(sel(e.clone(), &from), &f.ty)?
+            } else {
+                self.extern_value(sel(e.clone(), &from), &f.ty)?
+            };
+            elems.push((Some(to), v));
+        }
+        let ty = if out {
+            self.record_ty(path)?
+        } else {
+            self.ty(t)?
+        };
+        Ok(Expr::Composite(ty, elems))
+    }
+
     /// A wolfpack value passed to extern code: a `Map` becomes a Go map (spec chapter 8,
     /// section 8).
     fn extern_arg(&mut self, e: Expr, t: &IrType) -> Result<Expr, Error> {
@@ -2674,11 +2755,14 @@ impl<'p> Emitter<'p> {
                 let value = self.extern_out_fn(v)?;
                 self.rt_call("externMap", "ToExternMap", vec![e, key, value])
             }
-            IrType::List(inner) if extern_needs(inner) => {
+            IrType::List(inner) if self.extern_needs(inner) => {
                 let f = self.extern_out_fn(inner)?;
                 self.rt_call("externMap", "ConvertList", vec![e, f])
             }
-            _ => e,
+            _ => match self.record(t) {
+                Some((s, path)) => self.record_value(e, t, s, &path, true)?,
+                None => e,
+            },
         })
     }
 
@@ -2768,7 +2852,7 @@ impl<'p> Emitter<'p> {
     /// The function that converts a value of type `t` for extern code.
     fn extern_out_fn(&mut self, t: &IrType) -> Result<Expr, Error> {
         let from = self.ty(t)?;
-        if !extern_needs(t) {
+        if !self.extern_needs(t) {
             let same = self.rt("externMap", "Same");
             return Ok(Expr::Inst(Box::new(same), vec![from]));
         }
@@ -2802,11 +2886,14 @@ impl<'p> Emitter<'p> {
                 };
                 self.rt_call("externMap", "FromExternMap", vec![e, key, value, compare])
             }
-            IrType::List(inner) if extern_needs(inner) => {
+            IrType::List(inner) if self.extern_needs(inner) => {
                 let f = self.extern_in_fn(inner, false)?;
                 self.rt_call("externMap", "ConvertList", vec![e, f])
             }
-            _ => e,
+            _ => match self.record(t) {
+                Some((s, path)) => self.record_value(e, t, s, &path, false)?,
+                None => e,
+            },
         })
     }
 
@@ -2816,7 +2903,7 @@ impl<'p> Emitter<'p> {
         if matches!(t, IrType::Int) && any_int {
             return Ok(self.rt("extern", "FromTargetInt"));
         }
-        if !extern_needs(t) {
+        if !self.extern_needs(t) {
             return Ok(self.rt("externMap", "Same"));
         }
         let from = self.extern_ty(t)?;
@@ -2836,7 +2923,10 @@ impl<'p> Emitter<'p> {
                 Type::Map(Box::new(self.extern_ty(k)?), Box::new(self.extern_ty(v)?))
             }
             IrType::List(inner) => Type::Slice(Box::new(self.extern_ty(inner)?)),
-            _ => self.ty(t)?,
+            _ => match self.record(t) {
+                Some((_, path)) => self.record_ty(&path)?,
+                None => self.ty(t)?,
+            },
         })
     }
 
@@ -5639,16 +5729,6 @@ impl Emitter<'_> {
 /// The prefix of a path to code of the project in `native/go/` (spec chapter 7, section 8.2a).
 pub(crate) const NATIVE: &str = "native:";
 
-/// Whether a value of type `t` crosses the extern boundary in another Go type: a `Map`, or a
-/// list of maps.
-fn extern_needs(t: &IrType) -> bool {
-    match t {
-        IrType::Map(..) => true,
-        IrType::List(inner) => extern_needs(inner),
-        _ => false,
-    }
-}
-
 /// Whether a value of the Go type `nt` of a native module is already the Go form of its wolfpack
 /// type.
 fn go_exact(nt: &NativeTy) -> bool {
@@ -5688,11 +5768,6 @@ fn native_wolf(nt: &NativeTy) -> Result<IrType, Error> {
         }
         other => return Err(format!("the Go type {other:?} inside a list or a map")),
     })
-}
-
-/// Whether a value of type `t` returned by extern code is converted.
-fn extern_converts(t: &IrType) -> bool {
-    matches!(t, IrType::Int) || extern_needs(t)
 }
 
 enum GoTarget {

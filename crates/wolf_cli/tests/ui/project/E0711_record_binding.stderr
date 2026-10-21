@@ -1,0 +1,57 @@
+error[E0711]: `Missing` is not a struct of this module
+  --> src/main.wolf:6:16
+  |
+6 |         struct Missing from "lib#Missing"
+  |                ^^^^^^^ no struct with this name in `types`
+  |
+  = help: bind a struct declared in the `types` section of the same module
+
+error[E0711]: `Color` is not a struct of this module
+  --> src/main.wolf:7:16
+  |
+7 |         struct Color from "lib#Color"
+  |                ^^^^^ no struct with this name in `types`
+  |
+  = help: bind a struct declared in the `types` section of the same module
+
+error[E0711]: the struct `Pair` is generic
+  --> src/main.wolf:8:16
+  |
+8 |         struct Pair from "lib#Pair"
+  |                ^^^^ a record cannot be generic
+  |
+  = help: declare a struct with the field types written out
+
+error[E0702]: `Point` cannot cross the extern boundary
+   --> src/main.wolf:11:21
+   |
+11 |         fn other(p: Point) -> Float from "lib#other"
+   |                     ^^^^^ not allowed in an extern signature
+   |
+   = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
+
+error[E0705]: `*lib.Shape` is a pointer, not a struct type
+   --> src/main.wolf:14:27
+   |
+14 |         struct Shape from "*lib.Shape"
+   |                           ^^^^^^^^^^^^ a record is passed by value
+   |
+   = help: name the struct type without `*`
+
+error[E0702]: the field `handle` of type `Handle` cannot cross the extern boundary
+   --> src/main.wolf:24:9
+   |
+24 |         handle: Handle
+   |         ^^^^^^ a field of a record
+   |
+   = note: a record is copied field by field: its fields use the types of extern signatures without extern types, or other records of the same block
+
+error[E0702]: the field `mut_fn` of type `fn(Int) -> Int` cannot cross the extern boundary
+   --> src/main.wolf:26:9
+   |
+26 |         mut_fn: fn(Int) -> Int
+   |         ^^^^^^ a field of a record
+   |
+   = note: a record is copied field by field: its fields use the types of extern signatures without extern types, or other records of the same block
+
+error: aborting due to 7 errors

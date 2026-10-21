@@ -1,0 +1,40 @@
+module main
+
+extern {
+    ts {
+        type Handle from "lib#Handle"
+        struct Missing from "lib#Missing"
+        struct Color from "lib#Color"
+        struct Pair from "lib#Pair"
+        struct Shape from "lib#Shape"
+        fn area(s: Shape) -> Float from "lib#area"
+        fn other(p: Point) -> Float from "lib#other"
+    }
+    go {
+        struct Shape from "*lib.Shape"
+    }
+}
+
+types {
+    struct Pair<T> {
+        a: T
+    }
+
+    struct Shape {
+        handle: Handle
+        sides: Int
+        mut_fn: fn(Int) -> Int
+    }
+
+    struct Point {
+        x: Float
+    }
+
+    enum Color {
+        Red
+    }
+}
+
+main {
+    print("x")
+}

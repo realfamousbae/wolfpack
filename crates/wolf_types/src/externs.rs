@@ -25,11 +25,12 @@ impl Checker<'_> {
         first: &mut BTreeMap<DefId, FirstDecl>,
     ) {
         let t = target.target.name.as_str();
+        self.extern_records = self.records_of(m, target);
         let mut seen = BTreeSet::new();
         for decl in &target.decls {
             let (name, is_type) = match &decl.kind {
                 ExternDeclKind::Fn(sig) => (&sig.name, false),
-                ExternDeclKind::Type(name) => (name, true),
+                ExternDeclKind::Type(name) | ExternDeclKind::Struct(name) => (name, true),
             };
             if !seen.insert(name.name.clone()) {
                 self.report(
@@ -55,6 +56,17 @@ impl Checker<'_> {
                     )
                     .primary(decl.from.span, "malformed path")
                     .help(path_help(t, &decl.from.value, is_type)),
+                );
+            } else if matches!(decl.kind, ExternDeclKind::Struct(_))
+                && decl.from.value.trim_start_matches(NATIVE).starts_with('*')
+            {
+                self.report(
+                    Diagnostic::new(
+                        codes::E0705,
+                        format!("`{}` is a pointer, not a struct type", decl.from.value),
+                    )
+                    .primary(decl.from.span, "a record is passed by value")
+                    .help("name the struct type without `*`"),
                 );
             }
             let ExternDeclKind::Fn(sig) = &decl.kind else {
@@ -142,7 +154,7 @@ impl Checker<'_> {
                         format!("`{shown}` cannot cross the extern boundary"),
                     )
                     .primary(span, "not allowed in an extern signature")
-                    .note("extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, and callbacks as parameters");
+                    .note("extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters");
                     if self.map_of_opaque(&ty) {
                         d = d.help("a map is copied at the boundary, and values of extern types cannot be copied: pass a `List` of them, or the keys and the values separately");
                     }
@@ -179,6 +191,62 @@ impl Checker<'_> {
                 }
             }
         }
+    }
+
+    /// The structs that the block `target` of the module `m` binds to struct types of the target
+    /// (chapter 7, section 8.4a): reports a name that is not a non-generic struct of the module
+    /// (E0711) and fields that cannot cross the boundary (E0702).
+    fn records_of(&mut self, m: usize, target: &ast::ExternTarget) -> BTreeSet<DefId> {
+        let mut bound = BTreeSet::new();
+        for decl in &target.decls {
+            let ExternDeclKind::Struct(name) = &decl.kind else {
+                continue;
+            };
+            let def = self
+                .module_item(m, &name.name)
+                .filter(|d| self.def_kind(*d) == Some(DefKind::Struct));
+            match def {
+                Some(d) if self.type_generics.get(&d).is_none_or(Vec::is_empty) => {
+                    bound.insert(d);
+                }
+                Some(_) => self.report(
+                    Diagnostic::new(
+                        codes::E0711,
+                        format!("the struct `{}` is generic", name.name),
+                    )
+                    .primary(name.span, "a record cannot be generic")
+                    .help("declare a struct with the field types written out"),
+                ),
+                None => self.report(
+                    Diagnostic::new(
+                        codes::E0711,
+                        format!("`{}` is not a struct of this module", name.name),
+                    )
+                    .primary(name.span, "no struct with this name in `types`")
+                    .help("bind a struct declared in the `types` section of the same module"),
+                ),
+            }
+        }
+        self.extern_records = bound.clone();
+        for def in &bound {
+            let fields = self.fields.get(def).cloned().unwrap_or_default();
+            for f in fields {
+                if (!self.crosses(&f.ty) || self.has_opaque(&f.ty))
+                    && self.reported_fields.insert((*def, f.name.clone()))
+                {
+                    let shown = self.show(&f.ty);
+                    self.report(
+                        Diagnostic::new(
+                            codes::E0702,
+                            format!("the field `{}` of type `{shown}` cannot cross the extern boundary", f.name),
+                        )
+                        .primary(f.span, "a field of a record")
+                        .note("a record is copied field by field: its fields use the types of extern signatures without extern types, or other records of the same block"),
+                    );
+                }
+            }
+        }
+        bound
     }
 
     /// The declaration `name` of the module `m`.
@@ -225,6 +293,7 @@ impl Checker<'_> {
                     }
                 } else {
                     d.and_then(|d| self.def_kind(d)) == Some(DefKind::ExternType)
+                        || d.is_some_and(|d| self.extern_records.contains(&d))
                 }
             }
             _ => false,

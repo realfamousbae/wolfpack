@@ -199,6 +199,11 @@ pub(crate) struct Checker<'a> {
     alias_stack: Vec<DefId>,
     /// The fields of every struct.
     pub(crate) fields: BTreeMap<DefId, Vec<FieldInfo>>,
+    /// The structs bound to a struct type of the target in the extern block being checked
+    /// (chapter 7, section 8.4a).
+    pub(crate) extern_records: BTreeSet<DefId>,
+    /// The fields of records already reported as not crossing (E0702), once for all blocks.
+    pub(crate) reported_fields: BTreeSet<(DefId, String)>,
     pub(crate) variants: BTreeMap<DefId, VariantInfo>,
     /// The variants of every enum, in declaration order.
     pub(crate) enum_variants: BTreeMap<DefId, Vec<DefId>>,
@@ -262,6 +267,8 @@ impl<'a> Checker<'a> {
             alias_state: BTreeMap::new(),
             alias_stack: Vec::new(),
             fields: BTreeMap::new(),
+            extern_records: BTreeSet::new(),
+            reported_fields: BTreeSet::new(),
             variants: BTreeMap::new(),
             enum_variants: BTreeMap::new(),
             fns: BTreeMap::new(),
@@ -731,6 +738,7 @@ impl<'a> Checker<'a> {
         // Impl blocks are collected after all other items, so their signatures may name any
         // function type; the order is still deterministic.
         let mut impl_blocks = Vec::new();
+        let mut extern_blocks = Vec::new();
         let mut first_extern = BTreeMap::new();
         for (m, input) in inputs.iter().enumerate() {
             let scope = Scope {
@@ -812,8 +820,10 @@ impl<'a> Checker<'a> {
                                 });
                             }
                         }
+                        // After every struct: a record binding reads the fields of its struct
+                        // (chapter 7, section 8.4a).
                         ItemKind::ExternTarget(target) => {
-                            self.extern_block(m, target, &scope, &mut first_extern);
+                            extern_blocks.push((m, target, input.file))
                         }
                         ItemKind::Test(test) => bodies.push(BodyRef::Test { module: m, test }),
                         ItemKind::Impl(block) => impl_blocks.push((m, s, i, block)),
@@ -821,6 +831,13 @@ impl<'a> Checker<'a> {
                     }
                 }
             }
+        }
+        for (m, target, file) in extern_blocks {
+            let scope = Scope {
+                file,
+                self_ty: None,
+            };
+            self.extern_block(m, target, &scope, &mut first_extern);
         }
         for (m, s, i, block) in impl_blocks {
             self.impl_block(m, s, i, block, &mut bodies);

@@ -1,0 +1,87 @@
+//! Records at the extern boundary (spec chapter 7, section 8.4a): structs of the module bound to a
+//! struct type of each target, copied field by field.
+
+module main
+
+imports {
+    std.string
+}
+
+extern {
+    ts {
+        struct Point from "native:geo#Point"
+        struct Label from "native:geo#Label"
+        fn distance(a: Point, b: Point) -> Float from "native:geo#distance"
+        fn moved(p: Point, dx: Float) -> Point from "native:geo#moved"
+        fn describe(l: Label) -> String from "native:geo#describe"
+        fn grown(l: Label) -> Label from "native:geo#grown"
+        fn corners(n: Int) -> List<Point> from "native:geo#corners"
+        fn find(name: String) -> Option<Point> from "native:geo#find"
+        fn shifted(m: Map<String, Point>) -> Map<String, Point> from "native:geo#shifted"
+        fn calls() -> Int from "native:geo#calls"
+    }
+    go {
+        struct Point from "native:geo.Point"
+        struct Label from "native:geo.Label"
+        fn distance(a: Point, b: Point) -> Float from "native:geo.Distance"
+        fn moved(p: Point, dx: Float) -> Point from "native:geo.Moved"
+        fn describe(l: Label) -> String from "native:geo.Describe"
+        fn grown(l: Label) -> Label from "native:geo.Grown"
+        fn corners(n: Int) -> List<Point> from "native:geo.Corners"
+        fn find(name: String) -> Option<Point> from "native:geo.Find"
+        fn shifted(m: Map<String, Point>) -> Map<String, Point> from "native:geo.Shifted"
+        fn calls() -> Int from "native:geo.Calls"
+    }
+    rust {
+        struct Point from "native:geo::Point"
+        struct Label from "native:geo::Label"
+        fn distance(a: Point, b: Point) -> Float from "native:geo::distance"
+        fn moved(p: Point, dx: Float) -> Point from "native:geo::moved"
+        fn describe(l: Label) -> String from "native:geo::describe"
+        fn grown(l: Label) -> Label from "native:geo::grown"
+        fn corners(n: Int) -> List<Point> from "native:geo::corners"
+        fn find(name: String) -> Option<Point> from "native:geo::find"
+        fn shifted(m: Map<String, Point>) -> Map<String, Point> from "native:geo::shifted"
+        fn calls() -> Int from "native:geo::calls"
+    }
+}
+
+types {
+    struct Point {
+        x: Float
+        y: Float
+    }
+
+    struct Label {
+        text: String
+        max_size: Int
+        tags: List<String>
+        at: Point
+    }
+}
+
+main {
+    let a = Point { x: 0.0, y: 0.0 }
+    let b = Point { x: 3.0, y: 4.0 }
+    print(f"{distance(a, b)}")
+    let m = moved(b, 1.5)
+    print(f"{m.x} {m.y}")
+    let l = Label { text: "home", max_size: 8, tags: ["a", "b"], at: Point { x: 1.0, y: 2.0 } }
+    print(describe(l))
+    let g = grown(l)
+    print(f"{g.text} {g.max_size} {string.join(g.tags, "+")} {g.at.x}")
+    for p in corners(2) {
+        print(f"({p.x}, {p.y})")
+    }
+    match find("origin") {
+        Some(p) => print(f"found {p.x}")
+        None => print("none")
+    }
+    match find("nowhere") {
+        Some(p) => print(f"found {p.x}")
+        None => print("none")
+    }
+    let s = shifted(["b": Point { x: 3.0, y: 4.0 }, "a": Point { x: 0.0, y: 0.0 }])
+    print(f"{s.keys()[0]} {s["b"].x}")
+    print(f"calls {calls()}")
+}

@@ -484,6 +484,26 @@ impl<'a> Lowerer<'a> {
                 self.item(ctx, item, &mut methods, &mut items, in_tests)?;
             }
         }
+        // Record bindings of `extern` (spec chapter 7, section 8.4a); `extern` comes before
+        // `types`, so they are attached once every struct is lowered.
+        for item in input.ast.sections.iter().flat_map(|s| &s.items) {
+            let ItemKind::ExternTarget(target) = &item.kind else {
+                continue;
+            };
+            for decl in &target.decls {
+                let ast::ExternDeclKind::Struct(name) = &decl.kind else {
+                    continue;
+                };
+                for it in &mut items {
+                    if let Item::Struct(s) = it {
+                        if s.name == name.name {
+                            s.extern_paths
+                                .insert(target.target.name.clone(), decl.from.value.clone());
+                        }
+                    }
+                }
+            }
+        }
         Ok(Module {
             path: input.path.clone(),
             file,
@@ -548,6 +568,7 @@ impl<'a> Lowerer<'a> {
                     fields,
                     methods: methods.remove(&def).unwrap_or_default(),
                     implements: self.implements(def),
+                    extern_paths: BTreeMap::new(),
                 }));
             }
             ItemKind::Enum(decl) => {
@@ -693,6 +714,8 @@ impl<'a> Lowerer<'a> {
                     let name = match &decl.kind {
                         ast::ExternDeclKind::Fn(sig) => &sig.name,
                         ast::ExternDeclKind::Type(name) => name,
+                        // Attached to the struct after the module is lowered.
+                        ast::ExternDeclKind::Struct(_) => continue,
                     };
                     // One declaration may be written for several targets: find it by name.
                     let def = self.resolved.defs.iter().position(|d| {
@@ -753,6 +776,7 @@ impl<'a> Lowerer<'a> {
                             name: name.name.clone(),
                             paths,
                         })),
+                        ast::ExternDeclKind::Struct(_) => {}
                     }
                 }
             }

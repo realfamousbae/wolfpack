@@ -76,6 +76,7 @@ pub fn check_target(
                             let name = match &decl.kind {
                                 ExternDeclKind::Fn(sig) => &sig.name.name,
                                 ExternDeclKind::Type(name) => &name.name,
+                                ExternDeclKind::Struct(_) => continue,
                             };
                             names.insert(name.clone());
                         }

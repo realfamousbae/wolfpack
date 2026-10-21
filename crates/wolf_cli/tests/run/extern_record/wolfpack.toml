@@ -1,0 +1,4 @@
+[package]
+name = "extern-record"
+version = "0.1.0"
+kind = "cli"

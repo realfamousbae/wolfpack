@@ -379,6 +379,8 @@ impl<'a> Resolver<'a> {
                             let (name, kind) = match &decl.kind {
                                 ExternDeclKind::Fn(sig) => (&sig.name, DefKind::ExternFn),
                                 ExternDeclKind::Type(name) => (name, DefKind::ExternType),
+                                // A record binding declares no name (chapter 7, section 8.4a).
+                                ExternDeclKind::Struct(_) => continue,
                             };
                             self.style(name, kind == DefKind::ExternType, "extern declaration");
                             // The same name in several target blocks is one declaration

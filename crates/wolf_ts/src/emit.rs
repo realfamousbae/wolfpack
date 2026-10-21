@@ -1432,6 +1432,14 @@ impl<'p> Emitter<'p> {
         ))
     }
 
+    /// The fields of a struct bound to a TypeScript type in `extern` (a record).
+    fn record_fields(&self, d: DefRef) -> Option<Vec<ir::Field>> {
+        self.structs
+            .get(&d)
+            .filter(|s| s.extern_paths.contains_key("ts"))
+            .map(|s| s.fields.clone())
+    }
+
     /// `rt.toExternMap(m, key, value)` or `rt.fromExternMap(m, key, value)`.
     fn extern_map(&mut self, e: Expr, k: &IrType, v: &IrType, out: bool) -> Result<Expr, Error> {
         let f = |t: &IrType, this: &mut Self| -> Result<Expr, Error> {
@@ -1464,6 +1472,22 @@ impl<'p> Emitter<'p> {
                 .extern_converter(inner, out)?
                 .map(|f| arrow(call(member(ident("v"), "map"), vec![f]))),
             IrType::Map(k, v) => Some(arrow(self.extern_map(ident("v"), k, v, out)?)),
+            // A record: a plain object with the fields converted (chapter 7, section 8.4a).
+            IrType::Named(d, _) if self.record_fields(*d).is_some() => {
+                let fields = self.record_fields(*d).unwrap_or_default();
+                let mut entries = Vec::new();
+                for f in &fields {
+                    let name = camel(&f.name);
+                    let value = member(ident("v"), &name);
+                    entries.push((name, self.extern_convert(value, &f.ty, out)?));
+                }
+                let object = Expr::Object(entries);
+                Some(arrow(if out {
+                    object
+                } else {
+                    Expr::New(self.def_name(*d), vec![object])
+                }))
+            }
             // A callback is only a parameter (chapter 7, section 8.4, rule 7).
             IrType::Fn(params, ret) if out => {
                 Some(arrow(self.extern_callback(ident("v"), params, ret)?))

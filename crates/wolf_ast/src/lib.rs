@@ -317,6 +317,8 @@ pub enum ExternDeclKind {
     Fn(FnSig),
     /// `type Name`
     Type(Ident),
+    /// `struct Name`: a struct of the module bound to a struct type of the target (0.2).
+    Struct(Ident),
 }
 
 /// A string literal with its position.

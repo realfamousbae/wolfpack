@@ -507,6 +507,15 @@ func ConvertList[T any, U any](list []T, f func(T) U) []U {
 	return out
 }
 
+// ConvertPtr converts the value behind a pointer, and keeps nil.
+func ConvertPtr[T any, U any](p *T, f func(T) U) *U {
+	if p == nil {
+		return nil
+	}
+	u := f(*p)
+	return &u
+}
+
 // ToFloat32 is a Float passed to extern code as a float32.
 func ToFloat32(value float64) float32 {
 	return float32(value)

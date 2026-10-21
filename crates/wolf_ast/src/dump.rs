@@ -160,6 +160,10 @@ fn item(item: &Item) -> Tree {
                         d.push(leaf(name.name.clone()));
                         "type"
                     }
+                    ExternDeclKind::Struct(name) => {
+                        d.push(leaf(name.name.clone()));
+                        "struct"
+                    }
                 };
                 d.push(leaf(format!("from {:?}", decl.from.value)));
                 kids.push(node(head, d));

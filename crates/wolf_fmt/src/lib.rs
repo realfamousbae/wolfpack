@@ -375,6 +375,7 @@ impl<'a> Fmt<'a> {
                                 ExternDeclKind::Type(n) => {
                                     text(format!("{}type {}", vis(d.public), n.name))
                                 }
+                                ExternDeclKind::Struct(n) => text(format!("struct {}", n.name)),
                             };
                             cat(vec![head, text(format!(" from {}", f.src(d.from.span)))])
                         })

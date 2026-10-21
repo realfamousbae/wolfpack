@@ -1698,7 +1698,114 @@ impl<'p> Emitter<'p> {
             .map(|g| IrType::Param(g.name.clone()))
             .collect();
         let self_ty = IrType::Named(s.def, args);
+        self.record_impls(s, out);
         self.impls(s.def, &s.generics, &s.methods, &self_ty, out)
+    }
+
+    /// For a record bound to a Rust struct type (spec chapter 7, section 8.4a): its conversions
+    /// to and from that type, field by field, as implementations of the traits of the runtime
+    /// that convert values at the boundary.
+    fn record_impls(&mut self, s: &'p ir::Struct, out: &mut Vec<Item>) {
+        let Some(target) = s.extern_paths.get("rust") else {
+            return;
+        };
+        let target = self.extern_path(target);
+        let name = self.name_of(s.def);
+        let to = self.rt_path("extern_as", "to_extern_as");
+        let from = self.rt_path("extern_map", "from_extern");
+        let rt = self.rt("");
+        let field = |e: &str, f: &ir::Field| Expr::Field(Box::new(path(e)), value(&f.name));
+        let to_fields = s
+            .fields
+            .iter()
+            .map(|f| {
+                let v = Expr::Unary("&", Box::new(field("self", f)));
+                (value(&f.name), call(to.clone(), vec![v]))
+            })
+            .collect();
+        let from_fields = s
+            .fields
+            .iter()
+            .map(|f| (value(&f.name), call(from.clone(), vec![field("value", f)])))
+            .collect();
+        let target_ty = Type::name(&target);
+        out.push(Item::Impl {
+            generics: Vec::new(),
+            trait_: Some(Type::Path(
+                format!("{rt}::ToExternAs"),
+                vec![target_ty.clone()],
+            )),
+            ty: Type::name(&name),
+            fns: vec![rs::Fn {
+                docs: Vec::new(),
+                attrs: Vec::new(),
+                vis: String::new(),
+                name: "to_extern_as".to_string(),
+                generics: Vec::new(),
+                self_param: Some("&self".to_string()),
+                params: Vec::new(),
+                ret: Some(target_ty.clone()),
+                body: Some(block(
+                    Vec::new(),
+                    Some(Expr::Struct(target.clone(), to_fields)),
+                )),
+            }],
+        });
+        out.push(Item::Impl {
+            generics: Vec::new(),
+            trait_: Some(Type::Path(
+                format!("{rt}::FromExtern"),
+                vec![target_ty.clone()],
+            )),
+            ty: Type::name(&name),
+            fns: vec![rs::Fn {
+                docs: Vec::new(),
+                attrs: Vec::new(),
+                vis: String::new(),
+                name: "from_extern".to_string(),
+                generics: Vec::new(),
+                self_param: None,
+                params: vec![(Pat::Bind("value".to_string(), false), target_ty)],
+                ret: Some(Type::name(&name)),
+                body: Some(block(
+                    Vec::new(),
+                    Some(Expr::Struct(name.clone(), from_fields)),
+                )),
+            }],
+        });
+    }
+
+    /// Whether a value of type `t` holds a record bound to a Rust struct type.
+    fn has_record(&self, t: &IrType) -> bool {
+        match t {
+            IrType::List(x) | IrType::Option(x) => self.has_record(x),
+            IrType::Map(k, v) => self.has_record(k) || self.has_record(v),
+            IrType::Result(ok, _) => self.has_record(ok),
+            IrType::Named(d, _) => self
+                .structs
+                .get(d)
+                .is_some_and(|s| s.extern_paths.contains_key("rust")),
+            _ => false,
+        }
+    }
+
+    /// The Rust type of a value of type `t` holding records, on the side of extern code.
+    fn record_extern_ty(&mut self, t: &IrType) -> Result<Type, Error> {
+        Ok(match t {
+            IrType::List(x) => Type::Path("Vec".to_string(), vec![self.record_extern_ty(x)?]),
+            IrType::Option(x) => Type::Path("Option".to_string(), vec![self.record_extern_ty(x)?]),
+            IrType::Map(k, v) => Type::Path(
+                "std::collections::HashMap".to_string(),
+                vec![self.record_extern_ty(k)?, self.record_extern_ty(v)?],
+            ),
+            IrType::Named(d, _) => {
+                match self.structs.get(d).and_then(|s| s.extern_paths.get("rust")) {
+                    Some(target) => Type::name(&self.extern_path(target)),
+                    None => self.ty(t)?,
+                }
+            }
+            _ => self.ty(t)?,
+        })
     }
 
     /// The `impl` blocks of a type: inherent functions grouped by the bounds of their block, and
@@ -1986,6 +2093,27 @@ impl<'p> Emitter<'p> {
                 let closure = self.extern_callback(&n, fp)?;
                 stmts.push(Stmt::Let(Pat::Bind(f.clone(), false), None, Some(closure)));
                 Expr::Unary("&", Box::new(path(&f)))
+            } else if self.has_record(t) {
+                // Records are copied into the struct types of the target (spec chapter 8,
+                // section 8); a read parameter is passed by reference.
+                let a = format!("a{i}");
+                let value = if *m == Mode::Own {
+                    Expr::Unary("&", Box::new(path(&n)))
+                } else {
+                    path(&n)
+                };
+                let converted = self.rt_call("extern_as", "to_extern_as", vec![value]);
+                let ty = self.record_extern_ty(t)?;
+                stmts.push(Stmt::Let(
+                    Pat::Bind(a.clone(), false),
+                    Some(ty),
+                    Some(converted),
+                ));
+                if *m == Mode::Own {
+                    path(&a)
+                } else {
+                    Expr::Unary("&", Box::new(path(&a)))
+                }
             } else if matches!(t, IrType::Int) {
                 self.rt_call("extern_int", "to_target_int", vec![path(&n)])
             } else if extern_needs(t) {
@@ -2134,6 +2262,17 @@ impl<'p> Emitter<'p> {
     /// The result of extern code as a value of type `t`: strings, integers and errors of the
     /// target's own types become wolfpack's.
     fn extern_result(&mut self, e: Expr, t: &IrType) -> Expr {
+        if self.has_record(t) {
+            // Records come back through the conversions of `record_impls`.
+            return match t {
+                IrType::Result(..) => {
+                    let f = self.rt_path("extern_map", "from_extern");
+                    let err = self.rt_path("ExternError", "extern_error");
+                    method(method(e, "map", vec![f]), "map_err", vec![err])
+                }
+                _ => self.rt_call("extern_map", "from_extern", vec![e]),
+            };
+        }
         match t {
             IrType::Int => self.rt_call("extern_int", "from_target_int", vec![e]),
             IrType::String => method(e, "into", Vec::new()),

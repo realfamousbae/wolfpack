@@ -4,7 +4,7 @@ error[E0702]: `Map<Color, Int>` cannot cross the extern boundary
 5 |         fn keys(m: Map<Color, Int>) -> List<String> from "Object.keys"
   |                    ^^^^^^^^^^^^^^^ not allowed in an extern signature
   |
-  = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, and callbacks as parameters
+  = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
 
 error[E0702]: `Point` cannot cross the extern boundary
   --> src/main.wolf:6:24
@@ -12,7 +12,7 @@ error[E0702]: `Point` cannot cross the extern boundary
 6 |         fn origin() -> Point from "lib#origin"
   |                        ^^^^^ not allowed in an extern signature
   |
-  = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, and callbacks as parameters
+  = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
 
 error[E0702]: `Result<Int, String>` cannot cross the extern boundary
   --> src/main.wolf:7:32
@@ -20,7 +20,7 @@ error[E0702]: `Result<Int, String>` cannot cross the extern boundary
 7 |         fn check(s: String) -> Result<Int, String> from "lib#check"
   |                                ^^^^^^^^^^^^^^^^^^^ not allowed in an extern signature
   |
-  = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, and callbacks as parameters
+  = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
 
 error[E0702]: `Map<String, Handle>` cannot cross the extern boundary
    --> src/main.wolf:10:25
@@ -29,7 +29,7 @@ error[E0702]: `Map<String, Handle>` cannot cross the extern boundary
    |                         ^^^^^^^^^^^^^^^^^^^ not allowed in an extern signature
    |
    = help: a map is copied at the boundary, and values of extern types cannot be copied: pass a `List` of them, or the keys and the values separately
-   = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, and callbacks as parameters
+   = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
 
 error[E0702]: the callback `fn(Map<String, Int>)` cannot cross the extern boundary
    --> src/main.wolf:12:21
@@ -53,6 +53,6 @@ error[E0702]: `fn(Int) -> Int` cannot cross the extern boundary
 14 |         fn maker() -> fn(Int) -> Int from "lib#maker"
    |                       ^^^^^^^^^^^^^^ not allowed in an extern signature
    |
-   = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, and callbacks as parameters
+   = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
 
 error: aborting due to 7 errors
