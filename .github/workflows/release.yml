@@ -1,7 +1,7 @@
 name: Release
 
-# A tag `v<version>` builds wolf for every platform, packs the installers, tries each of them on a
-# clean machine and creates a draft release with the files. Run by hand (workflow_dispatch), it
+# A tag `v<version>` builds wolf for every platform, packs the installers, tries each of them and
+# `wolf self update` on a clean machine and creates a draft release with the files. Run by hand (workflow_dispatch), it
 # does the same without a release, so the installers can be tested before tagging.
 
 on:
@@ -207,9 +207,66 @@ jobs:
           Get-Content -Raw release\install.ps1 | Invoke-Expression
           & "$env:WOLFPACK_INSTALL_DIR\wolf.exe" --version
 
+  # `wolf self update` on a clean machine (spec chapter 8, section 2b): the wolf of this run, put
+  # in place by the terminal installer, replaces itself with a real release of GitHub. The oldest
+  # release is used because it is always there; it proves the download, the check of the sum, the
+  # start of the new wolf and the replacement of the running one.
+  try-update:
+    needs: [package-macos, package-linux, package-windows]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: dist
+      - name: The sums, as the release has them
+        shell: bash
+        run: |
+          cd dist
+          if command -v sha256sum >/dev/null; then sha256sum -- * > SHA256SUMS.txt; else shasum -a 256 -- * > SHA256SUMS.txt; fi
+      - name: Install with install.sh, then update to another release
+        if: runner.os != 'Windows'
+        env:
+          WOLFPACK_DOWNLOAD_URL: file://${{ github.workspace }}/dist
+          WOLFPACK_NO_SETUP: "1"
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sh release/install.sh
+          wolf="$HOME/.local/bin/wolf"
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          "$wolf" --version | grep -F "$version"
+          # Only asks: 0 when this is the latest release, 1 when a newer one exists.
+          code=0
+          "$wolf" self update --check || code=$?
+          test "$code" = 0 || test "$code" = 1
+          "$wolf" self update --version 0.1.1
+          "$wolf" --version | grep -F "0.1.1"
+      - name: Install with install.ps1, then update to another release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WOLFPACK_DOWNLOAD_URL: ${{ github.workspace }}\dist
+          WOLFPACK_NO_SETUP: "1"
+        run: |
+          Get-Content -Raw release\install.ps1 | Invoke-Expression
+          $wolf = "$env:LOCALAPPDATA\Programs\wolfpack\bin\wolf.exe"
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"$').Matches[0].Groups[1].Value
+          if (-not ((& $wolf --version) -match [regex]::Escape($version))) { throw "not $version" }
+          & $wolf self update --check
+          if ($LASTEXITCODE -gt 1) { throw "--check failed: $LASTEXITCODE" }
+          & $wolf self update --version 0.1.1
+          if ($LASTEXITCODE -ne 0) { throw "self update failed: $LASTEXITCODE" }
+          if (-not ((& $wolf --version) -match '0\.1\.1')) { throw "not 0.1.1" }
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [try, try-scripts]
+    needs: [try, try-scripts, try-update]
     runs-on: ubuntu-latest
     permissions:
       contents: write
