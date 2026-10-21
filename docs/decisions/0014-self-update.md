@@ -1,8 +1,8 @@
 # 0014: `wolf self update` and the daily question
 
-Status: accepted (author, 2026-10-18, D8.6 and D8.7). Items 1 to 3 were decided by the author and are in
-chapter 8, section 2b; the other items are [INTERNAL] choices recorded so that the author can
-object.
+Status: accepted (author, 2026-10-18, D8.6 and D8.7). Items 1 to 3 were decided by the author
+and are in chapter 8, section 2b; the other items are [INTERNAL] choices recorded so that the
+author can object.
 
 ## Decision
 
