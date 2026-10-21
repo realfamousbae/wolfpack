@@ -6,12 +6,16 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 readme = "../INTERNAL.md"
-description = "Readers of the declarations of native modules of wolfpack (Rust code). Internal part of wolfpack-lang, not a stable API"
+description = "Readers of the declarations of native modules of wolfpack (Rust, Go and TypeScript code). Internal part of wolfpack-lang, not a stable API"
 
 [lib]
 name = "wolf_native"
 
 [dependencies]
+oxc_allocator = "0.75"
+oxc_ast = "0.75"
+oxc_parser = "0.75"
+oxc_span = "0.75"
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 syn = { version = "2", default-features = false, features = ["clone-impls", "full", "parsing"] }
 wolf_ast = { workspace = true }

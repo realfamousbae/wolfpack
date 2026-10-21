@@ -11,8 +11,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod go;
+mod ts;
 
 pub use go::{read_go, snake};
+pub use ts::read_ts;
 
 use syn::{
     FnArg, GenericArgument, GenericParam, Item, PathArguments, ReturnType, Type, TypeParamBound,
@@ -669,6 +671,7 @@ pub fn source(module_path: &str, blocks: &[Block<'_>], name_ok: &dyn Fn(&str) ->
     for b in blocks {
         let path = |name: &str, pointer: bool| match b.target {
             "go" => format!("native:{}{}.{name}", if pointer { "*" } else { "" }, b.path),
+            "ts" => format!("native:{}#{name}", b.path),
             _ => format!("native:{}::{name}", b.path),
         };
         out.push_str(&format!("    {} {{\n", b.target));
@@ -988,6 +991,98 @@ func private() {}
             out.contains("    pub struct Pair {\n        pub id: Int\n        pub url: String\n        pub at: Point\n    }"),
             "{out}"
         );
+    }
+
+    #[test]
+    fn ts_functions_and_types() {
+        let src = r#"
+import { other } from "./other";
+
+export interface Size { width: number; tags: string[]; maxSize: bigint }
+export type Pair = { left: Size; right: Size };
+export interface Shape { area(): number }
+export class Index { words: string[] = [] }
+export enum Color { Red }
+
+export function slugify(title: string): string { return title; }
+export function countWords(words: readonly string[], limit?: bigint): bigint { return 0n; }
+export function parseURL(s: string): Map<string, number> | undefined { return undefined; }
+export function scale(s: Size, by: number): Size { return s; }
+export function each(items: Array<string>, f: (s: string) => boolean): void {}
+export function lookup(i: Index, w: string): string | null { return null; }
+export function counts(): Record<string, bigint> { return {}; }
+export async function later(): Promise<void> {}
+export function generic<T>(x: T): T { return x; }
+export function untyped(x): string { return ""; }
+export function noResult(x: string) { return x; }
+export function over(x: string): string;
+export function over(x: bigint): string;
+export function over(x: any): string { return ""; }
+export function bad(x: string | number): void {}
+export function nul(x: string | null): void {}
+function hidden(): void {}
+"#;
+        let m = read_ts(src).unwrap_or_default();
+        let names: Vec<&str> = m.fns.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "slugify",
+                "count_words",
+                "parse_url",
+                "scale",
+                "each",
+                "lookup",
+                "counts"
+            ]
+        );
+        let records: Vec<&str> = m.records.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(records, ["Size", "Pair"]);
+        assert_eq!(m.types, ["Shape", "Index", "Color"]);
+        let unavailable: Vec<&str> = m.unavailable.keys().map(String::as_str).collect();
+        assert_eq!(
+            unavailable,
+            [
+                "bad",
+                "generic",
+                "later",
+                "no_result",
+                "nul",
+                "over",
+                "untyped"
+            ]
+        );
+        let out = source(
+            "native.slug",
+            &[Block {
+                target: "ts",
+                path: "text/slug".to_string(),
+                module: &m,
+            }],
+            &|_| true,
+        );
+        assert!(
+            out.contains("pub fn count_words(words: List<String>, limit: Option<Int>) -> Int from \"native:text/slug#countWords\""),
+            "{out}"
+        );
+        assert!(
+            out.contains("pub fn parse_url(s: String) -> Option<Map<String, Float>>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("pub fn each(items: List<String>, f: fn(String) -> Bool)"),
+            "{out}"
+        );
+        assert!(out.contains("pub fn counts() -> Map<String, Int>"), "{out}");
+        assert!(
+            out.contains("struct Size from \"native:text/slug#Size\""),
+            "{out}"
+        );
+        assert!(
+            out.contains("    pub struct Size {\n        pub width: Float\n        pub tags: List<String>\n        pub max_size: Int\n    }"),
+            "{out}"
+        );
+        assert!(read_ts("export function f(: string {}").is_err());
     }
 
     #[test]
