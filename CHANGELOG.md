@@ -33,8 +33,10 @@ All notable changes are recorded here at the end of each milestone.
   extern types may not be inside a `Map` at the boundary (E0702).
 - Native modules: `imports { native.text.slug }` imports `native/rust/text/slug.rs` without any
   `extern` lines; the compiler reads its declarations and maps the Rust types (spec chapter 6,
-  section 1a; chapter 7, section 8.7). The compiler reads Rust files and Go packages
-  (`native/go/text/slug/`); TypeScript comes later. A struct with only public fields becomes a
+  section 1a; chapter 7, section 8.7). The compiler reads Rust files, Go packages
+  (`native/go/text/slug/`) and TypeScript files (`native/ts/text/slug.ts`, with `oxc_parser`); a
+  TypeScript `number` is `Int` where another target says so, `Float` otherwise. The example
+  `native-slug` has no `extern` block any more. A struct with only public fields becomes a
   record of the module, copied field by field. New diagnostics E0712 to E0715; `native` is a
   reserved root module name.
 - `Option` parameters of extern functions arrive as `T | undefined` in TS, `*T` in Go and

@@ -244,8 +244,7 @@ name.
 E0709`). Whether the function exists and has the declared types is checked by `tsc`, `go` and
 `cargo` when the program is built; when they reject a project with native code, `wolf` shows their
 message with the code E0806: look at the native file and at its declaration. Tests written in the
-native files are not run by `wolf test`. The example `examples/native-slug` of the repository
-calls its own code on all three targets.
+native files are not run by `wolf test`.
 
 ## Native modules: no declarations at all
 
@@ -326,7 +325,35 @@ func Slugify(title string) string {
 A struct whose fields are all exported is a record here too, with its fields in `snake_case`
 (`MaxSize` is `max_size`, `ID` is `id`); the generated code uses the Go names. When both files
 declare a function or a record, they must agree on its wolfpack signature or fields; if they do
-not, it is not available and the import says how they differ (`wolf explain E0715`). A program
-that imports a native module is built for the targets that have its code; the compiler reads Rust
-and Go in this version, TypeScript comes next. Native modules cannot be re-exported from a library
-(`wolf explain E0712`).
+not, it is not available and the import says how they differ (`wolf explain E0715`).
+
+And TypeScript: `native.text.slug` is also `native/ts/text/slug.ts`. Its `export function`
+declarations become functions, with their names in `snake_case` (`countWords` is `count_words`);
+every parameter needs a type and the result a written type, since only declarations are read:
+
+```ts
+// native/ts/text/slug.ts
+export function countWords(title: string): bigint {
+  return BigInt((title.match(/[A-Za-z0-9]+/g) ?? []).length);
+}
+```
+
+| Wolfpack | TypeScript |
+| --- | --- |
+| `Int` | `bigint`; `number` where another target says `Int` |
+| `Float` | `number` |
+| `Bool`, `String` | `boolean`, `string` |
+| `List<T>`, `Map<K, V>` | `T[]`, `readonly T[]`, `Map<K, V>`; as a result also `Record<string, V>` |
+| `Option<T>` | `T \| undefined`, a parameter `x?: T`; as a result also `T \| null` |
+| a callback | `(a: A) => R` with `number`, `boolean`, `string` |
+| a record | an `interface` or object `type` of plain fields |
+| an opaque type | a `class`, an `enum`, or another `interface` or `type` |
+
+TypeScript has one `number` for both: it is `Float`, unless the Rust or Go code of the same
+module has an integer at that place, and then it is `Int`, checked to be a whole number when it
+comes back. A module with TypeScript code only writes `bigint` for an `Int`. A TypeScript function
+cannot declare that it throws, so its result is never a `Result`: an exception is a panic.
+
+A program that imports a native module is built for the targets that have its code. Native modules
+cannot be re-exported from a library (`wolf explain E0712`). The example `examples/native-slug`
+of the repository is one native module in all three languages, without any `extern` line.

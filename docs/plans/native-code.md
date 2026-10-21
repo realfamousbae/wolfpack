@@ -5,7 +5,9 @@ E0806 (spec chapter 7, section 8.2a; chapter 8, section 8a), the example `exampl
 N2: `Map` at the boundary and callbacks done (2026-10-19), records done (2026-10-21, D7.15). **N3 is revised** (accepted by the author
 2026-10-19, with the recommendations of Q7 to Q11); **N3a done** (2026-10-20): native modules read
 from Rust code, without records; **N3b done** (2026-10-21): the Go reader and the agreement of
-targets (E0715); records of native modules done (2026-10-21, D7.18), read from Rust and Go:
+targets (E0715); records of native modules done (2026-10-21, D7.18), read from Rust and Go;
+**N3c done** (2026-10-21, D7.19): the TypeScript reader (`oxc_parser`) and the `number` rule,
+`examples/native-slug` without `extern`. N3d (`wolf check --native`, methods) is next:
 instead of a command that prints `extern` blocks, native code is
 **imported like a module**, and the compiler reads its declarations itself (section 4). Each stage
 starts with an edit of `docs/spec/` in its own commit and needs the author's approval, as every
