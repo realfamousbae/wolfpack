@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use wolf_ast::{NativeSig, NativeTy};
 
-use crate::{Function, Module, ReadError, Record, RecordField, Wolf};
+use crate::{Function, Method, MethodKind, Module, ReadError, Record, RecordField, Wolf};
 
 /// A token of Go.
 #[derive(Clone, Debug, PartialEq)]
@@ -220,6 +220,8 @@ type Param = (Option<String>, GoType, bool);
 enum Decl {
     Func {
         name: String,
+        /// The type of the receiver, for a method.
+        recv: Option<GoType>,
         generic: bool,
         params: Vec<Param>,
         results: Vec<Param>,
@@ -362,10 +364,16 @@ impl Parser {
 
     /// `func` was read. `None` for a method.
     fn func(&mut self) -> Result<Option<Decl>, ReadError> {
-        let method = self.is("(");
-        if method {
-            self.skip_group()?;
-        }
+        // The receiver of a method: its type.
+        let recv = if self.is("(") {
+            let list = self.params()?;
+            Some(match list.into_iter().next() {
+                Some((_, t, _)) => t,
+                None => GoType::Other("a method without a receiver"),
+            })
+        } else {
+            None
+        };
         let name = self.ident()?;
         let mut generic = false;
         if self.is("[") {
@@ -377,8 +385,9 @@ impl Parser {
         if self.is("{") {
             self.skip_group()?;
         }
-        Ok((!method).then_some(Decl::Func {
+        Ok(Some(Decl::Func {
             name,
+            recv,
             generic,
             params,
             results,
@@ -739,6 +748,7 @@ pub fn read_go(files: &[(String, String)]) -> Result<Module, (String, ReadError)
     for d in &decls {
         let Decl::Func {
             name,
+            recv: None,
             generic,
             params,
             results,
@@ -767,6 +777,67 @@ pub fn read_go(files: &[(String, String)]) -> Result<Module, (String, ReadError)
             Ok(f) => module.fns.push(f),
             Err(reason) => {
                 module.unavailable.insert(wolf_name, reason);
+            }
+        }
+    }
+    // Methods of the opaque types (rule 17).
+    for d in &decls {
+        let Decl::Func {
+            name,
+            recv: Some(recv),
+            generic,
+            params,
+            results,
+        } = d
+        else {
+            continue;
+        };
+        let (owner, pointer) = match recv {
+            GoType::Ptr(x) => match x.as_ref() {
+                GoType::Name(n) => (n, true),
+                _ => continue,
+            },
+            GoType::Name(n) => (n, false),
+            _ => continue,
+        };
+        if !exported(name) || !exported(owner) {
+            continue;
+        }
+        let wolf_name = snake(name);
+        let key = format!("{owner}.{wolf_name}");
+        let result = if records.contains(owner) {
+            Err("it is a method of a record, which is copied".to_string())
+        } else if *generic {
+            Err("it has type parameters".to_string())
+        } else {
+            match opaque.get(owner) {
+                None => continue,
+                Some(true) if !pointer => Err(format!(
+                    "its receiver is a value of `{owner}`, which wolfpack uses as `*{owner}`"
+                )),
+                Some(false) if pointer => Err(format!(
+                    "its receiver is `*{owner}`, but wolfpack uses `{owner}` as a value"
+                )),
+                Some(_) => reader.function(&wolf_name, name, params, results),
+            }
+        };
+        match result {
+            Ok(mut func) => {
+                func.native.params.insert(
+                    0,
+                    NativeTy::Named {
+                        name: owner.clone(),
+                        by_ref: pointer,
+                    },
+                );
+                module.methods.push(Method {
+                    owner: owner.clone(),
+                    kind: MethodKind::Method,
+                    func,
+                });
+            }
+            Err(reason) => {
+                module.unavailable.insert(key, reason);
             }
         }
     }

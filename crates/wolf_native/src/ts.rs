@@ -5,14 +5,17 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    BindingPatternKind, Declaration, FormalParameters, Function, Statement, TSSignature, TSType,
-    TSTypeName, TSTypeOperatorOperator,
+    BindingPatternKind, ClassElement, Declaration, FormalParameters, Function,
+    MethodDefinitionKind, Statement, TSAccessibility, TSSignature, TSType, TSTypeName,
+    TSTypeOperatorOperator,
 };
 use oxc_parser::Parser;
 use oxc_span::SourceType;
 use wolf_ast::{NativeSig, NativeTy};
 
-use crate::{Function as NativeFn, Module, ReadError, Record, RecordField, Wolf, snake};
+use crate::{
+    Function as NativeFn, Method, MethodKind, Module, ReadError, Record, RecordField, Wolf, snake,
+};
 
 /// Where a type appears, which decides the forms it may take.
 #[derive(Clone, Copy, PartialEq)]
@@ -186,6 +189,92 @@ pub fn read_ts(source: &str) -> Result<Module, ReadError> {
             }
         }
     }
+    // Methods, static methods and constructors of the classes (rule 17).
+    for d in &decls {
+        let Declaration::ClassDeclaration(c) = d else {
+            continue;
+        };
+        let Some(id) = &c.id else {
+            continue;
+        };
+        let owner = id.name.to_string();
+        if !module.types.contains(&owner) {
+            continue;
+        }
+        let constructors = c
+            .body
+            .body
+            .iter()
+            .filter(|e| {
+                matches!(e, ClassElement::MethodDefinition(m) if m.kind == MethodDefinitionKind::Constructor)
+            })
+            .count();
+        for e in &c.body.body {
+            let ClassElement::MethodDefinition(m) = e else {
+                continue;
+            };
+            let Some(name) = m.key.static_name() else {
+                continue;
+            };
+            let constructor = m.kind == MethodDefinitionKind::Constructor;
+            let wolf_name = if constructor {
+                "new".to_string()
+            } else {
+                snake(&name)
+            };
+            let key = format!("{owner}.{wolf_name}");
+            let private = m.key.is_private_identifier()
+                || matches!(
+                    m.accessibility,
+                    Some(TSAccessibility::Private | TSAccessibility::Protected)
+                );
+            let result = if private {
+                Err("it is private".to_string())
+            } else if matches!(
+                m.kind,
+                MethodDefinitionKind::Get | MethodDefinitionKind::Set
+            ) {
+                Err("it is a getter or a setter".to_string())
+            } else if constructor && constructors > 1 {
+                Err("it has overloads".to_string())
+            } else if constructor {
+                reader.constructor(&owner, &m.value)
+            } else {
+                reader.function(&wolf_name, &name, &m.value)
+            };
+            let kind = if constructor {
+                MethodKind::Constructor
+            } else if m.r#static {
+                MethodKind::Assoc
+            } else {
+                MethodKind::Method
+            };
+            match result {
+                Ok(mut func) => {
+                    if kind == MethodKind::Method {
+                        func.native.params.insert(
+                            0,
+                            NativeTy::Named {
+                                name: owner.clone(),
+                                by_ref: false,
+                            },
+                        );
+                    }
+                    module
+                        .methods
+                        .retain(|x| !(x.owner == owner && x.func.name == wolf_name));
+                    module.methods.push(Method {
+                        owner: owner.clone(),
+                        kind,
+                        func,
+                    });
+                }
+                Err(reason) => {
+                    module.unavailable.insert(key, reason);
+                }
+            }
+        }
+    }
     Ok(module)
 }
 
@@ -250,6 +339,24 @@ impl Reader<'_> {
         Ok(Record {
             name: name.to_string(),
             fields,
+        })
+    }
+
+    /// The `constructor` of a class: the associated function `new`, whose result is the class.
+    fn constructor(&self, owner: &str, f: &Function<'_>) -> Result<NativeFn, String> {
+        let (params, natives) = self.params(&f.params, Pos::Param)?;
+        Ok(NativeFn {
+            name: "new".to_string(),
+            target_name: "constructor".to_string(),
+            params,
+            ret: Wolf::Named(owner.to_string()),
+            native: NativeSig {
+                params: natives,
+                ret: NativeTy::Named {
+                    name: owner.to_string(),
+                    by_ref: false,
+                },
+            },
         })
     }
 

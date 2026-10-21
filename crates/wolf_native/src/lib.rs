@@ -33,6 +33,9 @@ pub struct Module {
     pub pointers: BTreeSet<String>,
     /// The records: structs copied field by field at the boundary, in the order of the file.
     pub records: Vec<Record>,
+    /// The methods and associated functions of the opaque types (rule 17), in the order of the
+    /// file.
+    pub methods: Vec<Method>,
     /// The public items wolfpack cannot use, with the reason.
     pub unavailable: BTreeMap<String, String>,
 }
@@ -50,6 +53,30 @@ pub struct Function {
     pub ret: Wolf,
     /// The Rust types that the generated call must match.
     pub native: NativeSig,
+}
+
+/// A method or an associated function of an opaque type of a native module (spec chapter 7,
+/// section 8.7, rule 17).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Method {
+    /// The opaque type.
+    pub owner: String,
+    /// What it is.
+    pub kind: MethodKind,
+    /// Its signature: the parameters without the receiver; for a method, the first type of
+    /// `native.params` is the receiver.
+    pub func: Function,
+}
+
+/// The kinds of [`Method`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MethodKind {
+    /// A method with a read receiver: `x.name(..)`.
+    Method,
+    /// An associated function: `Type.name(..)`.
+    Assoc,
+    /// The `constructor` of a TypeScript class, the associated function `new`.
+    Constructor,
 }
 
 /// A record of a native module (spec chapter 7, section 8.7, rules 2 and 8).
@@ -201,6 +228,7 @@ pub fn read_rust(source: &str) -> Result<Module, ReadError> {
         let reader = Reader {
             opaque: &opaque,
             records: &records,
+            self_name: None,
         };
         let failed: Vec<String> = candidates
             .iter()
@@ -218,6 +246,7 @@ pub fn read_rust(source: &str) -> Result<Module, ReadError> {
     let reader = Reader {
         opaque: &opaque,
         records: &records,
+        self_name: None,
     };
     for (name, fields) in &candidates {
         match reader.record(name, fields) {
@@ -240,6 +269,51 @@ pub fn read_rust(source: &str) -> Result<Module, ReadError> {
             }
         }
     }
+    // Methods of inherent `impl` blocks of the opaque types (rule 17).
+    for item in &file.items {
+        let Item::Impl(block) = item else {
+            continue;
+        };
+        if block.trait_.is_some() || has_cfg(&block.attrs) {
+            continue;
+        }
+        let Type::Path(tp) = block.self_ty.as_ref() else {
+            continue;
+        };
+        let Some(owner) = tp.path.get_ident().map(ToString::to_string) else {
+            continue;
+        };
+        let generic = !block.generics.params.is_empty();
+        let reader = Reader {
+            opaque: &opaque,
+            records: &records,
+            self_name: Some(&owner),
+        };
+        for it in &block.items {
+            let syn::ImplItem::Fn(f) = it else {
+                continue;
+            };
+            if !matches!(f.vis, Visibility::Public(_)) || has_cfg(&f.attrs) {
+                continue;
+            }
+            let key = format!("{owner}.{}", f.sig.ident);
+            let result = if records.contains(&owner) {
+                Err("it is a method of a record, which is copied".to_string())
+            } else if !opaque.contains(&owner) {
+                continue;
+            } else if generic {
+                Err("its `impl` block is generic".to_string())
+            } else {
+                reader.method(&owner, &f.sig)
+            };
+            match result {
+                Ok(m) => module.methods.push(m),
+                Err(reason) => {
+                    module.unavailable.insert(key, reason);
+                }
+            }
+        }
+    }
     Ok(module)
 }
 
@@ -250,9 +324,58 @@ fn has_cfg(attrs: &[syn::Attribute]) -> bool {
 struct Reader<'a> {
     opaque: &'a BTreeSet<String>,
     records: &'a BTreeSet<String>,
+    /// The type of an `impl` block, which `Self` names.
+    self_name: Option<&'a str>,
 }
 
 impl Reader<'_> {
+    /// A function of an inherent `impl` block: a method with a `&self` receiver or an associated
+    /// function (rule 17).
+    fn method(&self, owner: &str, sig: &syn::Signature) -> Result<Method, String> {
+        let receiver = match sig.inputs.first() {
+            Some(FnArg::Receiver(r)) => Some(r),
+            _ => None,
+        };
+        let kind = match receiver {
+            None => MethodKind::Assoc,
+            Some(r) if r.reference.is_some() && r.mutability.is_none() => MethodKind::Method,
+            Some(r) if r.mutability.is_some() => {
+                return Err(
+                    "its receiver is `&mut self`: extern code cannot change wolfpack values"
+                        .to_string(),
+                );
+            }
+            Some(_) => return Err("its receiver is `self`, which takes the value".to_string()),
+        };
+        let mut rest = sig.clone();
+        if receiver.is_some() {
+            rest.inputs = sig.inputs.iter().skip(1).cloned().collect();
+        }
+        let mut func = self.function(&rest)?;
+        if kind == MethodKind::Method {
+            func.native.params.insert(
+                0,
+                NativeTy::Named {
+                    name: owner.to_string(),
+                    by_ref: true,
+                },
+            );
+        }
+        Ok(Method {
+            owner: owner.to_string(),
+            kind,
+            func,
+        })
+    }
+
+    /// `Self` as the type of the `impl` block.
+    fn name_of(&self, ident: &syn::Ident) -> String {
+        match self.self_name {
+            Some(n) if ident == "Self" => n.to_string(),
+            _ => ident.to_string(),
+        }
+    }
+
     /// A struct with only `pub` named fields as a record, if every field maps (rule 2).
     fn record(&self, name: &str, fields: &syn::FieldsNamed) -> Result<Record, String> {
         let mut out = Vec::new();
@@ -406,7 +529,7 @@ impl Reader<'_> {
                 let Some(last) = tp.path.segments.last() else {
                     return Err("an empty path".to_string());
                 };
-                let name = last.ident.to_string();
+                let name = self.name_of(&last.ident);
                 match name.as_str() {
                     "str" => Ok((Wolf::String, NativeTy::Str)),
                     "String" => Ok((Wolf::String, NativeTy::RefString)),
@@ -441,7 +564,7 @@ impl Reader<'_> {
         let Some(last) = path.segments.last() else {
             return Err("an empty path".to_string());
         };
-        let name = last.ident.to_string();
+        let name = self.name_of(&last.ident);
         let single = path.segments.len() == 1;
         let ints = [
             "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "isize", "usize",
@@ -647,15 +770,54 @@ pub struct Block<'a> {
 /// types. `module_path` is the wolfpack path (`native.text.slug`). `name_ok` says whether a
 /// wolfpack parameter name is usable; other parameters are named `arg<i>`.
 pub fn source(module_path: &str, blocks: &[Block<'_>], name_ok: &dyn Fn(&str) -> bool) -> String {
+    write(module_path, blocks, name_ok, false)
+}
+
+/// What `wolf check --native` prints for a native module (spec chapter 8, section 8b): the
+/// declarations as wolfpack source, with the items that are not available and the methods as
+/// comments in their target blocks. `files` are the files read.
+pub fn listing(
+    module_path: &str,
+    files: &[String],
+    blocks: &[Block<'_>],
+    name_ok: &dyn Fn(&str) -> bool,
+) -> String {
+    let mut out = format!("// {module_path}, read from {}\n", files.join(", "));
+    out.push_str(&write(module_path, blocks, name_ok, true));
+    out
+}
+
+fn write(
+    module_path: &str,
+    blocks: &[Block<'_>],
+    name_ok: &dyn Fn(&str) -> bool,
+    listing: bool,
+) -> String {
     let mut out = format!("module {module_path}\n");
     let blocks: Vec<&Block<'_>> = blocks
         .iter()
         .filter(|b| {
-            !(b.module.fns.is_empty() && b.module.types.is_empty() && b.module.records.is_empty())
+            listing
+                || !(b.module.fns.is_empty()
+                    && b.module.types.is_empty()
+                    && b.module.records.is_empty())
         })
         .collect();
     if blocks.is_empty() {
         return out;
+    }
+    let hidden = method_names(&blocks);
+    // Each method is declared once, as the first target that has it reads it (rule 10).
+    let mut methods: Vec<&Method> = Vec::new();
+    for b in &blocks {
+        for m in &b.module.methods {
+            if !methods
+                .iter()
+                .any(|x| x.owner == m.owner && x.func.name == m.func.name)
+            {
+                methods.push(m);
+            }
+        }
     }
     // Each record is declared once, as the first target that has it reads it (the targets agree,
     // rule 10).
@@ -708,6 +870,72 @@ pub fn source(module_path: &str, blocks: &[Block<'_>], name_ok: &dyn Fn(&str) ->
                 path(&f.target_name, false)
             ));
         }
+        if listing {
+            for m in &b.module.methods {
+                let mut params: Vec<String> = Vec::new();
+                if m.kind == MethodKind::Method {
+                    params.push("self".to_string());
+                }
+                for (n, w) in &m.func.params {
+                    params.push(format!("{n}: {}", w.text()));
+                }
+                let what = match m.kind {
+                    MethodKind::Method => "method",
+                    _ => "associated function",
+                };
+                out.push_str(&format!(
+                    "        // {what} of {}: fn {}({}) -> {}\n",
+                    m.owner,
+                    m.func.name,
+                    params.join(", "),
+                    m.func.ret.text()
+                ));
+            }
+            for (name, reason) in &b.module.unavailable {
+                if name != UNREADABLE_KEY {
+                    out.push_str(&format!("        // not available: {name}: {reason}\n"));
+                }
+            }
+            out.push_str("    }\n");
+            continue;
+        }
+        // The methods, as functions of the module that only its `impl` section calls.
+        for m in &b.module.methods {
+            let Some(name) = hidden.get(&(m.owner.clone(), m.func.name.clone())) else {
+                continue;
+            };
+            let mut params: Vec<String> = Vec::new();
+            if m.kind == MethodKind::Method {
+                params.push(format!("a0: {}", m.owner));
+            }
+            for (_, w) in &m.func.params {
+                params.push(format!("a{}: {}", params.len(), w.text()));
+            }
+            let ret = match &m.func.ret {
+                Wolf::Void => String::new(),
+                other => format!(" -> {}", other.text()),
+            };
+            let target = &m.func.target_name;
+            let p = match (b.target, m.kind) {
+                ("go", _) => {
+                    let ptr = if b.module.pointers.contains(&m.owner) {
+                        "*"
+                    } else {
+                        ""
+                    };
+                    format!("native:({ptr}{}.{}).{target}", b.path, m.owner)
+                }
+                ("ts", MethodKind::Method) => {
+                    format!("native:{}#{}.prototype.{target}", b.path, m.owner)
+                }
+                ("ts", _) => format!("native:{}#{}.{target}", b.path, m.owner),
+                _ => format!("native:{}::{}::{target}", b.path, m.owner),
+            };
+            out.push_str(&format!(
+                "        fn {name}({}){ret} from \"{p}\"\n",
+                params.join(", ")
+            ));
+        }
         out.push_str("    }\n");
     }
     out.push_str("}\n");
@@ -724,6 +952,89 @@ pub fn source(module_path: &str, blocks: &[Block<'_>], name_ok: &dyn Fn(&str) ->
             out.push_str("    }\n");
         }
         out.push_str("}\n");
+    }
+    if !methods.is_empty() && !listing {
+        // The methods of each opaque type, which call the functions above.
+        let mut owners: Vec<&str> = Vec::new();
+        for m in &methods {
+            if !owners.contains(&m.owner.as_str()) {
+                owners.push(&m.owner);
+            }
+        }
+        out.push_str("\nimpl {\n");
+        for (i, owner) in owners.iter().enumerate() {
+            if i > 0 {
+                out.push('\n');
+            }
+            out.push_str(&format!("    {owner} {{\n"));
+            for (j, m) in methods.iter().filter(|m| m.owner == *owner).enumerate() {
+                if j > 0 {
+                    out.push('\n');
+                }
+                let Some(name) = hidden.get(&(m.owner.clone(), m.func.name.clone())) else {
+                    continue;
+                };
+                let mut params: Vec<String> = Vec::new();
+                let mut args: Vec<String> = Vec::new();
+                if m.kind == MethodKind::Method {
+                    params.push("self".to_string());
+                    args.push("self".to_string());
+                }
+                for (k, (n, w)) in m.func.params.iter().enumerate() {
+                    let n = if name_ok(n) {
+                        n.clone()
+                    } else {
+                        format!("arg{k}")
+                    };
+                    params.push(format!("{n}: {}", w.text()));
+                    args.push(n);
+                }
+                let ret = match &m.func.ret {
+                    Wolf::Void => String::new(),
+                    other => format!(" -> {}", other.text()),
+                };
+                out.push_str(&format!(
+                    "        pub fn {}({}){ret} {{\n            {name}({})\n        }}\n",
+                    m.func.name,
+                    params.join(", "),
+                    args.join(", ")
+                ));
+            }
+            out.push_str("    }\n");
+        }
+        out.push_str("}\n");
+    }
+    out
+}
+
+/// The key of [`Module::unavailable`] that marks a file that could not be read; `wolf_cli` uses
+/// the same key as `wolf_resolve::UNREADABLE`.
+const UNREADABLE_KEY: &str = "*";
+
+/// The name of the function of the generated module that each method calls, by type and method
+/// name: `index_add` for `Index.add`, made unique among the functions of all targets.
+pub fn method_names(blocks: &[&Block<'_>]) -> BTreeMap<(String, String), String> {
+    let mut taken: BTreeSet<String> = blocks
+        .iter()
+        .flat_map(|b| b.module.fns.iter().map(|f| f.name.clone()))
+        .collect();
+    let mut out = BTreeMap::new();
+    for b in blocks {
+        for m in &b.module.methods {
+            let key = (m.owner.clone(), m.func.name.clone());
+            if out.contains_key(&key) {
+                continue;
+            }
+            let base = format!("{}_{}", snake(&m.owner), m.func.name);
+            let mut name = base.clone();
+            let mut n = 1;
+            while taken.contains(&name) {
+                n += 1;
+                name = format!("{base}_{n}");
+            }
+            taken.insert(name.clone());
+            out.insert(key, name);
+        }
     }
     out
 }
