@@ -413,9 +413,9 @@ being built; the playground has no native code. A function of a native module (c
 1a) is generated exactly like an extern function with the `native:` path of chapter 7, section 8.7,
 rule 6, and a record of a native module like a struct bound with `struct Name from` (chapter 7,
 section 8.4a), with two differences (author, 2026-10-21, D7.18): each field has the type the reader
-found, so an `Int` field may be of any integer type and a `Float` field `float32` or `f32`,
-converted with a check as for parameters and results; and a Go field keeps its Go name (the Go
-field `ID` is the wolfpack field `id`).
+found, so an `Int` field may be of any integer type, converted with a check, and a `Float` field
+`float32` or `f32`, converted as for parameters and results; and a Go field keeps its Go name (the
+Go field `ID` is the wolfpack field `id`).
 
 ## 9. Diagnostics
 
