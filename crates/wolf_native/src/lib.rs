@@ -10,6 +10,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod go;
+
+pub use go::{read_go, snake};
+
 use syn::{
     FnArg, GenericArgument, GenericParam, Item, PathArguments, ReturnType, Type, TypeParamBound,
     Visibility,
@@ -23,6 +27,8 @@ pub struct Module {
     pub fns: Vec<Function>,
     /// The opaque types, in the order of the file.
     pub types: Vec<String>,
+    /// The opaque types used through a pointer (Go struct types: `*X`).
+    pub pointers: BTreeSet<String>,
     /// The public items wolfpack cannot use, with the reason.
     pub unavailable: BTreeMap<String, String>,
 }
@@ -30,8 +36,10 @@ pub struct Module {
 /// A function of a native module.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
-    /// Its name.
+    /// Its wolfpack name.
     pub name: String,
+    /// Its name in the target code (`CountWords` for `count_words` in Go).
+    pub target_name: String,
     /// The parameters: name and wolfpack type.
     pub params: Vec<(String, Wolf)>,
     /// The wolfpack result type.
@@ -246,6 +254,7 @@ impl Reader<'_> {
         };
         Ok(Function {
             name: sig.ident.to_string(),
+            target_name: sig.ident.to_string(),
             params,
             ret,
             native: NativeSig {
@@ -521,53 +530,87 @@ fn two_args(args: &PathArguments) -> Result<(&Type, &Type), String> {
     }
 }
 
-/// The wolfpack source of a native module: an `extern` block of its functions and types for the
-/// target `rust`. `module_path` is the wolfpack path (`native.text.slug`), `rust_path` the module
-/// path inside `native/rust/` (`text::slug`). `name_ok` says whether a wolfpack parameter name is
-/// usable; other parameters are named `arg<i>`.
+/// The code of one target of a native module: the target (`rust`, `go`), the module path inside
+/// `native/<target>/` (`text::slug` for Rust, `text/slug` for Go) and what was read.
+pub struct Block<'a> {
+    /// `rust` or `go`.
+    pub target: &'a str,
+    /// The path of the module or package inside `native/<target>/`.
+    pub path: String,
+    /// The declarations.
+    pub module: &'a Module,
+}
+
+/// The wolfpack source of a native module: one `extern` block per target with its functions and
+/// types. `module_path` is the wolfpack path (`native.text.slug`). `name_ok` says whether a
+/// wolfpack parameter name is usable; other parameters are named `arg<i>`.
+pub fn source(module_path: &str, blocks: &[Block<'_>], name_ok: &dyn Fn(&str) -> bool) -> String {
+    let mut out = format!("module {module_path}\n");
+    let blocks: Vec<&Block<'_>> = blocks
+        .iter()
+        .filter(|b| !(b.module.fns.is_empty() && b.module.types.is_empty()))
+        .collect();
+    if blocks.is_empty() {
+        return out;
+    }
+    out.push_str("\nextern {\n");
+    for b in blocks {
+        let path = |name: &str, pointer: bool| match b.target {
+            "go" => format!("native:{}{}.{name}", if pointer { "*" } else { "" }, b.path),
+            _ => format!("native:{}::{name}", b.path),
+        };
+        out.push_str(&format!("    {} {{\n", b.target));
+        for t in &b.module.types {
+            let p = path(t, b.module.pointers.contains(t));
+            out.push_str(&format!("        pub type {t} from \"{p}\"\n"));
+        }
+        for f in &b.module.fns {
+            let params: Vec<String> = f
+                .params
+                .iter()
+                .enumerate()
+                .map(|(i, (n, w))| {
+                    let n = if name_ok(n) {
+                        n.clone()
+                    } else {
+                        format!("arg{i}")
+                    };
+                    format!("{n}: {}", w.text())
+                })
+                .collect();
+            let ret = match &f.ret {
+                Wolf::Void => String::new(),
+                other => format!(" -> {}", other.text()),
+            };
+            out.push_str(&format!(
+                "        pub fn {}({}){ret} from \"{}\"\n",
+                f.name,
+                params.join(", "),
+                path(&f.target_name, false)
+            ));
+        }
+        out.push_str("    }\n");
+    }
+    out.push_str("}\n");
+    out
+}
+
+/// The wolfpack source of a native module read from Rust code only.
 pub fn rust_source(
     module_path: &str,
     rust_path: &str,
     module: &Module,
     name_ok: &dyn Fn(&str) -> bool,
 ) -> String {
-    let mut out = format!("module {module_path}\n");
-    if module.fns.is_empty() && module.types.is_empty() {
-        return out;
-    }
-    out.push_str("\nextern {\n    rust {\n");
-    for t in &module.types {
-        out.push_str(&format!(
-            "        pub type {t} from \"native:{rust_path}::{t}\"\n"
-        ));
-    }
-    for f in &module.fns {
-        let params: Vec<String> = f
-            .params
-            .iter()
-            .enumerate()
-            .map(|(i, (n, w))| {
-                let n = if name_ok(n) {
-                    n.clone()
-                } else {
-                    format!("arg{i}")
-                };
-                format!("{n}: {}", w.text())
-            })
-            .collect();
-        let ret = match &f.ret {
-            Wolf::Void => String::new(),
-            other => format!(" -> {}", other.text()),
-        };
-        out.push_str(&format!(
-            "        pub fn {}({}){ret} from \"native:{rust_path}::{}\"\n",
-            f.name,
-            params.join(", "),
-            f.name
-        ));
-    }
-    out.push_str("    }\n}\n");
-    out
+    source(
+        module_path,
+        &[Block {
+            target: "rust",
+            path: rust_path.to_string(),
+            module,
+        }],
+        name_ok,
+    )
 }
 
 #[cfg(test)]
@@ -645,6 +688,118 @@ pub fn hidden() {}
             source.contains("pub type Index from \"native:slug::Index\""),
             "{source}"
         );
+    }
+
+    #[test]
+    fn go_functions_and_types() {
+        let src = r#"
+// Package slug makes slugs.
+package slug
+
+import (
+	"errors"
+	"strings"
+)
+
+type Index struct {
+	words []string
+}
+
+type Point struct {
+	X, Y float64
+}
+
+type ID int64
+
+const limit = 3
+
+var cache = map[string]int{}
+
+// Slugify returns the slug.
+func Slugify(title string) string {
+	return strings.ToLower(title) + "}"
+}
+
+func CountWords(words []string, max int32) int {
+	if max > 0 {
+		return len(words)
+	}
+	return 0
+}
+
+func Open(path string) (*Index, error) { return nil, errors.New("x") }
+func Find(name string) (ID, bool) { return 0, false }
+func Each(items []string, f func(string) bool) int { return 0 }
+func ParseURL(s string) error { return nil }
+func Tally(m map[string]int64) map[string]uint8 { return nil }
+func (i *Index) Add(w string) {}
+func Bad(i Index) {}
+func Many(a ...int) {}
+func Generic[T any](x T) {}
+func Ch(c chan int) {}
+func private() {}
+"#;
+        let m = read_go(&[("slug.go".to_string(), src.to_string())]).unwrap_or_default();
+        let names: Vec<&str> = m.fns.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "slugify",
+                "count_words",
+                "open",
+                "find",
+                "each",
+                "parse_url",
+                "tally"
+            ]
+        );
+        assert_eq!(m.types, ["Index", "ID"]);
+        let unavailable: Vec<&str> = m.unavailable.keys().map(String::as_str).collect();
+        assert_eq!(unavailable, ["Point", "bad", "ch", "generic", "many"]);
+        let out = source(
+            "native.slug",
+            &[Block {
+                target: "go",
+                path: "slug".to_string(),
+                module: &m,
+            }],
+            &|_| true,
+        );
+        assert!(
+            out.contains("pub type Index from \"native:*slug.Index\""),
+            "{out}"
+        );
+        assert!(out.contains("pub type ID from \"native:slug.ID\""), "{out}");
+        assert!(out.contains("pub fn count_words(words: List<String>, max: Int) -> Int from \"native:slug.CountWords\""), "{out}");
+        assert!(
+            out.contains("pub fn open(path: String) -> Result<Index, Error>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("pub fn find(name: String) -> Option<ID>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("pub fn each(items: List<String>, f: fn(String) -> Bool) -> Int"),
+            "{out}"
+        );
+        assert!(
+            out.contains("pub fn parse_url(s: String) -> Result<Void, Error>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("pub fn tally(m: Map<String, Int>) -> Map<String, Int>"),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn go_snake_names() {
+        assert_eq!(snake("Slugify"), "slugify");
+        assert_eq!(snake("CountWords"), "count_words");
+        assert_eq!(snake("ParseURL"), "parse_url");
+        assert_eq!(snake("URLPath"), "url_path");
+        assert_eq!(snake("Base64Encode"), "base64_encode");
     }
 
     #[test]
