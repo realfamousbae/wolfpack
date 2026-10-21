@@ -2570,9 +2570,14 @@ impl<'p> Emitter<'p> {
             let n = format!("p{i}");
             params.push((n.clone(), self.param_ty(*m, t)?));
             // A function of a native module takes the Go types the reader found.
-            let a = match x.native.get("go").and_then(|s| s.params.get(i)) {
-                Some(nt) => self.go_arg(id(&n), nt, t)?,
-                None => self.extern_arg(id(&n), t)?,
+            let a = match (x.native.get("go").and_then(|s| s.params.get(i)), t) {
+                (Some(nt), _) => self.go_arg(id(&n), nt, t)?,
+                // A pointer to a copy, or nil (spec chapter 8, section 8, D8.12).
+                (None, IrType::Option(inner)) => {
+                    let f = self.extern_out_fn(inner)?;
+                    self.rt_call("externOption", "OptionToPtr", vec![id(&n), f])
+                }
+                (None, _) => self.extern_arg(id(&n), t)?,
             };
             args.push(a);
         }

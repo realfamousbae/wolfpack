@@ -6,6 +6,7 @@ extern {
         fn origin() -> Point from "lib#origin"
         fn check(s: String) -> Result<Int, String> from "lib#check"
         fn names() -> List<Option<String>> from "lib#names"
+        fn either(o: Option<Option<Int>>) -> Option<Option<Int>> from "lib#either"
         type Handle from "lib#Handle"
         fn handles() -> Map<String, Handle> from "lib#handles"
         fn each(items: List<Int>, f: fn(Int) -> Void) from "lib#each"

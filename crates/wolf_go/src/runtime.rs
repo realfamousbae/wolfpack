@@ -464,6 +464,20 @@ func FromTargetInt[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | 
 }"#,
     },
     Piece {
+        name: "externOption",
+        deps: &["Option"],
+        imports: &[],
+        code: r#"// OptionToPtr is an Option parameter of extern code: a pointer to a copy of the converted
+// value, or nil.
+func OptionToPtr[T any, U any](o Option[T], f func(T) U) *U {
+	if !o.Some {
+		return nil
+	}
+	u := f(o.Value)
+	return &u
+}"#,
+    },
+    Piece {
         name: "externMap",
         deps: &["Map"],
         imports: &["cmp", "sort"],

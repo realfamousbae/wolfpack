@@ -22,37 +22,46 @@ error[E0702]: `Result<Int, String>` cannot cross the extern boundary
   |
   = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
 
+error[E0702]: the parameter type `Option<Option<Int>>` cannot cross the extern boundary
+  --> src/main.wolf:9:22
+  |
+9 |         fn either(o: Option<Option<Int>>) -> Option<Option<Int>> from "lib#either"
+  |                      ^^^^^^^^^^^^^^^^^^^ an `Option` of an `Option`
+  |
+  = help: pass a `Bool` and the inner `Option` separately
+  = note: an `Option` parameter is a value or nothing in the target (`undefined`, `nil`, `None`), which cannot tell the two kinds of `None` apart
+
 error[E0702]: `Map<String, Handle>` cannot cross the extern boundary
-   --> src/main.wolf:10:25
+   --> src/main.wolf:11:25
    |
-10 |         fn handles() -> Map<String, Handle> from "lib#handles"
+11 |         fn handles() -> Map<String, Handle> from "lib#handles"
    |                         ^^^^^^^^^^^^^^^^^^^ not allowed in an extern signature
    |
    = help: a map is copied at the boundary, and values of extern types cannot be copied: pass a `List` of them, or the keys and the values separately
    = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
 
 error[E0702]: the callback `fn(Map<String, Int>)` cannot cross the extern boundary
-   --> src/main.wolf:12:21
+   --> src/main.wolf:13:21
    |
-12 |         fn pairs(f: fn(Map<String, Int>) -> Void) from "lib#pairs"
+13 |         fn pairs(f: fn(Map<String, Int>) -> Void) from "lib#pairs"
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not allowed as a callback
    |
    = note: a callback takes read parameters and returns `Int`, `Float`, `Bool`, `String`, `Void`, a `List` of these, or extern types
 
 error[E0702]: the callback `fn(mut List<Int>)` cannot cross the extern boundary
-   --> src/main.wolf:13:22
+   --> src/main.wolf:14:22
    |
-13 |         fn change(f: fn(mut List<Int>) -> Void) from "lib#change"
+14 |         fn change(f: fn(mut List<Int>) -> Void) from "lib#change"
    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^ not allowed as a callback
    |
    = note: a callback takes read parameters and returns `Int`, `Float`, `Bool`, `String`, `Void`, a `List` of these, or extern types
 
 error[E0702]: `fn(Int) -> Int` cannot cross the extern boundary
-   --> src/main.wolf:14:23
+   --> src/main.wolf:15:23
    |
-14 |         fn maker() -> fn(Int) -> Int from "lib#maker"
+15 |         fn maker() -> fn(Int) -> Int from "lib#maker"
    |                       ^^^^^^^^^^^^^^ not allowed in an extern signature
    |
    = note: extern signatures use `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Option`, `Result<_, Error>`, `Map` with `Int`, `String` or `Bool` keys, extern types, structs bound with `struct Name from`, and callbacks as parameters
 
-error: aborting due to 7 errors
+error: aborting due to 8 errors

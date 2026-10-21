@@ -2099,6 +2099,32 @@ impl<'p> Emitter<'p> {
                 let closure = self.extern_callback(&n, fp)?;
                 stmts.push(Stmt::Let(Pat::Bind(f.clone(), false), None, Some(closure)));
                 Expr::Unary("&", Box::new(path(&f)))
+            } else if let IrType::Option(inner) = t {
+                // `Option<&T>` of the read form of `T` (spec chapter 8, section 8, D8.12).
+                let p = if *m == Mode::Own {
+                    Expr::Unary("&", Box::new(path(&n)))
+                } else {
+                    path(&n)
+                };
+                let (value, inner) = if self.has_record(inner) || extern_needs(inner) {
+                    // Records and maps are converted first, into a local.
+                    let a = format!("a{i}");
+                    let converted = self.rt_call("extern_as", "to_extern_as", vec![p]);
+                    let ty = self.record_extern_ty(t)?;
+                    stmts.push(Stmt::Let(
+                        Pat::Bind(a.clone(), false),
+                        Some(ty),
+                        Some(converted),
+                    ));
+                    (path(&a), inner.as_ref())
+                } else {
+                    (path(&n), inner.as_ref())
+                };
+                match inner {
+                    _ if self.copy(t) => value,
+                    IrType::String | IrType::List(_) => method(value, "as_deref", Vec::new()),
+                    _ => method(value, "as_ref", Vec::new()),
+                }
             } else if self.has_record(t) {
                 // Records are copied into the struct types of the target (spec chapter 8,
                 // section 8); a read parameter is passed by reference.

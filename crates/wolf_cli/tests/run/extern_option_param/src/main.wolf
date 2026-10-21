@@ -1,0 +1,60 @@
+//! `Option` parameters of extern functions (spec chapter 8, section 8, D8.12): a value or nothing
+//! in the form of each target.
+
+module main
+
+extern {
+    ts {
+        struct Point from "native:opt#Point"
+        type Counter from "native:opt#Counter"
+        fn counter() -> Counter from "native:opt#counter"
+        fn int_or(n: Option<Int>, d: Int) -> Int from "native:opt#intOr"
+        fn float_or(x: Option<Float>) -> Float from "native:opt#floatOr"
+        fn text_or(s: Option<String>) -> String from "native:opt#textOr"
+        fn count(l: Option<List<String>>) -> Int from "native:opt#count"
+        fn total(m: Option<Map<String, Int>>) -> Int from "native:opt#total"
+        fn x_of(p: Option<Point>) -> Float from "native:opt#xOf"
+        fn ticks(c: Option<Counter>) -> Int from "native:opt#ticks"
+    }
+    go {
+        struct Point from "native:opt.Point"
+        type Counter from "native:*opt.Counter"
+        fn counter() -> Counter from "native:opt.NewCounter"
+        fn int_or(n: Option<Int>, d: Int) -> Int from "native:opt.IntOr"
+        fn float_or(x: Option<Float>) -> Float from "native:opt.FloatOr"
+        fn text_or(s: Option<String>) -> String from "native:opt.TextOr"
+        fn count(l: Option<List<String>>) -> Int from "native:opt.Count"
+        fn total(m: Option<Map<String, Int>>) -> Int from "native:opt.Total"
+        fn x_of(p: Option<Point>) -> Float from "native:opt.XOf"
+        fn ticks(c: Option<Counter>) -> Int from "native:opt.Ticks"
+    }
+    rust {
+        struct Point from "native:opt::Point"
+        type Counter from "native:opt::Counter"
+        fn counter() -> Counter from "native:opt::counter"
+        fn int_or(n: Option<Int>, d: Int) -> Int from "native:opt::int_or"
+        fn float_or(x: Option<Float>) -> Float from "native:opt::float_or"
+        fn text_or(s: Option<String>) -> String from "native:opt::text_or"
+        fn count(l: Option<List<String>>) -> Int from "native:opt::count"
+        fn total(m: Option<Map<String, Int>>) -> Int from "native:opt::total"
+        fn x_of(p: Option<Point>) -> Float from "native:opt::x_of"
+        fn ticks(c: Option<Counter>) -> Int from "native:opt::ticks"
+    }
+}
+
+types {
+    struct Point {
+        x: Float
+        y: Float
+    }
+}
+
+main {
+    print(f"{int_or(Some(4), 1)} {int_or(None, 1)}")
+    print(f"{float_or(Some(2.5))} {float_or(None)}")
+    print(f"{text_or(Some("a"))} {text_or(None)}")
+    print(f"{count(Some(["a", "b"]))} {count(None)}")
+    print(f"{total(Some(["a": 2, "b": 3]))} {total(None)}")
+    print(f"{x_of(Some(Point { x: 1.5, y: 0.0 }))} {x_of(None)}")
+    print(f"{ticks(Some(counter()))} {ticks(None)}")
+}

@@ -1405,6 +1405,15 @@ impl<'p> Emitter<'p> {
                 }
                 IrType::Map(k, v) => self.extern_map(e, k, v, out)?,
                 IrType::Fn(params, ret) => self.extern_callback(e, params, ret)?,
+                // A parameter by its name: `p0.some ? p0.value : undefined`.
+                IrType::Option(inner) if out && matches!(e, Expr::Ident(_)) => {
+                    let value = self.extern_convert(member(e.clone(), "value"), inner, true)?;
+                    Expr::Cond(
+                        Box::new(member(e, "some")),
+                        Box::new(value),
+                        Box::new(Expr::Undefined),
+                    )
+                }
                 _ => call(f, vec![e]),
             },
             None => e,
@@ -1487,6 +1496,15 @@ impl<'p> Emitter<'p> {
                 } else {
                     Expr::New(self.def_name(*d), vec![object])
                 }))
+            }
+            // An `Option` for extern code is `T | undefined` (chapter 8, section 8, D8.12).
+            IrType::Option(inner) if out => {
+                let value = self.extern_convert(member(ident("v"), "value"), inner, true)?;
+                Some(arrow(Expr::Cond(
+                    Box::new(member(ident("v"), "some")),
+                    Box::new(value),
+                    Box::new(Expr::Undefined),
+                )))
             }
             // A callback is only a parameter (chapter 7, section 8.4, rule 7).
             IrType::Fn(params, ret) if out => {

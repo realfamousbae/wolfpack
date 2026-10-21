@@ -159,6 +159,19 @@ impl Checker<'_> {
                         d = d.help("a map is copied at the boundary, and values of extern types cannot be copied: pass a `List` of them, or the keys and the values separately");
                     }
                     self.report(d);
+                } else if param && self.option_of_option(&ty) {
+                    // Chapter 8, section 8, rule 2 (D8.12).
+                    valid = false;
+                    let shown = self.show(&ty);
+                    self.report(
+                        Diagnostic::new(
+                            codes::E0702,
+                            format!("the parameter type `{shown}` cannot cross the extern boundary"),
+                        )
+                        .primary(span, "an `Option` of an `Option`")
+                        .note("an `Option` parameter is a value or nothing in the target (`undefined`, `nil`, `None`), which cannot tell the two kinds of `None` apart")
+                        .help("pass a `Bool` and the inner `Option` separately"),
+                    );
                 }
             }
             match first.get(&def) {
@@ -295,6 +308,16 @@ impl Checker<'_> {
                     d.and_then(|d| self.def_kind(d)) == Some(DefKind::ExternType)
                         || d.is_some_and(|d| self.extern_records.contains(&d))
                 }
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether `ty` is `Option<Option<T>>`.
+    fn option_of_option(&self, ty: &Ty) -> bool {
+        match ty {
+            Ty::Named(d, args) if Some(*d) == self.b.option => {
+                matches!(args.as_slice(), [Ty::Named(i, _)] if Some(*i) == self.b.option)
             }
             _ => false,
         }
