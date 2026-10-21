@@ -1,0 +1,5 @@
+error[E0714]: cannot read `native/ts/slug.ts`
+ = help: correct the TypeScript code: `wolf` reads its declarations
+ = note: line 2, column 24: Unexpected token
+
+error: aborting due to 1 error

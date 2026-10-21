@@ -4,18 +4,11 @@ expression: result.dump
 ---
 file
   doc! " Turns titles into URL slugs with code of the project written in each target language and kept"
-  doc! " in `native/` (chapter 7, section 8.2a)."
+  doc! " in `native/`. `native.text.slug` is a native module: the compiler reads the declarations of"
+  doc! " `native/ts/text/slug.ts`, `native/go/text/slug/` and `native/rust/text/slug.rs` itself"
+  doc! " (chapter 7, section 8.7), so no `extern` block is needed."
   module main
-  section extern
-    extern ts
-      (fn slugify (params (title String)) (-> String) from "native:text/slug#slugify")
-      (fn words (params (title String)) (-> Int) from "native:text/slug#countWords")
-    extern go
-      (fn slugify (params (title String)) (-> String) from "native:text/slug.Slugify")
-      (fn words (params (title String)) (-> Int) from "native:text/slug.CountWords")
-    extern rust
-      (fn slugify (params (title String)) (-> String) from "native:text::slug::slugify")
-      (fn words (params (title String)) (-> Int) from "native:text::slug::count_words")
+  (section imports (import native.text.slug))
   section main
     fn
       main
@@ -25,13 +18,23 @@ file
           title
           (list "Hello, World!" "  wolfpack 0.2 is here  " "Native code -- in three targets")
           block
-            (call print (f title " -> " (call slugify title) " (" (call words title) " words)"))
+            call
+              print
+              f
+                title
+                " -> "
+                (call (. slug slugify) title)
+                " ("
+                (call (. slug count_words) title)
+                " words)"
   section tests
     test
       "runs of other characters become one dash"
       block
-        (call assert_eq (call slugify "A  b--C") "a-b-c")
-        (call assert_eq (call slugify "--edge--") "edge")
+        (call assert_eq (call (. slug slugify) "A  b--C") "a-b-c")
+        (call assert_eq (call (. slug slugify) "--edge--") "edge")
     test
       "words are runs of letters and digits"
-      (block (call assert_eq (call words "one, two 3") 3) (call assert_eq (call words "  ") 0))
+      block
+        (call assert_eq (call (. slug count_words) "one, two 3") 3)
+        (call assert_eq (call (. slug count_words) "  ") 0)

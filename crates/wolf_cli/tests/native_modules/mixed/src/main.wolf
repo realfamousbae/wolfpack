@@ -1,0 +1,13 @@
+module main
+
+imports {
+    native.calc
+}
+
+main {
+    print(f"{calc.scale(3, 1.5)} {calc.mean([1, 2, 4])}")
+    let p = calc.Point { x: 0.5, count: 2 }
+    let q = calc.bump(p)
+    print(f"{q.x} {q.count}")
+    print(f"{calc.label(7)}")
+}

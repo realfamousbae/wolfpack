@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use wolf_ir::{
     self as ir, Arm, BinaryOp, Block, Callee, DefKind, DefRef, Expr as IrExpr, ExprKind, LocalRef,
-    Mode, ModuleRole, Pattern, Payload, Program, Stmt as IrStmt, Type as IrType, UnaryOp,
+    Mode, ModuleRole, NativeTy, Pattern, Payload, Program, Stmt as IrStmt, Type as IrType, UnaryOp,
 };
 
 use crate::names::{camel, type_name};
@@ -198,6 +198,16 @@ fn unify(pattern: &IrType, actual: &IrType, map: &mut BTreeMap<String, IrType>) 
 
 fn undef_result(t: &IrType) -> bool {
     matches!(t, IrType::Option(inner) if !matches!(**inner, IrType::Option(_) | IrType::Void))
+}
+
+/// The type inside a list or an `Option` of a native module.
+fn inner_native(nt: Option<&NativeTy>) -> Option<&NativeTy> {
+    match nt {
+        Some(NativeTy::Vec(x) | NativeTy::Slice(x) | NativeTy::Option(x) | NativeTy::Result(x)) => {
+            Some(x)
+        }
+        _ => None,
+    }
 }
 
 fn ident(name: &str) -> Expr {
@@ -1267,8 +1277,11 @@ impl<'p> Emitter<'p> {
             .map(|(n, (m, t))| (n.clone(), self.param_ty(*m, t)))
             .collect();
         let mut args = Vec::new();
-        for (n, (_, t)) in names.iter().zip(&x.params) {
-            args.push(self.extern_arg(ident(n), t)?);
+        // A function of a native module: the TypeScript types the reader found.
+        let native = x.native.get("ts");
+        for (i, (n, (_, t))) in names.iter().zip(&x.params).enumerate() {
+            let nt = native.and_then(|s| s.params.get(i));
+            args.push(self.extern_convert(ident(n), t, true, nt)?);
         }
         let callee_call = if let Some((module, export)) = path.split_once('#') {
             // The wrapper has the wolfpack name; an export of the same name gets another one.
@@ -1298,7 +1311,7 @@ impl<'p> Emitter<'p> {
             call(ident(path), args)
         };
         let ret = self.ret_ty(&x.ret);
-        let body = self.extern_body(callee_call, &x.ret)?;
+        let body = self.extern_body(callee_call, &x.ret, native.map(|s| &s.ret))?;
         out.push(Item::Function {
             docs: Vec::new(),
             export: x.public,
@@ -1313,7 +1326,12 @@ impl<'p> Emitter<'p> {
 
     /// The body of an extern function: an exception becomes `Err` when the result is a
     /// `Result`, `null` and `undefined` become `None` (spec chapter 7, section 8.4).
-    fn extern_body(&mut self, c: Expr, ret: &IrType) -> Result<Vec<Stmt>, Error> {
+    fn extern_body(
+        &mut self,
+        c: Expr,
+        ret: &IrType,
+        nt: Option<&NativeTy>,
+    ) -> Result<Vec<Stmt>, Error> {
         Ok(match ret {
             IrType::Void => vec![Stmt::Expr(c)],
             IrType::Result(ok, _) => {
@@ -1322,7 +1340,7 @@ impl<'p> Emitter<'p> {
                     body.push(Stmt::Expr(c));
                     Expr::Undefined
                 } else {
-                    self.extern_result(c, ok)?
+                    self.extern_convert(c, ok, false, inner_native(nt))?
                 };
                 body.push(Stmt::Return(Some(self.rt_call("ok", vec![value]))));
                 let error = self.rt_call("externError", vec![ident("e")]);
@@ -1330,12 +1348,11 @@ impl<'p> Emitter<'p> {
                 vec![Stmt::Try(body, "e".to_string(), handler)]
             }
             IrType::Option(inner) if undef_result(ret) => {
-                let v = if matches!(**inner, IrType::Float | IrType::Bool | IrType::String)
-                    || self.opaque(inner)
-                {
+                let nt = inner_native(nt);
+                let v = if self.extern_converter(inner, false, nt)?.is_none() {
                     Expr::Binary(Box::new(c), "??", Box::new(Expr::Undefined))
                 } else {
-                    let x = self.extern_result(ident("v"), inner)?;
+                    let x = self.extern_convert(ident("v"), inner, false, nt)?;
                     let f = Expr::Arrow(
                         vec![("v".to_string(), None)],
                         None,
@@ -1345,7 +1362,9 @@ impl<'p> Emitter<'p> {
                 };
                 vec![Stmt::Return(Some(v))]
             }
-            other => vec![Stmt::Return(Some(self.extern_result(c, other)?))],
+            other => vec![Stmt::Return(Some(
+                self.extern_convert(c, other, false, nt)?,
+            ))],
         })
     }
 
@@ -1360,12 +1379,16 @@ impl<'p> Emitter<'p> {
         };
         let name = self.def_name(x.def);
         let target = match path.split_once('#') {
+            // The type is exported again under its wolfpack name, for the modules that import
+            // this one; an export of the same name is imported under another one.
+            Some((module, export)) if export == name => {
+                self.externs.push((
+                    format!("type {export} as {export}$extern"),
+                    module.to_string(),
+                ));
+                format!("{export}$extern")
+            }
             Some((module, export)) => {
-                if export == name {
-                    self.externs
-                        .push((format!("type {export}"), module.to_string()));
-                    return;
-                }
                 self.externs
                     .push((format!("type {export}"), module.to_string()));
                 export.to_string()
@@ -1381,33 +1404,40 @@ impl<'p> Emitter<'p> {
         });
     }
 
-    /// A value passed to extern code (spec chapter 8, section 8).
-    fn extern_arg(&mut self, e: Expr, t: &IrType) -> Result<Expr, Error> {
-        self.extern_convert(e, t, true)
-    }
-
-    fn extern_result(&mut self, e: Expr, t: &IrType) -> Result<Expr, Error> {
-        self.extern_convert(e, t, false)
-    }
-
     /// `e` converted for extern code (`out`) or from it: `Int` to and from `number`, lists
     /// element by element, maps copied and, from extern code, sorted by key (spec chapter 7,
     /// section 8.4).
-    fn extern_convert(&mut self, e: Expr, t: &IrType, out: bool) -> Result<Expr, Error> {
-        Ok(match self.extern_converter(t, out)? {
+    /// `nt` is the TypeScript type of a native module (spec chapter 7, section 8.7): a `bigint`
+    /// crosses as it is.
+    fn extern_convert(
+        &mut self,
+        e: Expr,
+        t: &IrType,
+        out: bool,
+        nt: Option<&NativeTy>,
+    ) -> Result<Expr, Error> {
+        Ok(match self.extern_converter(t, out, nt)? {
             Some(f) => match t {
                 IrType::Int => call(f, vec![e]),
+                IrType::List(_) if !out && matches!(nt, Some(NativeTy::Slice(_))) => {
+                    call(f, vec![e])
+                }
                 IrType::List(inner) => {
                     let f = self
-                        .extern_converter(inner, out)?
+                        .extern_converter(inner, out, inner_native(nt))?
                         .ok_or("a list without a converter")?;
                     call(member(e, "map"), vec![f])
                 }
-                IrType::Map(k, v) => self.extern_map(e, k, v, out)?,
+                IrType::Map(k, v) => self.extern_map(e, k, v, out, nt)?,
                 IrType::Fn(params, ret) => self.extern_callback(e, params, ret)?,
                 // A parameter by its name: `p0.some ? p0.value : undefined`.
                 IrType::Option(inner) if out && matches!(e, Expr::Ident(_)) => {
-                    let value = self.extern_convert(member(e.clone(), "value"), inner, true)?;
+                    let value = self.extern_convert(
+                        member(e.clone(), "value"),
+                        inner,
+                        true,
+                        inner_native(nt),
+                    )?;
                     Expr::Cond(
                         Box::new(member(e, "some")),
                         Box::new(value),
@@ -1431,9 +1461,9 @@ impl<'p> Emitter<'p> {
         let names: Vec<String> = (0..params.len()).map(|i| format!("a{i}")).collect();
         let mut args = Vec::new();
         for (n, (_, t)) in names.iter().zip(params) {
-            args.push(self.extern_convert(ident(n), t, false)?);
+            args.push(self.extern_convert(ident(n), t, false, None)?);
         }
-        let body = self.extern_convert(call(f, args), ret, true)?;
+        let body = self.extern_convert(call(f, args), ret, true, None)?;
         Ok(Expr::Arrow(
             names.into_iter().map(|n| (n, None)).collect(),
             None,
@@ -1441,31 +1471,60 @@ impl<'p> Emitter<'p> {
         ))
     }
 
-    /// The fields of a struct bound to a TypeScript type in `extern` (a record).
-    fn record_fields(&self, d: DefRef) -> Option<Vec<ir::Field>> {
-        self.structs
+    /// The fields of a struct bound to a TypeScript type in `extern` (a record): each with its
+    /// TypeScript name and, for a record of a native module, the type the reader found.
+    #[allow(clippy::type_complexity)]
+    fn record_fields(&self, d: DefRef) -> Option<Vec<(ir::Field, String, Option<NativeTy>)>> {
+        let s = self
+            .structs
             .get(&d)
-            .filter(|s| s.extern_paths.contains_key("ts"))
-            .map(|s| s.fields.clone())
+            .filter(|s| s.extern_paths.contains_key("ts"))?;
+        let native = s.extern_fields.get("ts");
+        Some(
+            s.fields
+                .iter()
+                .enumerate()
+                .map(|(i, f)| match native.and_then(|n| n.get(i)) {
+                    Some((name, nt)) => (f.clone(), name.clone(), Some(nt.clone())),
+                    None => (f.clone(), camel(&f.name), None),
+                })
+                .collect(),
+        )
     }
 
     /// `rt.toExternMap(m, key, value)` or `rt.fromExternMap(m, key, value)`.
-    fn extern_map(&mut self, e: Expr, k: &IrType, v: &IrType, out: bool) -> Result<Expr, Error> {
-        let f = |t: &IrType, this: &mut Self| -> Result<Expr, Error> {
-            Ok(match this.extern_converter(t, out)? {
+    fn extern_map(
+        &mut self,
+        e: Expr,
+        k: &IrType,
+        v: &IrType,
+        out: bool,
+        nt: Option<&NativeTy>,
+    ) -> Result<Expr, Error> {
+        let f = |t: &IrType, nt: Option<&NativeTy>, this: &mut Self| -> Result<Expr, Error> {
+            Ok(match this.extern_converter(t, out, nt)? {
                 Some(f) => f,
                 None => this.rt("same"),
             })
         };
-        let key = f(k, self)?;
-        let value = f(v, self)?;
+        let (kn, vn) = match nt {
+            Some(NativeTy::Map { key, value, .. }) => (Some(key.as_ref()), Some(value.as_ref())),
+            _ => (None, None),
+        };
+        let key = f(k, kn, self)?;
+        let value = f(v, vn, self)?;
         let name = if out { "toExternMap" } else { "fromExternMap" };
         Ok(self.rt_call(name, vec![e, key, value]))
     }
 
     /// The function that converts a value of type `t` for extern code or from it; `None` if the
     /// value crosses as it is.
-    fn extern_converter(&mut self, t: &IrType, out: bool) -> Result<Option<Expr>, Error> {
+    fn extern_converter(
+        &mut self,
+        t: &IrType,
+        out: bool,
+        nt: Option<&NativeTy>,
+    ) -> Result<Option<Expr>, Error> {
         let arrow = |body: Expr| {
             Expr::Arrow(
                 vec![("v".to_string(), None)],
@@ -1474,21 +1533,34 @@ impl<'p> Emitter<'p> {
             )
         };
         Ok(match t {
+            IrType::Int if matches!(nt, Some(NativeTy::Int(n)) if n == "bigint") => None,
+            // A `readonly` array of a native module comes back as a copy that wolfpack owns.
+            IrType::List(inner) if !out && matches!(nt, Some(NativeTy::Slice(_))) => Some(arrow(
+                match self.extern_converter(inner, out, inner_native(nt))? {
+                    Some(f) => call(member(ident("v"), "map"), vec![f]),
+                    None => call(member(ident("v"), "slice"), Vec::new()),
+                },
+            )),
             IrType::Int => Some(self.rt(if out { "toNumber" } else { "fromNumber" })),
             IrType::Float | IrType::Bool | IrType::String | IrType::Void => None,
             t if self.opaque(t) => None,
             IrType::List(inner) => self
-                .extern_converter(inner, out)?
+                .extern_converter(inner, out, inner_native(nt))?
                 .map(|f| arrow(call(member(ident("v"), "map"), vec![f]))),
-            IrType::Map(k, v) => Some(arrow(self.extern_map(ident("v"), k, v, out)?)),
+            IrType::Map(k, v) => Some(arrow(self.extern_map(ident("v"), k, v, out, nt)?)),
             // A record: a plain object with the fields converted (chapter 7, section 8.4a).
             IrType::Named(d, _) if self.record_fields(*d).is_some() => {
                 let fields = self.record_fields(*d).unwrap_or_default();
                 let mut entries = Vec::new();
-                for f in &fields {
-                    let name = camel(&f.name);
-                    let value = member(ident("v"), &name);
-                    entries.push((name, self.extern_convert(value, &f.ty, out)?));
+                for (f, theirs, fnt) in &fields {
+                    let ours = camel(&f.name);
+                    let (from, to) = if out {
+                        (ours, theirs.clone())
+                    } else {
+                        (theirs.clone(), ours)
+                    };
+                    let value = member(ident("v"), &from);
+                    entries.push((to, self.extern_convert(value, &f.ty, out, fnt.as_ref())?));
                 }
                 let object = Expr::Object(entries);
                 Some(arrow(if out {
@@ -1499,7 +1571,12 @@ impl<'p> Emitter<'p> {
             }
             // An `Option` for extern code is `T | undefined` (chapter 8, section 8, D8.12).
             IrType::Option(inner) if out => {
-                let value = self.extern_convert(member(ident("v"), "value"), inner, true)?;
+                let value = self.extern_convert(
+                    member(ident("v"), "value"),
+                    inner,
+                    true,
+                    inner_native(nt),
+                )?;
                 Some(arrow(Expr::Cond(
                     Box::new(member(ident("v"), "some")),
                     Box::new(value),

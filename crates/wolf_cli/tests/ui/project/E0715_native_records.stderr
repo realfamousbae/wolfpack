@@ -4,7 +4,7 @@ error[E0715]: `Point` of the native module `native.geo` differs between Rust and
 4 |     native.geo
   |     ^^^^^^^^^^ imported here
   |
-  = help: give the struct the same fields in both files, `pub` in Rust and exported in Go, in the same order and of the same types
+  = help: give the struct the same public fields in both files, in the same order and of the same types
   = note: Rust: struct Point { x: Float, y: Float }
   = note: Go: struct Point { x: Float, z: Float }
 
@@ -14,7 +14,7 @@ error[E0715]: `Tag` of the native module `native.geo` differs between Rust and G
 4 |     native.geo
   |     ^^^^^^^^^^ imported here
   |
-  = help: give the struct the same fields in both files, `pub` in Rust and exported in Go, in the same order and of the same types
+  = help: give the struct the same public fields in both files, in the same order and of the same types
   = note: Rust: struct Tag { name: String }
   = note: Go: type Tag (an opaque type)
 

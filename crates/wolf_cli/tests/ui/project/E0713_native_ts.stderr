@@ -1,0 +1,25 @@
+error[E0713]: `loose` of the native module `native.calc` is not available
+  --> src/main.wolf:8:16
+  |
+8 |     print(calc.loose(1).to_string())
+  |                ^^^^^ cannot be used from wolfpack
+  |
+  = note: `loose`: its parameter `x` has no type
+
+error[E0713]: `later` of the native module `native.calc` is not available
+  --> src/main.wolf:9:16
+  |
+9 |     print(calc.later().to_string())
+  |                ^^^^^ cannot be used from wolfpack
+  |
+  = note: `later`: it is `async`
+
+error[E0713]: `keyed` of the native module `native.calc` is not available
+   --> src/main.wolf:10:16
+   |
+10 |     print(calc.keyed(["a": 1.0]).to_string())
+   |                ^^^^^ cannot be used from wolfpack
+   |
+   = note: `keyed`: a map with `number` keys: write `bigint` for `Int` keys
+
+error: aborting due to 3 errors

@@ -1,0 +1,11 @@
+module main
+
+imports {
+    native.calc
+}
+
+main {
+    print(calc.loose(1).to_string())
+    print(calc.later().to_string())
+    print(calc.keyed(["a": 1.0]).to_string())
+}

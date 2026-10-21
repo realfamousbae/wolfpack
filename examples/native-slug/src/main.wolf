@@ -1,37 +1,28 @@
 //! Turns titles into URL slugs with code of the project written in each target language and kept
-//! in `native/` (chapter 7, section 8.2a).
+//! in `native/`. `native.text.slug` is a native module: the compiler reads the declarations of
+//! `native/ts/text/slug.ts`, `native/go/text/slug/` and `native/rust/text/slug.rs` itself
+//! (chapter 7, section 8.7), so no `extern` block is needed.
 
 module main
 
-extern {
-    ts {
-        fn slugify(title: String) -> String from "native:text/slug#slugify"
-        fn words(title: String) -> Int from "native:text/slug#countWords"
-    }
-    go {
-        fn slugify(title: String) -> String from "native:text/slug.Slugify"
-        fn words(title: String) -> Int from "native:text/slug.CountWords"
-    }
-    rust {
-        fn slugify(title: String) -> String from "native:text::slug::slugify"
-        fn words(title: String) -> Int from "native:text::slug::count_words"
-    }
+imports {
+    native.text.slug
 }
 
 main {
     for title in ["Hello, World!", "  wolfpack 0.2 is here  ", "Native code -- in three targets"] {
-        print(f"{title} -> {slugify(title)} ({words(title)} words)")
+        print(f"{title} -> {slug.slugify(title)} ({slug.count_words(title)} words)")
     }
 }
 
 tests {
     test "runs of other characters become one dash" {
-        assert_eq(slugify("A  b--C"), "a-b-c")
-        assert_eq(slugify("--edge--"), "edge")
+        assert_eq(slug.slugify("A  b--C"), "a-b-c")
+        assert_eq(slug.slugify("--edge--"), "edge")
     }
 
     test "words are runs of letters and digits" {
-        assert_eq(words("one, two 3"), 3)
-        assert_eq(words("  "), 0)
+        assert_eq(slug.count_words("one, two 3"), 3)
+        assert_eq(slug.count_words("  "), 0)
     }
 }

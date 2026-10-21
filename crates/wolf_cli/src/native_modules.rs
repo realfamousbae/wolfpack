@@ -36,9 +36,8 @@ pub(crate) fn load(
             .find(|f| f.is_file());
         let go_dir = root.join("native/go").join(&rel);
         let go_files = go_files(&go_dir);
-        let exists = rust.is_some()
-            || !go_files.is_empty()
-            || root.join("native/ts").join(format!("{rel}.ts")).is_file();
+        let ts = Some(root.join("native/ts").join(format!("{rel}.ts"))).filter(|f| f.is_file());
+        let exists = rust.is_some() || !go_files.is_empty() || ts.is_some();
         if !exists {
             // An unknown module: the resolver reports it (E0602).
             continue;
@@ -72,33 +71,70 @@ pub(crate) fn load(
                 }
             }
         }
-        let module_path = path.join(".");
-        // Records first: the functions that use a record the targets disagree on go with it.
-        if let (Some(r), Some(g)) = (&mut rust_module, &mut go_module) {
-            disagree_records(r, g, &module_path, span, &mut diagnostics);
+        let mut ts_module = None;
+        if let Some(file) = &ts {
+            let shown = shown(root, file);
+            match fs::read_to_string(file) {
+                Ok(text) => match wolf_native::read_ts(&text) {
+                    Ok(m) => ts_module = Some(m),
+                    Err(e) => {
+                        unreadable = true;
+                        diagnostics.push(unreadable_file(&shown, "TypeScript", &e));
+                    }
+                },
+                Err(e) => diagnostics.push(Diagnostic::new(
+                    codes::E0001,
+                    format!("cannot read `{shown}`: {e}"),
+                )),
+            }
         }
-        for m in [&mut rust_module, &mut go_module].into_iter().flatten() {
-            filter_names(m, &reserved);
+        let module_path = path.join(".");
+        // The targets that have code, in a fixed order: label, target, path inside
+        // `native/<target>/`, and what was read.
+        let mut targets: Vec<(&str, &str, String, wolf_native::Module)> = Vec::new();
+        if let Some(m) = rust_module {
+            targets.push(("Rust", "rust", rest.join("::"), m));
+        }
+        if let Some(m) = go_module {
+            targets.push(("Go", "go", rel.clone(), m));
+        }
+        if let Some(m) = ts_module {
+            targets.push(("TypeScript", "ts", rel.clone(), m));
+        }
+        // The `number` rule (spec chapter 7, section 8.7, rule 14).
+        if let Some(i) = targets.iter().position(|t| t.1 == "ts") {
+            let (ts_part, others) = split_one(&mut targets, i);
+            if let Some(ts) = ts_part {
+                let others: Vec<&wolf_native::Module> = others.iter().map(|t| &t.3).collect();
+                settle_numbers(&mut ts.3, &others);
+                float_keys(&mut ts.3);
+            }
+        }
+        // Records first: the functions that use a record the targets disagree on go with it.
+        for (i, j) in pairs(targets.len()) {
+            let (a, b) = two(&mut targets, i, j);
+            if let (Some(a), Some(b)) = (a, b) {
+                disagree_records(a, b, &module_path, span, &mut diagnostics);
+            }
+        }
+        for t in &mut targets {
+            filter_names(&mut t.3, &reserved);
         }
         // Agreement of the targets (spec chapter 7, section 8.7, rule 10).
-        if let (Some(r), Some(g)) = (&mut rust_module, &mut go_module) {
-            disagree(r, g, &module_path, span, &mut diagnostics);
+        for (i, j) in pairs(targets.len()) {
+            let (a, b) = two(&mut targets, i, j);
+            if let (Some(a), Some(b)) = (a, b) {
+                disagree(a, b, &module_path, span, &mut diagnostics);
+            }
         }
-        let mut blocks = Vec::new();
-        if let Some(m) = &rust_module {
-            blocks.push(wolf_native::Block {
-                target: "rust",
-                path: rest.join("::"),
+        let blocks: Vec<wolf_native::Block<'_>> = targets
+            .iter()
+            .map(|(_, target, path, m)| wolf_native::Block {
+                target,
+                path: path.clone(),
                 module: m,
-            });
-        }
-        if let Some(m) = &go_module {
-            blocks.push(wolf_native::Block {
-                target: "go",
-                path: rel.clone(),
-                module: m,
-            });
-        }
+            })
+            .collect();
         let source = wolf_native::source(&module_path, &blocks, &|n| {
             wolf_resolve::is_snake_case(n) && TokenKind::keyword(n).is_none()
         });
@@ -142,22 +178,16 @@ pub(crate) fn load(
             }
         }
         // A name is not available if no target maps it; the reasons of each target are shown.
-        let available = |m: &Option<wolf_native::Module>, n: &str| {
-            m.as_ref().is_some_and(|m| {
-                m.fns.iter().any(|f| f.name == n)
-                    || m.types.iter().any(|t| t == n)
-                    || m.records.iter().any(|r| r.name == n)
-            })
+        let available = |m: &wolf_native::Module, n: &str| {
+            m.fns.iter().any(|f| f.name == n)
+                || m.types.iter().any(|t| t == n)
+                || m.records.iter().any(|r| r.name == n)
         };
         let mut reasons: BTreeMap<String, Vec<(&str, &String)>> = BTreeMap::new();
-        let present = [("Rust", &rust_module), ("Go", &go_module)]
-            .into_iter()
-            .filter(|(_, m)| m.is_some())
-            .count();
-        for (label, m) in [("Rust", &rust_module), ("Go", &go_module)] {
-            let Some(m) = m else { continue };
+        let present = targets.len();
+        for (label, _, _, m) in &targets {
             for (n, reason) in &m.unavailable {
-                if available(&rust_module, n) || available(&go_module, n) {
+                if targets.iter().any(|t| available(&t.3, n)) {
                     continue;
                 }
                 reasons.entry(n.clone()).or_default().push((label, reason));
@@ -228,11 +258,11 @@ fn go_files(dir: &Path) -> Vec<(String, String)> {
     files
 }
 
-/// Names that Rust and Go map to different wolfpack signatures: E0715, and the name is not
+/// Names that two targets map to different wolfpack signatures: E0715, and the name is not
 /// available in either.
 fn disagree(
-    r: &mut wolf_native::Module,
-    g: &mut wolf_native::Module,
+    (ra, _, _, r): &mut Target,
+    (ga, _, _, g): &mut Target,
     module_path: &str,
     span: wolf_span::Span,
     diagnostics: &mut Vec<Diagnostic>,
@@ -250,13 +280,13 @@ fn disagree(
                     Diagnostic::new(
                         codes::E0715,
                         format!(
-                            "`{}` of the native module `{module_path}` differs between Rust and Go",
+                            "`{}` of the native module `{module_path}` differs between {ra} and {ga}",
                             rf.name
                         ),
                     )
                     .primary(span, "imported here")
-                    .note(format!("Rust: {a}"))
-                    .note(format!("Go: {b}"))
+                    .note(format!("{ra}: {a}"))
+                    .note(format!("{ga}: {b}"))
                     .help("give the function the same parameter and result types in both files"),
                 );
                 bad.push(rf.name.clone());
@@ -264,7 +294,7 @@ fn disagree(
         }
     }
     for n in bad {
-        let reason = "Rust and Go declare it differently (E0715)".to_string();
+        let reason = format!("{ra} and {ga} declare it differently (E0715)");
         r.fns.retain(|f| f.name != n);
         g.fns.retain(|f| f.name != n);
         r.unavailable.insert(n.clone(), reason.clone());
@@ -287,15 +317,16 @@ fn uses_removed(w: &wolf_native::Wolf, removed: &BTreeSet<String>) -> Option<Str
     }
 }
 
-/// Records that Rust and Go read differently: other fields, or a record in one target and an
+/// Records that two targets read differently: other fields, or a record in one target and an
 /// opaque type in the other (E0715). The name is not available in either.
 fn disagree_records(
-    r: &mut wolf_native::Module,
-    g: &mut wolf_native::Module,
+    (ra, _, _, r): &mut Target,
+    (ga, _, _, g): &mut Target,
     module_path: &str,
     span: wolf_span::Span,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let (r, g) = (&mut *r, &mut *g);
     let show = |m: &wolf_native::Module, name: &str| -> Option<String> {
         if let Some(rec) = m.records.iter().find(|x| x.name == name) {
             let fields: Vec<String> = rec
@@ -326,19 +357,136 @@ fn disagree_records(
         diagnostics.push(
             Diagnostic::new(
                 codes::E0715,
-                format!("`{n}` of the native module `{module_path}` differs between Rust and Go"),
+                format!("`{n}` of the native module `{module_path}` differs between {ra} and {ga}"),
             )
             .primary(span, "imported here")
-            .note(format!("Rust: {a}"))
-            .note(format!("Go: {b}"))
-            .help("give the struct the same fields in both files, `pub` in Rust and exported in Go, in the same order and of the same types"),
+            .note(format!("{ra}: {a}"))
+            .note(format!("{ga}: {b}"))
+            .help("give the struct the same public fields in both files, in the same order and of the same types"),
         );
-        let reason = "Rust and Go declare it differently (E0715)".to_string();
+        let reason = format!("{ra} and {ga} declare it differently (E0715)");
         for m in [&mut *r, &mut *g] {
             m.records.retain(|x| x.name != n);
             m.types.retain(|x| *x != n);
             m.unavailable.insert(n.clone(), reason.clone());
         }
+    }
+}
+
+/// What one target of a native module has: label, target, path inside `native/<target>/`, and
+/// the declarations read.
+type Target<'a> = (&'a str, &'a str, String, wolf_native::Module);
+
+/// The pairs `(i, j)` with `i < j < n`.
+fn pairs(n: usize) -> Vec<(usize, usize)> {
+    (0..n)
+        .flat_map(|i| (i + 1..n).map(move |j| (i, j)))
+        .collect()
+}
+
+/// The elements `i` and `j` of `v`, with `i < j`, both mutable.
+fn two<T>(v: &mut [T], i: usize, j: usize) -> (Option<&mut T>, Option<&mut T>) {
+    let (left, right) = v.split_at_mut(j);
+    (left.get_mut(i), right.first_mut())
+}
+
+/// The element `i` of `v`, mutable, and the others.
+fn split_one<T>(v: &mut [T], i: usize) -> (Option<&mut T>, Vec<&T>) {
+    let (left, right) = v.split_at_mut(i);
+    let (one, after) = match right.split_first_mut() {
+        Some((one, after)) => (Some(one), after),
+        None => (None, &mut [][..]),
+    };
+    let others = left.iter().chain(after.iter()).collect();
+    (one, others)
+}
+
+/// The `number` rule (spec chapter 7, section 8.7, rule 14): a `Float` of TypeScript becomes `Int`
+/// where another target gives `Int` at the same place.
+fn settle_numbers(ts: &mut wolf_native::Module, others: &[&wolf_native::Module]) {
+    for f in &mut ts.fns {
+        let Some(other) = others
+            .iter()
+            .find_map(|m| m.fns.iter().find(|g| g.name == f.name))
+        else {
+            continue;
+        };
+        if other.params.len() == f.params.len() {
+            for ((_, w), (_, o)) in f.params.iter_mut().zip(&other.params) {
+                settle(w, o);
+            }
+        }
+        settle(&mut f.ret, &other.ret);
+    }
+    for r in &mut ts.records {
+        let Some(other) = others
+            .iter()
+            .find_map(|m| m.records.iter().find(|o| o.name == r.name))
+        else {
+            continue;
+        };
+        for (f, o) in r.fields.iter_mut().zip(&other.fields) {
+            if f.name == o.name {
+                settle(&mut f.ty, &o.ty);
+            }
+        }
+    }
+}
+
+/// `w` with `Float` made `Int` where `other` has `Int`.
+fn settle(w: &mut wolf_native::Wolf, other: &wolf_native::Wolf) {
+    use wolf_native::Wolf;
+    match (w, other) {
+        (w @ Wolf::Float, Wolf::Int) => *w = Wolf::Int,
+        (Wolf::List(a), Wolf::List(b))
+        | (Wolf::Option(a), Wolf::Option(b))
+        | (Wolf::Result(a), Wolf::Result(b)) => settle(a, b),
+        (Wolf::Map(ak, av), Wolf::Map(bk, bv)) => {
+            settle(ak, bk);
+            settle(av, bv);
+        }
+        (Wolf::Fn(ap, ar), Wolf::Fn(bp, br)) if ap.len() == bp.len() => {
+            for (a, b) in ap.iter_mut().zip(bp) {
+                settle(a, b);
+            }
+            settle(ar, br);
+        }
+        _ => {}
+    }
+}
+
+/// After the `number` rule, a map whose keys are still `Float` (TypeScript `number` keys that no
+/// other target makes `Int`) does not map: the item is not available.
+fn float_keys(ts: &mut wolf_native::Module) {
+    fn has(w: &wolf_native::Wolf) -> bool {
+        use wolf_native::Wolf;
+        match w {
+            Wolf::Map(k, v) => matches!(**k, Wolf::Float) || has(v),
+            Wolf::List(t) | Wolf::Option(t) | Wolf::Result(t) => has(t),
+            Wolf::Fn(ps, r) => ps.iter().any(has) || has(r),
+            _ => false,
+        }
+    }
+    let reason = "a map with `number` keys: write `bigint` for `Int` keys".to_string();
+    let bad: Vec<String> = ts
+        .records
+        .iter()
+        .filter(|r| r.fields.iter().any(|f| has(&f.ty)))
+        .map(|r| r.name.clone())
+        .collect();
+    for n in bad {
+        ts.records.retain(|r| r.name != n);
+        ts.unavailable.insert(n, reason.clone());
+    }
+    let bad: Vec<String> = ts
+        .fns
+        .iter()
+        .filter(|f| f.params.iter().any(|(_, w)| has(w)) || has(&f.ret))
+        .map(|f| f.name.clone())
+        .collect();
+    for n in bad {
+        ts.fns.retain(|f| f.name != n);
+        ts.unavailable.insert(n, reason.clone());
     }
 }
 

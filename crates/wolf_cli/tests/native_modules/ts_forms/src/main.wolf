@@ -1,0 +1,37 @@
+module main
+
+imports {
+    native.text.slug
+}
+
+main {
+    print(slug.slugify("Hello World"))
+    print(f"{slug.parse_url("u")} {slug.halve(5.0)} {slug.sum([1, 2, 3])}")
+    print(slug.words(["x", "y"])[1])
+    let k = slug.keys(["b": 2, "a": 1])
+    print(f"{k.keys()[0]} {k["b"]} {slug.total(["z": 10, "y": 1])}")
+    let c = slug.counts()
+    print(f"{c.keys()[0]} {c["b"]}")
+    match slug.first(["q"]) {
+        Some(s) => print(s)
+        None => print("none")
+    }
+    match slug.lookup("y") {
+        Some(s) => print(s)
+        None => print("null is none")
+    }
+    print(f"{slug.or_zero(Some(5))} {slug.or_zero(None)}")
+    let n = slug.new_counter()
+    print(f"{slug.count(n)} {slug.each(["aa", "b"], |s| s.len() > 1)}")
+    let s = slug.Size { width: 4, height: 2.5, tags: ["a"], max_size: 3 }
+    print(f"{slug.area(s)}")
+    let g = slug.grow(s, 2)
+    print(f"{g.width} {g.height} {g.tags.len()} {g.max_size}")
+    for f in slug.frames(2) {
+        print(f"{f.name} {f.size.width} {f.size.max_size}")
+    }
+    match slug.find_frame("f1") {
+        Some(f) => print(f"found {f.name}")
+        None => print("none")
+    }
+}

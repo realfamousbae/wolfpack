@@ -125,6 +125,29 @@ fn run_programs_match_expected_output() {
 }
 
 /// E0801: a tool of the target is missing.
+/// Native modules read from TypeScript code (spec chapter 7, section 8.7) give their expected
+/// output with `tsc --strict` and Node.js.
+#[test]
+fn native_modules_on_ts() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/native_modules");
+    for entry in fs::read_dir(&root).unwrap().flatten() {
+        let dir = entry.path();
+        if !dir.join("native/ts").is_dir() {
+            continue;
+        }
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let out = tmp(&format!("native-module-{name}"));
+        let output = wolf_run(&dir, &out, &["--target", "ts"], None);
+        let expected = fs::read_to_string(dir.join("expected.txt")).unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            expected,
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
 #[test]
 fn e0801_missing_tool() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run/E0801_missing_tool");

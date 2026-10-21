@@ -1,0 +1,19 @@
+error[E0715]: `label` of the native module `native.calc` differs between Rust and TypeScript
+  --> src/main.wolf:4:5
+  |
+4 |     native.calc
+  |     ^^^^^^^^^^^ imported here
+  |
+  = help: give the function the same parameter and result types in both files
+  = note: Rust: fn label(Int) -> String
+  = note: TypeScript: fn label(String) -> String
+
+error[E0713]: `label` of the native module `native.calc` is not available
+  --> src/main.wolf:8:16
+  |
+8 |     print(calc.label(7))
+  |                ^^^^^ cannot be used from wolfpack
+  |
+  = note: `label`: Rust and TypeScript declare it differently (E0715)
+
+error: aborting due to 2 errors
