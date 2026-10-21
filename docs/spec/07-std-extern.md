@@ -493,8 +493,11 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
      name becomes `snake_case` (`Slugify` is `slugify`, `CountWords` is `count_words`, `ParseURL`
      is `parse_url`);
    - an exported `type X struct { ... }` whose fields are all exported and of the field types of
-     rule 9 becomes a record (as in rule 2); any other exported struct type becomes an opaque type
-     used as `*X`; any other exported named type an opaque type used as `X`.
+     rule 9 becomes a record (as in rule 2); its fields become `snake_case` like function names
+     (`MaxSize` is `max_size`, `ID` is `id`), and the generated code uses the Go names. A struct
+     whose field names give the same `snake_case` name twice (`URL` and `Url`) is not available.
+     Any other exported struct type becomes an opaque type used as `*X`; any other exported named
+     type an opaque type used as `X`.
    Methods are not available in N3b.
 9. **Go types.** A parameter is always a read parameter:
 
@@ -515,8 +518,8 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
    than `error`), a channel, an array, a variadic parameter, a type from another package, and other
    result lists make the function not available.
 10. **Agreement.** A name declared in several targets must map to the same wolfpack signature in
-    each; otherwise the name is not available, and importing the module reports E0715 with both
-    signatures. A name declared in only some targets binds the importing module to them (E0704).
+    each, and a record to the same fields in the same order with the same types (D7.18); otherwise
+    the name is not available, and importing the module reports E0715 with both signatures. A name declared in only some targets binds the importing module to them (E0704).
 11. A Go file that cannot be parsed is E0714.
 
 ## 9. Diagnostics
@@ -562,3 +565,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.15 | 0.2: records: a struct of the module bound to a struct type of each target with `struct Name from "path"`, copied field by field (section 8.4a), code E0711 | **answered** (author, 2026-10-19): yes |
 | D7.16 | 0.2: native modules: declarations read from Rust code (section 8.7), the type mapping of rule 3, codes E0713 and E0714 | **answered** (author, 2026-10-20): yes |
 | D7.17 | 0.2: native modules read from Go code (section 8.7, rules 8 to 11), the agreement of targets, code E0715 | **answered** (author, 2026-10-20): yes |
+| D7.18 | 0.2: records of native modules: fields of the types the reader found (any integer type, `float32`, `f32`, converted with a check), Go fields with their Go names, and agreement of the fields between targets (section 8.7, rules 8 and 10; chapter 8, section 8a) | **answered** (author, 2026-10-21): yes |
