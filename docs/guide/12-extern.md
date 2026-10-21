@@ -354,6 +354,32 @@ module has an integer at that place, and then it is `Int`, checked to be a whole
 comes back. A module with TypeScript code only writes `bigint` for an `Int`. A TypeScript function
 cannot declare that it throws, so its result is never a `Result`: an exception is a panic.
 
+An opaque type keeps its methods: a `&self` method of an `impl` block in Rust, a method of a Go
+type, a public method of a TypeScript class is called as `index.add(word)`, and an associated
+function, a TypeScript `static` method or its `constructor` as `words.Index.new()`:
+
+```ts
+// native/ts/words.ts
+export class Index {
+  private items: string[] = [];
+
+  add(word: string): void {
+    this.items.push(word);
+  }
+}
+```
+
+A method that would change the value through wolfpack (`&mut self` in Rust), a getter or a private
+method is not available (`wolf explain E0713`). Your own `extern` declarations cannot add methods
+to an opaque type (`wolf explain E0707`): there, a method of the target is a function whose first
+parameter is the receiver.
+
+To see what the compiler made of the native code, run `wolf check --native`: it prints each
+native module the project imports as wolfpack source, an `extern` block per target with the items
+that are not available and why as comments. `wolf check --native native.text.slug` prints one
+module. The output is valid wolfpack: paste it as an `extern` block of your own when you want to
+rename a function or choose another type.
+
 A program that imports a native module is built for the targets that have its code. Native modules
 cannot be re-exported from a library (`wolf explain E0712`). The example `examples/native-slug`
 of the repository is one native module in all three languages, without any `extern` line.

@@ -36,7 +36,11 @@ All notable changes are recorded here at the end of each milestone.
   section 1a; chapter 7, section 8.7). The compiler reads Rust files, Go packages
   (`native/go/text/slug/`) and TypeScript files (`native/ts/text/slug.ts`, with `oxc_parser`); a
   TypeScript `number` is `Int` where another target says so, `Float` otherwise. The example
-  `native-slug` has no `extern` block any more. A struct with only public fields becomes a
+  `native-slug` has no `extern` block any more.
+- Methods of native modules: the methods and associated functions of opaque types of native code
+  are called as `index.add(word)` and `words.Index.new()` (spec chapter 7, section 8.7, rule 17).
+  `wolf check --native [module]` prints what the compiler read from native code; new diagnostic
+  E0716. A struct with only public fields becomes a
   record of the module, copied field by field. New diagnostics E0712 to E0715; `native` is a
   reserved root module name.
 - `Option` parameters of extern functions arrive as `T | undefined` in TS, `*T` in Go and
