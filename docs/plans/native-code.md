@@ -320,7 +320,7 @@ then packages keep explicit `extern` declarations.
 | Q7 | The import form of a native module | `imports { native.slug }`, like any module; `native` cannot be a module of `src/` already (E0710) |
 | Q8 | TS `number`, and TS exceptions | `number` is `Float` unless another target of the same function says `Int`; `bigint` is `Int`. A TS function cannot declare that it throws, so its result is never a `Result`; a JSDoc tag `@throws` could make it one later |
 | Q9 | Go `*T` results | `*T` of a record or an opaque type is that type, and `nil` is a panic; `Option` in Go is `(T, bool)` |
-| Q10 | Records of D7.15 (`struct Name from "path"`) | Do not implement them for now: native modules derive records (4.5). Keep D7.15 in the spec until packages need it, or withdraw it |
+| Q10 | Records of D7.15 (`struct Name from "path"`) | Superseded (author, 2026-10-21): records of D7.15 are implemented, and native modules derive records (D7.18) |
 | Q11 | Scope of N3 | Only the project's own `native/` code; packages later (4.9) |
 
 Q7 to Q11 are answered (author, 2026-10-19): the recommendations are accepted.
