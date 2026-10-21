@@ -306,7 +306,9 @@ fn use_item(pad: &str, p: &str) -> String {
         } else {
             format!("{current} {name},")
         };
-        if !current.is_empty() && width(&candidate) > MAX_WIDTH {
+        // rustfmt keeps one column free on the lines of a group: a line of exactly the maximum
+        // width is broken.
+        if !current.is_empty() && width(&candidate) >= MAX_WIDTH {
             out.push_str(&current);
             out.push('\n');
             current = format!("{inner}{name},");
