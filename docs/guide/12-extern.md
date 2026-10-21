@@ -249,6 +249,35 @@ no tool of the target installed. The Rust types map to wolfpack types:
 | a callback | `impl Fn(..)`, `&dyn Fn(..)`, or `F: Fn(..)` |
 
 An item that does not fit, for example one with a `&mut` parameter or an `async fn`, is simply not
-available, and using it says why (`wolf explain E0713`). In this version the compiler reads Rust
-only, so a program that imports a native module is built for Rust; readers of Go and TypeScript
-come next. Native modules cannot be re-exported from a library (`wolf explain E0712`).
+available, and using it says why (`wolf explain E0713`).
+
+The same module can have Go code: `native.text.slug` is also the package in
+`native/go/text/slug/`. Its exported functions become functions of the module, with their names in
+`snake_case` (`Slugify` is `slugify`, `ParseURL` is `parse_url`):
+
+```go
+// native/go/text/slug/slug.go
+package slug
+
+import "strings"
+
+func Slugify(title string) string {
+	return strings.ReplaceAll(strings.ToLower(title), " ", "-")
+}
+```
+
+| Wolfpack | Go |
+| --- | --- |
+| `Int` | any integer type, checked when it crosses |
+| `Float` | `float64`, `float32` |
+| `Bool`, `String` | `bool`, `string` |
+| `List<T>`, `Map<K, V>` | `[]T`, `map[K]V` |
+| `Option<T>`, `Result<T, Error>` | the results `(T, bool)` and `(T, error)`; `error` alone |
+| a callback | `func(..)` with `int64`, `float64`, `bool`, `string` |
+| an opaque type | `*X` for a struct type, `X` for another named type |
+
+When both files declare a function, they must agree on its wolfpack signature; if they do not, the
+function is not available and the import says how they differ (`wolf explain E0715`). A program
+that imports a native module is built for the targets that have its code; the compiler reads Rust
+and Go in this version, TypeScript comes next. Native modules cannot be re-exported from a library
+(`wolf explain E0712`).

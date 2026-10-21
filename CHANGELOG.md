@@ -33,8 +33,9 @@ All notable changes are recorded here at the end of each milestone.
   extern types may not be inside a `Map` at the boundary (E0702).
 - Native modules: `imports { native.text.slug }` imports `native/rust/text/slug.rs` without any
   `extern` lines; the compiler reads its declarations and maps the Rust types (spec chapter 6,
-  section 1a; chapter 7, section 8.7). Rust only in this version. New diagnostics E0712 to E0714;
-  `native` is a reserved root module name.
+  section 1a; chapter 7, section 8.7). The compiler reads Rust files and Go packages
+  (`native/go/text/slug/`); TypeScript comes later. New diagnostics E0712 to E0715; `native` is a
+  reserved root module name.
 - Fixed: a variant passed for a generic parameter in TypeScript and Go, `Comparable` on a plain
   enum in Rust, `Display` and `Comparable` of plain enums through a type parameter in TypeScript,
   and a Go module named like a package of Go's standard library (such as `cmp`).
