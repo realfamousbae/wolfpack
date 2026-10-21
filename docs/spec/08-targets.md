@@ -394,7 +394,24 @@ copy defensively.
      | result | any object with these properties | a value of the struct type | a value of the struct type |
      | `Int` fields | `number`, checked | exactly `int64` | any Rust integer type, checked |
 
-     Go pointers to records (`*geo.Point`) are not part of 0.2.
+     Go pointers to records (`*geo.Point`) are not part of 0.2 as parameters and record fields;
+     an `Option` of a record is a pointer, as below.
+   - An `Option<T>` **parameter** (0.2, author, 2026-10-21, D8.12) is passed in the form the target
+     uses for "a value or nothing", with the value converted by the rules above; `None` is
+     `undefined`, `nil` or `None`:
+
+     | `Option<T>` parameter | TS | Go | Rust |
+     | --- | --- | --- | --- |
+     | form | `T \| undefined` | `*T`, a pointer to a copy | `Option<&T>` of the read form of `T` |
+     | `Option<Int>` | `number \| undefined`, checked | `*int64` | `Option<i64>` |
+     | `Option<String>` | `string \| undefined` | `*string` | `Option<&str>` |
+     | `Option<List<T>>` | `T[] \| undefined` | `*[]T` | `Option<&[T]>` |
+     | `Option<Point>`, a record | a plain object or `undefined` | `*geo.Point` | `Option<&geo::Point>` |
+
+     `Float` and `Bool` are passed by value in Rust (`Option<f64>`, `Option<bool>`), like `Int`;
+     a `Map` as `Option<&HashMap<K, V>>`; an opaque type `X` as `*X` in Go and `Option<&X>` in
+     Rust. `T` may not itself be an `Option` (E0702), since `T | undefined` cannot tell the two
+     `None`s apart. Results keep the forms of section 4.1.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
 ## 8a. Code of the project (`native/`)
@@ -445,3 +462,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.9 | 0.2: the target types of `Map` at the extern boundary (section 8, rule 2): `Map` and plain objects in TS, `map[K]V` in Go, `&HashMap` and any iterator of pairs in Rust | **answered** (author, 2026-10-19): yes |
 | D8.10 | 0.2: the target forms of callbacks at the extern boundary (section 8, rule 2): arrow functions, Go function literals of exact types, references to Rust closures | **answered** (author, 2026-10-19): yes |
 | D8.11 | 0.2: the target forms of records (section 8, rule 2): plain objects in TS, values of the struct type in Go and Rust, `Int` fields exactly `int64` in Go | **answered** (author, 2026-10-19): yes |
+| D8.12 | 0.2: the target forms of `Option` parameters of extern functions (section 8, rule 2): `T \| undefined` in TS, `*T` in Go, `Option<&T>` in Rust; no `Option<Option<T>>` parameter | **answered** (author, 2026-10-21): yes |
