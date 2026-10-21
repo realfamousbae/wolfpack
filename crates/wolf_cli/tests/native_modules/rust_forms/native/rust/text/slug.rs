@@ -125,3 +125,23 @@ pub fn parse_size(s: &str) -> Result<Size, String> {
         note: None,
     })
 }
+
+pub struct Stock {
+    pub counts: BTreeMap<String, u16>,
+}
+
+pub fn total_area(sizes: &[Size]) -> u64 {
+    sizes.iter().map(area).sum()
+}
+
+pub fn widest(sizes: &HashMap<String, Size>) -> String {
+    let mut best: Vec<(&String, &Size)> = sizes.iter().collect();
+    best.sort_by_key(|(k, s)| (s.w, (*k).clone()));
+    best.last().map(|(k, _)| (*k).clone()).unwrap_or_default()
+}
+
+pub fn restock(s: &Stock, item: &str) -> Stock {
+    let mut counts = s.counts.clone();
+    *counts.entry(item.to_string()).or_insert(0) += 1;
+    Stock { counts }
+}

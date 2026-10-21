@@ -193,3 +193,38 @@ func ParseSize(s string) (Size, error) {
 	}
 	return Size{W: uint32(wn), H: float32(hn), Tags: []string{s}, ID: 1}, nil
 }
+
+// Stock counts items.
+type Stock struct {
+	Counts map[string]uint16
+}
+
+// TotalArea adds the areas of sizes.
+func TotalArea(sizes []Size) uint64 {
+	var t uint64
+	for _, s := range sizes {
+		t += Area(s)
+	}
+	return t
+}
+
+// Widest is the name of the widest size.
+func Widest(sizes map[string]Size) string {
+	best, w := "", uint32(0)
+	for k, s := range sizes {
+		if s.W > w || (s.W == w && k > best) {
+			best, w = k, s.W
+		}
+	}
+	return best
+}
+
+// Restock adds one item.
+func Restock(s Stock, item string) Stock {
+	counts := map[string]uint16{}
+	for k, v := range s.Counts {
+		counts[k] = v
+	}
+	counts[item]++
+	return Stock{Counts: counts}
+}

@@ -53,4 +53,8 @@ main {
         Ok(s) => print(f"{s.w}")
         Err(e) => print(e.message())
     }
+    print(f"{slug.total_area([slug.Size { w: 1, h: 2.0, tags: [], note: "", id: 0 }, slug.Size { w: 3, h: 2.0, tags: [], note: "", id: 0 }])}")
+    print(slug.widest(["a": slug.Size { w: 3, h: 2.0, tags: [], note: "", id: 0 }, "b": slug.Size { w: 1, h: 2.0, tags: [], note: "", id: 0 }]))
+    let st = slug.restock(slug.Stock { counts: ["x": 2] }, "y")
+    print(f"{st.counts["x"]} {st.counts["y"]} {st.counts.keys()[1]}")
 }

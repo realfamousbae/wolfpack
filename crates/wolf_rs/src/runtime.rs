@@ -628,6 +628,21 @@ where
     }
 }
 
+impl<K, V, K2, V2> ToExternAs<std::collections::BTreeMap<K2, V2>> for Map<K, V>
+where
+    K: std::hash::Hash + Eq + Clone + ToExternAs<K2>,
+    K2: Ord,
+    V: ToExternAs<V2>,
+{
+    fn to_extern_as(&self) -> std::collections::BTreeMap<K2, V2> {
+        self.keys
+            .iter()
+            .zip(&self.values)
+            .map(|(k, v)| (k.to_extern_as(), v.to_extern_as()))
+            .collect()
+    }
+}
+
 /// `value` as the Rust type that the context expects.
 pub fn to_extern_as<T, U: ToExternAs<T> + ?Sized>(value: &U) -> T {
     value.to_extern_as()
