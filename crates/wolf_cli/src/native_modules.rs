@@ -72,10 +72,14 @@ pub(crate) fn load(
                 }
             }
         }
+        let module_path = path.join(".");
+        // Records first: the functions that use a record the targets disagree on go with it.
+        if let (Some(r), Some(g)) = (&mut rust_module, &mut go_module) {
+            disagree_records(r, g, &module_path, span, &mut diagnostics);
+        }
         for m in [&mut rust_module, &mut go_module].into_iter().flatten() {
             filter_names(m, &reserved);
         }
-        let module_path = path.join(".");
         // Agreement of the targets (spec chapter 7, section 8.7, rule 10).
         if let (Some(r), Some(g)) = (&mut rust_module, &mut go_module) {
             disagree(r, g, &module_path, span, &mut diagnostics);
@@ -101,9 +105,13 @@ pub(crate) fn load(
         let id = map.add(format!("<native module {module_path}>"), source);
         let mut ast = wolf_driver::parse(map, id, &mut diagnostics);
         let mut sigs: BTreeMap<(&str, &str), &wolf_ast::NativeSig> = BTreeMap::new();
+        let mut records: BTreeMap<(&str, &str), &wolf_native::Record> = BTreeMap::new();
         for b in &blocks {
             for f in &b.module.fns {
                 sigs.insert((b.target, f.name.as_str()), &f.native);
+            }
+            for r in &b.module.records {
+                records.insert((b.target, r.name.as_str()), r);
             }
         }
         for section in &mut ast.sections {
@@ -113,10 +121,22 @@ pub(crate) fn load(
                 };
                 let target = block.target.name.clone();
                 for decl in &mut block.decls {
-                    if let ExternDeclKind::Fn(sig) = &decl.kind {
-                        decl.native = sigs
-                            .get(&(target.as_str(), sig.name.name.as_str()))
-                            .map(|s| (*s).clone());
+                    match &decl.kind {
+                        ExternDeclKind::Fn(sig) => {
+                            decl.native = sigs
+                                .get(&(target.as_str(), sig.name.name.as_str()))
+                                .map(|s| (*s).clone());
+                        }
+                        ExternDeclKind::Struct(name) => {
+                            if let Some(r) = records.get(&(target.as_str(), name.name.as_str())) {
+                                decl.native_fields = r
+                                    .fields
+                                    .iter()
+                                    .map(|f| (f.target_name.clone(), f.native.clone()))
+                                    .collect();
+                            }
+                        }
+                        ExternDeclKind::Type(_) => {}
                     }
                 }
             }
@@ -124,7 +144,9 @@ pub(crate) fn load(
         // A name is not available if no target maps it; the reasons of each target are shown.
         let available = |m: &Option<wolf_native::Module>, n: &str| {
             m.as_ref().is_some_and(|m| {
-                m.fns.iter().any(|f| f.name == n) || m.types.iter().any(|t| t == n)
+                m.fns.iter().any(|f| f.name == n)
+                    || m.types.iter().any(|t| t == n)
+                    || m.records.iter().any(|r| r.name == n)
             })
         };
         let mut reasons: BTreeMap<String, Vec<(&str, &String)>> = BTreeMap::new();
@@ -250,6 +272,76 @@ fn disagree(
     }
 }
 
+/// The first type of `removed` that `w` uses.
+fn uses_removed(w: &wolf_native::Wolf, removed: &BTreeSet<String>) -> Option<String> {
+    use wolf_native::Wolf;
+    match w {
+        Wolf::Named(n) if removed.contains(n) => Some(n.clone()),
+        Wolf::List(t) | Wolf::Option(t) | Wolf::Result(t) => uses_removed(t, removed),
+        Wolf::Map(k, v) => uses_removed(k, removed).or_else(|| uses_removed(v, removed)),
+        Wolf::Fn(ps, r) => ps
+            .iter()
+            .find_map(|p| uses_removed(p, removed))
+            .or_else(|| uses_removed(r, removed)),
+        _ => None,
+    }
+}
+
+/// Records that Rust and Go read differently: other fields, or a record in one target and an
+/// opaque type in the other (E0715). The name is not available in either.
+fn disagree_records(
+    r: &mut wolf_native::Module,
+    g: &mut wolf_native::Module,
+    module_path: &str,
+    span: wolf_span::Span,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let show = |m: &wolf_native::Module, name: &str| -> Option<String> {
+        if let Some(rec) = m.records.iter().find(|x| x.name == name) {
+            let fields: Vec<String> = rec
+                .fields
+                .iter()
+                .map(|f| format!("{}: {}", f.name, f.ty.text()))
+                .collect();
+            Some(format!("struct {} {{ {} }}", name, fields.join(", ")))
+        } else if m.types.iter().any(|t| t == name) {
+            Some(format!("type {name} (an opaque type)"))
+        } else {
+            None
+        }
+    };
+    let names: BTreeSet<String> = r
+        .records
+        .iter()
+        .chain(&g.records)
+        .map(|x| x.name.clone())
+        .collect();
+    for n in names {
+        let (Some(a), Some(b)) = (show(r, &n), show(g, &n)) else {
+            continue;
+        };
+        if a == b {
+            continue;
+        }
+        diagnostics.push(
+            Diagnostic::new(
+                codes::E0715,
+                format!("`{n}` of the native module `{module_path}` differs between Rust and Go"),
+            )
+            .primary(span, "imported here")
+            .note(format!("Rust: {a}"))
+            .note(format!("Go: {b}"))
+            .help("give the struct the same fields in both files, `pub` in Rust and exported in Go, in the same order and of the same types"),
+        );
+        let reason = "Rust and Go declare it differently (E0715)".to_string();
+        for m in [&mut *r, &mut *g] {
+            m.records.retain(|x| x.name != n);
+            m.types.retain(|x| *x != n);
+            m.unavailable.insert(n.clone(), reason.clone());
+        }
+    }
+}
+
 /// The module paths `native.<path>` imported by the modules of the project, in a fixed order,
 /// each with the place of its first import.
 fn imported(parsed: &[Parsed]) -> BTreeMap<Vec<String>, wolf_span::Span> {
@@ -318,7 +410,13 @@ fn filter_names(module: &mut wolf_native::Module, reserved: &BTreeSet<String>) {
             None
         }
     };
-    let mut removed = BTreeSet::new();
+    // Types that are already not available (records the targets disagree on).
+    let mut removed: BTreeSet<String> = module
+        .unavailable
+        .keys()
+        .filter(|k| k.starts_with(|c: char| c.is_uppercase()))
+        .cloned()
+        .collect();
     module.types.retain(|t| match reason(t, true) {
         Some(r) => {
             module.unavailable.insert(t.clone(), r);
@@ -327,22 +425,56 @@ fn filter_names(module: &mut wolf_native::Module, reserved: &BTreeSet<String>) {
         }
         None => true,
     });
-    let uses = |w: &wolf_native::Wolf| -> Option<String> {
-        fn find(w: &wolf_native::Wolf, removed: &BTreeSet<String>) -> Option<String> {
-            use wolf_native::Wolf;
-            match w {
-                Wolf::Named(n) if removed.contains(n) => Some(n.clone()),
-                Wolf::List(t) | Wolf::Option(t) | Wolf::Result(t) => find(t, removed),
-                Wolf::Map(k, v) => find(k, removed).or_else(|| find(v, removed)),
-                Wolf::Fn(ps, r) => ps
-                    .iter()
-                    .find_map(|p| find(p, removed))
-                    .or_else(|| find(r, removed)),
-                _ => None,
+    // A record whose name or field names wolfpack cannot declare.
+    module.records.retain(|rec| {
+        let why = reason(&rec.name, true).or_else(|| {
+            rec.fields.iter().find_map(|f| {
+                if TokenKind::keyword(&f.name).is_some() {
+                    Some(format!("its field `{}` is a keyword of wolfpack", f.name))
+                } else if !wolf_resolve::is_snake_case(&f.name) {
+                    Some(format!(
+                        "a field name of wolfpack is `snake_case`, not `{}`",
+                        f.name
+                    ))
+                } else {
+                    None
+                }
+            })
+        });
+        match why {
+            Some(r) => {
+                module.unavailable.insert(rec.name.clone(), r);
+                removed.insert(rec.name.clone());
+                false
             }
+            None => true,
         }
-        find(w, &removed)
-    };
+    });
+    // A record that holds a removed type goes too, until nothing changes.
+    loop {
+        let gone: Vec<(String, String)> = module
+            .records
+            .iter()
+            .filter_map(|rec| {
+                rec.fields
+                    .iter()
+                    .find_map(|f| uses_removed(&f.ty, &removed))
+                    .map(|t| (rec.name.clone(), t))
+            })
+            .collect();
+        if gone.is_empty() {
+            break;
+        }
+        for (name, t) in gone {
+            module.records.retain(|r| r.name != name);
+            module.unavailable.insert(
+                name.clone(),
+                format!("it holds `{t}`, which is not available"),
+            );
+            removed.insert(name);
+        }
+    }
+    let uses = |w: &wolf_native::Wolf| uses_removed(w, &removed);
     let mut kept = Vec::new();
     for f in std::mem::take(&mut module.fns) {
         let why = reason(&f.name, false).or_else(|| {

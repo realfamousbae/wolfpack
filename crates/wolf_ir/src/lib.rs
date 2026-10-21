@@ -225,6 +225,9 @@ pub struct Struct {
     /// For a record (spec chapter 7, section 8.4a): the struct type of each target block that
     /// binds it, `ts`, `go` or `rust` to the path string.
     pub extern_paths: BTreeMap<String, String>,
+    /// For a record of a native module: per target, the name in the target code and the type
+    /// the reader found of each field (spec chapter 8, section 8a).
+    pub extern_fields: BTreeMap<String, Vec<(String, NativeTy)>>,
 }
 
 /// A field.

@@ -26,4 +26,27 @@ main {
     }
     let c = slug.counter()
     print(f"{slug.count(c)} {slug.each(["aa", "b"], |s| s.len() > 1)}")
+    let s = slug.Size { w: 4, h: 2.5, tags: ["a", "b"], note: None }
+    print(f"{slug.area(s)}")
+    let g = slug.grow(s, 2)
+    print(f"{g.w} {g.h} {g.tags.len()}")
+    match g.note {
+        Some(n) => print(n)
+        None => print("no note")
+    }
+    for f in slug.frames(2) {
+        print(f"{f.name} {f.size.w} {f.size.h}")
+    }
+    match slug.find_frame("f1") {
+        Some(f) => print(f"found {f.name}")
+        None => print("none")
+    }
+    match slug.parse_size("3x1.5") {
+        Ok(s) => print(f"{s.w} {s.h} {s.tags[0]}")
+        Err(e) => print(e.message())
+    }
+    match slug.parse_size("3") {
+        Ok(s) => print(f"{s.w}")
+        Err(e) => print(e.message())
+    }
 }

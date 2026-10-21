@@ -499,6 +499,10 @@ impl<'a> Lowerer<'a> {
                         if s.name == name.name {
                             s.extern_paths
                                 .insert(target.target.name.clone(), decl.from.value.clone());
+                            if !decl.native_fields.is_empty() {
+                                s.extern_fields
+                                    .insert(target.target.name.clone(), decl.native_fields.clone());
+                            }
                         }
                     }
                 }
@@ -569,6 +573,7 @@ impl<'a> Lowerer<'a> {
                     methods: methods.remove(&def).unwrap_or_default(),
                     implements: self.implements(def),
                     extern_paths: BTreeMap::new(),
+                    extern_fields: BTreeMap::new(),
                 }));
             }
             ItemKind::Enum(decl) => {

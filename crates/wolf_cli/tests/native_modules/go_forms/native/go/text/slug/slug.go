@@ -130,3 +130,66 @@ func Each(items []string, f func(string) bool) int {
 	}
 	return n
 }
+
+// Size is a record: its fields are exported.
+type Size struct {
+	W    uint32
+	H    float32
+	Tags []string
+	Note string
+	ID   int8
+}
+
+// Frame holds a Size.
+type Frame struct {
+	Size Size
+	Name string
+}
+
+// Area is the area of a size.
+func Area(s Size) uint64 {
+	return uint64(float32(s.W) * s.H)
+}
+
+// Grow makes a size wider.
+func Grow(s Size, by uint32) Size {
+	s.W += by
+	s.Note = strconv.Itoa(len(s.Tags)) + " tags"
+	return s
+}
+
+// Frames lists frames.
+func Frames(n int) []Frame {
+	out := []Frame{}
+	for i := 0; i < n; i++ {
+		out = append(out, Frame{Size: Size{W: uint32(i), H: 0.5, Tags: []string{}}, Name: "f" + strconv.Itoa(i)})
+	}
+	return out
+}
+
+// FindFrame finds a frame by name.
+func FindFrame(name string) (Frame, bool) {
+	for _, f := range Frames(3) {
+		if f.Name == name {
+			return f, true
+		}
+	}
+	return Frame{}, false
+}
+
+// ParseSize parses "WxH".
+func ParseSize(s string) (Size, error) {
+	w, h, ok := strings.Cut(s, "x")
+	if !ok {
+		return Size{}, errors.New("no x")
+	}
+	wn, err := strconv.ParseUint(w, 10, 32)
+	if err != nil {
+		return Size{}, errors.New("bad width")
+	}
+	hn, err := strconv.ParseFloat(h, 32)
+	if err != nil {
+		return Size{}, errors.New("bad height")
+	}
+	return Size{W: uint32(wn), H: float32(hn), Tags: []string{s}, ID: 1}, nil
+}

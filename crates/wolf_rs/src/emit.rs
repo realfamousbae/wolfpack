@@ -2081,7 +2081,13 @@ impl<'p> Emitter<'p> {
             params.push((Pat::Bind(n.clone(), false), self.param_ty(*m, t)?));
             // A function of a native module takes the Rust types the reader found.
             if let Some(nt) = x.native.get("rust").and_then(|s| s.params.get(i)) {
-                if let Some(a) = self.native_arg(nt, *m, &n, i, &mut stmts) {
+                // The records of a native module are next to its functions.
+                let module = self
+                    .extern_path(target)
+                    .rsplit_once("::")
+                    .map(|(m, _)| m.to_string())
+                    .unwrap_or_default();
+                if let Some(a) = self.native_arg(nt, &module, *m, &n, i, &mut stmts) {
                     args.push(a);
                     continue;
                 }
@@ -2170,6 +2176,7 @@ impl<'p> Emitter<'p> {
     fn native_arg(
         &mut self,
         nt: &NativeTy,
+        module: &str,
         mode: Mode,
         p: &str,
         i: usize,
@@ -2185,7 +2192,7 @@ impl<'p> Emitter<'p> {
             NativeTy::Float(f) if f == "f64" => return None,
             NativeTy::Slice(inner) if exact(inner) => return None,
             NativeTy::RefString | NativeTy::Slice(_) | NativeTy::RefVec(_) => true,
-            NativeTy::Map { by_ref, .. } => *by_ref,
+            NativeTy::Map { by_ref, .. } | NativeTy::Record { by_ref, .. } => *by_ref,
             _ => false,
         };
         let value = if mode == Mode::Own || matches!(nt, NativeTy::Float(_)) {
@@ -2197,7 +2204,7 @@ impl<'p> Emitter<'p> {
         let converted = self.rt_call("extern_as", "to_extern_as", vec![value]);
         stmts.push(Stmt::Let(
             Pat::Bind(a.clone(), false),
-            Some(native_owned(nt)),
+            Some(native_owned(nt, module)),
             Some(converted),
         ));
         Some(if by_ref {
@@ -4279,9 +4286,12 @@ fn exact(t: &NativeTy) -> bool {
     }
 }
 
-/// The owned Rust type of a parameter of a native function: `Vec<u32>` for `&[u32]`.
-fn native_owned(t: &NativeTy) -> rs::Type {
+/// The owned Rust type of a parameter of a native function: `Vec<u32>` for `&[u32]`. `module` is
+/// the Rust path of the native module, where its records are.
+fn native_owned(t: &NativeTy, module: &str) -> rs::Type {
+    let native_owned = |t: &NativeTy| native_owned(t, module);
     match t {
+        NativeTy::Record { name, .. } => rs::Type::name(&format!("{module}::{name}")),
         NativeTy::Int(n) | NativeTy::Float(n) => rs::Type::name(n),
         NativeTy::Bool => rs::Type::name("bool"),
         NativeTy::Str | NativeTy::String | NativeTy::RefString => rs::Type::name("String"),

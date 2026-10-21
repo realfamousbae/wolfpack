@@ -29,6 +29,8 @@ pub struct Module {
     pub types: Vec<String>,
     /// The opaque types used through a pointer (Go struct types: `*X`).
     pub pointers: BTreeSet<String>,
+    /// The records: structs copied field by field at the boundary, in the order of the file.
+    pub records: Vec<Record>,
     /// The public items wolfpack cannot use, with the reason.
     pub unavailable: BTreeMap<String, String>,
 }
@@ -46,6 +48,28 @@ pub struct Function {
     pub ret: Wolf,
     /// The Rust types that the generated call must match.
     pub native: NativeSig,
+}
+
+/// A record of a native module (spec chapter 7, section 8.7, rules 2 and 8).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Record {
+    /// Its name, the same in wolfpack and in the target code.
+    pub name: String,
+    /// Its fields, in order.
+    pub fields: Vec<RecordField>,
+}
+
+/// A field of a record.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecordField {
+    /// Its wolfpack name.
+    pub name: String,
+    /// Its name in the target code (`MaxSize` for `max_size` in Go).
+    pub target_name: String,
+    /// Its wolfpack type.
+    pub ty: Wolf,
+    /// Its type in the target code.
+    pub native: NativeTy,
 }
 
 /// A wolfpack type, as the reader derives it.
@@ -69,7 +93,7 @@ pub enum Wolf {
     Option(Box<Wolf>),
     /// `Result<T, Error>`
     Result(Box<Wolf>),
-    /// An opaque type of the module.
+    /// An opaque type or a record of the module.
     Named(String),
     /// A callback `fn(A, ..) -> R`.
     Fn(Vec<Wolf>, Box<Wolf>),
@@ -132,35 +156,73 @@ pub fn read_rust(source: &str) -> Result<Module, ReadError> {
         }
     })?;
     let mut module = Module::default();
-    // Types first: functions refer to them in any order.
+    // Types first: functions refer to them in any order. A struct with only `pub` named fields is
+    // a record if every field maps; the others are opaque.
     let mut opaque = BTreeSet::new();
+    let mut candidates: Vec<(String, &syn::FieldsNamed)> = Vec::new();
     for item in &file.items {
-        let (vis, name, attrs, record) = match item {
+        let (vis, name, attrs, fields) = match item {
             Item::Struct(s) => {
-                let record = matches!(&s.fields, syn::Fields::Named(f) if f.named.iter().all(|f| matches!(f.vis, Visibility::Public(_))))
-                    && s.generics.params.is_empty();
-                (&s.vis, s.ident.to_string(), &s.attrs, record)
+                let fields = match &s.fields {
+                    syn::Fields::Named(f)
+                        if s.generics.params.is_empty()
+                            && !f.named.is_empty()
+                            && f.named
+                                .iter()
+                                .all(|f| matches!(f.vis, Visibility::Public(_))) =>
+                    {
+                        Some(f)
+                    }
+                    _ => None,
+                };
+                (&s.vis, s.ident.to_string(), &s.attrs, fields)
             }
-            Item::Enum(e) => (&e.vis, e.ident.to_string(), &e.attrs, false),
-            Item::Type(t) => (&t.vis, t.ident.to_string(), &t.attrs, false),
+            Item::Enum(e) => (&e.vis, e.ident.to_string(), &e.attrs, None),
+            Item::Type(t) => (&t.vis, t.ident.to_string(), &t.attrs, None),
             _ => continue,
         };
         if !matches!(vis, Visibility::Public(_)) || has_cfg(attrs) {
             continue;
         }
-        if record {
-            // Records of native modules come with the record conversions (D7.15); until then
-            // such a struct is not mapped at all, so that its meaning does not change later.
-            module.unavailable.insert(
-                name,
-                "a struct with only `pub` fields becomes a record of wolfpack, which a later version supports".to_string(),
-            );
-        } else {
-            opaque.insert(name.clone());
-            module.types.push(name);
+        match fields {
+            Some(f) => candidates.push((name, f)),
+            None => {
+                opaque.insert(name.clone());
+                module.types.push(name);
+            }
         }
     }
-    let reader = Reader { opaque: &opaque };
+    // A record whose field uses a struct that is not a record is not one either: repeat until
+    // nothing changes.
+    let mut records: BTreeSet<String> = candidates.iter().map(|(n, _)| n.clone()).collect();
+    loop {
+        let reader = Reader {
+            opaque: &opaque,
+            records: &records,
+        };
+        let failed: Vec<String> = candidates
+            .iter()
+            .filter(|(n, f)| records.contains(n) && reader.record(n, f).is_err())
+            .map(|(n, _)| n.clone())
+            .collect();
+        if failed.is_empty() {
+            break;
+        }
+        for n in failed {
+            records.remove(&n);
+            opaque.insert(n);
+        }
+    }
+    let reader = Reader {
+        opaque: &opaque,
+        records: &records,
+    };
+    for (name, fields) in &candidates {
+        match reader.record(name, fields) {
+            Ok(r) => module.records.push(r),
+            Err(_) => module.types.push(name.clone()),
+        }
+    }
     for item in &file.items {
         let Item::Fn(f) = item else {
             continue;
@@ -185,9 +247,35 @@ fn has_cfg(attrs: &[syn::Attribute]) -> bool {
 
 struct Reader<'a> {
     opaque: &'a BTreeSet<String>,
+    records: &'a BTreeSet<String>,
 }
 
 impl Reader<'_> {
+    /// A struct with only `pub` named fields as a record, if every field maps (rule 2).
+    fn record(&self, name: &str, fields: &syn::FieldsNamed) -> Result<Record, String> {
+        let mut out = Vec::new();
+        for f in &fields.named {
+            let field = f
+                .ident
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_default();
+            let (ty, native) = self
+                .ty(&f.ty, Pos::Inner, &BTreeMap::new())
+                .map_err(|r| format!("its field `{field}`: {r}"))?;
+            out.push(RecordField {
+                name: field.clone(),
+                target_name: field,
+                ty,
+                native,
+            });
+        }
+        Ok(Record {
+            name: name.to_string(),
+            fields: out,
+        })
+    }
+
     fn function(&self, sig: &syn::Signature) -> Result<Function, String> {
         if sig.asyncness.is_some() {
             return Err("it is `async`".to_string());
@@ -325,6 +413,10 @@ impl Reader<'_> {
                         Ok((Wolf::List(Box::new(w)), NativeTy::RefVec(Box::new(n))))
                     }
                     "HashMap" => self.map(&last.arguments, "HashMap", true, callbacks),
+                    _ if tp.path.segments.len() == 1 && self.records.contains(&name) => Ok((
+                        Wolf::Named(name.clone()),
+                        NativeTy::Record { name, by_ref: true },
+                    )),
                     _ if tp.path.segments.len() == 1 && self.opaque.contains(&name) => Ok((
                         Wolf::Named(name.clone()),
                         NativeTy::Named { name, by_ref: true },
@@ -389,6 +481,14 @@ impl Reader<'_> {
                     None => Err("an unknown type parameter".to_string()),
                 }
             }
+            // A record is copied: by value anywhere.
+            _ if single && self.records.contains(&name) => Ok((
+                Wolf::Named(name.clone()),
+                NativeTy::Record {
+                    name,
+                    by_ref: false,
+                },
+            )),
             _ if single && self.opaque.contains(&name) => match pos {
                 Pos::Ret | Pos::RetInner => Ok((
                     Wolf::Named(name.clone()),
@@ -548,10 +648,22 @@ pub fn source(module_path: &str, blocks: &[Block<'_>], name_ok: &dyn Fn(&str) ->
     let mut out = format!("module {module_path}\n");
     let blocks: Vec<&Block<'_>> = blocks
         .iter()
-        .filter(|b| !(b.module.fns.is_empty() && b.module.types.is_empty()))
+        .filter(|b| {
+            !(b.module.fns.is_empty() && b.module.types.is_empty() && b.module.records.is_empty())
+        })
         .collect();
     if blocks.is_empty() {
         return out;
+    }
+    // Each record is declared once, as the first target that has it reads it (the targets agree,
+    // rule 10).
+    let mut records: Vec<&Record> = Vec::new();
+    for b in &blocks {
+        for r in &b.module.records {
+            if !records.iter().any(|x| x.name == r.name) {
+                records.push(r);
+            }
+        }
     }
     out.push_str("\nextern {\n");
     for b in blocks {
@@ -563,6 +675,10 @@ pub fn source(module_path: &str, blocks: &[Block<'_>], name_ok: &dyn Fn(&str) ->
         for t in &b.module.types {
             let p = path(t, b.module.pointers.contains(t));
             out.push_str(&format!("        pub type {t} from \"{p}\"\n"));
+        }
+        for r in &b.module.records {
+            let p = path(&r.name, false);
+            out.push_str(&format!("        struct {} from \"{p}\"\n", r.name));
         }
         for f in &b.module.fns {
             let params: Vec<String> = f
@@ -592,6 +708,20 @@ pub fn source(module_path: &str, blocks: &[Block<'_>], name_ok: &dyn Fn(&str) ->
         out.push_str("    }\n");
     }
     out.push_str("}\n");
+    if !records.is_empty() {
+        out.push_str("\ntypes {\n");
+        for (i, r) in records.iter().enumerate() {
+            if i > 0 {
+                out.push('\n');
+            }
+            out.push_str(&format!("    pub struct {} {{\n", r.name));
+            for f in &r.fields {
+                out.push_str(&format!("        pub {}: {}\n", f.name, f.ty.text()));
+            }
+            out.push_str("    }\n");
+        }
+        out.push_str("}\n");
+    }
     out
 }
 
@@ -629,6 +759,9 @@ use std::collections::HashMap;
 
 pub struct Index { words: Vec<String> }
 pub struct Point { pub x: f64, pub y: f64 }
+pub struct Line { pub from: Point, pub to: Point, pub tags: Vec<String>, pub width: Option<u8> }
+pub struct Holder { pub index: Index }
+pub struct Later { pub held: Holder }
 
 pub fn slugify(title: &str) -> String { todo!() }
 pub fn count(words: &[String], limit: u32) -> usize { 0 }
@@ -642,6 +775,8 @@ pub fn change(v: &mut Vec<i64>) {}
 pub fn borrow(s: &str) -> &str { s }
 pub fn origin() -> Point { todo!() }
 pub async fn later() {}
+pub fn length(l: &Line, scale: f32) -> f64 { 0.0 }
+pub fn moved(p: Point) -> Vec<Point> { vec![] }
 fn private() {}
 #[cfg(test)]
 pub fn hidden() {}
@@ -650,13 +785,24 @@ pub fn hidden() {}
         let names: Vec<&str> = m.fns.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(
             names,
-            ["slugify", "count", "open", "size", "tally", "each", "each2"]
+            [
+                "slugify", "count", "open", "size", "tally", "each", "each2", "origin", "length",
+                "moved"
+            ]
         );
-        assert_eq!(m.types, ["Index"]);
+        // A struct whose field is opaque is opaque, and so is one that holds it.
+        assert_eq!(m.types, ["Index", "Holder", "Later"]);
+        let records: Vec<&str> = m.records.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(records, ["Point", "Line"]);
         let unavailable: Vec<&str> = m.unavailable.keys().map(String::as_str).collect();
+        assert_eq!(unavailable, ["bad", "borrow", "change", "later"]);
+        let length = m.fns.iter().find(|f| f.name == "length");
         assert_eq!(
-            unavailable,
-            ["Point", "bad", "borrow", "change", "later", "origin"]
+            length.and_then(|f| f.native.params.first()),
+            Some(&NativeTy::Record {
+                name: "Line".to_string(),
+                by_ref: true
+            })
         );
         let source = rust_source("native.slug", "slug", &m, &|_| true);
         assert!(
@@ -688,6 +834,18 @@ pub fn hidden() {}
             source.contains("pub type Index from \"native:slug::Index\""),
             "{source}"
         );
+        assert!(
+            source.contains("struct Line from \"native:slug::Line\""),
+            "{source}"
+        );
+        assert!(
+            source.contains("    pub struct Line {\n        pub from: Point\n        pub to: Point\n        pub tags: List<String>\n        pub width: Option<Int>\n    }"),
+            "{source}"
+        );
+        assert!(
+            source.contains("pub fn moved(p: Point) -> List<Point>"),
+            "{source}"
+        );
     }
 
     #[test]
@@ -707,6 +865,17 @@ type Index struct {
 
 type Point struct {
 	X, Y float64
+}
+
+type Pair struct {
+	ID  int32
+	URL string
+	At  Point
+}
+
+type Clash struct {
+	URL string
+	Url string
 }
 
 type ID int64
@@ -737,6 +906,8 @@ func Bad(i Index) {}
 func Many(a ...int) {}
 func Generic[T any](x T) {}
 func Ch(c chan int) {}
+func Near(a Point, b []Pair) (Point, bool) { return a, true }
+func Far(p *Point) {}
 func private() {}
 "#;
         let m = read_go(&[("slug.go".to_string(), src.to_string())]).unwrap_or_default();
@@ -750,12 +921,26 @@ func private() {}
                 "find",
                 "each",
                 "parse_url",
-                "tally"
+                "tally",
+                "near"
             ]
         );
         assert_eq!(m.types, ["Index", "ID"]);
+        let records: Vec<&str> = m.records.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(records, ["Point", "Pair"]);
+        let pair: Vec<(&str, &str)> = m
+            .records
+            .iter()
+            .filter(|r| r.name == "Pair")
+            .flat_map(|r| &r.fields)
+            .map(|f| (f.name.as_str(), f.target_name.as_str()))
+            .collect();
+        assert_eq!(pair, [("id", "ID"), ("url", "URL"), ("at", "At")]);
         let unavailable: Vec<&str> = m.unavailable.keys().map(String::as_str).collect();
-        assert_eq!(unavailable, ["Point", "bad", "ch", "generic", "many"]);
+        assert_eq!(
+            unavailable,
+            ["Clash", "bad", "ch", "far", "generic", "many"]
+        );
         let out = source(
             "native.slug",
             &[Block {
@@ -789,6 +974,18 @@ func private() {}
         );
         assert!(
             out.contains("pub fn tally(m: Map<String, Int>) -> Map<String, Int>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("struct Pair from \"native:slug.Pair\""),
+            "{out}"
+        );
+        assert!(
+            out.contains("pub fn near(a: Point, b: List<Pair>) -> Option<Point>"),
+            "{out}"
+        );
+        assert!(
+            out.contains("    pub struct Pair {\n        pub id: Int\n        pub url: String\n        pub at: Point\n    }"),
             "{out}"
         );
     }

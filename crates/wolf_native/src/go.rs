@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use wolf_ast::{NativeSig, NativeTy};
 
-use crate::{Function, Module, ReadError, Wolf};
+use crate::{Function, Module, ReadError, Record, RecordField, Wolf};
 
 /// A token of Go.
 #[derive(Clone, Debug, PartialEq)]
@@ -657,6 +657,7 @@ pub fn read_go(files: &[(String, String)]) -> Result<Module, (String, ReadError)
     let mut module = Module::default();
     // Types first: struct types are opaque as `*X`, other named types as `X`.
     let mut opaque: BTreeMap<String, bool> = BTreeMap::new();
+    let mut candidates: Vec<(String, &Vec<(String, GoType)>)> = Vec::new();
     for d in &decls {
         let Decl::Type {
             name,
@@ -676,13 +677,8 @@ pub fn read_go(files: &[(String, String)]) -> Result<Module, (String, ReadError)
             continue;
         }
         match fields {
-            Some(fields)
-                if !fields.is_empty() && fields.iter().all(|(n, t)| exported(n) && field_ok(t)) =>
-            {
-                module.unavailable.insert(
-                    name.clone(),
-                    "a struct with only exported fields becomes a record of wolfpack, which a later version supports".to_string(),
-                );
+            Some(fields) if !fields.is_empty() && fields.iter().all(|(n, _)| exported(n)) => {
+                candidates.push((name.clone(), fields));
             }
             Some(_) => {
                 opaque.insert(name.clone(), true);
@@ -695,7 +691,50 @@ pub fn read_go(files: &[(String, String)]) -> Result<Module, (String, ReadError)
             }
         }
     }
-    let reader = Reader { opaque: &opaque };
+    // A struct with only exported fields is a record if every field maps (rule 8); one whose
+    // field uses a struct that is not a record is not one either: repeat until nothing changes.
+    let mut records: BTreeSet<String> = candidates.iter().map(|(n, _)| n.clone()).collect();
+    let mut unavailable: BTreeMap<String, String> = BTreeMap::new();
+    loop {
+        let reader = Reader {
+            opaque: &opaque,
+            records: &records,
+        };
+        let failed: Vec<(String, RecordError)> = candidates
+            .iter()
+            .filter(|(n, _)| records.contains(n))
+            .filter_map(|(n, fields)| reader.record(n, fields).err().map(|e| (n.clone(), e)))
+            .collect();
+        if failed.is_empty() {
+            break;
+        }
+        for (n, e) in failed {
+            records.remove(&n);
+            match e {
+                // Field names that collide: the struct is not available at all.
+                RecordError::Names(reason) => {
+                    unavailable.insert(n, reason);
+                }
+                RecordError::Field => {
+                    opaque.insert(n, true);
+                }
+            }
+        }
+    }
+    let reader = Reader {
+        opaque: &opaque,
+        records: &records,
+    };
+    for (name, fields) in &candidates {
+        if let Ok(r) = reader.record(name, fields) {
+            module.records.push(r);
+        } else if let Some(reason) = unavailable.remove(name) {
+            module.unavailable.insert(name.clone(), reason);
+        } else {
+            module.types.push(name.clone());
+            module.pointers.insert(name.clone());
+        }
+    }
     let mut seen: BTreeSet<String> = BTreeSet::new();
     for d in &decls {
         let Decl::Func {
@@ -734,16 +773,6 @@ pub fn read_go(files: &[(String, String)]) -> Result<Module, (String, ReadError)
     Ok(module)
 }
 
-/// Whether a field type of a struct could be a field of a record (rule 9, without opaque types).
-fn field_ok(t: &GoType) -> bool {
-    match t {
-        GoType::Name(n) => scalar(n).is_some(),
-        GoType::Slice(x) => field_ok(x),
-        GoType::Map(k, v) => field_ok(k) && field_ok(v),
-        _ => false,
-    }
-}
-
 /// A predeclared Go type of `Int`, `Float`, `Bool` or `String`.
 fn scalar(name: &str) -> Option<(Wolf, NativeTy)> {
     let ints = [
@@ -763,9 +792,45 @@ fn scalar(name: &str) -> Option<(Wolf, NativeTy)> {
 struct Reader<'a> {
     /// Opaque types, and whether each is used as `*X` (a struct type).
     opaque: &'a BTreeMap<String, bool>,
+    /// The structs that are records.
+    records: &'a BTreeSet<String>,
+}
+
+/// Why a struct with only exported fields is not a record.
+enum RecordError {
+    /// A field does not map: the struct is an opaque type.
+    Field,
+    /// Two fields have the same name in `snake_case`: the struct is not available.
+    Names(String),
 }
 
 impl Reader<'_> {
+    /// A struct with only exported fields as a record (rule 8): the fields in `snake_case`, with
+    /// the types of rule 9.
+    fn record(&self, name: &str, fields: &[(String, GoType)]) -> Result<Record, RecordError> {
+        let mut out: Vec<RecordField> = Vec::new();
+        for (field, t) in fields {
+            let wolf = snake(field);
+            if let Some(other) = out.iter().find(|f| f.name == wolf) {
+                return Err(RecordError::Names(format!(
+                    "its fields `{}` and `{field}` are both `{wolf}` in `snake_case`",
+                    other.target_name
+                )));
+            }
+            let (ty, native) = self.inner(t).map_err(|_| RecordError::Field)?;
+            out.push(RecordField {
+                name: wolf,
+                target_name: field.clone(),
+                ty,
+                native,
+            });
+        }
+        Ok(Record {
+            name: name.to_string(),
+            fields: out,
+        })
+    }
+
     fn function(
         &self,
         wolf_name: &str,
@@ -828,6 +893,15 @@ impl Reader<'_> {
                 if let Some(s) = scalar(n) {
                     return Ok(s);
                 }
+                if self.records.contains(n) {
+                    return Ok((
+                        Wolf::Named(n.clone()),
+                        NativeTy::Record {
+                            name: n.clone(),
+                            by_ref: false,
+                        },
+                    ));
+                }
                 match self.opaque.get(n) {
                     Some(false) => Ok((
                         Wolf::Named(n.clone()),
@@ -850,6 +924,9 @@ impl Reader<'_> {
                         name: n.clone(),
                         by_ref: true,
                     },
+                )),
+                GoType::Name(n) if self.records.contains(n) => Err(format!(
+                    "a pointer to the record `{n}`, which is passed by value: take `{n}`"
                 )),
                 _ => Err("a pointer to something other than a struct of the package".to_string()),
             },

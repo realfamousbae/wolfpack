@@ -1,0 +1,45 @@
+error[E0715]: `Point` of the native module `native.geo` differs between Rust and Go
+  --> src/main.wolf:4:5
+  |
+4 |     native.geo
+  |     ^^^^^^^^^^ imported here
+  |
+  = help: give the struct the same fields in both files, `pub` in Rust and exported in Go, in the same order and of the same types
+  = note: Rust: struct Point { x: Float, y: Float }
+  = note: Go: struct Point { x: Float, z: Float }
+
+error[E0715]: `Tag` of the native module `native.geo` differs between Rust and Go
+  --> src/main.wolf:4:5
+  |
+4 |     native.geo
+  |     ^^^^^^^^^^ imported here
+  |
+  = help: give the struct the same fields in both files, `pub` in Rust and exported in Go, in the same order and of the same types
+  = note: Rust: struct Tag { name: String }
+  = note: Go: type Tag (an opaque type)
+
+error[E0713]: `Point` of the native module `native.geo` is not available
+  --> src/main.wolf:8:17
+  |
+8 |     let p = geo.Point { x: 1.0, y: 2.0 }
+  |                 ^^^^^ cannot be used from wolfpack
+  |
+  = note: `Point`: Rust and Go declare it differently (E0715)
+
+error[E0713]: `norm` of the native module `native.geo` is not available
+  --> src/main.wolf:9:15
+  |
+9 |     print(geo.norm(p).to_string())
+  |               ^^^^ cannot be used from wolfpack
+  |
+  = note: `norm`: it uses `Point`, which is not available
+
+error[E0713]: `label` of the native module `native.geo` is not available
+   --> src/main.wolf:10:15
+   |
+10 |     print(geo.label().to_string())
+   |               ^^^^^ cannot be used from wolfpack
+   |
+   = note: `label`: it uses `Tag`, which is not available
+
+error: aborting due to 5 errors

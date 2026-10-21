@@ -73,3 +73,55 @@ pub fn each<F: Fn(&str) -> bool>(items: Vec<String>, f: F) -> usize {
 pub fn change(v: &mut Vec<i64>) {
     v.push(1)
 }
+
+pub struct Size {
+    pub w: u32,
+    pub h: f32,
+    pub tags: Vec<String>,
+    pub note: Option<String>,
+}
+
+pub struct Frame {
+    pub size: Size,
+    pub name: String,
+}
+
+pub fn area(s: &Size) -> u64 {
+    (s.w as f32 * s.h) as u64
+}
+
+pub fn grow(s: Size, by: u32) -> Size {
+    Size {
+        w: s.w + by,
+        note: Some(format!("{} tags", s.tags.len())),
+        ..s
+    }
+}
+
+pub fn frames(n: usize) -> Vec<Frame> {
+    (0..n)
+        .map(|i| Frame {
+            size: Size {
+                w: i as u32,
+                h: 0.5,
+                tags: Vec::new(),
+                note: None,
+            },
+            name: format!("f{i}"),
+        })
+        .collect()
+}
+
+pub fn find_frame(name: &str) -> Option<Frame> {
+    frames(3).into_iter().find(|f| f.name == name)
+}
+
+pub fn parse_size(s: &str) -> Result<Size, String> {
+    let (w, h) = s.split_once('x').ok_or("no x")?;
+    Ok(Size {
+        w: w.parse().map_err(|_| "bad width")?,
+        h: h.parse().map_err(|_| "bad height")?,
+        tags: vec![s.to_string()],
+        note: None,
+    })
+}

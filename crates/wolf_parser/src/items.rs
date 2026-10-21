@@ -927,6 +927,7 @@ impl Parser<'_> {
             from,
             span: self.span_from(start),
             native: None,
+            native_fields: Vec::new(),
         })
     }
 

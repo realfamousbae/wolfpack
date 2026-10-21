@@ -250,6 +250,9 @@ pub struct ExternDecl {
     /// For a function of a native module (spec chapter 7, section 8.7): the Rust types of its
     /// parameters and result as the reader found them. `None` for written declarations.
     pub native: Option<NativeSig>,
+    /// For a record of a native module (spec chapter 8, section 8a): the name in the target code
+    /// and the type the reader found of each field, in order. Empty for written declarations.
+    pub native_fields: Vec<(String, NativeTy)>,
 }
 
 /// The Rust types of a function of a native module, which the generated call must match.
@@ -308,6 +311,13 @@ pub enum NativeTy {
     },
     /// A callback parameter, passed as the backend passes every callback.
     Callback,
+    /// A record of the module (spec chapter 7, section 8.7), by value or by reference.
+    Record {
+        /// Its name.
+        name: String,
+        /// `&`
+        by_ref: bool,
+    },
 }
 
 /// What an extern declaration declares.

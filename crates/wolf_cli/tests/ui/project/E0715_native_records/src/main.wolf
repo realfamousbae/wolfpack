@@ -1,0 +1,11 @@
+module main
+
+imports {
+    native.geo
+}
+
+main {
+    let p = geo.Point { x: 1.0, y: 2.0 }
+    print(geo.norm(p).to_string())
+    print(geo.label().to_string())
+}
