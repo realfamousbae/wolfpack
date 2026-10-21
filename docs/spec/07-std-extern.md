@@ -338,7 +338,8 @@ extern {
 1. It is a move type: it can be stored in variables, fields and lists, moved and passed to extern
    functions.
 2. It is not `Copyable`, `Equatable` or `Hashable`, has no fields and no methods of its own. User
-   code uses it only through extern functions (E0707).
+   code uses it only through extern functions (E0707). An opaque type of a native module also has
+   the methods and associated functions that the reader finds (section 8.7, rule 17; 0.2).
 3. A type declared with the same name in all three blocks is portable, like a function.
 
 ### 8.4 The boundary
@@ -457,7 +458,7 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
      **record**: a wolfpack struct with the same fields, built, read and compared like any struct,
      and copied field by field at the boundary (as in section 8.4a);
    - any other `pub struct`, a `pub enum` or a `pub type` becomes an **opaque type** (section 8.3).
-   Methods in `impl` blocks are not available in N3a.
+   Methods in `impl` blocks follow rule 17.
 3. **Types.** Each Rust type maps to a wolfpack type; a parameter is always a read parameter:
 
    | Wolfpack | Rust |
@@ -497,7 +498,7 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
      whose field names give the same `snake_case` name twice (`URL` and `Url`) is not available.
      Any other exported struct type becomes an opaque type used as `*X`; any other exported named
      type an opaque type used as `X`.
-   Methods are not available in N3b.
+   Methods follow rule 17.
 9. **Go types.** A parameter is always a read parameter:
 
    | Wolfpack | Go |
@@ -535,8 +536,8 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
     - `export class X`, `export enum X`, and any other exported `interface` or `type` become an
       opaque type `X`, passed and returned as it is.
     Other exports (`export default`, `export { a as b }`, `export const`, re-exports from other
-    files) are not read; methods of classes are not available in N3c. Two exports whose names give
-    the same `snake_case` name are not available.
+    files) are not read; methods of classes follow rule 17. Two exports whose names give the same
+    `snake_case` name are not available.
 13. **TypeScript types.** A parameter is always a read parameter:
 
     | Wolfpack | TypeScript |
@@ -563,6 +564,24 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
     `Int` must be an integer, as for a written extern function (chapter 8, section 8).
 16. A TypeScript file that cannot be parsed is E0714. Only `.ts` files are read: `.tsx`, `.js` and
     `.d.ts` files of `native/ts/` are copied, not read.
+17. **Methods** (author, 2026-10-21, D7.20). The methods of an opaque type of the module become
+    methods of the opaque type in wolfpack, called as `index.add(word)`, and its functions without
+    a receiver become associated functions, called as `slug.Index.new()` (chapter 3, section 1):
+
+    | | Rust | Go | TypeScript |
+    | --- | --- | --- | --- |
+    | method | `pub fn name(&self, ..)` in an inherent `impl X` block | `func (x *X) Name(..)` for a struct type, `func (x X) Name(..)` | a public method of `export class X`, not `static` |
+    | associated function | `pub fn name(..)` without `self` in an inherent `impl X` block | none | a public `static` method; the `constructor` is the associated function `new` |
+
+    Names become `snake_case` as for functions. The parameters and the result follow rules 3, 9
+    and 13; the receiver is a read receiver `self`. A receiver `&mut self` or `self` (Rust), a Go
+    value receiver on a struct type used as `*X`, a TypeScript getter, setter, `async` or private
+    method, a generic method, and a method of a record or of a trait `impl` block are not
+    available. Methods take part in the agreement of rule 10, type by type: a method declared in
+    several targets maps to the same signature in each (E0715). A method or associated function
+    used in a module binds it to the targets that declare it (E0704). Written `extern` blocks have
+    no syntax for methods in 0.2: the method form of a target function there stays a function
+    whose first parameter is the receiver (section 8.2).
 
 ## 9. Diagnostics
 
@@ -585,6 +604,7 @@ Proposed range E07xx (confirmed in chapter 9).
 | E0714 | A native file that the compiler cannot read: a syntax error in the target language (0.2) |
 | E0715 | A name of a native module that maps to different wolfpack signatures in different targets (0.2) |
 | E0711 | `struct Name from "path"` in an extern block does not name a non-generic struct of the module (0.2) |
+| E0716 | `wolf check --native <module>` names no native module of the project (0.2; chapter 8, section 8b) |
 
 ## 10. Decisions for the author
 
@@ -609,3 +629,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.17 | 0.2: native modules read from Go code (section 8.7, rules 8 to 11), the agreement of targets, code E0715 | **answered** (author, 2026-10-20): yes |
 | D7.18 | 0.2: records of native modules: fields of the types the reader found (any integer type, converted with a check; `float32`, `f32`), Go fields with their Go names, and agreement of the fields between targets (section 8.7, rules 8 and 10; chapter 8, section 8a) | **answered** (author, 2026-10-21): yes |
 | D7.19 | 0.2: native modules read from TypeScript (section 8.7, rules 12 to 16): exported functions, records from interfaces and object types, opaque classes; `number` is `Float` unless another target says `Int`; no `Result` results | **answered** (author, 2026-10-21): yes |
+| D7.20 | 0.2: methods of opaque types of native modules (section 8.7, rule 17): read-receiver methods become methods called `x.name()`, functions without a receiver and TS constructors become associated functions `Type.name()`; the alternative is plain functions of the module (`index_add(index, word)`), which needs no change to opaque types | **answered** (author, 2026-10-21): methods as methods |

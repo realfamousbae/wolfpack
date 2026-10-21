@@ -434,6 +434,24 @@ found, so an `Int` field may be of any integer type, converted with a check, and
 `float32` or `f32`, converted as for parameters and results; and a Go field keeps its Go name (the
 Go field `ID` is the wolfpack field `id`).
 
+## 8b. Seeing what the compiler read (`wolf check --native`)
+
+Added in 0.2 (author, 2026-10-21, D8.13).
+
+1. `wolf check --native` checks the project as `wolf check` does, and also prints, for each native
+   module the project imports, what the compiler read from each target (chapter 7, section 8.7):
+   `wolf check --native native.text.slug` prints one native module of the project, imported or not.
+2. The output is wolfpack source on stdout, one module after the other, in the order of their
+   paths: a comment that names the files read, an `extern` block with one target block per target
+   that has code, written as the declarations of chapter 7, sections 8.1 to 8.4a with their
+   `native:` paths, and a `types` section with the records. Each item that is not available is a
+   comment `// not available: <name>: <reason>` in its target block; methods and associated
+   functions (chapter 7, section 8.7, rule 17), which written `extern` blocks cannot declare, are
+   comments `// method of Index: fn add(self, word: String) -> Void`. The output can be pasted into
+   a module as a written `extern` block, to rename or change what the reader chose.
+3. The diagnostics of the check go to stderr as usual, and the exit code is that of `wolf check`.
+   A module path that names no native module of the project is E0716, without a source range.
+
 ## 9. Diagnostics
 
 Added in M6 (author, 2026-10-09). Like driver errors, these have no source range.
@@ -463,3 +481,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.10 | 0.2: the target forms of callbacks at the extern boundary (section 8, rule 2): arrow functions, Go function literals of exact types, references to Rust closures | **answered** (author, 2026-10-19): yes |
 | D8.11 | 0.2: the target forms of records (section 8, rule 2): plain objects in TS, values of the struct type in Go and Rust, `Int` fields exactly `int64` in Go | **answered** (author, 2026-10-19): yes |
 | D8.12 | 0.2: the target forms of `Option` parameters of extern functions (section 8, rule 2): `T \| undefined` in TS, `*T` in Go, `Option<&T>` in Rust; no `Option<Option<T>>` parameter | **answered** (author, 2026-10-21): yes |
+| D8.13 | 0.2: `wolf check --native [module]` prints what the compiler read from the native code as pasteable wolfpack source, with the items left out and why (section 8b); code E0716 | **answered** (author, 2026-10-21): yes |
