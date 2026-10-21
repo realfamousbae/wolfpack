@@ -2,7 +2,7 @@
 
 All notable changes are recorded here at the end of each milestone.
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-21)
 
 - Interpolated strings `f"{name} has {items.len()} items"`, raw strings `r"\d+"` and multiline
   strings `"""` whose indentation is that of the closing quotes (spec chapter 1, section 5.3a).
