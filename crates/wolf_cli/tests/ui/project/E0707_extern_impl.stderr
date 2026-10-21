@@ -1,0 +1,9 @@
+error[E0707]: `Index` is an extern type and cannot have an `impl` block
+   --> src/main.wolf:13:5
+   |
+13 |     Index {
+   |     ^^^^^ an extern type has no methods of its own
+   |
+   = help: declare an extern function that takes the value as its first parameter
+
+error: aborting due to 1 error

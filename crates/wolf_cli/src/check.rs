@@ -23,6 +23,8 @@ pub(crate) struct CheckResult {
     /// The target being built has code in `native/<target>/`: a rejection by its tools is
     /// E0806, not E0802 (spec chapter 8, section 9).
     pub(crate) native: bool,
+    /// What `wolf check --native` prints (spec chapter 8, section 8b).
+    pub(crate) listings: Vec<String>,
 }
 
 /// A loaded and checked project.
@@ -57,6 +59,7 @@ pub(crate) fn run(args: &CheckArgs) -> CheckResult {
         diagnostics: Vec::new(),
         project: None,
         native: false,
+        listings: Vec::new(),
     };
     if args.paths.is_empty() {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -118,9 +121,12 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
         }
     }
     // Native modules imported by the project (spec chapter 6, section 1a).
-    let (native, unavailable, found) = crate::native_modules::load(&root, &parsed, &mut result.map);
-    result.diagnostics.extend(found);
-    parsed.extend(native);
+    let loaded =
+        crate::native_modules::load(&root, &parsed, &mut result.map, args.native.as_deref());
+    result.diagnostics.extend(loaded.diagnostics);
+    result.listings = loaded.listings;
+    let unavailable = loaded.names;
+    parsed.extend(loaded.modules);
     let analysis = wolf_driver::analyze(
         &result.map,
         &manifest,
@@ -148,6 +154,7 @@ pub(crate) fn load(start: &Path, args: &CheckArgs) -> CheckResult {
         diagnostics: Vec::new(),
         project: None,
         native: false,
+        listings: Vec::new(),
     };
     project(start, args, &mut result);
     result

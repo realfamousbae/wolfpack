@@ -1,0 +1,13 @@
+module main
+
+imports {
+    native.words
+}
+
+main {
+    let index = words.new_index()
+    index.add("apple")
+    index.add("pear")
+    print(f"{index.len()} {index.has("pear")} {index.has("fig")}")
+    print(index.joined("+"))
+}

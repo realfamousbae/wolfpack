@@ -895,6 +895,29 @@ impl<'a> Checker<'a> {
         ) {
             return;
         }
+        // Only a native module gives an opaque type methods (chapter 7, sections 8.3 and 8.7).
+        let native = self
+            .resolved
+            .modules
+            .get(m)
+            .is_some_and(|x| x.role == wolf_resolve::Role::Native);
+        if owner_def.kind == DefKind::ExternType && !native {
+            self.report(
+                Diagnostic::new(
+                    codes::E0707,
+                    format!(
+                        "`{}` is an extern type and cannot have an `impl` block",
+                        owner_def.name
+                    ),
+                )
+                .primary(
+                    block.type_name.span,
+                    "an extern type has no methods of its own",
+                )
+                .help("declare an extern function that takes the value as its first parameter"),
+            );
+            return;
+        }
         let file = self.file_of(m);
         let expected = self.type_generics.get(&owner).map_or(0, Vec::len);
         if block.generics.len() != expected {

@@ -46,6 +46,7 @@ pub fn lower(
 ) -> Result<Program, LowerError> {
     let mut l = Lowerer::new(modules, resolved, typed, map);
     l.defs();
+    l.extern_methods();
     let mut program = Program {
         name: meta.name.to_string(),
         version: meta.version.to_string(),
@@ -128,6 +129,9 @@ struct Lowerer<'a> {
     method_by_name: BTreeMap<(DefId, String), DefRef>,
     /// The method index by the span of its name.
     method_at: BTreeMap<Span, usize>,
+    /// The methods of opaque types of native modules, each with the extern function it calls
+    /// (spec chapter 7, section 8.7, rule 17): a call of the method is a call of the function.
+    extern_methods: BTreeMap<DefRef, DefRef>,
     /// Type parameters of `impl` blocks renamed to those of their type.
     param_rename: BTreeMap<Span, String>,
     /// Locals made by the lowering, numbered after those of name resolution.
@@ -205,6 +209,7 @@ impl<'a> Lowerer<'a> {
             defs: BTreeMap::new(),
             method_defs: Vec::new(),
             method_by_name: BTreeMap::new(),
+            extern_methods: BTreeMap::new(),
             method_at: BTreeMap::new(),
             param_rename: BTreeMap::new(),
             extra_locals: Vec::new(),
@@ -220,6 +225,50 @@ impl<'a> Lowerer<'a> {
 
     fn dref(def: DefId) -> DefRef {
         DefRef(def.0)
+    }
+
+    /// The functions of `impl` blocks of opaque types: in a native module each one is a call of
+    /// an extern function, which the calls of the method call instead.
+    fn extern_methods(&mut self) {
+        for (index, input) in self.inputs.iter().enumerate() {
+            let ctx = Ctx { file: input.file };
+            for (s, section) in input.ast.sections.iter().enumerate() {
+                for (i, item) in section.items.iter().enumerate() {
+                    let ItemKind::Impl(block) = &item.kind else {
+                        continue;
+                    };
+                    let key = (wolf_resolve::ModuleId(index as u32), s, i);
+                    let Some(owner) = self.resolved.impls.get(&key).copied() else {
+                        continue;
+                    };
+                    if self.resolved.def(owner).map(|d| d.kind) != Some(RDef::ExternType) {
+                        continue;
+                    }
+                    for method in &block.methods {
+                        let name = &method.decl.sig.name.name;
+                        let Some(def) = self.method_by_name.get(&(owner, name.clone())).copied()
+                        else {
+                            continue;
+                        };
+                        let tail = method
+                            .decl
+                            .body
+                            .as_ref()
+                            .and_then(|b| b.stmts.last())
+                            .and_then(|st| match &st.kind {
+                                ast::StmtKind::Expr(e) => Some(e),
+                                _ => None,
+                            });
+                        let Some(AstExpr::Call { callee, .. }) = tail.map(|e| &e.kind) else {
+                            continue;
+                        };
+                        if let Some(Res::Def(f)) = self.path_res(ctx, callee) {
+                            self.extern_methods.insert(def, Lowerer::dref(f));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn res(&self, ctx: Ctx, id: ast::NodeId) -> Option<Res> {
@@ -765,7 +814,9 @@ impl<'a> Lowerer<'a> {
                             out.push(Item::ExternFn(ExternFn {
                                 def,
                                 name: name.name.clone(),
-                                public: decl.public,
+                                // A method of a native module is called from other modules.
+                                public: decl.public
+                                    || self.extern_methods.values().any(|f| *f == def),
                                 params: sig.params.iter().map(|(m, t)| (*m, self.ty(t))).collect(),
                                 ret: self.ty(&sig.ret),
                                 paths,
@@ -1623,6 +1674,18 @@ impl<'a> Lowerer<'a> {
                                 .ok_or_else(|| {
                                     unsupported(format!("method `{}` not found", call.name))
                                 })?;
+                            // A method of a native module calls its extern function.
+                            if let Some(f) = self.extern_methods.get(&method).copied() {
+                                let mut all = vec![Arg {
+                                    mode: Mode::Read,
+                                    value: *recv,
+                                }];
+                                all.extend(lowered);
+                                return Ok(ExprKind::Call {
+                                    callee: Callee::Fn(f),
+                                    args: all,
+                                });
+                            }
                             Ok(ExprKind::Call {
                                 callee: Callee::Method { method, recv },
                                 args: lowered,
@@ -1685,8 +1748,11 @@ impl<'a> Lowerer<'a> {
                     });
                 }
                 Some(RDef::Fn | RDef::ExternFn | RDef::Member { .. }) => {
+                    let f = Lowerer::dref(def);
+                    // An associated function of a native module calls its extern function.
+                    let f = self.extern_methods.get(&f).copied().unwrap_or(f);
                     return Ok(ExprKind::Call {
-                        callee: Callee::Fn(Lowerer::dref(def)),
+                        callee: Callee::Fn(f),
                         args: self.args(ctx, args)?,
                     });
                 }

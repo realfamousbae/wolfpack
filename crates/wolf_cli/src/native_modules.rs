@@ -22,12 +22,29 @@ pub(crate) fn load(
     root: &Path,
     parsed: &[Parsed],
     map: &mut SourceMap,
-) -> (Vec<Parsed>, NativeNames, Vec<Diagnostic>) {
+    listing: Option<&str>,
+) -> Loaded {
     let reserved = prelude_names(parsed);
     let mut modules = Vec::new();
     let mut names = NativeNames::new();
     let mut diagnostics = Vec::new();
-    for (path, span) in imported(parsed) {
+    let mut listings = Vec::new();
+    let mut wanted: BTreeMap<Vec<String>, Option<wolf_span::Span>> = imported(parsed)
+        .into_iter()
+        .map(|(p, s)| (p, Some(s)))
+        .collect();
+    // `wolf check --native <module>`: that module, imported or not (spec chapter 8, section 8b).
+    let only = listing.filter(|m| !m.is_empty()).map(|m| {
+        let path: Vec<String> = m.split('.').map(str::to_string).collect();
+        wanted.entry(path.clone()).or_insert(None);
+        path
+    });
+    let mut found_only = false;
+    for (path, span) in wanted {
+        let listed = listing.is_some() && only.as_ref().is_none_or(|o| *o == path);
+        if span.is_none() && !listed {
+            continue;
+        }
         let rest: Vec<&str> = path.iter().skip(1).map(String::as_str).collect();
         let rel = rest.join("/");
         let rust = [format!("{rel}.rs"), format!("{rel}/mod.rs")]
@@ -41,6 +58,9 @@ pub(crate) fn load(
         if !exists {
             // An unknown module: the resolver reports it (E0602).
             continue;
+        }
+        if only.as_ref() == Some(&path) {
+            found_only = true;
         }
         let mut unreadable = false;
         let mut rust_module = None;
@@ -135,16 +155,40 @@ pub(crate) fn load(
                 module: m,
             })
             .collect();
-        let source = wolf_native::source(&module_path, &blocks, &|n| {
-            wolf_resolve::is_snake_case(n) && TokenKind::keyword(n).is_none()
-        });
+        let name_ok = |n: &str| wolf_resolve::is_snake_case(n) && TokenKind::keyword(n).is_none();
+        if listed {
+            let files: Vec<String> = rust
+                .iter()
+                .map(|f| shown(root, f))
+                .chain((!go_files.is_empty()).then(|| format!("{}/", shown(root, &go_dir))))
+                .chain(ts.iter().map(|f| shown(root, f)))
+                .map(|f| format!("`{f}`"))
+                .collect();
+            listings.push(wolf_native::listing(
+                &module_path,
+                &files,
+                &blocks,
+                &name_ok,
+            ));
+        }
+        if span.is_none() {
+            continue;
+        }
+        let source = wolf_native::source(&module_path, &blocks, &name_ok);
         let id = map.add(format!("<native module {module_path}>"), source);
         let mut ast = wolf_driver::parse(map, id, &mut diagnostics);
         let mut sigs: BTreeMap<(&str, &str), &wolf_ast::NativeSig> = BTreeMap::new();
         let mut records: BTreeMap<(&str, &str), &wolf_native::Record> = BTreeMap::new();
+        let block_refs: Vec<&wolf_native::Block<'_>> = blocks.iter().collect();
+        let hidden = wolf_native::method_names(&block_refs);
         for b in &blocks {
             for f in &b.module.fns {
                 sigs.insert((b.target, f.name.as_str()), &f.native);
+            }
+            for m in &b.module.methods {
+                if let Some(h) = hidden.get(&(m.owner.clone(), m.func.name.clone())) {
+                    sigs.insert((b.target, h.as_str()), &m.func.native);
+                }
             }
             for r in &b.module.records {
                 records.insert((b.target, r.name.as_str()), r);
@@ -182,6 +226,9 @@ pub(crate) fn load(
             m.fns.iter().any(|f| f.name == n)
                 || m.types.iter().any(|t| t == n)
                 || m.records.iter().any(|r| r.name == n)
+                || m.methods
+                    .iter()
+                    .any(|x| format!("{}.{}", x.owner, x.func.name) == n)
         };
         let mut reasons: BTreeMap<String, Vec<(&str, &String)>> = BTreeMap::new();
         let present = targets.len();
@@ -217,7 +264,45 @@ pub(crate) fn load(
         names.insert(module_path, unavailable);
         modules.push((path, Role::Native, id, ast));
     }
-    (modules, names, diagnostics)
+    if let (Some(m), false) = (listing.filter(|m| !m.is_empty()), found_only) {
+        diagnostics.push(
+            Diagnostic::new(codes::E0716, format!("no native module `{m}` in this project"))
+                .help("name a module `native.<path>` with code in `native/ts/`, `native/go/` or `native/rust/`"),
+        );
+    }
+    Loaded {
+        modules,
+        names,
+        diagnostics,
+        listings,
+    }
+}
+
+/// What [`load`] produced.
+pub(crate) struct Loaded {
+    /// The generated modules of the native modules that the project imports.
+    pub(crate) modules: Vec<Parsed>,
+    /// The names that are not available, with the reason (E0713).
+    pub(crate) names: NativeNames,
+    /// E0714, E0715 and E0716.
+    pub(crate) diagnostics: Vec<Diagnostic>,
+    /// What `wolf check --native` prints (spec chapter 8, section 8b).
+    pub(crate) listings: Vec<String>,
+}
+
+/// A diagnostic with its primary label at the import, when there is one: a module that
+/// `wolf check --native` prints without an import has none.
+trait AtImport {
+    fn with_span_at(self, span: Option<wolf_span::Span>) -> Self;
+}
+
+impl AtImport for Diagnostic {
+    fn with_span_at(self, span: Option<wolf_span::Span>) -> Self {
+        match span {
+            Some(span) => self.primary(span, "imported here"),
+            None => self,
+        }
+    }
 }
 
 fn shown(root: &Path, file: &Path) -> String {
@@ -264,7 +349,7 @@ fn disagree(
     (ra, _, _, r): &mut Target,
     (ga, _, _, g): &mut Target,
     module_path: &str,
-    span: wolf_span::Span,
+    span: Option<wolf_span::Span>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let show = |f: &wolf_native::Function| {
@@ -272,6 +357,7 @@ fn disagree(
         format!("fn {}({}) -> {}", f.name, params.join(", "), f.ret.text())
     };
     let mut bad = Vec::new();
+    let mut bad_methods = Vec::new();
     for rf in &r.fns {
         if let Some(gf) = g.fns.iter().find(|gf| gf.name == rf.name) {
             let (a, b) = (show(rf), show(gf));
@@ -284,7 +370,7 @@ fn disagree(
                             rf.name
                         ),
                     )
-                    .primary(span, "imported here")
+                    .with_span_at(span)
                     .note(format!("{ra}: {a}"))
                     .note(format!("{ga}: {b}"))
                     .help("give the function the same parameter and result types in both files"),
@@ -292,6 +378,41 @@ fn disagree(
                 bad.push(rf.name.clone());
             }
         }
+    }
+    for rm in &r.methods {
+        let Some(gm) = g
+            .methods
+            .iter()
+            .find(|gm| gm.owner == rm.owner && gm.func.name == rm.func.name)
+        else {
+            continue;
+        };
+        let (a, b) = (show(&rm.func), show(&gm.func));
+        if a != b || rm.kind != gm.kind {
+            let name = format!("{}.{}", rm.owner, rm.func.name);
+            diagnostics.push(
+                Diagnostic::new(
+                    codes::E0715,
+                    format!(
+                        "`{name}` of the native module `{module_path}` differs between {ra} and {ga}"
+                    ),
+                )
+                .with_span_at(span)
+                .note(format!("{ra}: {a}"))
+                .note(format!("{ga}: {b}"))
+                .help("give the method the same parameter and result types in both files"),
+            );
+            bad_methods.push((rm.owner.clone(), rm.func.name.clone()));
+        }
+    }
+    for (owner, n) in bad_methods {
+        let reason = format!("{ra} and {ga} declare it differently (E0715)");
+        r.methods
+            .retain(|m| !(m.owner == owner && m.func.name == n));
+        g.methods
+            .retain(|m| !(m.owner == owner && m.func.name == n));
+        r.unavailable.insert(format!("{owner}.{n}"), reason.clone());
+        g.unavailable.insert(format!("{owner}.{n}"), reason);
     }
     for n in bad {
         let reason = format!("{ra} and {ga} declare it differently (E0715)");
@@ -323,7 +444,7 @@ fn disagree_records(
     (ra, _, _, r): &mut Target,
     (ga, _, _, g): &mut Target,
     module_path: &str,
-    span: wolf_span::Span,
+    span: Option<wolf_span::Span>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let (r, g) = (&mut *r, &mut *g);
@@ -359,7 +480,7 @@ fn disagree_records(
                 codes::E0715,
                 format!("`{n}` of the native module `{module_path}` differs between {ra} and {ga}"),
             )
-            .primary(span, "imported here")
+            .with_span_at(span)
             .note(format!("{ra}: {a}"))
             .note(format!("{ga}: {b}"))
             .help("give the struct the same public fields in both files, in the same order and of the same types"),
@@ -417,6 +538,21 @@ fn settle_numbers(ts: &mut wolf_native::Module, others: &[&wolf_native::Module])
             }
         }
         settle(&mut f.ret, &other.ret);
+    }
+    for m in &mut ts.methods {
+        let Some(other) = others.iter().find_map(|o| {
+            o.methods
+                .iter()
+                .find(|x| x.owner == m.owner && x.func.name == m.func.name)
+        }) else {
+            continue;
+        };
+        if other.func.params.len() == m.func.params.len() {
+            for ((_, w), (_, o)) in m.func.params.iter_mut().zip(&other.func.params) {
+                settle(w, o);
+            }
+        }
+        settle(&mut m.func.ret, &other.func.ret);
     }
     for r in &mut ts.records {
         let Some(other) = others
@@ -623,6 +759,32 @@ fn filter_names(module: &mut wolf_native::Module, reserved: &BTreeSet<String>) {
         }
     }
     let uses = |w: &wolf_native::Wolf| uses_removed(w, &removed);
+    // Methods: a name wolfpack cannot declare, or a type that is not available (rule 17).
+    let mut kept = Vec::new();
+    for m in std::mem::take(&mut module.methods) {
+        let why = if removed.contains(&m.owner) {
+            Some(format!("`{}` is not available", m.owner))
+        } else {
+            reason(&m.func.name, false).or_else(|| {
+                m.func
+                    .params
+                    .iter()
+                    .map(|(_, w)| w)
+                    .chain(std::iter::once(&m.func.ret))
+                    .find_map(&uses)
+                    .map(|t| format!("it uses `{t}`, which is not available"))
+            })
+        };
+        match why {
+            Some(r) => {
+                module
+                    .unavailable
+                    .insert(format!("{}.{}", m.owner, m.func.name), r);
+            }
+            None => kept.push(m),
+        }
+    }
+    module.methods = kept;
     let mut kept = Vec::new();
     for f in std::mem::take(&mut module.fns) {
         let why = reason(&f.name, false).or_else(|| {

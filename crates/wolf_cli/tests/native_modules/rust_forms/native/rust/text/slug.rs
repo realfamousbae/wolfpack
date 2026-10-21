@@ -145,3 +145,17 @@ pub fn restock(s: &Stock, item: &str) -> Stock {
     *counts.entry(item.to_string()).or_insert(0) += 1;
     Stock { counts }
 }
+
+impl Counter {
+    pub fn starting(n: u32) -> Self {
+        Counter { n }
+    }
+
+    pub fn value(&self) -> u32 {
+        self.n
+    }
+
+    pub fn bump(&mut self) {
+        self.n += 1;
+    }
+}

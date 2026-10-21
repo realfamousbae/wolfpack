@@ -1283,7 +1283,29 @@ impl<'p> Emitter<'p> {
             let nt = native.and_then(|s| s.params.get(i));
             args.push(self.extern_convert(ident(n), t, true, nt)?);
         }
-        let callee_call = if let Some((module, export)) = path.split_once('#') {
+        // A member of a class of a native module (spec chapter 7, section 8.7, rule 17): the class
+        // is imported once under its own local name.
+        let class_member = path
+            .split_once('#')
+            .and_then(|(module, export)| export.split_once('.').map(|(c, m)| (module, c, m)));
+        let callee_call = if let Some((module, class, name)) = class_member {
+            let local = format!("{class}$class");
+            let import = (format!("{class} as {local}"), module.to_string());
+            if !self.externs.contains(&import) {
+                self.externs.push(import);
+            }
+            if let Some(method) = name.strip_prefix("prototype.") {
+                let mut rest = args.into_iter();
+                let recv = rest
+                    .next()
+                    .ok_or_else(|| format!("extern method `{}` has no receiver", x.name))?;
+                call(member(recv, method), rest.collect())
+            } else if name == "constructor" {
+                Expr::New(local, args)
+            } else {
+                call(member(ident(&local), name), args)
+            }
+        } else if let Some((module, export)) = path.split_once('#') {
             // The wrapper has the wolfpack name; an export of the same name gets another one.
             let local = if export == "default" {
                 camel(&x.name) + "$default"

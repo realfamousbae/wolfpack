@@ -1,0 +1,11 @@
+module main
+
+imports {
+    native.words
+}
+
+main {
+    let index = words.new_index()
+    index.clear()
+    print(index.joined(","))
+}

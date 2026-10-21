@@ -53,4 +53,6 @@ main {
     print(slug.widest(["a": slug.Size { w: 3, h: 2.0, tags: [], note: None }, "b": slug.Size { w: 1, h: 2.0, tags: [], note: None }]))
     let st = slug.restock(slug.Stock { counts: ["x": 2] }, "y")
     print(f"{st.counts["x"]} {st.counts["y"]} {st.counts.keys()[1]}")
+    let c2 = slug.Counter.starting(3)
+    print(f"{c2.value()}")
 }

@@ -1,0 +1,9 @@
+error[E0713]: `Index.clear` of the native module `native.words` is not available
+  --> src/main.wolf:9:11
+  |
+9 |     index.clear()
+  |           ^^^^^ cannot be used from wolfpack
+  |
+  = note: `Index.clear`: in Rust, its receiver is `&mut self`: extern code cannot change wolfpack values
+
+error: aborting due to 1 error

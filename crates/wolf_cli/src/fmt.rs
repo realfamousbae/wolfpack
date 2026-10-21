@@ -26,6 +26,7 @@ pub(crate) fn run(cwd: &Path, paths: &[PathBuf], check: bool) -> Outcome {
         diagnostics: Vec::new(),
         project: None,
         native: false,
+        listings: Vec::new(),
     };
     let mut files = Vec::new();
     if paths.is_empty() {

@@ -34,4 +34,5 @@ main {
         Some(f) => print(f"found {f.name}")
         None => print("none")
     }
+    print(f"{slug.Counter.new(3).value()} {slug.Counter.zero().value()} {n.value()}")
 }

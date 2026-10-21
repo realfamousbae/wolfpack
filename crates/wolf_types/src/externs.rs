@@ -459,9 +459,17 @@ fn path_ok(t: &str, path: &str, is_type: bool) -> bool {
 fn native_path_ok(t: &str, rest: &str, is_type: bool) -> bool {
     let segments = |s: &str, sep: &str| !s.is_empty() && s.split(sep).all(|p| ident(p, false));
     match t {
-        "ts" => rest
-            .split_once('#')
-            .is_some_and(|(file, export)| segments(file, "/") && ident(export, true)),
+        // A method of a class of a native module: `Class.prototype.name`, `Class.name`
+        // (chapter 7, section 8.7, rule 17).
+        "ts" => rest.split_once('#').is_some_and(|(file, export)| {
+            let parts: Vec<&str> = export.split('.').collect();
+            let member = match parts.as_slice() {
+                [_] => true,
+                [_, _] | [_, "prototype", _] => !is_type,
+                _ => false,
+            };
+            segments(file, "/") && member && parts.iter().all(|p| ident(p, true))
+        }),
         "go" => {
             let rest = if is_type {
                 rest.strip_prefix('*').unwrap_or(rest)

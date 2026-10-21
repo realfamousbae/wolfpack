@@ -148,6 +148,28 @@ fn native_modules_on_ts() {
     }
 }
 
+/// `wolf check --native` prints what the compiler read from native code, and a module that does
+/// not exist is E0716 (spec chapter 8, section 8b).
+#[test]
+fn check_native_prints_what_was_read() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/native_modules/methods");
+    let output = Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .args(["check", "--native"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let expected = fs::read_to_string(dir.join("native.txt")).unwrap();
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+    assert!(output.status.success());
+    let output = Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .args(["check", "--native", "native.nope"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("error[E0716]"));
+}
+
 #[test]
 fn e0801_missing_tool() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run/E0801_missing_tool");

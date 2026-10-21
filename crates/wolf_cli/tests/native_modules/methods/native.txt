@@ -1,0 +1,30 @@
+// native.words, read from `native/rust/words.rs`, `native/go/words/`, `native/ts/words.ts`
+module native.words
+
+extern {
+    rust {
+        pub type Index from "native:words::Index"
+        pub fn new_index() -> Index from "native:words::new_index"
+        // method of Index: fn add(self, word: String) -> Void
+        // method of Index: fn len(self) -> Int
+        // method of Index: fn has(self, word: String) -> Bool
+        // method of Index: fn joined(self, sep: String) -> String
+        // not available: Index.clear: its receiver is `&mut self`: extern code cannot change wolfpack values
+    }
+    go {
+        pub type Index from "native:*words.Index"
+        pub fn new_index() -> Index from "native:words.NewIndex"
+        // method of Index: fn add(self, word: String) -> Void
+        // method of Index: fn len(self) -> Int
+        // method of Index: fn has(self, word: String) -> Bool
+        // method of Index: fn joined(self, sep: String) -> String
+    }
+    ts {
+        pub type Index from "native:words#Index"
+        pub fn new_index() -> Index from "native:words#newIndex"
+        // method of Index: fn add(self, word: String) -> Void
+        // method of Index: fn len(self) -> Int
+        // method of Index: fn has(self, word: String) -> Bool
+        // method of Index: fn joined(self, sep: String) -> String
+    }
+}

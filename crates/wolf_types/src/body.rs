@@ -1565,17 +1565,20 @@ impl<'a> Checker<'a> {
                 }
             }
         }
-        self.report(
-            Diagnostic::new(
-                codes::E0424,
-                format!(
-                    "`{}` has no associated function `{}`",
-                    self.def_name(owner),
-                    name.name
-                ),
-            )
-            .primary(name.span, "not found"),
-        );
+        let d = self
+            .native_member(owner, &name.name, name.span)
+            .unwrap_or_else(|| {
+                Diagnostic::new(
+                    codes::E0424,
+                    format!(
+                        "`{}` has no associated function `{}`",
+                        self.def_name(owner),
+                        name.name
+                    ),
+                )
+                .primary(name.span, "not found")
+            });
+        self.report(d);
         for a in args {
             self.expr(b, &a.value, None);
         }
@@ -1837,6 +1840,15 @@ impl<'a> Checker<'a> {
                 return recv;
             }
             let shown = self.show(&recv);
+            let native = match self.infer.resolve(&recv) {
+                Ty::Named(d, _) => self.native_member(d, &name.name, name.span),
+                _ => None,
+            };
+            if let Some(d) = native {
+                self.report(d);
+                check_args(self, b);
+                return Ty::Error;
+            }
             if self.opaque(&recv) {
                 self.report(
                     Diagnostic::new(

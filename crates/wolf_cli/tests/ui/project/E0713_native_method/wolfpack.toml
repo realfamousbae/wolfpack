@@ -1,0 +1,7 @@
+[package]
+name = "methods"
+version = "0.1.0"
+kind = "cli"
+
+[targets]
+default = "rust"

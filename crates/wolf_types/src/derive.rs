@@ -138,6 +138,29 @@ impl Checker<'_> {
     }
 
     /// Whether the type is an opaque extern type.
+    /// E0713 for a member of an opaque type of a native module that the compiler could not map,
+    /// with the reason (spec chapter 7, section 8.7, rule 17); `None` for other members.
+    pub(crate) fn native_member(
+        &self,
+        owner: DefId,
+        name: &str,
+        span: wolf_span::Span,
+    ) -> Option<Diagnostic> {
+        let def = self.resolved.def(owner)?;
+        let module = self.resolved.modules.get(def.module.0 as usize)?;
+        let path = module.path.join(".");
+        let key = format!("{}.{name}", def.name);
+        let reason = self.project.native.get(&path)?.get(&key)?;
+        Some(
+            Diagnostic::new(
+                codes::E0713,
+                format!("`{key}` of the native module `{path}` is not available"),
+            )
+            .primary(span, "cannot be used from wolfpack")
+            .note(format!("`{key}`: {reason}")),
+        )
+    }
+
     pub(crate) fn opaque(&self, ty: &Ty) -> bool {
         matches!(self.infer.resolve(ty), Ty::Named(d, _) if self.def_kind(d) == Some(DefKind::ExternType))
     }

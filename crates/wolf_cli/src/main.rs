@@ -209,6 +209,11 @@ pub(crate) struct CheckArgs {
     /// Print intermediate results to standard output (for debugging the compiler).
     #[arg(long, value_enum, hide = true)]
     pub(crate) emit: Option<Emit>,
+
+    /// Print what the compiler read from the code of the native modules the project imports, or
+    /// of one native module such as `native.text.slug`.
+    #[arg(long, value_name = "MODULE", num_args = 0..=1, default_missing_value = "")]
+    pub(crate) native: Option<String>,
 }
 
 /// How diagnostics are printed.
@@ -348,6 +353,14 @@ fn run() -> ExitCode {
         Command::Setup(args) => setup(&args),
         Command::Check(args) => {
             let result = check::run(&args);
+            // The listings of `--native` go to stdout, the diagnostics to stderr (spec chapter 8,
+            // section 8b).
+            for (i, listing) in result.listings.iter().enumerate() {
+                if i > 0 {
+                    println!();
+                }
+                print!("{listing}");
+            }
             let mut map = result.map;
             let mut diagnostics = result.diagnostics;
             wolf_diag::sort(&mut diagnostics);
@@ -400,6 +413,7 @@ fn finish(outcome: build::Outcome) -> ExitCode {
                 message_format: MessageFormat::Human,
                 color: Color::Auto,
                 emit: None,
+                native: None,
             };
             report(&mut map, &diagnostics, &args);
             ExitCode::from(code)

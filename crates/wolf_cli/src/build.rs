@@ -58,6 +58,7 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
         message_format: MessageFormat::Human,
         color: Color::Never,
         emit: None,
+        native: None,
     };
     let mut result = check::load(start, &args);
     if !result.diagnostics.is_empty() {
@@ -137,6 +138,7 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
                     diagnostics: Vec::new(),
                     project: None,
                     native: false,
+                    listings: Vec::new(),
                 },
             };
         }

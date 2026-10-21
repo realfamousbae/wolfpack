@@ -10,7 +10,23 @@ export interface Size {
 export type Frame = { size: Size; name: string };
 
 export class Counter {
-  n = 7n;
+  n: bigint;
+
+  constructor(start: bigint) {
+    this.n = start;
+  }
+
+  static zero(): Counter {
+    return new Counter(0n);
+  }
+
+  value(): bigint {
+    return this.n;
+  }
+
+  get doubled(): bigint {
+    return this.n * 2n;
+  }
 }
 
 export function slugify(title: string): string {
@@ -62,7 +78,7 @@ export function orZero(n?: bigint): bigint {
 }
 
 export function newCounter(): Counter {
-  return new Counter();
+  return new Counter(7n);
 }
 
 export function count(c: Counter): bigint {

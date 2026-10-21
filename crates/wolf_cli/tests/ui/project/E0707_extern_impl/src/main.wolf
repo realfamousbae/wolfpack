@@ -1,0 +1,33 @@
+module main
+
+extern {
+    rust {
+        type Index from "native:idx::Index"
+        fn index_new() -> Index from "native:idx::Index::new"
+        fn index_add(i: Index, w: String) from "native:idx::Index::add"
+        fn index_len(i: Index) -> Int from "native:idx::Index::len"
+    }
+}
+
+impl {
+    Index {
+        pub fn new() -> Index {
+            index_new()
+        }
+
+        pub fn len(self) -> Int {
+            index_len(self)
+        }
+
+        pub fn add(self, w: String) {
+            index_add(self, w)
+        }
+    }
+}
+
+main {
+    let i = Index.new()
+    i.add("a")
+    i.add("b")
+    print(f"{i.len()}")
+}
