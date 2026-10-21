@@ -370,6 +370,9 @@ fn native_modules_on_rust() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/native_modules");
     for entry in fs::read_dir(&root).unwrap().flatten() {
         let dir = entry.path();
+        if !dir.join("native/rust").is_dir() {
+            continue;
+        }
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
         let out = tmp(&format!("native-module-{name}"));
         let output = wolf("run", &dir, &out, &[], None);

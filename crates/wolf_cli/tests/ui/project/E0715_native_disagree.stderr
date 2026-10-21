@@ -1,0 +1,19 @@
+error[E0715]: `half` of the native module `native.calc` differs between Rust and Go
+  --> src/main.wolf:4:5
+  |
+4 |     native.calc
+  |     ^^^^^^^^^^^ imported here
+  |
+  = help: give the function the same parameter and result types in both files
+  = note: Rust: fn half(Int) -> Int
+  = note: Go: fn half(Int) -> Float
+
+error[E0713]: `half` of the native module `native.calc` is not available
+  --> src/main.wolf:9:16
+  |
+9 |     print(calc.half(3).to_string())
+  |                ^^^^ cannot be used from wolfpack
+  |
+  = note: `half`: Rust and Go declare it differently (E0715)
+
+error: aborting due to 2 errors

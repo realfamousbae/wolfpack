@@ -716,6 +716,15 @@ impl<'a> Lowerer<'a> {
                     });
                     if let Some(paths) = existing {
                         paths.insert(target.target.name.clone(), decl.from.value.clone());
+                        if let Some(sig) = &decl.native {
+                            for it in out.iter_mut() {
+                                if let Item::ExternFn(f) = it {
+                                    if f.def == def {
+                                        f.native.insert(target.target.name.clone(), sig.clone());
+                                    }
+                                }
+                            }
+                        }
                         continue;
                     }
                     let mut paths = BTreeMap::new();
@@ -732,7 +741,11 @@ impl<'a> Lowerer<'a> {
                                 params: sig.params.iter().map(|(m, t)| (*m, self.ty(t))).collect(),
                                 ret: self.ty(&sig.ret),
                                 paths,
-                                native: decl.native.clone(),
+                                native: decl
+                                    .native
+                                    .iter()
+                                    .map(|s| (target.target.name.clone(), s.clone()))
+                                    .collect(),
                             }));
                         }
                         ast::ExternDeclKind::Type(_) => out.push(Item::ExternType(ExternType {

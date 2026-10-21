@@ -162,14 +162,20 @@ pub fn check_target(
             if chain.len() > 2 {
                 d = d.note(format!("imported through {}", chain.join(" -> ")));
             }
-            out.push(d.help(format!(
-                "in this version the compiler reads native modules from Rust code only: build for {}",
-                bound
-                    .iter()
-                    .map(|t| format!("`{t}`"))
-                    .collect::<Vec<_>>()
-                    .join(" or ")
-            )));
+            let others = bound
+                .iter()
+                .map(|t| format!("`{t}`"))
+                .collect::<Vec<_>>()
+                .join(" or ");
+            // In this version the compiler reads native modules from Rust and Go code.
+            let read = ["go", "rust"].contains(&target.to_string().as_str());
+            out.push(d.help(if read {
+                format!("add the `{target}` code of the module, or build for {others}")
+            } else {
+                format!(
+                    "in this version the compiler reads native modules from Rust and Go code only: build for {others}"
+                )
+            }));
             continue;
         }
         let mut d = Diagnostic::new(

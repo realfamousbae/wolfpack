@@ -446,7 +446,16 @@ func Exit(code int64) {
         name: "extern",
         deps: &["Panic"],
         imports: &["math"],
-        code: r#"// FromTargetInt is an integer returned by extern code as an Int.
+        code: r#"// ToTargetInt is an Int passed to extern code as the integer type it takes.
+func ToTargetInt[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](value int64) T {
+	t := T(value)
+	if int64(t) != value || (value < 0) != (t < 0) {
+		Fail("integer too large for extern code")
+	}
+	return t
+}
+
+// FromTargetInt is an integer returned by extern code as an Int.
 func FromTargetInt[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr](value T) int64 {
 	if value > 0 && uint64(value) > math.MaxInt64 {
 		Fail("integer overflow")
@@ -496,6 +505,16 @@ func ConvertList[T any, U any](list []T, f func(T) U) []U {
 		out[i] = f(x)
 	}
 	return out
+}
+
+// ToFloat32 is a Float passed to extern code as a float32.
+func ToFloat32(value float64) float32 {
+	return float32(value)
+}
+
+// FromFloat32 is a float32 of extern code as a Float.
+func FromFloat32(value float32) float64 {
+	return float64(value)
 }
 
 // CompareKey orders Int and String keys of maps from extern code.

@@ -1,0 +1,10 @@
+module main
+
+imports {
+    native.calc
+}
+
+main {
+    print(calc.add(1, 2).to_string())
+    print(calc.half(3).to_string())
+}

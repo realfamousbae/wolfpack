@@ -1,0 +1,11 @@
+hello-world
+6 2.5 url
+3 11
+Y
+a 10
+42
+not a number: x
+q
+none
+negative
+7 1

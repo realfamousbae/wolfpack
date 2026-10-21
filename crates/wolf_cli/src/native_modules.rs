@@ -1,6 +1,6 @@
 //! Native modules (spec chapter 6, section 1a; chapter 7, section 8.7): for each `native.<path>`
-//! that the project imports, the declarations of its Rust file are read and written as a module
-//! of `extern` declarations, which the rest of the compiler treats like any module.
+//! that the project imports, the declarations of its Rust file and Go package are read and written
+//! as a module of `extern` declarations, which the rest of the compiler treats like any module.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -16,7 +16,8 @@ use wolf_span::SourceMap;
 type Parsed = (Vec<String>, Role, wolf_span::FileId, wolf_ast::File);
 
 /// The native modules imported by `parsed`, read from `root/native/`; the names that are not
-/// available, with the reason (E0713); and the files that could not be read (E0714).
+/// available, with the reason (E0713); and the diagnostics: files that could not be read (E0714)
+/// and names that the targets declare differently (E0715).
 pub(crate) fn load(
     root: &Path,
     parsed: &[Parsed],
@@ -26,43 +27,32 @@ pub(crate) fn load(
     let mut modules = Vec::new();
     let mut names = NativeNames::new();
     let mut diagnostics = Vec::new();
-    for path in imported(parsed) {
+    for (path, span) in imported(parsed) {
         let rest: Vec<&str> = path.iter().skip(1).map(String::as_str).collect();
         let rel = rest.join("/");
         let rust = [format!("{rel}.rs"), format!("{rel}/mod.rs")]
             .into_iter()
             .map(|f| root.join("native/rust").join(f))
             .find(|f| f.is_file());
+        let go_dir = root.join("native/go").join(&rel);
+        let go_files = go_files(&go_dir);
         let exists = rust.is_some()
-            || root.join("native/ts").join(format!("{rel}.ts")).is_file()
-            || root.join("native/go").join(&rel).is_dir();
+            || !go_files.is_empty()
+            || root.join("native/ts").join(format!("{rel}.ts")).is_file();
         if !exists {
             // An unknown module: the resolver reports it (E0602).
             continue;
         }
-        let mut module = wolf_native::Module::default();
+        let mut unreadable = false;
+        let mut rust_module = None;
         if let Some(file) = &rust {
-            let shown = file
-                .strip_prefix(root)
-                .unwrap_or(file)
-                .to_string_lossy()
-                .replace('\\', "/");
+            let shown = shown(root, file);
             match fs::read_to_string(file) {
                 Ok(text) => match wolf_native::read_rust(&text) {
-                    Ok(m) => module = m,
+                    Ok(m) => rust_module = Some(m),
                     Err(e) => {
-                        module.unavailable.insert(
-                            wolf_resolve::UNREADABLE.to_string(),
-                            "the file cannot be read".to_string(),
-                        );
-                        diagnostics.push(
-                            Diagnostic::new(codes::E0714, format!("cannot read `{shown}`"))
-                                .note(format!(
-                                    "line {}, column {}: {}",
-                                    e.line, e.column, e.message
-                                ))
-                                .help("correct the Rust code: `wolf` reads its declarations"),
-                        );
+                        unreadable = true;
+                        diagnostics.push(unreadable_file(&shown, "Rust", &e));
                     }
                 },
                 Err(e) => diagnostics.push(Diagnostic::new(
@@ -71,39 +61,199 @@ pub(crate) fn load(
                 )),
             }
         }
-        filter_names(&mut module, &reserved);
+        let mut go_module = None;
+        if !go_files.is_empty() {
+            match wolf_native::read_go(&go_files) {
+                Ok(m) => go_module = Some(m),
+                Err((file, e)) => {
+                    unreadable = true;
+                    let shown = shown(root, &go_dir.join(file));
+                    diagnostics.push(unreadable_file(&shown, "Go", &e));
+                }
+            }
+        }
+        for m in [&mut rust_module, &mut go_module].into_iter().flatten() {
+            filter_names(m, &reserved);
+        }
         let module_path = path.join(".");
-        let source = wolf_native::rust_source(&module_path, &rest.join("::"), &module, &|n| {
+        // Agreement of the targets (spec chapter 7, section 8.7, rule 10).
+        if let (Some(r), Some(g)) = (&mut rust_module, &mut go_module) {
+            disagree(r, g, &module_path, span, &mut diagnostics);
+        }
+        let mut blocks = Vec::new();
+        if let Some(m) = &rust_module {
+            blocks.push(wolf_native::Block {
+                target: "rust",
+                path: rest.join("::"),
+                module: m,
+            });
+        }
+        if let Some(m) = &go_module {
+            blocks.push(wolf_native::Block {
+                target: "go",
+                path: rel.clone(),
+                module: m,
+            });
+        }
+        let source = wolf_native::source(&module_path, &blocks, &|n| {
             wolf_resolve::is_snake_case(n) && TokenKind::keyword(n).is_none()
         });
         let id = map.add(format!("<native module {module_path}>"), source);
         let mut ast = wolf_driver::parse(map, id, &mut diagnostics);
-        let sigs: BTreeMap<&str, &wolf_ast::NativeSig> = module
-            .fns
-            .iter()
-            .map(|f| (f.name.as_str(), &f.native))
-            .collect();
+        let mut sigs: BTreeMap<(&str, &str), &wolf_ast::NativeSig> = BTreeMap::new();
+        for b in &blocks {
+            for f in &b.module.fns {
+                sigs.insert((b.target, f.name.as_str()), &f.native);
+            }
+        }
         for section in &mut ast.sections {
             for item in &mut section.items {
                 let ItemKind::ExternTarget(block) = &mut item.kind else {
                     continue;
                 };
+                let target = block.target.name.clone();
                 for decl in &mut block.decls {
                     if let ExternDeclKind::Fn(sig) = &decl.kind {
-                        decl.native = sigs.get(sig.name.name.as_str()).map(|s| (*s).clone());
+                        decl.native = sigs
+                            .get(&(target.as_str(), sig.name.name.as_str()))
+                            .map(|s| (*s).clone());
                     }
                 }
             }
         }
-        names.insert(module_path, module.unavailable);
+        // A name is not available if no target maps it; the reasons of each target are shown.
+        let available = |m: &Option<wolf_native::Module>, n: &str| {
+            m.as_ref().is_some_and(|m| {
+                m.fns.iter().any(|f| f.name == n) || m.types.iter().any(|t| t == n)
+            })
+        };
+        let mut reasons: BTreeMap<String, Vec<(&str, &String)>> = BTreeMap::new();
+        let present = [("Rust", &rust_module), ("Go", &go_module)]
+            .into_iter()
+            .filter(|(_, m)| m.is_some())
+            .count();
+        for (label, m) in [("Rust", &rust_module), ("Go", &go_module)] {
+            let Some(m) = m else { continue };
+            for (n, reason) in &m.unavailable {
+                if available(&rust_module, n) || available(&go_module, n) {
+                    continue;
+                }
+                reasons.entry(n.clone()).or_default().push((label, reason));
+            }
+        }
+        // One reason that every target gives is shown once.
+        let mut unavailable: BTreeMap<String, String> = BTreeMap::new();
+        for (n, rs) in reasons {
+            let same =
+                rs.len() == present && rs.iter().all(|(_, r)| Some(r) == rs.first().map(|x| &x.1));
+            let text = match rs.first() {
+                Some((_, r)) if same => (*r).clone(),
+                _ => rs
+                    .iter()
+                    .map(|(label, r)| format!("in {label}, {r}"))
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            };
+            unavailable.insert(n, text);
+        }
+        if unreadable {
+            unavailable.insert(
+                wolf_resolve::UNREADABLE.to_string(),
+                "a file cannot be read".to_string(),
+            );
+        }
+        names.insert(module_path, unavailable);
         modules.push((path, Role::Native, id, ast));
     }
     (modules, names, diagnostics)
 }
 
-/// The module paths `native.<path>` imported by the modules of the project, in a fixed order.
-fn imported(parsed: &[Parsed]) -> BTreeSet<Vec<String>> {
-    let mut out = BTreeSet::new();
+fn shown(root: &Path, file: &Path) -> String {
+    file.strip_prefix(root)
+        .unwrap_or(file)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn unreadable_file(shown: &str, language: &str, e: &wolf_native::ReadError) -> Diagnostic {
+    Diagnostic::new(codes::E0714, format!("cannot read `{shown}`"))
+        .note(format!(
+            "line {}, column {}: {}",
+            e.line, e.column, e.message
+        ))
+        .help(format!(
+            "correct the {language} code: `wolf` reads its declarations"
+        ))
+}
+
+/// The `.go` files directly in a package directory, by name, in a fixed order.
+fn go_files(dir: &Path) -> Vec<(String, String)> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut files: Vec<(String, String)> = entries
+        .flatten()
+        .filter(|e| e.path().is_file())
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if !name.ends_with(".go") {
+                return None;
+            }
+            fs::read_to_string(e.path()).ok().map(|text| (name, text))
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+/// Names that Rust and Go map to different wolfpack signatures: E0715, and the name is not
+/// available in either.
+fn disagree(
+    r: &mut wolf_native::Module,
+    g: &mut wolf_native::Module,
+    module_path: &str,
+    span: wolf_span::Span,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let show = |f: &wolf_native::Function| {
+        let params: Vec<String> = f.params.iter().map(|(_, w)| w.text()).collect();
+        format!("fn {}({}) -> {}", f.name, params.join(", "), f.ret.text())
+    };
+    let mut bad = Vec::new();
+    for rf in &r.fns {
+        if let Some(gf) = g.fns.iter().find(|gf| gf.name == rf.name) {
+            let (a, b) = (show(rf), show(gf));
+            if a != b {
+                diagnostics.push(
+                    Diagnostic::new(
+                        codes::E0715,
+                        format!(
+                            "`{}` of the native module `{module_path}` differs between Rust and Go",
+                            rf.name
+                        ),
+                    )
+                    .primary(span, "imported here")
+                    .note(format!("Rust: {a}"))
+                    .note(format!("Go: {b}"))
+                    .help("give the function the same parameter and result types in both files"),
+                );
+                bad.push(rf.name.clone());
+            }
+        }
+    }
+    for n in bad {
+        let reason = "Rust and Go declare it differently (E0715)".to_string();
+        r.fns.retain(|f| f.name != n);
+        g.fns.retain(|f| f.name != n);
+        r.unavailable.insert(n.clone(), reason.clone());
+        g.unavailable.insert(n, reason);
+    }
+}
+
+/// The module paths `native.<path>` imported by the modules of the project, in a fixed order,
+/// each with the place of its first import.
+fn imported(parsed: &[Parsed]) -> BTreeMap<Vec<String>, wolf_span::Span> {
+    let mut out = BTreeMap::new();
     for (_, role, _, file) in parsed {
         if matches!(role, Role::Prelude | Role::Std) {
             continue;
@@ -117,7 +267,7 @@ fn imported(parsed: &[Parsed]) -> BTreeSet<Vec<String>> {
                     .map(|s| s.name.clone())
                     .collect();
                 if path.len() > 1 && path.first().map(String::as_str) == Some("native") {
-                    out.insert(path);
+                    out.entry(path).or_insert(import.path.span);
                 }
             }
         }

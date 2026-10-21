@@ -390,8 +390,8 @@ pub struct ExternFn {
     pub ret: Type,
     /// The path string of each target that declares it (`ts`, `go`, `rust`).
     pub paths: BTreeMap<String, String>,
-    /// For a function of a native module, the Rust types the call must match.
-    pub native: Option<NativeSig>,
+    /// For a function of a native module, the types of each target that the call must match.
+    pub native: BTreeMap<String, NativeSig>,
 }
 
 /// An opaque `extern` type.

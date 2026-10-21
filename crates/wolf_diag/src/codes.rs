@@ -305,6 +305,8 @@ pub const E0710: Code = Code::new("E0710", "native code takes a generated path")
 pub const E0713: Code = Code::new("E0713", "name of a native module not available");
 /// A native file that the compiler cannot read.
 pub const E0714: Code = Code::new("E0714", "native file cannot be read");
+/// A name of a native module that the targets map to different wolfpack signatures.
+pub const E0715: Code = Code::new("E0715", "native targets disagree on a signature");
 
 /// A tool of the target is not installed.
 pub const E0801: Code = Code::new("E0801", "target tool not installed");
@@ -331,7 +333,7 @@ pub const ALL: &[Code] = &[
     E0505, E0506, E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605, E0606,
     E0607, E0608, E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619,
     E0620, E0701, E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0709, E0710, E0712, E0713,
-    E0714, E0801, E0802, E0803, E0804, E0805, E0806,
+    E0714, E0715, E0801, E0802, E0803, E0804, E0805, E0806,
 ];
 
 /// Codes that were used once and must never be used again.

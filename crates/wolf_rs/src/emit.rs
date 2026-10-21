@@ -1973,7 +1973,7 @@ impl<'p> Emitter<'p> {
             let n = format!("p{i}");
             params.push((Pat::Bind(n.clone(), false), self.param_ty(*m, t)?));
             // A function of a native module takes the Rust types the reader found.
-            if let Some(nt) = x.native.as_ref().and_then(|s| s.params.get(i)) {
+            if let Some(nt) = x.native.get("rust").and_then(|s| s.params.get(i)) {
                 if let Some(a) = self.native_arg(nt, *m, &n, i, &mut stmts) {
                     args.push(a);
                     continue;
@@ -2006,11 +2006,11 @@ impl<'p> Emitter<'p> {
         let ret = self.ret_ty(&x.ret)?;
         let target = self.extern_path(target);
         let c = call(path(&target), args);
-        let body = match &x.native {
+        let body = match x.native.get("rust") {
             Some(sig) => self.native_result(c, &sig.ret),
             None => self.extern_result(c, &x.ret),
         };
-        let converts = needs_conversion(&x.ret) || x.native.is_some();
+        let converts = needs_conversion(&x.ret) || x.native.contains_key("rust");
         out.push(Item::Fn(rs::Fn {
             docs: Vec::new(),
             // The target's result is converted whatever its type; for some it is already right.

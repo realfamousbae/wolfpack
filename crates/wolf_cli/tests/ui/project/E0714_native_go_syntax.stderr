@@ -1,0 +1,5 @@
+error[E0714]: cannot read `native/go/slug/slug.go`
+ = help: correct the Go code: `wolf` reads its declarations
+ = note: line 3, column 23: expected `)`
+
+error: aborting due to 1 error

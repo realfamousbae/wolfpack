@@ -1,0 +1,7 @@
+[package]
+name = "go-forms"
+version = "0.1.0"
+kind = "cli"
+
+[targets]
+default = "go"

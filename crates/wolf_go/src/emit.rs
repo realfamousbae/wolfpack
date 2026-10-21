@@ -21,8 +21,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use wolf_ir::{
     self as ir, Arm, BinaryOp, Block, Callee, DefKind, DefRef, Expr as IrExpr, ExprKind, LocalRef,
-    Mode, ModuleRole, Pattern, Payload, Program, ProgramKind, Stmt as IrStmt, Type as IrType,
-    UnaryOp,
+    Mode, ModuleRole, NativeTy, Pattern, Payload, Program, ProgramKind, Stmt as IrStmt,
+    Type as IrType, UnaryOp,
 };
 
 use crate::go::{self, Decl, Expr, Field, Func, IfaceElem, Stmt, Type};
@@ -2569,7 +2569,12 @@ impl<'p> Emitter<'p> {
         for (i, (m, t)) in x.params.iter().enumerate() {
             let n = format!("p{i}");
             params.push((n.clone(), self.param_ty(*m, t)?));
-            args.push(self.extern_arg(id(&n), t)?);
+            // A function of a native module takes the Go types the reader found.
+            let a = match x.native.get("go").and_then(|s| s.params.get(i)) {
+                Some(nt) => self.go_arg(id(&n), nt)?,
+                None => self.extern_arg(id(&n), t)?,
+            };
+            args.push(a);
         }
         let path = &self.extern_path(path);
         // A method expression, `(*pkg.Type).Method` or `pkg.Type.Method`, is called on the first
@@ -2590,7 +2595,8 @@ impl<'p> Emitter<'p> {
         };
         let results = self.results(&x.ret)?;
         let form = self.ret_form(&x.ret);
-        let body = self.extern_body(c, &x.ret, form, results.len())?;
+        let native = x.native.get("go").map(|s| &s.ret);
+        let body = self.extern_body(c, &x.ret, form, results.len(), native)?;
         out.push(Decl::Func(Func {
             docs: Vec::new(),
             recv: None,
@@ -2611,13 +2617,22 @@ impl<'p> Emitter<'p> {
         ret: &IrType,
         form: Form,
         count: usize,
+        native: Option<&NativeTy>,
     ) -> Result<Vec<Stmt>, Error> {
         if count == 0 {
             return Ok(vec![Stmt::Expr(c)]);
         }
+        // The inner native type of `(T, error)` and `(T, bool)`.
+        let native_inner = match native {
+            Some(NativeTy::Result(x) | NativeTy::Option(x)) => Some(x.as_ref().clone()),
+            _ => None,
+        };
         // A Go error becomes an `Error` whose message is its text (spec chapter 7, section 8.4).
         let pair = |second: &str, ok: &IrType, this: &mut Self| -> Result<Vec<Stmt>, Error> {
-            let v = this.extern_value(id("v"), ok)?;
+            let v = match &native_inner {
+                Some(nt) => this.go_value(id("v"), nt)?,
+                None => this.extern_value(id("v"), ok)?,
+            };
             let second_value = if second == "err" {
                 this.rt_call("externError", "FromExternError", vec![id("err")])
             } else {
@@ -2634,10 +2649,18 @@ impl<'p> Emitter<'p> {
                 vec![Stmt::Return(vec![e])]
             }
             (Form::ResPair, IrType::Result(ok, _)) => pair("err", ok, self)?,
-            (Form::OptPair, IrType::Option(inner)) if extern_converts(inner) => {
+            (Form::OptPair, IrType::Option(inner))
+                if extern_converts(inner) || native_inner.is_some() =>
+            {
                 pair("ok", inner, self)?
             }
-            (Form::Data, t) => vec![Stmt::Return(vec![self.extern_value(c, t)?])],
+            (Form::Data, t) => {
+                let v = match native {
+                    Some(nt) => self.go_value(c, nt)?,
+                    None => self.extern_value(c, t)?,
+                };
+                vec![Stmt::Return(vec![v])]
+            }
             _ => vec![Stmt::Return(vec![c])],
         })
     }
@@ -2657,6 +2680,89 @@ impl<'p> Emitter<'p> {
             }
             _ => e,
         })
+    }
+
+    /// A wolfpack value passed to a function of a native module, which takes the Go type `nt`
+    /// the reader found (spec chapter 7, section 8.7, rule 9).
+    fn go_arg(&mut self, e: Expr, nt: &NativeTy) -> Result<Expr, Error> {
+        Ok(match nt {
+            NativeTy::Int(n) if n != "int64" => {
+                let f = self.rt("extern", "ToTargetInt");
+                call(Expr::Inst(Box::new(f), vec![Type::name(n)]), vec![e])
+            }
+            NativeTy::Float(n) if n == "float32" => self.rt_call("extern", "ToFloat32", vec![e]),
+            NativeTy::Vec(inner) if !go_exact(inner) => {
+                let f = self.go_arg_fn(inner)?;
+                self.rt_call("externMap", "ConvertList", vec![e, f])
+            }
+            NativeTy::Map { key, value, .. } => {
+                let key = self.go_arg_fn(key)?;
+                let value = self.go_arg_fn(value)?;
+                self.rt_call("externMap", "ToExternMap", vec![e, key, value])
+            }
+            _ => e,
+        })
+    }
+
+    /// The function that converts a wolfpack value for the Go type `nt`.
+    fn go_arg_fn(&mut self, nt: &NativeTy) -> Result<Expr, Error> {
+        let from = self.ty(&native_wolf(nt)?)?;
+        if go_exact(nt) {
+            let same = self.rt("externMap", "Same");
+            return Ok(Expr::Inst(Box::new(same), vec![from]));
+        }
+        let to = go_native(nt)?;
+        let body = self.go_arg(id("v"), nt)?;
+        Ok(Expr::FuncLit(
+            vec![("v".to_string(), from)],
+            vec![to],
+            vec![Stmt::Return(vec![body])],
+        ))
+    }
+
+    /// A value of the Go type `nt` returned by a function of a native module.
+    fn go_value(&mut self, e: Expr, nt: &NativeTy) -> Result<Expr, Error> {
+        Ok(match nt {
+            NativeTy::Int(n) if n != "int64" => self.rt_call("extern", "FromTargetInt", vec![e]),
+            NativeTy::Float(n) if n == "float32" => self.rt_call("extern", "FromFloat32", vec![e]),
+            NativeTy::Vec(inner) if !go_exact(inner) => {
+                let f = self.go_value_fn(inner)?;
+                self.rt_call("externMap", "ConvertList", vec![e, f])
+            }
+            NativeTy::Map { key, value, .. } => {
+                let compare = match key.as_ref() {
+                    NativeTy::Int(_) => {
+                        let f = self.rt("externMap", "CompareKey");
+                        Expr::Inst(Box::new(f), vec![int64()])
+                    }
+                    NativeTy::String => {
+                        let f = self.rt("externMap", "CompareKey");
+                        Expr::Inst(Box::new(f), vec![Type::name("string")])
+                    }
+                    _ => self.rt("externMap", "CompareBool"),
+                };
+                let key = self.go_value_fn(key)?;
+                let value = self.go_value_fn(value)?;
+                self.rt_call("externMap", "FromExternMap", vec![e, key, value, compare])
+            }
+            _ => e,
+        })
+    }
+
+    /// The function that converts a value of the Go type `nt` to its wolfpack type.
+    fn go_value_fn(&mut self, nt: &NativeTy) -> Result<Expr, Error> {
+        let from = go_native(nt)?;
+        if go_exact(nt) {
+            let same = self.rt("externMap", "Same");
+            return Ok(Expr::Inst(Box::new(same), vec![from]));
+        }
+        let to = self.ty(&native_wolf(nt)?)?;
+        let body = self.go_value(id("v"), nt)?;
+        Ok(Expr::FuncLit(
+            vec![("v".to_string(), from)],
+            vec![to],
+            vec![Stmt::Return(vec![body])],
+        ))
     }
 
     /// The function that converts a value of type `t` for extern code.
@@ -5541,6 +5647,47 @@ fn extern_needs(t: &IrType) -> bool {
         IrType::List(inner) => extern_needs(inner),
         _ => false,
     }
+}
+
+/// Whether a value of the Go type `nt` of a native module is already the Go form of its wolfpack
+/// type.
+fn go_exact(nt: &NativeTy) -> bool {
+    match nt {
+        NativeTy::Int(n) => n == "int64",
+        NativeTy::Float(n) => n == "float64",
+        NativeTy::Vec(inner) => go_exact(inner),
+        NativeTy::Map { .. } => false,
+        _ => true,
+    }
+}
+
+/// The Go type `nt` of a native module, inside a list or a map.
+fn go_native(nt: &NativeTy) -> Result<Type, Error> {
+    Ok(match nt {
+        NativeTy::Int(n) | NativeTy::Float(n) => Type::name(n),
+        NativeTy::Bool => Type::name("bool"),
+        NativeTy::String => Type::name("string"),
+        NativeTy::Vec(inner) => Type::Slice(Box::new(go_native(inner)?)),
+        NativeTy::Map { key, value, .. } => {
+            Type::Map(Box::new(go_native(key)?), Box::new(go_native(value)?))
+        }
+        other => return Err(format!("the Go type {other:?} inside a list or a map")),
+    })
+}
+
+/// The wolfpack type of the Go type `nt` of a native module, inside a list or a map.
+fn native_wolf(nt: &NativeTy) -> Result<IrType, Error> {
+    Ok(match nt {
+        NativeTy::Int(_) => IrType::Int,
+        NativeTy::Float(_) => IrType::Float,
+        NativeTy::Bool => IrType::Bool,
+        NativeTy::String => IrType::String,
+        NativeTy::Vec(inner) => IrType::List(Box::new(native_wolf(inner)?)),
+        NativeTy::Map { key, value, .. } => {
+            IrType::Map(Box::new(native_wolf(key)?), Box::new(native_wolf(value)?))
+        }
+        other => return Err(format!("the Go type {other:?} inside a list or a map")),
+    })
 }
 
 /// Whether a value of type `t` returned by extern code is converted.
