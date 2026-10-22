@@ -3650,8 +3650,14 @@ impl<'p> Emitter<'p> {
             let e = get(i)?;
             let v = s.expr(e, Want::Op)?;
             // A method of a number literal needs its type: `2.5_f64.round()`, `(-5_i64).abs()`.
+            // `5.to_string()` and `5 as f64` need none.
+            let typed = match e.ty {
+                IrType::Float => true,
+                IrType::Int => !matches!(short, "math.Int.to_string" | "math.Int.to_float"),
+                _ => false,
+            };
             Ok(match v {
-                Expr::Lit(t) if matches!(e.ty, IrType::Float | IrType::Int) && i == 0 => {
+                Expr::Lit(t) if typed && i == 0 => {
                     let suffix = if e.ty == IrType::Float { "f64" } else { "i64" };
                     if t.starts_with('-') {
                         Expr::Paren(Box::new(lit(&format!("{t}_{suffix}"))))
