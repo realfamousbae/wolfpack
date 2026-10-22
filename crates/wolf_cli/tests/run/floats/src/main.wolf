@@ -14,9 +14,9 @@ main {
         5e-324,
         1.7976931348623157e308,
         -0.0,
-        0.0 / 0.0,
-        1.0 / 0.0,
-        -1.0 / 0.0,
+        div(0.0, 0.0),
+        div(1.0, 0.0),
+        div(-1.0, 0.0),
         123456.789,
         100.0,
         -2.5,
@@ -28,11 +28,21 @@ main {
     }
     print(f"{2.9.to_int()} {-2.9.to_int()} {1e18.to_int()}")
     print(f"{0.5.round()} {1.5.round()} {-0.5.round()} {2.5.floor()} {-2.5.ceil()}")
-    print(f"{7.5 % 2.0} {-7.5 % 2.0} {2.0.pow(0.5)} {9.0.sqrt()} {3.to_float() / 2.0}")
+    print(f"{7.5 % 2.0} {-7.5 % 2.0} {2.0.pow(0.5)} {9.0.sqrt()} {three().to_float() / 2.0}")
     for text in ["1.5", "-0.25", "1e3", "2E-2", "1_000.0", "inf", "NaN", ".5", "1.", "abc"] {
         match text.parse_float() {
             Ok(f) => print(f"{text} -> {f}")
             Err(e) => print(e.message())
         }
+    }
+}
+
+functions {
+    fn div(a: Float, b: Float) -> Float {
+        a / b
+    }
+
+    fn three() -> Int {
+        3
     }
 }
