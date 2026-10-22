@@ -1395,8 +1395,9 @@ impl<'p> Emitter<'p> {
             .flat_map(|d| d.lines().map(str::to_string).collect::<Vec<_>>())
             .collect();
         // Overflow and division by zero are panics at run time, also when Rust can see them in
-        // constants (chapter 7, section 3). A `match` with one arm that does something and the
-        // closures of `any` stay as they were written; `manual_contains` is newer than Rust 1.85.
+        // constants (chapter 7, section 3). A `match` with one arm that does something, the
+        // closures of `any` and loops that look for an element stay as they were written;
+        // `manual_contains` is newer than Rust 1.85.
         let attrs = if matches!(
             m.role,
             ModuleRole::Entry | ModuleRole::Example | ModuleRole::Test
@@ -1405,6 +1406,7 @@ impl<'p> Emitter<'p> {
                 "#![allow(arithmetic_overflow, unconditional_panic, unknown_lints)]".to_string(),
                 "#![allow(clippy::type_complexity, clippy::single_match, clippy::manual_contains)]"
                     .to_string(),
+                "#![allow(clippy::manual_find)]".to_string(),
             ]
         } else {
             Vec::new()
