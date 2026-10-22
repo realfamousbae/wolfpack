@@ -1,0 +1,6 @@
+total 17
+biggest 8
+low 2, high true
+first true true
+triple 21
+order true true true

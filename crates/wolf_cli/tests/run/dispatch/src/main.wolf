@@ -1,0 +1,99 @@
+//! Interface values, generic code, `?` on `Option`, enum keys and a panic in a callback (the
+//! differential tests of the VM, spec chapter 10, section 5).
+
+module main
+
+imports {
+    std.list.{sort_by}
+    std.map.{get}
+}
+
+types {
+    enum Level {
+        Low
+        High
+    }
+
+    struct Box2 {
+        w: Int
+        h: Int
+    }
+}
+
+interfaces {
+    interface Sized {
+        fn size(self) -> Int
+    }
+}
+
+impl {
+    Box2: Sized {
+        fn size(self) -> Int {
+            self.w * self.h
+        }
+    }
+
+    Level: Sized {
+        fn size(self) -> Int {
+            match self {
+                Level.Low => 1
+                Level.High => 10
+            }
+        }
+    }
+}
+
+main {
+    let things: List<Sized> = [Box2 { w: 2, h: 3 }, Level.High, Level.Low]
+    print(f"total {total(things)}")
+    print(f"biggest {biggest([Box2 { w: 1, h: 1 }, Box2 { w: 4, h: 2 }])}")
+    var counts: Map<Level, Int> = [Level.Low: 0]
+    let _ = counts.insert(Level.High, 5)
+    counts[Level.Low] += 2
+    print(f"low {counts[Level.Low]}, high {get(counts, Level.High) == Some(5)}")
+    print(f"first {first_even([1, 3, 4, 6]) == Some(4)} {first_even([1]) == None}")
+    let make = |base: Int| |x: Int| x * base
+    let triple = make(3)
+    print(f"triple {triple(7)}")
+    print(f"order {"apple" < "banana"} {"Zebra" < "apple"} {"é" > "z"}")
+    var words = ["b", "a", "c"]
+    sort_by(mut words, |x, y| {
+        if x == "c" || y == "c" {
+            panic("cannot compare c")
+        }
+        x.compare(y)
+    })
+    print("not reached")
+}
+
+functions {
+    fn total(items: List<Sized>) -> Int {
+        var sum = 0
+        for i in items {
+            sum += i.size()
+        }
+        sum
+    }
+
+    fn biggest<T: Sized + Copyable>(items: List<T>) -> Int {
+        var best = 0
+        for i in items {
+            best = best.max(i.size())
+        }
+        best
+    }
+
+    fn first_even(items: List<Int>) -> Option<Int> {
+        let found = find_even(items)?
+        Some(found)
+    }
+
+    fn find_even(items: List<Int>) -> Option<Int> {
+        for i in items {
+            if i % 2 == 0 {
+                return Some(i)
+            }
+        }
+        None
+    }
+}
