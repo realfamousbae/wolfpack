@@ -355,11 +355,14 @@ $ wolf run --target go
 Hello, wolfpack!
 $ wolf run --target rust
 Hello, wolfpack!
+$ wolf run --vm
+Hello, wolfpack!
 ```
 
 `wolf new` creates a project with `src/main.wolf`, and `wolf run` builds and runs it. Edit
 `src/main.wolf` and run it again. The generated code is in `out/<target>/`;
-`wolf build --target all` writes all three.
+`wolf build --target all` writes all three. `wolf run --vm` runs the program in the virtual
+machine of `wolf` itself, without Node.js, Go or Rust.
 
 A project always has the same layout:
 
@@ -380,8 +383,8 @@ hello/
 | `wolf new <name>` | create a project (`--kind lib` for a library) |
 | `wolf check` | check the project without generating code |
 | `wolf build` | generate the target project in `out/<target>/` |
-| `wolf run` | build and run the program (`--target ts\|go\|rust`, `--example <name>`) |
-| `wolf test` | run the tests of the project |
+| `wolf run` | build and run the program (`--target ts\|go\|rust`, `--example <name>`); `--vm` runs it in the VM of `wolf` |
+| `wolf test` | run the tests of the project (`--vm` in the VM) |
 | `wolf fmt` | format the source files (`--check` only reports) |
 | `wolf explain <code>` | explain an error code with a wrong and a fixed example |
 | `wolf setup` | install the tools of the targets; `--check` lists them |
@@ -423,14 +426,11 @@ wolfpack signature and its path in the target, and call it like any other functi
 Wolfpack is a young language: expect changes between versions. The compiler has a lexer, a
 parser, name resolution, a type checker with generics and interfaces, an ownership checker, and
 backends for TypeScript, Go and Rust, plus `extern` declarations for libraries of the target
-languages, a formatter and `wolf explain`. The [changelog](CHANGELOG.md) lists what each milestone
-added.
+languages and your own target code, a bytecode virtual machine (`wolf run --vm`), a formatter and
+`wolf explain`. The [changelog](CHANGELOG.md) lists what each milestone added.
 
 Next:
 
-- a bytecode virtual machine (`wolf run --vm`);
-- your own target code in a project, and a wider `extern` boundary
-  ([plan](docs/plans/native-code.md));
 - package managers (Homebrew, Scoop, winget) and signed installers
   ([plan](docs/plans/distribution.md));
 - later: a language server for editors, async, and web and GUI projects.

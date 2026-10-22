@@ -232,3 +232,22 @@ fn main() {
 The generated projects need no `wolf` to build: `npm install` and `tsc` for TypeScript, `go build`
 for Go, `cargo build` for Rust. Every generated file starts with a comment naming its source and
 saying that it should not be edited; change the `.wolf` source and build again instead.
+
+## Running without the tools: the VM
+
+`wolf run --vm` and `wolf test --vm` do not generate a project at all: `wolf` compiles the program
+into a bytecode of its own and runs it in its virtual machine. Nothing needs to be installed, and
+the program prints exactly what it prints on the three targets, with the same panic messages and
+exit codes.
+
+```text
+$ wolf run --vm
+9.0
+$ wolf test --vm
+test result: ok. 0 passed; 0 failed
+```
+
+The VM runs only wolfpack code and std. A program that calls code of the targets, through an
+`extern` section or a native module, cannot run in it: `wolf run --vm` reports E0807 and names the
+module and the chain of imports that reaches it. [Chapter 10 of the
+specification](../spec/10-vm.md) has the rules.
