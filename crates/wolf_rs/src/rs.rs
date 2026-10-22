@@ -388,6 +388,17 @@ pub fn quote(s: &str) -> String {
     out
 }
 
+/// rustfmt's simple expressions: literals, names, and fields, references, casts and `?` of
+/// them.
+fn simple(e: &Expr) -> bool {
+    match e {
+        Expr::Lit(_) | Expr::Str(_) => true,
+        Expr::Path(p) => !p.contains("::"),
+        Expr::Field(x, _) | Expr::Unary(_, x) | Expr::Try(x) | Expr::Cast(x, _) => simple(x),
+        _ => false,
+    }
+}
+
 fn spaces(ind: usize) -> String {
     " ".repeat(ind * 4)
 }
@@ -962,6 +973,27 @@ impl Printer {
                             return format!("{head}{open}{prefix}{l}{close}");
                         }
                     }
+                }
+            }
+        }
+        // A format macro whose other arguments are simple keeps them on one line after the
+        // format string, as rustfmt does for its special macros.
+        if matches!(
+            head,
+            "format!" | "print!" | "println!" | "eprint!" | "eprintln!" | "panic!" | "unreachable!"
+        ) && args.len() > 1
+            && args.iter().skip(1).all(simple)
+        {
+            let lead = args.first().and_then(|a| self.flat(a));
+            let rest: Option<Vec<String>> = args.iter().skip(1).map(|a| self.flat(a)).collect();
+            if let (Some(lead), Some(rest)) = (lead, rest) {
+                let line = rest.join(", ");
+                if (ind + 1) * 4 + width(&line) < MAX_WIDTH {
+                    let pad = spaces(ind + 1);
+                    return format!(
+                        "{head}{open}\n{pad}{lead},\n{pad}{line}\n{}{close}",
+                        spaces(ind)
+                    );
                 }
             }
         }

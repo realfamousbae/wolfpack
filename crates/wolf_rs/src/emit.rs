@@ -1395,13 +1395,15 @@ impl<'p> Emitter<'p> {
             .flat_map(|d| d.lines().map(str::to_string).collect::<Vec<_>>())
             .collect();
         // Overflow and division by zero are panics at run time, also when Rust can see them in
-        // constants (chapter 7, section 3).
+        // constants (chapter 7, section 3). A `match` with one arm that does something and the
+        // closures of `any` stay as they were written; `manual_contains` is newer than Rust 1.85.
         let attrs = if matches!(
             m.role,
             ModuleRole::Entry | ModuleRole::Example | ModuleRole::Test
         ) {
             vec![
-                "#![allow(arithmetic_overflow, unconditional_panic, clippy::type_complexity)]"
+                "#![allow(arithmetic_overflow, unconditional_panic, unknown_lints)]".to_string(),
+                "#![allow(clippy::type_complexity, clippy::single_match, clippy::manual_contains)]"
                     .to_string(),
             ]
         } else {
@@ -2859,7 +2861,16 @@ impl<'p> Emitter<'p> {
                 self.shape(c, t, want, false)
             }
             ExprKind::Field { base, name } => {
-                let b = self.expr(base, Want::Op)?;
+                // A field passed `mut` is reached through places: `&mut items.at_mut(0).hits`.
+                let b = if want == Want::Mut {
+                    match self.place_base(base)? {
+                        // A field of `*items.at_mut(0)` is reached through auto-deref.
+                        Expr::Unary("*", inner) if matches!(*inner, Expr::Method(..)) => *inner,
+                        other => other,
+                    }
+                } else {
+                    self.expr(base, Want::Op)?
+                };
                 let f = Expr::Field(Box::new(b), value(name));
                 let boxed = self.field_boxed(&base.ty, name);
                 if boxed && want == Want::Own {
@@ -3636,13 +3647,14 @@ impl<'p> Emitter<'p> {
         let op = |s: &mut Self, i: usize| -> Result<Expr, Error> {
             let e = get(i)?;
             let v = s.expr(e, Want::Op)?;
-            // A method of a float literal needs its type: `2.5_f64.round()`.
+            // A method of a number literal needs its type: `2.5_f64.round()`, `(-5_i64).abs()`.
             Ok(match v {
-                Expr::Lit(t) if matches!(e.ty, IrType::Float) && i == 0 => {
+                Expr::Lit(t) if matches!(e.ty, IrType::Float | IrType::Int) && i == 0 => {
+                    let suffix = if e.ty == IrType::Float { "f64" } else { "i64" };
                     if t.starts_with('-') {
-                        Expr::Paren(Box::new(lit(&format!("{t}_f64"))))
+                        Expr::Paren(Box::new(lit(&format!("{t}_{suffix}"))))
                     } else {
-                        lit(&format!("{t}_f64"))
+                        lit(&format!("{t}_{suffix}"))
                     }
                 }
                 other => other,
