@@ -23,6 +23,7 @@ Convention used in every chapter of this spec:
 | 7 | `07-std-extern.md` | `std` modules, `intrinsic`, `extern` blocks and the boundary rules |
 | 8 | `08-targets.md` | Mapping to TypeScript, Go and Rust, per-target rules |
 | 9 | `09-diagnostics.md` | Diagnostic code ranges and message style (codes themselves live in code) |
+| 10 | `10-vm.md` | The bytecode virtual machine: `wolf run --vm`, behaviour, what it cannot run (M13; draft) |
 
 Order of work: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, then the 10 example projects (written in parallel as
 each chapter lands, finished at the end). **[PROPOSAL]**
@@ -36,7 +37,7 @@ Recommendations are the drafter's; "plan default" is what `PLAN.md` says.
 | --- | --- | --- | --- |
 | 1 | Crates.io name | **closed** (author, 2026-10-16) | The command-line package is `wolfpack-lang` with the binary `wolf`; the internal crates are published as `wolfpack-<name>` (`wolfpack-diag`, ...). Publication waits until the repository is public |
 | 2 | `Int` size | **closed** (ADR 0001) | 64-bit everywhere, `bigint` in TS. Deviates from plan default |
-| 3 | Bytecode vs WebAssembly | open | Plan default: own stack bytecode and VM. Not blocking before M13 |
+| 3 | Bytecode vs WebAssembly | open (chapter 10, D10.1) | Plan default: own stack bytecode and VM. Proposed in chapter 10 for M13 |
 | 4 | `config` overridable from manifest | **closed** (plan default) | Constants, overridable from `[config]` in `wolfpack.toml`. Follow-up for chapter 6: add a `[config]` table to the manifest and decide which types may be overridden |
 | 5 | Methods: `impl` section vs inside `struct` | **closed** (plan default) | Separate `impl` section (matches PLAN section 5) |
 | 6 | Closure captures | **closed** (plan default) | Copies and moves only |
