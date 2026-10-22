@@ -183,9 +183,43 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
     generate_for(result, target, &program, &project.root, &out, then)
 }
 
+/// The stack of the thread of the VM: calls from std back into the program (`map`, `sort_by`)
+/// nest on it, up to the limit of the VM, also in a debug build. Only the part in use is taken
+/// from memory.
+const VM_STACK_SIZE: usize = 256 * 1024 * 1024;
+
 /// Runs the program or its tests in the virtual machine (spec chapter 10).
 fn vm(mut result: CheckResult, program: &wolf_ir::Program, then: Then) -> Outcome {
-    let ran = match then {
+    if matches!(then, Then::Nothing) {
+        return Outcome::Built;
+    }
+    let ran = std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .name("wolf-vm".to_string())
+            .stack_size(VM_STACK_SIZE)
+            .spawn_scoped(scope, || run_vm(program, then))
+            .map_err(|e| format!("the thread of the VM could not be started: {e}"))
+            .and_then(|handle| {
+                handle
+                    .join()
+                    .unwrap_or_else(|_| Err("the VM stopped unexpectedly".to_string()))
+            })
+    });
+    match ran {
+        Ok(code) => Outcome::Ran(code),
+        Err(e) => {
+            result.diagnostics.push(
+                Diagnostic::new(codes::E0003, "internal compiler error")
+                    .note(format!("the VM failed: {e}"))
+                    .help("this is a bug in wolf; please report it with the input that caused it"),
+            );
+            Outcome::Failed(Box::new(result), crate::EXIT_INTERNAL)
+        }
+    }
+}
+
+fn run_vm(program: &wolf_ir::Program, then: Then) -> Result<i32, String> {
+    match then {
         Then::Run { example, args } => {
             let module = program.modules.iter().position(|m| match &example {
                 Some(name) => {
@@ -204,18 +238,7 @@ fn vm(mut result: CheckResult, program: &wolf_ir::Program, then: Then) -> Outcom
             filter.as_deref(),
             &mut wolf_vm::StdIo::new(Vec::new()),
         ),
-        Then::Nothing => return Outcome::Built,
-    };
-    match ran {
-        Ok(code) => Outcome::Ran(code),
-        Err(e) => {
-            result.diagnostics.push(
-                Diagnostic::new(codes::E0003, "internal compiler error")
-                    .note(format!("the VM failed: {e}"))
-                    .help("this is a bug in wolf; please report it with the input that caused it"),
-            );
-            Outcome::Failed(Box::new(result), crate::EXIT_INTERNAL)
-        }
+        Then::Nothing => Ok(0),
     }
 }
 

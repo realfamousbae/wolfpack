@@ -1,0 +1,19 @@
+//! Calls from std back into the program nest up to the limit of the VM; deeper nesting is
+//! `panic: stack overflow`, not a crash of `wolf` (spec chapter 10, section 2, rule 7).
+
+module main
+
+main {
+    print(deep(990).to_string())
+    print(deep(5000).to_string())
+}
+
+functions {
+    fn deep(n: Int) -> Int {
+        if n == 0 {
+            return 0
+        }
+        let parts = [n - 1].map(|k| deep(k))
+        parts[0] + 1
+    }
+}
