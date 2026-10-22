@@ -2,7 +2,7 @@
 
 All notable changes are recorded here at the end of each milestone.
 
-## Unreleased (M13)
+## 0.3.0 (2026-10-22)
 
 - `wolf run --vm` and `wolf test --vm` run a program and its tests in a virtual machine inside
   `wolf`, without Node.js, Go or Rust (spec chapter 10). `wolf` compiles the IR into a stack
