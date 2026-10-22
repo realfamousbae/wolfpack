@@ -11,11 +11,12 @@ All notable changes are recorded here at the end of each milestone.
 - E0807: a program whose modules call code of the targets (`extern` or native modules) cannot run
   in the VM; the error names the module and the chain of imports.
 - Differential tests: every example and end-to-end program also runs in the VM and must give the
-  output it gives on the targets; new programs `places` (every kind of `mut` place) and
-  `tests/vm/` (stack overflow, standard input, arguments, files, `exit`).
+  output it gives on the targets; new programs `places` (every kind of `mut` place), `dispatch`
+  (interface values, enum keys, a panic in a callback) and `tests/vm/` (stack overflow, nesting of
+  callbacks, standard input, arguments, files, `exit`).
 - Fixed in the Rust backend: a method of a negative literal (`(-5).abs()`), a `mut` field of a list
   element (`bump(mut items[0].count)`), `println!` arguments laid out as rustfmt does, and clippy
-  on a `match` with one useful arm and on `any` with `==`.
+  on a `match` with one useful arm, on `any` with `==` and on loops that look for an element.
 
 ## 0.2.0 (2026-10-21)
 
