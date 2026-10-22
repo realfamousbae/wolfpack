@@ -203,3 +203,19 @@ fn vm_and_target_exclude_each_other() {
         );
     }
 }
+
+/// A library runs its examples and its tests in the VM (spec chapter 10, section 1, rule 6);
+/// `wolf run --vm` alone is E0002, which `tests/vm/lib_project` checks.
+#[test]
+fn a_library_runs_examples_and_tests_in_the_vm() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/vm/lib_project");
+    let output = wolf(&dir, &["run", "--vm", "--example", "show"], "");
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "42\n");
+    let output = wolf(&dir, &["test", "--vm"], "");
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "test src/lib.wolf: doubles ... ok\n\ntest result: ok. 1 passed; 0 failed\n"
+    );
+}

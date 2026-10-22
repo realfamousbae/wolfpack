@@ -1,0 +1,13 @@
+//! A module with code of Go only: E0807 suggests the target that has it.
+
+module main
+
+extern {
+    go {
+        fn to_upper(s: String) -> String from "strings.ToUpper"
+    }
+}
+
+main {
+    print(to_upper("hi"))
+}

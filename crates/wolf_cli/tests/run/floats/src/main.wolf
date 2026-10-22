@@ -1,0 +1,38 @@
+//! The canonical format of `Float` and the conversions of std on edge cases: every target and the
+//! VM print the same text (spec chapter 7, section 4.1; chapter 10, section 4, rule 5).
+
+module main
+
+main {
+    let values = [
+        0.1 + 0.2,
+        1e20,
+        1e21,
+        1.5e-7,
+        1e-6,
+        1e-7,
+        5e-324,
+        1.7976931348623157e308,
+        -0.0,
+        0.0 / 0.0,
+        1.0 / 0.0,
+        -1.0 / 0.0,
+        123456.789,
+        100.0,
+        -2.5,
+        0.000123,
+        2.0 / 3.0,
+    ]
+    for v in values {
+        print(v.to_string())
+    }
+    print(f"{2.9.to_int()} {-2.9.to_int()} {1e18.to_int()}")
+    print(f"{0.5.round()} {1.5.round()} {-0.5.round()} {2.5.floor()} {-2.5.ceil()}")
+    print(f"{7.5 % 2.0} {-7.5 % 2.0} {2.0.pow(0.5)} {9.0.sqrt()} {3.to_float() / 2.0}")
+    for text in ["1.5", "-0.25", "1e3", "2E-2", "1_000.0", "inf", "NaN", ".5", "1.", "abc"] {
+        match text.parse_float() {
+            Ok(f) => print(f"{text} -> {f}")
+            Err(e) => print(e.message())
+        }
+    }
+}

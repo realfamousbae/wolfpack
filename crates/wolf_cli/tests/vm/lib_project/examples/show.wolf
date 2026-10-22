@@ -1,0 +1,9 @@
+module examples.show
+
+imports {
+    lib.{double}
+}
+
+main {
+    print(double(21).to_string())
+}

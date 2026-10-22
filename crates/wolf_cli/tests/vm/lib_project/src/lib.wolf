@@ -1,0 +1,15 @@
+//! A library: `wolf run --vm` needs an example, `wolf test --vm` runs its tests.
+
+module lib
+
+functions {
+    pub fn double(n: Int) -> Int {
+        n * 2
+    }
+}
+
+tests {
+    test "doubles" {
+        assert_eq(double(4), 8)
+    }
+}

@@ -1,0 +1,4 @@
+error[E0002]: a library cannot be run
+ = help: run one of its examples: `wolf run --example <name>`
+
+error: aborting due to 1 error

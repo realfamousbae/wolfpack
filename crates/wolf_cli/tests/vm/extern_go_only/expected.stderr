@@ -1,0 +1,9 @@
+error[E0807]: module `main` cannot run in the VM
+  --> src/main.wolf:5:1
+  |
+5 | extern {
+  | ^^^^^^ code of the targets is called here
+  |
+  = help: run it on a target: `wolf run --target go`
+
+error: aborting due to 1 error
