@@ -49,6 +49,8 @@ pub(crate) enum Targets {
     One(Target),
     /// `--target all`: every enabled target (`wolf build` only).
     All,
+    /// `--vm`: the virtual machine (`wolf run` and `wolf test` only; spec chapter 10).
+    Vm,
 }
 
 /// Checks, lowers and generates the project around `start`; with `Then::Run`, also runs it.
@@ -76,8 +78,36 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
     let tests = matches!(then, Then::Test { .. });
     let checked: Vec<Target> = match targets {
         Targets::All => project.manifest.enabled.clone(),
+        Targets::Vm => Vec::new(),
         _ => vec![target],
     };
+    if targets == Targets::Vm {
+        // The VM runs no code of the targets (spec chapter 10, section 3).
+        let help = format!(
+            "run it on a target: `wolf {} --target {}`",
+            if tests { "test" } else { "run" },
+            target.name()
+        );
+        let found = wolf_resolve::check_vm(
+            &inputs,
+            |m| match &then {
+                Then::Test { .. } => matches!(
+                    m.role,
+                    wolf_resolve::Role::Entry | wolf_resolve::Role::Src | wolf_resolve::Role::Test
+                ),
+                Then::Run {
+                    example: Some(name),
+                    ..
+                } => {
+                    m.role == wolf_resolve::Role::Example
+                        && m.path.get(1..) == Some(&[name.clone()][..])
+                }
+                _ => m.role == wolf_resolve::Role::Entry,
+            },
+            &help,
+        );
+        result.diagnostics.extend(found);
+    }
     for t in checked {
         let found = wolf_resolve::check_target(&inputs, t.name(), |role| match role {
             wolf_resolve::Role::Example => !tests,
@@ -125,6 +155,9 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
             return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
         }
     }
+    if targets == Targets::Vm {
+        return vm(result, &program, then);
+    }
     if targets == Targets::All {
         for t in project.manifest.enabled.clone() {
             let out = match out_dir {
@@ -148,6 +181,42 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
         .map(Path::to_path_buf)
         .unwrap_or_else(|| project.root.join("out").join(target.name()));
     generate_for(result, target, &program, &project.root, &out, then)
+}
+
+/// Runs the program or its tests in the virtual machine (spec chapter 10).
+fn vm(mut result: CheckResult, program: &wolf_ir::Program, then: Then) -> Outcome {
+    let ran = match then {
+        Then::Run { example, args } => {
+            let module = program.modules.iter().position(|m| match &example {
+                Some(name) => {
+                    m.role == wolf_ir::ModuleRole::Example
+                        && m.path.get(1..) == Some(&[name.clone()][..])
+                }
+                None => m.role == wolf_ir::ModuleRole::Entry,
+            });
+            match module {
+                Some(i) => wolf_vm::run_main(program, i, &mut wolf_vm::StdIo::new(args)),
+                None => Err("the module to run is missing".to_string()),
+            }
+        }
+        Then::Test { filter } => wolf_vm::run_tests(
+            program,
+            filter.as_deref(),
+            &mut wolf_vm::StdIo::new(Vec::new()),
+        ),
+        Then::Nothing => return Outcome::Built,
+    };
+    match ran {
+        Ok(code) => Outcome::Ran(code),
+        Err(e) => {
+            result.diagnostics.push(
+                Diagnostic::new(codes::E0003, "internal compiler error")
+                    .note(format!("the VM failed: {e}"))
+                    .help("this is a bug in wolf; please report it with the input that caused it"),
+            );
+            Outcome::Failed(Box::new(result), crate::EXIT_INTERNAL)
+        }
+    }
 }
 
 fn generate_for(

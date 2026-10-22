@@ -1,0 +1,9 @@
+module main
+
+imports {
+    text.loud.{shout}
+}
+
+main {
+    print(shout("hi"))
+}

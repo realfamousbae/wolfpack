@@ -1,0 +1,28 @@
+n 3, s new, old false, flags false true
+c: 5 +2,+3
+6 8 +1 original 5
+after reset c 0 0
+10 20 30 / 1 4 3
+slices 2 20 olf
+get none
+total 4
+area 27.0
+area 12.0
+area 0.0
+maybe 5
+keys a,c,b, values 3, a 11
+equal true
+a=11
+c=3
+b=20
+apple fig kiwi pear
+2 1 0
+apple kiwi pear fig
+min 1/2, max 2/1
+13 2 true true 3
+n11 n12 n13
+11 true HéLLO WöRLD héllo|wörld
+4 xxx 2
+cannot parse 12x
+true 3.0 -3.0 3.5 1e21 0.30000000000000004
+-3 -1 4611686018427387904 -4 1024 5

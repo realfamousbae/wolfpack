@@ -121,6 +121,10 @@ struct TestArgs {
     #[arg(long, value_enum)]
     target: Option<TargetArg>,
 
+    /// Run in the virtual machine of `wolf`, without the tools of a target.
+    #[arg(long)]
+    vm: bool,
+
     /// Build in this directory instead of `out/<target>/` (for tests).
     #[arg(long, hide = true)]
     out: Option<PathBuf>,
@@ -157,6 +161,10 @@ struct RunArgs {
     /// The target; the default target of `wolfpack.toml` if absent.
     #[arg(long, value_enum)]
     target: Option<TargetArg>,
+
+    /// Run in the virtual machine of `wolf`, without the tools of a target.
+    #[arg(long)]
+    vm: bool,
 
     /// Run the example `examples/<name>.wolf` instead of the program.
     #[arg(long)]
@@ -293,7 +301,7 @@ fn run() -> ExitCode {
         Command::SelfCmd(SelfCommand::Update(args)) => self_update(&args),
         Command::New(args) => new_project(&args),
         Command::Build(args) => {
-            let target = match target(args.target, true) {
+            let target = match target(args.target, true, false) {
                 Ok(t) => t,
                 Err(code) => return code,
             };
@@ -306,7 +314,7 @@ fn run() -> ExitCode {
             ))
         }
         Command::Test(args) => {
-            let target = match target(args.target, false) {
+            let target = match target(args.target, false, args.vm) {
                 Ok(t) => t,
                 Err(code) => return code,
             };
@@ -322,7 +330,7 @@ fn run() -> ExitCode {
             ))
         }
         Command::Run(args) => {
-            let target = match target(args.target, false) {
+            let target = match target(args.target, false, args.vm) {
                 Ok(t) => t,
                 Err(code) => return code,
             };
@@ -374,9 +382,21 @@ fn run() -> ExitCode {
     }
 }
 
-/// The targets of `--target`; `all` only for `wolf build` (`build` is set).
-fn target(target: Option<TargetArg>, build: bool) -> Result<build::Targets, ExitCode> {
+/// The targets of `--target`; `all` only for `wolf build` (`build` is set). `--vm` excludes
+/// `--target` (spec chapter 10, section 1).
+fn target(target: Option<TargetArg>, build: bool, vm: bool) -> Result<build::Targets, ExitCode> {
     use wolf_project::Target;
+    if vm {
+        if target.is_some() {
+            let _ = writeln!(
+                io::stderr(),
+                "error[{}]: `--vm` and `--target` exclude each other; pass one of them",
+                codes::E0002.id()
+            );
+            return Err(ExitCode::from(EXIT_USAGE));
+        }
+        return Ok(build::Targets::Vm);
+    }
     Ok(match target {
         None => build::Targets::Default,
         Some(TargetArg::Ts) => build::Targets::One(Target::Ts),

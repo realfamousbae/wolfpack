@@ -1,0 +1,240 @@
+//! `mut` places of every kind, in-place bindings and the std functions that call back into
+//! wolfpack code (the differential tests of the VM, spec chapter 10, section 5).
+
+module main
+
+imports {
+    std.list.{sort, sort_by, min, max, get}
+    std.map.{values}
+    std.string.{join}
+}
+
+types {
+    struct Counter {
+        name: String
+        hits: Int
+        log: List<String>
+    }
+
+    enum Shape {
+        Circle(Float)
+        Rect { w: Float, h: Float }
+        Dot
+    }
+
+    struct Pair {
+        left: Int
+        right: Int
+    }
+}
+
+impl {
+    Counter {
+        fn hit(mut self, by: Int) {
+            self.hits += by
+            self.log.push(f"+{by}")
+        }
+
+        fn reset(mut self) {
+            self = Counter { name: self.name.copy(), hits: 0, log: [] }
+        }
+    }
+
+    Pair: Comparable {
+        fn compare(self, other: Pair) -> Ordering {
+            self.left.compare(other.left)
+        }
+    }
+}
+
+main {
+    scalars()
+    structs()
+    lists()
+    shapes()
+    maps()
+    sorting()
+    closures()
+    strings()
+}
+
+functions {
+    fn bump(mut n: Int) {
+        n += 1
+    }
+
+    fn twice(mut n: Int) {
+        bump(mut n)
+        bump(mut n)
+    }
+
+    fn rename(mut s: String, to: String) {
+        s = to.copy()
+    }
+
+    fn scalars() {
+        var n = 1
+        twice(mut n)
+        var s = "old"
+        rename(mut s, "new")
+        var flags = [false, false]
+        let old = replace(mut flags[1], true)
+        print(f"n {n}, s {s}, old {old}, flags {flags[0]} {flags[1]}")
+    }
+
+    fn structs() {
+        var c = Counter { name: "c", hits: 0, log: [] }
+        c.hit(2)
+        c.hit(3)
+        print(f"{c.name}: {c.hits} {join(c.log, ",")}")
+        var all = [c.copy(), Counter { name: "d", hits: 7, log: [] }]
+        all[1].hit(1)
+        bump(mut all[0].hits)
+        print(f"{all[0].hits} {all[1].hits} {join(all[1].log, ",")} original {c.hits}")
+        all[0].reset()
+        print(f"after reset {all[0].name} {all[0].hits} {all[0].log.len()}")
+    }
+
+    fn lists() {
+        var items = [1, 2, 3]
+        for x in mut items {
+            x *= 10
+        }
+        var grid = [[1, 2], [3, 4]]
+        for row in mut grid {
+            row.push(0)
+            for cell in mut row {
+                cell += 1
+            }
+        }
+        print(f"{items[0]} {items[1]} {items[2]} / {grid[0][2]} {grid[1][0]} {grid[1].len()}")
+        let part = items[1..]
+        let some = items[..=1]
+        print(f"slices {part.len()} {some[1]} {"wolfpack"[1..4]}")
+        let found = get(items, 5)
+        let none = match found {
+            Some(_) => "some"
+            None => "none"
+        }
+        print(f"get {none}")
+        var total = 0
+        outer: for i in 0..=3 {
+            var j = 0
+            while true {
+                j += 1
+                if j > i {
+                    continue outer
+                }
+                if i == 3 {
+                    break outer
+                }
+                total += j
+            }
+        }
+        print(f"total {total}")
+    }
+
+    fn grow(mut shape: Shape) {
+        match mut shape {
+            Shape.Circle(r) => {
+                r *= 2.0
+            }
+            Shape.Rect { w, h } => {
+                w += 1.0
+                h += 1.0
+            }
+            Shape.Dot => {}
+        }
+    }
+
+    fn area(shape: Shape) -> Float {
+        match shape {
+            Shape.Circle(r) => r * r * 3.0
+            Shape.Rect { w, h } => w * h
+            Shape.Dot => 0.0
+        }
+    }
+
+    fn shapes() {
+        var shapes = [Shape.Circle(1.5), Shape.Rect { w: 2.0, h: 3.0 }, Shape.Dot]
+        for s in mut shapes {
+            grow(mut s)
+        }
+        for s in shapes {
+            print(f"area {area(s)}")
+        }
+        var maybe = Some(4)
+        match mut maybe {
+            Some(n) => {
+                n += 1
+            }
+            None => {}
+        }
+        if let Some(n) = maybe {
+            print(f"maybe {n}")
+        }
+    }
+
+    fn maps() {
+        var m: Map<String, Int> = ["b": 2, "a": 1]
+        m["a"] += 10
+        bump(mut m["b"])
+        let _ = m.insert("c", 3)
+        let _ = m.remove("b")
+        let _ = m.insert("b", 20)
+        print(f"keys {join(m.keys(), ",")}, values {values(m).len()}, a {m["a"]}")
+        let same: Map<String, Int> = ["c": 3, "a": 11, "b": 20]
+        print(f"equal {m == same}")
+        for e in m.entries() {
+            print(f"{e.key}={e.value}")
+        }
+    }
+
+    fn sorting() {
+        var words = ["pear", "fig", "apple", "kiwi"]
+        sort(mut words)
+        print(join(words, " "))
+        var pairs = [
+            Pair { left: 2, right: 1 },
+            Pair { left: 1, right: 2 },
+            Pair { left: 2, right: 0 },
+        ]
+        sort(mut pairs)
+        print(f"{pairs[0].right} {pairs[1].right} {pairs[2].right}")
+        sort_by(mut words, |a, b| b.len().compare(a.len()))
+        print(join(words, " "))
+        if let Some(low) = min(pairs) {
+            if let Some(high) = max(pairs) {
+                print(f"min {low.left}/{low.right}, max {high.left}/{high.right}")
+            }
+        }
+    }
+
+    fn closures() {
+        let base = 10
+        let add = |x: Int| x + base
+        let nums = [1, 2, 3].map(add)
+        let big = nums.copy().filter(|x| x > 11)
+        print(
+            f"{nums[2]} {big.len()} {nums.any(|x| x == 12)} {nums.all(|x| x > 10)} {nums.count(|x| x > 0)}",
+        )
+        let label = "n"
+        let show = |x: Int| f"{label}{x}"
+        print(join(nums.map(show), " "))
+    }
+
+    fn strings() {
+        let text = "  héllo wörld  "
+        let t = text.trim()
+        print(f"{t.len()} {t.find("w") == Some(6)} {t.to_upper_ascii()} {join(t.split(" "), "|")}")
+        print(f"{"a,b,,c".split(",").len()} {"x".repeat(3)} {"line1\nline2\r\n".lines().len()}")
+        match "12x".parse_int() {
+            Ok(n) => print(f"int {n}")
+            Err(e) => print(e.message())
+        }
+        print(
+            f"{"1_000.5".parse_float() == Ok(1000.5)} {2.5.round()} {-2.5.round()} {7.0 / 2.0} {1e21} {0.1 + 0.2}",
+        )
+        print(f"{-7 / 2} {-7 % 2} {1 << 62} {-8 >> 1} {2.pow(10)} {(-5).abs()}")
+    }
+}

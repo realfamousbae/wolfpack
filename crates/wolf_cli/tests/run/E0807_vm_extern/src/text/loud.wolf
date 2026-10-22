@@ -1,0 +1,21 @@
+//! Calls code of every target, so it cannot run in the VM (E0807).
+
+module text.loud
+
+extern {
+    ts {
+        fn to_upper(s: String) -> String from "String.prototype.toUpperCase"
+    }
+    go {
+        fn to_upper(s: String) -> String from "strings.ToUpper"
+    }
+    rust {
+        fn to_upper(s: String) -> String from "str::to_uppercase"
+    }
+}
+
+functions {
+    pub fn shout(text: String) -> String {
+        to_upper(text) + "!"
+    }
+}

@@ -1,0 +1,34 @@
+//! Standard input, the arguments, standard error, files and `exit` in the VM.
+
+module main
+
+imports {
+    std.io.{read_line, write, eprint}
+    std.fs.{read_text, write_text, exists}
+    std.process.{exit, env}
+    std.string.{join}
+}
+
+main(args: List<String>) {
+    write("name: ")
+    var lines = 0
+    while let Some(line) = read_line() {
+        lines += 1
+        print(f"hello, {line.trim()}")
+    }
+    print(f"{lines} lines, args {join(args, "+")}")
+    eprint("to stderr")
+    match read_text("no/such/file.txt") {
+        Ok(_) => print("found")
+        Err(e) => print(e.message())
+    }
+    let path = "out.txt"
+    match write_text(path, "data") {
+        Ok(_) => print(f"wrote {exists(path)}")
+        Err(e) => print(e.message())
+    }
+    if let Some(home) = env("WOLF_VM_TEST") {
+        print(f"env {home}")
+    }
+    exit(3)
+}

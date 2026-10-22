@@ -1,0 +1,10 @@
+error[E0807]: module `text.loud` cannot run in the VM
+  --> src/text/loud.wolf:5:1
+  |
+5 | extern {
+  | ^^^^^^ code of the targets is called here
+  |
+  = help: run it on a target: `wolf run --target ts`
+  = note: imported through main -> text.loud
+
+error: aborting due to 1 error

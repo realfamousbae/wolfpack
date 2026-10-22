@@ -1,0 +1,6 @@
+name: hello, Ann
+hello, Bob
+2 lines, args a+b
+file not found: no/such/file.txt
+wrote true
+env yes
