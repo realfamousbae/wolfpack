@@ -1,0 +1,28 @@
+---
+source: crates/wolf_vm/tests/bytecode.rs
+expression: "listing(source, \"grow\")"
+---
+fn grow (params 1, captures 0, slots 3)
+   0  RefSlot(0)
+   1  Store(1)
+   2  LoadRef(1)
+   3  IsTag Shape.Circle
+   4  JumpUnless(14)
+   5  LoadRef(1)
+   6  RefField(0)
+   7  Store(2)
+   8  LoadRef(2)
+   9  Const 2.0
+  10  Binary(FMul)
+  11  StoreRef(2)
+  12  Unit
+  13  Jump(20)
+  14  LoadRef(1)
+  15  IsTag Shape.Square
+  16  JumpUnless(19)
+  17  Unit
+  18  Jump(20)
+  19  Unreachable
+  20  Pop
+  21  Unit
+  22  Return

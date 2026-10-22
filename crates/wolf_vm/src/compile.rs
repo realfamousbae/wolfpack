@@ -96,9 +96,31 @@ pub struct Image {
     pub mains: HashMap<usize, (u32, bool, bool)>,
     /// The tests, sorted by file and in source order.
     pub tests: Vec<TestFn>,
+    /// The names of structs and variants, for listings.
+    pub names: HashMap<u32, String>,
 }
 
 impl Image {
+    /// A listing of the bytecode of a function, with the names of structs, variants and
+    /// functions; `None` for a function without bytecode.
+    pub fn listing(&self, func: u32) -> Option<String> {
+        let Some(Func::Code(chunk)) = self.funcs.get(func as usize) else {
+            return None;
+        };
+        let tag = |t: u32| {
+            self.names
+                .get(&t)
+                .cloned()
+                .unwrap_or_else(|| format!("#{t}"))
+        };
+        let name = |f: u32| match self.funcs.get(f as usize) {
+            Some(Func::Code(c)) => c.name.clone(),
+            Some(Func::Intrinsic(i)) => format!("{i:?}"),
+            _ => format!("#{f}"),
+        };
+        Some(chunk.listing(&tag, &name))
+    }
+
     /// The function `main` of a module: its number, whether it takes the arguments and whether
     /// it returns a `Result`.
     pub fn main_of(&self, module: usize) -> Option<(u32, bool, bool)> {
@@ -129,9 +151,28 @@ pub fn compile(p: &Program) -> Result<Image, Error> {
         parent: c.parent,
         tags: c.tags,
         builtins: c.builtins,
+        names: names(p),
         mains: c.mains,
         tests: c.tests,
     })
+}
+
+/// `Point`, `Shape.Circle`: the names of structs and variants.
+fn names(p: &Program) -> HashMap<u32, String> {
+    let mut out = HashMap::new();
+    for (r, d) in &p.defs {
+        match d.kind {
+            DefKind::Struct => {
+                out.insert(r.0, d.name.clone());
+            }
+            DefKind::Variant { parent } => {
+                let owner = p.def(parent).map(|e| e.name.as_str()).unwrap_or("?");
+                out.insert(r.0, format!("{owner}.{}", d.name));
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 struct Compiler<'p> {

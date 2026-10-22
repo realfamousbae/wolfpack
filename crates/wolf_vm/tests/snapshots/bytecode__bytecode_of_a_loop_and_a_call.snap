@@ -1,0 +1,30 @@
+---
+source: crates/wolf_vm/tests/bytecode.rs
+expression: "listing(source, \"sum\")"
+---
+fn sum (params 1, captures 0, slots 5)
+   0  Int(0)
+   1  Store(1)
+   2  Int(0)
+   3  Store(4)
+   4  Load(0)
+   5  Store(3)
+   6  Load(4)
+   7  Load(3)
+   8  Binary(Lt)
+   9  JumpUnless(23)
+  10  Load(4)
+  11  Store(2)
+  12  Load(1)
+  13  Load(2)
+  14  Binary(Add)
+  15  Store(1)
+  16  Unit
+  17  Pop
+  18  Load(4)
+  19  Int(1)
+  20  Binary(Add)
+  21  Store(4)
+  22  Jump(6)
+  23  Load(1)
+  24  Return

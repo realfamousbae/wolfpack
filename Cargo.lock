@@ -1552,7 +1552,13 @@ dependencies = [
 name = "wolfpack-vm"
 version = "0.2.0"
 dependencies = [
+ "insta",
+ "wolfpack-diag",
+ "wolfpack-driver",
  "wolfpack-ir",
+ "wolfpack-project",
+ "wolfpack-resolve",
+ "wolfpack-span",
 ]
 
 [[package]]

@@ -16,3 +16,11 @@ wolf_ir = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+insta = "1.49.0"
+wolf_diag = { workspace = true }
+wolf_driver = { workspace = true }
+wolf_project = { workspace = true }
+wolf_resolve = { workspace = true }
+wolf_span = { workspace = true }

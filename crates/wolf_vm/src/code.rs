@@ -210,8 +210,9 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    /// A listing of the instructions, one per line, for tests.
-    pub fn listing(&self) -> String {
+    /// A listing of the instructions, one per line; `tag` names a struct or variant and `func`
+    /// a function.
+    pub fn listing(&self, tag: &dyn Fn(u32) -> String, func: &dyn Fn(u32) -> String) -> String {
         let mut out = format!(
             "fn {} (params {}, captures {}, slots {})\n",
             self.name, self.params, self.captures, self.slots
@@ -224,6 +225,13 @@ impl Chunk {
                 Op::CallMethod { name, argc } => {
                     format!("CallMethod {} {argc}", self.show_const(*name))
                 }
+                Op::Make { tag: t, n } => format!("Make {} {n}", tag(*t)),
+                Op::Update { tag: t, fields } => {
+                    format!("Update {} {}", tag(*t), self.show_const(*fields))
+                }
+                Op::IsTag(t) => format!("IsTag {}", tag(*t)),
+                Op::Call { func: f, argc } => format!("Call {} {argc}", func(*f)),
+                Op::Closure { func: f, n } => format!("Closure {} {n}", func(*f)),
                 other => format!("{other:?}"),
             };
             let _ = writeln!(out, "{i:4}  {text}");
@@ -237,6 +245,16 @@ impl Chunk {
             Some(Value::Int(i)) => i.to_string(),
             Some(Value::Float(f)) => format!("{f:?}"),
             Some(Value::Bool(b)) => b.to_string(),
+            Some(Value::List(l)) => format!(
+                "{:?}",
+                l.borrow()
+                    .iter()
+                    .map(|v| match v {
+                        Value::Int(i) => *i,
+                        _ => -1,
+                    })
+                    .collect::<Vec<_>>()
+            ),
             Some(other) => format!("{other:?}"),
             None => format!("#{c}"),
         }
