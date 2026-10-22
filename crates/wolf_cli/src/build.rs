@@ -82,19 +82,36 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
         _ => vec![target],
     };
     if targets == Targets::Vm {
-        // The VM runs no code of the targets (spec chapter 10, section 3).
-        let help = format!(
-            "run it on a target: `wolf {} --target {}`",
-            if tests { "test" } else { "run" },
-            target.name()
-        );
+        // The VM runs no code of the targets (spec chapter 10, section 3). The help names the
+        // first target, the default one first, for which the program can be built.
+        let built = |role: wolf_resolve::Role| match role {
+            wolf_resolve::Role::Example => !tests,
+            wolf_resolve::Role::Test => tests,
+            _ => true,
+        };
+        let mut order = vec![target];
+        order.extend(project.manifest.enabled.iter().filter(|t| **t != target));
+        let command = if tests { "test" } else { "run" };
+        let help = match order
+            .iter()
+            .find(|t| wolf_resolve::check_target(&inputs, t.name(), built).is_empty())
+        {
+            Some(t) => format!("run it on a target: `wolf {command} --target {}`", t.name()),
+            None => "no target has the code of every module either; see `wolf build`".to_string(),
+        };
         let found = wolf_resolve::check_vm(
             &inputs,
             |m| match &then {
-                Then::Test { .. } => matches!(
-                    m.role,
-                    wolf_resolve::Role::Entry | wolf_resolve::Role::Src | wolf_resolve::Role::Test
-                ),
+                // Tests run from the modules that have them (spec chapter 10, section 3, rule 2).
+                Then::Test { .. } => match m.role {
+                    wolf_resolve::Role::Entry | wolf_resolve::Role::Test => true,
+                    wolf_resolve::Role::Src => m
+                        .ast
+                        .sections
+                        .iter()
+                        .any(|s| s.kind == wolf_ast::SectionKind::Tests),
+                    _ => false,
+                },
                 Then::Run {
                     example: Some(name),
                     ..
