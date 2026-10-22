@@ -50,3 +50,11 @@ The full plan is in `docs/plans/distribution.md`.
 - Package managers: a Homebrew tap, winget, Scoop, and later Debian/RPM packages and the AUR.
 - Signed installers: a notarized macOS package and a signed Windows installer.
 - `wolf self update`, which replaces the running `wolf` with the latest release.
+
+## The virtual machine (from 2026-10-22, chapter 10, D10.5 and D10.7)
+
+- Stack overflow on Go and Rust: print `panic: stack overflow` and exit with 101, as the TypeScript
+  target and the VM do (today Go prints its runtime trace with exit code 2 and Rust aborts).
+- Running programs in the playground through the VM.
+- A command that prints the bytecode of a function (a disassembler), for learning.
+- A bytecode file and a `wolf build` form for it.
