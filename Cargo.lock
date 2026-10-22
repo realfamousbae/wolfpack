@@ -1438,6 +1438,7 @@ dependencies = [
  "wolfpack-std",
  "wolfpack-ts",
  "wolfpack-types",
+ "wolfpack-vm",
  "zip",
 ]
 
@@ -1545,6 +1546,13 @@ dependencies = [
  "wolfpack-resolve",
  "wolfpack-span",
  "wolfpack-std",
+]
+
+[[package]]
+name = "wolfpack-vm"
+version = "0.2.0"
+dependencies = [
+ "wolfpack-ir",
 ]
 
 [[package]]

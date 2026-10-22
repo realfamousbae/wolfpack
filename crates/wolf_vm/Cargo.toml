@@ -1,0 +1,18 @@
+[package]
+name = "wolfpack-vm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../INTERNAL.md"
+description = "The bytecode virtual machine of the wolfpack compiler. Internal part of wolfpack-lang, not a stable API"
+
+[lib]
+name = "wolf_vm"
+
+[dependencies]
+wolf_ir = { workspace = true }
+
+[lints]
+workspace = true
