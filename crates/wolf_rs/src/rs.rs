@@ -429,7 +429,9 @@ fn expr_prec(e: &Expr) -> u8 {
         Expr::Binary(_, op, _) => prec(op),
         Expr::Range(..) => 1,
         Expr::Cast(..) => 11,
+        // A negative literal is an operator too: `(-7).to_string()`.
         Expr::Unary(..) => 12,
+        Expr::Lit(t) if t.starts_with('-') => 12,
         Expr::Closure(..) | Expr::Return(_) => 0,
         _ => 13,
     }

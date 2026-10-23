@@ -187,7 +187,7 @@ func main() {
 
 #![allow(arithmetic_overflow, unconditional_panic, unknown_lints)]
 #![allow(clippy::type_complexity, clippy::single_match, clippy::manual_contains)]
-#![allow(clippy::match_single_binding)]
+#![allow(clippy::match_single_binding, clippy::approx_constant)]
 #![allow(clippy::manual_find, clippy::eq_op, clippy::zero_divided_by_zero)]
 
 mod wolf_rt;

@@ -1403,7 +1403,7 @@ impl<'p> Emitter<'p> {
         // were written;
         // `manual_contains` is newer than Rust 1.85. Clippy's judgements of what the program
         // itself computes are allowed too: `0.0 / 0.0` and `x == x` are how a wolfpack program
-        // writes NaN and tests for it.
+        // writes NaN and tests for it, and `3.14159` is a value it may write.
         let attrs = if matches!(
             m.role,
             ModuleRole::Entry | ModuleRole::Example | ModuleRole::Test
@@ -1412,7 +1412,7 @@ impl<'p> Emitter<'p> {
                 "#![allow(arithmetic_overflow, unconditional_panic, unknown_lints)]".to_string(),
                 "#![allow(clippy::type_complexity, clippy::single_match, clippy::manual_contains)]"
                     .to_string(),
-                "#![allow(clippy::match_single_binding)]".to_string(),
+                "#![allow(clippy::match_single_binding, clippy::approx_constant)]".to_string(),
                 "#![allow(clippy::manual_find, clippy::eq_op, clippy::zero_divided_by_zero)]"
                     .to_string(),
             ]
