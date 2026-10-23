@@ -1,0 +1,4 @@
+[package]
+name = "explicit-type-args"
+version = "0.1.0"
+kind = "cli"
