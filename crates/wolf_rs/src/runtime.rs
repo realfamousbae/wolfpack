@@ -82,12 +82,36 @@ fn flush() {
 }"#,
     },
     Piece {
+        name: "big_stack",
+        deps: &[],
+        code: r#"/// The stacks tried for the thread that runs the program or a test, largest first. Derived
+/// `Clone` and `PartialEq` and drop call themselves, and values a million levels deep must still
+/// work (spec chapter 4, section 7.4); only the part of a stack that the program reaches is used.
+const STACK_SIZES: [usize; 2] = [2 << 30, 512 << 20];
+
+/// Runs `body` on a thread with the largest stack of `STACK_SIZES` that the system gives, or on
+/// this thread when it gives none; a panic comes back as its payload.
+fn on_big_stack(body: impl FnOnce() + Copy + Send + 'static) -> std::thread::Result<()> {
+    let name = std::thread::current().name().unwrap_or("main").to_string();
+    for size in STACK_SIZES {
+        let thread = std::thread::Builder::new()
+            .name(name.clone())
+            .stack_size(size)
+            .spawn(body);
+        if let Ok(thread) = thread {
+            return thread.join();
+        }
+    }
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(body))
+}"#,
+    },
+    Piece {
         name: "run_main",
-        deps: &["message"],
+        deps: &["message", "big_stack"],
         code: r#"/// Runs `main`: a panic prints its message and ends the program with exit code 101.
-pub fn run_main(main: impl FnOnce() + std::panic::UnwindSafe) {
+pub fn run_main(main: impl FnOnce() + Copy + Send + 'static) {
     std::panic::set_hook(Box::new(|_| {}));
-    if let Err(payload) = std::panic::catch_unwind(main) {
+    if let Err(payload) = on_big_stack(main) {
         flush();
         eprintln!("{}", message(&*payload));
         std::process::exit(101);
@@ -98,21 +122,14 @@ pub fn run_main(main: impl FnOnce() + std::panic::UnwindSafe) {
         name: "run_main_result",
         deps: &["run_main", "Error"],
         code: r#"/// Runs a `main` that returns `Result<Void, Error>`.
-pub fn run_main_result(main: impl FnOnce() -> Result<(), Box<dyn Error>> + std::panic::UnwindSafe) {
-    std::panic::set_hook(Box::new(|_| {}));
-    match std::panic::catch_unwind(main) {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => {
+pub fn run_main_result(main: impl FnOnce() -> Result<(), Box<dyn Error>> + Copy + Send + 'static) {
+    run_main(move || {
+        if let Err(e) = main() {
             flush();
             eprintln!("error: {}", e.message());
             std::process::exit(1);
         }
-        Err(payload) => {
-            flush();
-            eprintln!("{}", message(&*payload));
-            std::process::exit(101);
-        }
-    }
+    });
 }"#,
     },
     Piece {
@@ -133,10 +150,10 @@ pub fn run_main_args_result(main: fn(&[String]) -> Result<(), Box<dyn Error>>) {
     },
     Piece {
         name: "test",
-        deps: &["message"],
+        deps: &["message", "big_stack"],
         code: r#"/// Runs the body of a test; a panic fails the test with its message.
-pub fn test(body: impl FnOnce()) {
-    if let Err(payload) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)) {
+pub fn test(body: impl FnOnce() + Copy + Send + 'static) {
+    if let Err(payload) = on_big_stack(body) {
         println!("--- wolf failure: {}", message(&*payload));
         std::panic::resume_unwind(payload);
     }
@@ -925,7 +942,6 @@ pub struct Entry<K, V> {
         name: "Map",
         deps: &["Entry", "Panic"],
         code: r#"/// A map that keeps the order in which keys were first inserted (ADR 0003).
-#[derive(Clone)]
 pub struct Map<K, V> {
     keys: Vec<K>,
     values: Vec<V>,
@@ -1071,14 +1087,34 @@ impl<K: std::hash::Hash + Eq + Clone, V, const N: usize> From<[(K, V); N]> for M
     }
 }
 
+// `Clone` and `PartialEq` are plain loops: a value deep through maps calls them once per level,
+// and every call of an iterator adapter would be another frame on the stack.
+impl<K: Clone, V: Clone> Clone for Map<K, V> {
+    fn clone(&self) -> Self {
+        let mut values = Vec::with_capacity(self.values.len());
+        for v in &self.values {
+            values.push(v.clone());
+        }
+        Map {
+            keys: self.keys.clone(),
+            values,
+            index: self.index.clone(),
+        }
+    }
+}
+
 impl<K: std::hash::Hash + Eq, V: PartialEq> PartialEq for Map<K, V> {
     fn eq(&self, other: &Self) -> bool {
-        self.keys.len() == other.keys.len()
-            && self
-                .keys
-                .iter()
-                .zip(&self.values)
-                .all(|(k, v)| other.index.get(k).is_some_and(|&j| other.values[j] == *v))
+        if self.keys.len() != other.keys.len() {
+            return false;
+        }
+        for (k, v) in self.keys.iter().zip(&self.values) {
+            match other.index.get(k) {
+                Some(&j) if other.values[j] == *v => {}
+                _ => return false,
+            }
+        }
+        true
     }
 }"#,
     },
