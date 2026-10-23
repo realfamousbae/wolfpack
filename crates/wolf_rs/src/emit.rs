@@ -1587,9 +1587,19 @@ impl<'p> Emitter<'p> {
             None => None,
         };
         self.f = FnState::default();
+        // A `mut` list is `&mut Vec<T>`, so that it can grow, also where the body only changes
+        // its elements and Clippy would ask for a slice.
+        let lists = params.iter().any(|(_, t)| {
+            matches!(t, Type::RefMut(inner) if matches!(inner.as_ref(), Type::Path(n, _) if n == "Vec"))
+        });
+        let attrs = if lists {
+            vec!["#[allow(clippy::ptr_arg)]".to_string()]
+        } else {
+            Vec::new()
+        };
         Ok(rs::Fn {
             docs: f.docs.clone(),
-            attrs: Vec::new(),
+            attrs,
             vis: String::new(),
             name,
             generics,
