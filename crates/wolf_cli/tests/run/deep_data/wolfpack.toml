@@ -1,0 +1,4 @@
+[package]
+name = "deep-data"
+version = "0.1.0"
+kind = "cli"

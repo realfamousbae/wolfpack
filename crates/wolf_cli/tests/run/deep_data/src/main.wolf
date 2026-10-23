@@ -1,0 +1,132 @@
+//! Values nested a million levels deep are compared, copied and dropped without overflowing the
+//! stack, on every target and in the VM (spec chapter 4, section 7.4, rule 3). Each value is built
+//! by a loop, so only the data is deep, never the calls. `a == a.copy()` is true only after every
+//! level was compared; the chain with another bottom shows that the last level counts.
+
+module main
+
+types {
+    /// Deep through an enum variant.
+    enum Chain {
+        End
+        Link(Int, Chain)
+    }
+
+    /// Deep through `List`.
+    struct Node {
+        value: Int
+        kids: List<Node>
+    }
+
+    /// Deep through `Option`.
+    struct Cell {
+        value: Int
+        next: Option<Cell>
+    }
+
+    /// Deep through `Map`.
+    struct Dir {
+        files: Map<String, Dir>
+    }
+}
+
+main {
+    check_chain()
+    check_list()
+    check_option()
+    check_map()
+    check_closures()
+}
+
+functions {
+    fn check_chain() {
+        let a = chain(0)
+        let same = a == a.copy()
+        let other = a == chain(1)
+        print(f"enum: equal to its copy {same}, to another bottom {other}")
+    }
+
+    fn check_list() {
+        let a = tree(0)
+        let same = a == a.copy()
+        print(f"list: equal to its copy {same}")
+    }
+
+    fn check_option() {
+        let a = cells(0)
+        let same = a == a.copy()
+        print(f"option: equal to its copy {same}")
+    }
+
+    fn check_map() {
+        let a = dirs("a")
+        let same = a == a.copy()
+        print(f"map: equal to its copy {same}")
+    }
+
+    fn check_closures() {
+        let _ = counter()
+        print("closures: built and dropped")
+    }
+
+    fn depth() -> Int {
+        1000000
+    }
+
+    fn chain(bottom: Int) -> Chain {
+        var c = Chain.Link(bottom, Chain.End)
+        let levels = depth()
+        var i = 0
+        while i < levels {
+            c = Chain.Link(i, c)
+            i += 1
+        }
+        c
+    }
+
+    fn tree(bottom: Int) -> Node {
+        var n = Node { value: bottom, kids: [] }
+        let levels = depth()
+        var i = 0
+        while i < levels {
+            n = Node { value: i, kids: [n] }
+            i += 1
+        }
+        n
+    }
+
+    fn cells(bottom: Int) -> Cell {
+        var c = Cell { value: bottom, next: None }
+        let levels = depth()
+        var i = 0
+        while i < levels {
+            c = Cell { value: i, next: Some(c) }
+            i += 1
+        }
+        c
+    }
+
+    fn dirs(bottom: String) -> Dir {
+        var d = Dir { files: [bottom.copy(): Dir { files: [:] }] }
+        let levels = depth()
+        var i = 0
+        while i < levels {
+            d = Dir { files: ["sub": d] }
+            i += 1
+        }
+        d
+    }
+
+    /// A function value that holds a million others.
+    fn counter() -> fn() -> Int {
+        var f: fn() -> Int = || 0
+        let levels = depth()
+        var i = 0
+        while i < levels {
+            let g = f
+            f = || g() + 1
+            i += 1
+        }
+        f
+    }
+}

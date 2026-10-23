@@ -1,0 +1,5 @@
+enum: equal to its copy true, to another bottom false
+list: equal to its copy true
+option: equal to its copy true
+map: equal to its copy true
+closures: built and dropped
