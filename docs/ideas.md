@@ -57,7 +57,6 @@ The full plan is in `docs/plans/distribution.md`. `wolf self update` is done in 
 
 - Stack overflow on Go and Rust: print `panic: stack overflow` and exit with 101, as the TypeScript
   target and the VM do (today Go prints its runtime trace with exit code 2 and Rust aborts).
-- Running programs in the playground through the VM.
 - A command that prints the bytecode of a function (a disassembler), for learning.
 - A bytecode file and a `wolf build` form for it.
 - `exit()` inside a test: the VM fails that test with `the test exited with code N` and runs the
