@@ -1,0 +1,35 @@
+// Format specifications in interpolations (spec chapter 1, section 5.3a; chapter 7, section 4.4).
+module main
+
+types {
+    struct Point {
+        x: Int
+    }
+}
+
+impl {
+    Point: Display {
+        fn to_string(self) -> String {
+            f"P{self.x}"
+        }
+    }
+}
+
+main {
+    let pi = 3.14159
+    print(f"{pi:.2} [{42:>5}] [{42:<5}] [{"ab":^6}] [{"abc":^6}]")
+    print(f"{7:03} {-7:03} {"x":*>4} [{1.5:8.3}] [{[1, 2]:>8}]")
+    print(f"{2.5:.0} {3.5:.0} {0.125:.2} {2.675:.2} {-0.0:.1} {-0.001:.2} {1.005:.2}")
+    print(f"{1e21:.2} {5e-324:.3} {0.1:.20} {123456.789:.1}")
+    let nan = 0.0 / 0.0
+    let inf = 1.0 / 0.0
+    print(f"[{nan:.2}] [{inf:05}] [{-inf:6}] [{nan:<5}] [{-42:06}] [{4.5:06.1}]")
+    print(f"[{"é":>3}] [{"日本":-^6}] [{"long text":3}] [{true:>6}] [{Point { x: 3 }:>5}]")
+    let m = ["a": 1]
+    print(f"{m["a"]:>3}|{[1, 2].map(|x: Int| x * 2)}|{[1: 2].len()}|{f"{1:02}":>4}")
+    print(f"[{"x":>>3}] [{5:0>4}] [{5:0}] [{"a":<1000}]".len().to_string())
+    let words = ["fig", "apple"]
+    for w in words {
+        print(f"|{w:<6}|{w.len():>3}|{w:^7}|")
+    }
+}
