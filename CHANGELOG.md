@@ -4,6 +4,11 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- `wolf lsp`, a language server for editors (ADR 0017): the diagnostics of `wolf check` as you
+  type, also before saving, the declaration and doc comments of a name on hover, go to
+  definition, and formatting with `wolf fmt`. The new crate `wolfpack-lsp` holds the protocol
+  code. `editors/vscode/` is an extension for VS Code with highlighting of `.wolf` files that
+  starts it.
 - The playground runs programs in the VM of the compiler, in a worker, instead of transpiling the
   generated TypeScript with a TypeScript compiler loaded from the network: runs start at once,
   the output appears as it is written, a program that runs too long is stopped after 5 seconds

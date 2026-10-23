@@ -67,6 +67,7 @@ This program prints the same output on all three targets.
 - [Your first program](#your-first-program)
 - [Commands](#commands)
 - [Using TypeScript, Go and Rust libraries](#using-typescript-go-and-rust-libraries)
+- [Editors](#editors)
 - [Learn more](#learn-more)
 - [Status and roadmap](#status-and-roadmap)
 - [Contributing](#contributing)
@@ -387,6 +388,7 @@ hello/
 | `wolf fmt` | format the source files (`--check` only reports) |
 | `wolf explain <code>` | explain an error code with a wrong and a fixed example |
 | `wolf setup` | install the tools of the targets; `--check` lists them |
+| `wolf lsp` | the language server for editors, on standard input and output |
 
 `wolf <command> --help` shows every option. The [examples](examples/) of this repository are
 complete projects; run one with `wolf run` in its directory.
@@ -413,6 +415,13 @@ The [`fuzzy`](examples/fuzzy/) example uses a package of each target, and
 module; `wolf check --native` prints what the compiler read from that code. The design is in
 [docs/plans/native-code.md](docs/plans/native-code.md).
 
+## Editors
+
+`wolf lsp` is a language server: an editor with a client for the Language Server Protocol shows
+the errors of `wolf check` as you type, the type or signature of a name on hover, goes to the
+declaration of a name and formats with `wolf fmt`. [`editors/vscode/`](editors/vscode/) is an
+extension for VS Code with highlighting that starts it.
+
 ## Learn more
 
 - [The playground](https://realfamousbae.github.io/wolfpack/) runs the compiler in the browser:
@@ -428,14 +437,15 @@ module; `wolf check --native` prints what the compiler read from that code. The 
 Wolfpack is a young language: expect changes between versions. The compiler has a lexer, a
 parser, name resolution, a type checker with generics and interfaces, an ownership checker, and
 backends for TypeScript, Go and Rust, plus `extern` declarations for libraries of the target
-languages and your own target code, a bytecode virtual machine (`wolf run --vm`), a formatter and
-`wolf explain`. The [changelog](CHANGELOG.md) lists what each milestone added.
+languages and your own target code, a bytecode virtual machine (`wolf run --vm`), a formatter,
+`wolf explain` and a language server (`wolf lsp`). The [changelog](CHANGELOG.md) lists what each
+milestone added.
 
 Next:
 
 - package managers (Homebrew, Scoop, winget) and signed installers
   ([plan](docs/plans/distribution.md));
-- later: a language server for editors, async, and web and GUI projects.
+- later: async, and web and GUI projects.
 
 ## Contributing
 
