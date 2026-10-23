@@ -202,6 +202,9 @@ Decisions already taken by the author for this chapter (2026-10-07):
 
 1. A struct literal must give every field exactly once.
 2. Field access `x.f` requires the field to be visible (chapter 6).
+3. A struct literal `Name { ... }` and a struct pattern `Name { ... }` name a struct, an alias of a
+   struct (section 7.3) or a variant with named fields. Any other name, such as a built-in type,
+   an enum, an interface or a function, is an error (E0439). **[PROPOSAL]** (2026-10-23)
 
 ### 7.2 Enums
 
@@ -218,6 +221,11 @@ Decisions already taken by the author for this chapter (2026-10-07):
 `type UserId = Int` introduces another name for the same type: `UserId` and `Int` are fully
 interchangeable. Aliases may be generic (`type Pairs<T> = List<List<T>>`). A cycle of aliases is an
 error. **[PROPOSAL]**
+
+An alias of a struct also stands for the struct in literals and patterns: with `type P = Point`,
+`P { x: 1, y: 2 }` builds a `Point` and `P { x, y }` matches one; type arguments are written after
+the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`). **[PROPOSAL]**
+(2026-10-23)
 
 ### 7.4 Recursive types
 
@@ -403,6 +411,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0436 | Unknown loop label (added in 0.2) |
 | E0437 | A name after `break` that is both an enclosing label and a variable (added in 0.2) |
 | E0438 | A label that repeats the label of an enclosing loop (added in 0.2) |
+| E0439 | A struct literal or a struct pattern whose name is not a struct, an alias of one or a variant with named fields (section 7.1, rule 3; added after 0.3) |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
@@ -430,4 +439,5 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.12 | 0.2: the built-in interface `Display`, implemented for `Int`, `Float`, `Bool`, `String` and by the user | **answered** (author, 2026-10-18): yes |
 | D4.13 | 0.2: the typing of `loop` (rules 9 and 9a), irrefutable patterns in `let` (rule 9b), `f"..."` needs `Display` (rule 11), codes E0433 to E0438 | **answered** (author, 2026-10-18): yes |
 | D4.14 | `==`, `.copy()` and dropping work on values at least 1,000,000 levels deep on every target and in the VM (section 7.4, rule 3) | **answered** (author, 2026-10-23): yes, at least a million levels |
+| D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |
