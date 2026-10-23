@@ -1,0 +1,13 @@
+hi red
+green
+Hello, blue / Hello, blue
+Hey, large / Hello, large
+Woof, rex / Hello, rex
+hi green, hi green
+112
+2
+picked blue
+blue
+Woof, max
+Hello, red
+Err(worse) Err(BOOM) error: bad

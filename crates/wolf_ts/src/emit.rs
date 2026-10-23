@@ -65,13 +65,17 @@ enum Place {
 }
 
 /// A dictionary: the function a bound of a type parameter stands for. A payload-less enum is a
-/// string at run time, so only the caller knows which `to_string` or `compare` to use.
+/// string at run time, so only the caller knows which `to_string` or `compare` to use, and which
+/// class gives the string the methods of an interface.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Dict {
     /// `to_string` of `Display`.
     Show,
     /// `compare` of `Comparable`.
     Cmp,
+    /// A user interface (see [`Emitter::view_iface`]): the value as a value of the interface, the
+    /// value itself or, for a payload-less enum, its wrapper class.
+    View(DefRef),
 }
 
 /// The signature facts calls need.
@@ -99,6 +103,9 @@ struct FnState {
     by_reference: BTreeSet<LocalRef>,
     /// The dictionary parameters in scope, by type parameter.
     dicts: BTreeMap<(String, Dict), String>,
+    /// The user interface bounds of the type parameters in scope, by type parameter and
+    /// interface: the types of the dictionaries, and of a cast where there is no dictionary.
+    bounds: BTreeMap<(String, DefRef), IrType>,
     self_expr: Option<Expr>,
     /// `self` is a `Ref` (a `mut self` method of a payload-less enum): `self = v` sets `self.v`.
     self_by_ref: bool,
@@ -129,6 +136,7 @@ pub(crate) struct Emitter<'p> {
     /// Interfaces of std that need special handling.
     comparable: Option<DefRef>,
     display: Option<DefRef>,
+    error: Option<DefRef>,
     markers: BTreeSet<DefRef>,
     /// Runtime pieces used.
     pub(crate) rt: BTreeSet<&'static str>,
@@ -204,6 +212,18 @@ fn unify(pattern: &IrType, actual: &IrType, map: &mut BTreeMap<String, IrType>) 
             unify(r1, r2, map);
         }
         _ => {}
+    }
+}
+
+/// Whether a type mentions `Self`.
+fn mentions_self(t: &IrType) -> bool {
+    match t {
+        IrType::SelfType => true,
+        IrType::List(a) | IrType::Option(a) => mentions_self(a),
+        IrType::Map(a, b) | IrType::Result(a, b) => mentions_self(a) || mentions_self(b),
+        IrType::Named(_, args) => args.iter().any(mentions_self),
+        IrType::Fn(ps, r) => ps.iter().any(|(_, t)| mentions_self(t)) || mentions_self(r),
+        _ => false,
     }
 }
 
@@ -364,6 +384,7 @@ impl<'p> Emitter<'p> {
             paths: Vec::new(),
             comparable: None,
             display: None,
+            error: None,
             markers: BTreeSet::new(),
             rt: BTreeSet::new(),
             wanted: BTreeSet::new(),
@@ -460,6 +481,7 @@ impl<'p> Emitter<'p> {
                             match i.name.as_str() {
                                 "Comparable" => self.comparable = Some(i.def),
                                 "Display" => self.display = Some(i.def),
+                                "Error" => self.error = Some(i.def),
                                 "Equatable" | "Copyable" | "Hashable" => {
                                     self.markers.insert(i.def);
                                 }
@@ -550,15 +572,42 @@ impl<'p> Emitter<'p> {
                 out.push(Dict::Show);
             } else if Some(*def) == self.comparable {
                 out.push(Dict::Cmp);
+            } else if self.view_iface(*def) {
+                out.push(Dict::View(*def));
             }
         }
         out
     }
 
+    /// Whether a bound gets a [`Dict::View`]: a user interface whose methods mention `Self` only
+    /// as the receiver, so that a wrapper class can give a payload-less enum its methods, and do
+    /// not take `mut self`, which would change the wrapper and not the value. Such a bound is no
+    /// constraint of the TypeScript type parameter, which a string would not meet.
+    fn view_iface(&self, def: DefRef) -> bool {
+        Some(def) != self.display
+            && Some(def) != self.comparable
+            && !self.markers.contains(&def)
+            && self.ifaces.get(&def).is_some_and(|i| {
+                i.methods.iter().all(|f| {
+                    f.self_mode != Some(Mode::Mut)
+                        && !f.params.iter().any(|p| mentions_self(&p.ty))
+                        && !mentions_self(&f.ret)
+                })
+            })
+    }
+
     /// The type of a dictionary for the type `t`.
     fn dict_ty(&mut self, d: Dict, t: &IrType) -> Type {
+        let bound = match (d, t) {
+            (Dict::View(i), IrType::Param(n)) => self.f.bounds.get(&(n.clone(), i)).cloned(),
+            _ => None,
+        };
         let t = self.ty(t);
         match d {
+            Dict::View(i) => {
+                let to = bound.unwrap_or(IrType::Named(i, Vec::new()));
+                Type::Fn(vec![("x".to_string(), t)], Box::new(self.ty(&to)))
+            }
             Dict::Show => Type::Fn(vec![("x".to_string(), t)], Box::new(Type::name("string"))),
             Dict::Cmp => {
                 let ordering = self
@@ -585,6 +634,7 @@ impl<'p> Emitter<'p> {
                 let iface = match d {
                     Dict::Show => self.display,
                     Dict::Cmp => self.comparable,
+                    Dict::View(_) => return None,
                 };
                 let method = e
                     .methods
@@ -598,11 +648,34 @@ impl<'p> Emitter<'p> {
     }
 
     /// The dictionary for the type `t`, always.
-    fn dict(&mut self, d: Dict, t: &IrType) -> Expr {
-        match d {
+    fn dict(&mut self, d: Dict, t: &IrType) -> Result<Expr, Error> {
+        Ok(match d {
             Dict::Show => self.show_fn(t),
             Dict::Cmp => self.dict_for(d, t).unwrap_or_else(|| self.rt("compare")),
+            Dict::View(i) => self.view(i, t)?,
+        })
+    }
+
+    /// The dictionary of the user interface `iface` for values of type `t`: that of a type
+    /// parameter, or a function that makes the interface value as a coercion does.
+    fn view(&mut self, iface: DefRef, t: &IrType) -> Result<Expr, Error> {
+        if let IrType::Param(n) = t {
+            if let Some(d) = self.f.dicts.get(&(n.clone(), Dict::View(iface))) {
+                return Ok(ident(d));
+            }
         }
+        let to = match t {
+            IrType::Param(n) => self.f.bounds.get(&(n.clone(), iface)).cloned(),
+            _ => None,
+        }
+        .unwrap_or_else(|| IrType::Named(iface, self.iface_args(iface, t)));
+        let ty = self.ty(t);
+        let body = self.coerce(ident("x"), t, &to)?;
+        Ok(Expr::Arrow(
+            vec![("x".to_string(), Some(ty))],
+            None,
+            ArrowBody::Expr(Box::new(body)),
+        ))
     }
 
     /// `to_string` of `Display` for values of type `t`, as a function; for lists, maps, options
@@ -650,7 +723,24 @@ impl<'p> Emitter<'p> {
             IrType::Param(n) if self.f.dicts.contains_key(&(n.clone(), Dict::Show)) => {
                 self.part_fn(t)
             }
-            IrType::Param(_) => self.rt("errText"),
+            // The dictionary of `Error` gives a payload-less enum its class.
+            IrType::Param(n) => {
+                let view = self
+                    .error
+                    .and_then(|e| self.f.dicts.get(&(n.clone(), Dict::View(e))).cloned());
+                match view {
+                    Some(d) => {
+                        let ty = self.ty(t);
+                        let body = self.rt_call("errText", vec![call(ident(&d), vec![ident("x")])]);
+                        Expr::Arrow(
+                            vec![("x".to_string(), Some(ty))],
+                            None,
+                            ArrowBody::Expr(Box::new(body)),
+                        )
+                    }
+                    None => self.rt("errText"),
+                }
+            }
             IrType::Named(def, _) if self.ifaces_of(*def).contains(&self.display) => {
                 self.show_fn(t)
             }
@@ -858,7 +948,7 @@ impl<'p> Emitter<'p> {
                     let IrType::Named(def, _) = b else {
                         continue;
                     };
-                    if self.markers.contains(def) {
+                    if self.markers.contains(def) || self.view_iface(*def) {
                         continue;
                     }
                     if Some(*def) == self.comparable {
@@ -2013,15 +2103,41 @@ impl<'p> Emitter<'p> {
         self.f.rets.push((f.ret.clone(), true));
         let generics = self.generics(&f.generics);
         let mut params = Vec::new();
-        let dicts = self
-            .fns
-            .get(&f.def)
-            .map(|i| i.dicts.clone())
-            .unwrap_or_default();
+        let info = self.fns.get(&f.def).cloned();
+        // The user interface bounds: of the type's parameters, of the interface's in a default,
+        // and of the function's own.
+        let mut bounds: Vec<(String, &IrType)> = Vec::new();
+        if let Some((_, names)) = info.as_ref().and_then(|i| i.owner.as_ref()) {
+            for (n, bs) in names.iter().zip(&f.impl_bounds) {
+                bounds.extend(bs.iter().map(|b| (n.clone(), b)));
+            }
+        }
+        if let Some(IrType::Named(i, _)) = &self.self_iface {
+            if let Some(iface) = self.ifaces.get(i).copied() {
+                for g in &iface.generics {
+                    bounds.extend(g.bounds.iter().map(|b| (g.name.clone(), b)));
+                }
+            }
+        }
+        for g in &f.generics {
+            bounds.extend(g.bounds.iter().map(|b| (g.name.clone(), b)));
+        }
+        for (n, b) in bounds {
+            if let IrType::Named(i, _) = b {
+                if self.view_iface(*i) {
+                    self.f.bounds.insert((n, *i), b.clone());
+                }
+            }
+        }
+        let dicts = info.map(|i| i.dicts).unwrap_or_default();
         for (g, d) in dicts {
             let name = match d {
                 Dict::Show => format!("$show{g}"),
                 Dict::Cmp => format!("$cmp{g}"),
+                Dict::View(i) => {
+                    let iface = self.p.def(i).map(|d| d.name.clone()).unwrap_or_default();
+                    format!("$as{iface}{g}")
+                }
             };
             let ty = self.dict_ty(d, &IrType::Param(g.clone()));
             self.f.dicts.insert((g, d), name.clone());
@@ -2597,7 +2713,7 @@ impl<'p> Emitter<'p> {
                                 let mut args: Vec<Expr> = Vec::new();
                                 for (g, d) in &info.dicts {
                                     let t = map.get(g).cloned().unwrap_or(IrType::Void);
-                                    args.push(self.dict(*d, &t));
+                                    args.push(self.dict(*d, &t)?);
                                 }
                                 args.extend(params.iter().map(|(n, _)| ident(n)));
                                 let mut body = call(name, args);
@@ -2991,6 +3107,18 @@ impl<'p> Emitter<'p> {
             self.rt.insert("Shown");
             return Ok(Expr::New("$rt.Shown".to_string(), vec![v, f]));
         }
+        // A value of a type parameter: the dictionary of its bound makes the interface value.
+        // Without one (an implementation of an interface keeps the interface's signature, and a
+        // default has none) the value is cast: right for classes, not for a payload-less enum.
+        if let (IrType::Param(n), IrType::Named(iface, _)) = (from, to) {
+            if let Some(d) = self.f.dicts.get(&(n.clone(), Dict::View(*iface))).cloned() {
+                return Ok(call(ident(&d), vec![v]));
+            }
+            return Ok(match self.f.bounds.get(&(n.clone(), *iface)).cloned() {
+                Some(b) => Expr::As(Box::new(v), self.ty(&b)),
+                None => v,
+            });
+        }
         if !self.plain_enum(from) {
             return Ok(v);
         }
@@ -3077,6 +3205,27 @@ impl<'p> Emitter<'p> {
                 params,
                 ret: self.ret_ty(&f.ret),
                 body,
+            });
+        }
+        // The text of a `Display` enum, as a class of the enum has it: `errText` of a generic
+        // error prefers it to the message.
+        let shown = en
+            .methods
+            .iter()
+            .find(|f| f.interface.is_some() && f.interface == self.display && f.body.is_some());
+        if let Some(f) = shown.filter(|_| !methods.iter().any(|m| m.name == "toString")) {
+            let fname = self.def_name_local(f.def, e);
+            methods.push(Method {
+                docs: Vec::new(),
+                is_static: false,
+                name: "toString".to_string(),
+                generics: Vec::new(),
+                params: Vec::new(),
+                ret: Type::name("string"),
+                body: vec![Stmt::Return(Some(call(
+                    ident(&fname),
+                    vec![member(Expr::This, "v")],
+                )))],
             });
         }
         let value = self.ty(from);
@@ -3354,7 +3503,7 @@ impl<'p> Emitter<'p> {
             let mut ds = Vec::new();
             for (g, d) in &f.dicts {
                 let t = map.get(g).cloned().unwrap_or(IrType::Void);
-                ds.push(self.dict(*d, &t));
+                ds.push(self.dict(*d, &t)?);
             }
             let at = usize::from(recv.is_some()).min(all.len());
             all.splice(at..at, ds);
@@ -3458,7 +3607,7 @@ impl<'p> Emitter<'p> {
                 let param = matches!(recv.ty, IrType::Param(_));
                 if Some(*interface) == self.display && name == "to_string" {
                     if param {
-                        let f = self.dict(Dict::Show, &recv.ty);
+                        let f = self.dict(Dict::Show, &recv.ty)?;
                         call(f, vec![r])
                     } else {
                         self.rt_call("display", vec![r])
@@ -3466,11 +3615,11 @@ impl<'p> Emitter<'p> {
                 } else if param && Some(*interface) == self.comparable && name == "compare" {
                     let mut a = vec![r];
                     a.extend(all);
-                    let f = self.dict(Dict::Cmp, &recv.ty);
+                    let f = self.dict(Dict::Cmp, &recv.ty)?;
                     call(f, a)
                 } else {
                     // A payload-less enum that gets a default is a string: its wrapper has the
-                    // method.
+                    // method. A value of a type parameter gets it from its dictionary.
                     let to = IrType::Named(*interface, self.iface_args(*interface, &recv.ty));
                     let r = self.coerce(r, &recv.ty, &to)?;
                     call(member(r, &camel(name)), all)

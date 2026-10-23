@@ -4,6 +4,16 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Fixed in the TypeScript backend: a payload-less enum passed for a type parameter bounded by a
+  user interface (`hello(Color.Red)` with `fn hello<T: Named>(x: T)`) was rejected by tsc,
+  because the enum is a string. Such a bound is now a dictionary parameter, `$asNamedT`, that
+  gives the value as a value of the interface (the enum's wrapper class, or the value itself), so
+  methods, defaults and `Named.greeting(x)` work through `T`, generic interfaces too, and `T`
+  stays the enum in lists, comparisons and results. With `E: Error`, `f"{r}"` of a
+  `Result<Int, E>` writes the enum's message, or its `to_string` if it is also `Display`. Not yet
+  for interfaces that mention `Self` outside the receiver or have a `mut self` method, nor inside
+  an implementation of an interface by a generic type (`Labeled<T: Named>: Named`) or a default of
+  an interface with a bounded type parameter, which take no dictionary.
 - Default methods in interfaces (spec chapter 4, sections 8.2 and 8.3; D4.19): a method of an
   interface may have a body, which a type that implements the interface gets when its block
   leaves the method out; a replacement is written `override fn`, and `Named.greeting(x)` calls
