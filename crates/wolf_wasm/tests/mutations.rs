@@ -133,7 +133,8 @@ fn codes(report: &str) -> Vec<String> {
     out
 }
 
-/// Runs the compiler on one program; a problem is returned as its description.
+/// Runs the compiler on one program; a problem is returned as its description. The changed
+/// programs are not run in the VM: a change easily makes a loop endless.
 fn exercise(source: &str) -> Option<String> {
     let report = wolf_wasm::check(source);
     for target in ["ts", "go", "rust"] {

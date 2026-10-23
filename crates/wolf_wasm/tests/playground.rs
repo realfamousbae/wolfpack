@@ -93,3 +93,78 @@ fn run_does_not_run_a_program_with_errors_or_files() {
         "{result}"
     );
 }
+
+/// A string as a JSON string literal, as `wolf_wasm` writes it.
+fn quote(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// The programs of `crates/wolf_cli/tests/run/` that the playground can hold, one file without
+/// code of the targets, files or the environment, give in its VM the standard output, error
+/// output and exit code they give on the targets (spec chapter 10).
+#[test]
+fn run_programs_give_their_target_output_in_the_playground() {
+    use std::fs;
+    use std::path::Path;
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../wolf_cli/tests/run");
+    let mut dirs: Vec<_> = fs::read_dir(&root)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    dirs.sort();
+    let (mut ran, mut failures) = (0, Vec::new());
+    for dir in dirs {
+        let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+        let manifest = fs::read_to_string(dir.join("wolfpack.toml")).unwrap_or_default();
+        let sources: Vec<_> = fs::read_dir(dir.join("src"))
+            .map(|d| d.flatten().map(|e| e.path()).collect())
+            .unwrap_or_default();
+        let Ok(source) = fs::read_to_string(dir.join("src/main.wolf")) else {
+            continue;
+        };
+        let held = !name.starts_with("E0")
+            && sources.len() == 1
+            && !dir.join("native").exists()
+            && !manifest.contains("[config")
+            && !manifest.contains("[extern")
+            && !manifest.contains("kind = \"lib\"")
+            && !source.contains("extern {")
+            && !source.contains("std.fs")
+            && !source.contains("process.env");
+        if !held {
+            continue;
+        }
+        let read = |f: &str, default: &str| {
+            fs::read_to_string(dir.join(f)).unwrap_or_else(|_| default.to_string())
+        };
+        let tail = format!(
+            ",\"stdout\":{},\"stderr\":{},\"code\":{}}}",
+            quote(&read("expected.txt", "")),
+            quote(&read("expected.stderr", "")),
+            read("expected.code", "0").trim()
+        );
+        let result = wolf_wasm::run(&source, "");
+        if !result.ends_with(&tail) {
+            failures.push(format!(
+                "--- {name}\nexpected the end {tail}\nactual {result}"
+            ));
+        }
+        ran += 1;
+    }
+    assert!(ran > 20, "only {ran} programs ran");
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
