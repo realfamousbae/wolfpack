@@ -178,6 +178,45 @@ impl<'a> Checker<'a> {
         let Some((sig, _)) = sig else {
             return;
         };
+        // The bounds of the method's `where` hold in its body only (chapter 4, section 8.6).
+        let added: Vec<(Span, Vec<Ty>)> = method
+            .and_then(|i| self.methods.get(i))
+            .map(|m| {
+                m.impl_generics
+                    .iter()
+                    .copied()
+                    .zip(m.where_bounds.iter().cloned())
+                    .filter(|(_, w)| !w.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let saved: Vec<(Span, Option<Vec<Ty>>)> = added
+            .iter()
+            .map(|(span, extra)| {
+                let before = self.param_bounds.get(span).cloned();
+                let mut all = before.clone().unwrap_or_default();
+                all.extend(extra.iter().cloned());
+                self.param_bounds.insert(*span, all);
+                (*span, before)
+            })
+            .collect();
+        self.fn_body_checked(module, decl, self_ty, &sig, body);
+        for (span, before) in saved {
+            match before {
+                Some(b) => self.param_bounds.insert(span, b),
+                None => self.param_bounds.remove(&span),
+            };
+        }
+    }
+
+    fn fn_body_checked(
+        &mut self,
+        module: usize,
+        decl: &ast::FnDecl,
+        self_ty: Option<Ty>,
+        sig: &Sig,
+        body: &ast::Block,
+    ) {
         let mut b = self.new_body(module, self_ty, sig.ret.clone());
         let mut param_types = sig.params.iter();
         for param in &decl.sig.params {
@@ -1756,6 +1795,12 @@ impl<'a> Checker<'a> {
                     if !own.get(i).is_some_and(|o| o.contains(interface)) {
                         bounds.push((arg.clone(), *interface));
                     }
+                }
+            }
+            // And what the method's `where` adds (chapter 4, section 8.6).
+            for bound in m.where_bounds.get(i).into_iter().flatten() {
+                if let Ty::Named(interface, _) = bound {
+                    bounds.push((arg.clone(), *interface));
                 }
             }
         }

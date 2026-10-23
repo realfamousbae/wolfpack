@@ -178,6 +178,7 @@ impl Parser<'_> {
             generics: Vec::new(),
             params,
             ret,
+            where_bounds: Vec::new(),
             span: self.span_from(name_span),
         };
         let body = if self.at(&TokenKind::LBrace) {
@@ -962,6 +963,36 @@ impl Parser<'_> {
     }
 
     /// `<T: A + B, U>` after a declaration name.
+    /// `where T: A + B, U: C` after a signature (spec chapter 4, section 8.6); `where` is a
+    /// contextual word, special only here.
+    fn where_bounds(&mut self) -> Vec<GenericParam> {
+        if !self.at_word("where") {
+            return Vec::new();
+        }
+        self.bump();
+        let mut params = Vec::new();
+        while self.at(&TokenKind::Ident) {
+            let Some(name) = self.ident("a type parameter") else {
+                break;
+            };
+            let mut bounds = Vec::new();
+            if self.expect(&TokenKind::Colon, "`:`").is_some() {
+                bounds.push(self.ty());
+                while self.eat(&TokenKind::Plus) {
+                    bounds.push(self.ty());
+                }
+            }
+            params.push(GenericParam { name, bounds });
+            if !self.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        if params.is_empty() {
+            self.unexpected("a type parameter and its bounds after `where`");
+        }
+        params
+    }
+
     pub(crate) fn generics(&mut self) -> Vec<GenericParam> {
         if !self.at(&TokenKind::Lt) {
             return Vec::new();
@@ -1302,12 +1333,15 @@ impl Parser<'_> {
         } else {
             None
         };
+        let span = self.span_from(start);
+        let where_bounds = self.where_bounds();
         let sig = FnSig {
             name,
             generics,
             params,
             ret,
-            span: self.span_from(start),
+            where_bounds,
+            span,
         };
         let body = if context == FnContext::Signature || intrinsic {
             if self.at(&TokenKind::LBrace) {

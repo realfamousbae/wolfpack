@@ -211,6 +211,11 @@ impl Resolver<'_> {
                 }
             }
         }
+        for param in &sig.where_bounds {
+            for bound in &param.bounds {
+                self.ty(&ctx, bound);
+            }
+        }
         if let Some(ret) = &sig.ret {
             self.ty(&ctx, ret);
         }

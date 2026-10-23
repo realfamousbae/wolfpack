@@ -896,10 +896,12 @@ impl<'a> Lowerer<'a> {
             docs: docs(method_docs),
             public: m.public,
             generics: self.generics(&m.sig.generics),
+            // The bounds of the block and those that the method's `where` adds.
             impl_bounds: m
                 .impl_bounds
                 .iter()
-                .map(|bounds| bounds.iter().map(|b| self.ty(b)).collect())
+                .zip(m.where_bounds.iter().chain(std::iter::repeat(&Vec::new())))
+                .map(|(bounds, extra)| bounds.iter().chain(extra).map(|b| self.ty(b)).collect())
                 .collect(),
             self_mode: m.sig.self_mode,
             params: self.params(&decl.sig, &m.sig),

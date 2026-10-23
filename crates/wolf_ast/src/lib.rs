@@ -521,6 +521,9 @@ pub struct FnSig {
     pub params: Vec<Param>,
     /// The written result type; `None` means `Void`.
     pub ret: Option<Ty>,
+    /// `where T: Bound` after the result type: bounds that a method adds to the type parameters
+    /// of its `impl` block (spec chapter 4, section 8.6).
+    pub where_bounds: Vec<GenericParam>,
     /// From `fn` to the end of the result type.
     pub span: Span,
 }

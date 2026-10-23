@@ -1,0 +1,43 @@
+error[E0442]: `where` that is not allowed here
+   --> src/main.wolf:11:36
+   |
+11 |         fn size(self) -> Int where T: Equatable
+   |                                    ^ a method of an interface has no `where`
+   |
+   = help: put the bounds in `<T: ...>` after the name
+
+error[E0442]: `where` that is not allowed here
+   --> src/main.wolf:26:50
+   |
+26 |         fn first<U>(self, other: U) -> Int where U: Equatable, V: Copyable {
+   |                                                  ^ `U` is a parameter of the method: write `<U: ...>`
+
+error[E0442]: `where` that is not allowed here
+   --> src/main.wolf:26:64
+   |
+26 |         fn first<U>(self, other: U) -> Int where U: Equatable, V: Copyable {
+   |                                                                ^ `V` is not a type parameter of the `impl` block
+
+error[E0442]: `where` that is not allowed here
+   --> src/main.wolf:32:36
+   |
+32 |         fn size(self) -> Int where T: Copyable {
+   |                                    ^ an interface implementation adds no bounds; the interface decides
+
+error[E0406]: `fn() -> Int` is not `Equatable`
+   --> src/main.wolf:40:17
+   |
+40 |     print(tasks.has(|| 2).to_string())
+   |                 ^^^ required by `has`
+   |
+   = note: `fn() -> Int` is not `Equatable` because functions cannot be compared
+
+error[E0442]: `where` that is not allowed here
+   --> src/main.wolf:45:42
+   |
+45 |     fn same<T>(a: T, b: T) -> Bool where T: Equatable {
+   |                                          ^ a free function has no `where`
+   |
+   = help: put the bounds in `<T: ...>` after the name
+
+error: aborting due to 6 errors

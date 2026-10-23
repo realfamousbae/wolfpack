@@ -133,6 +133,8 @@ pub struct Method {
     pub impl_generics: Vec<Span>,
     /// The bounds of the `impl` block's type parameters, in the same order.
     pub impl_bounds: Vec<Vec<Ty>>,
+    /// The bounds that the method's `where` adds to them, in the same order (chapter 4, 8.6).
+    pub where_bounds: Vec<Vec<Ty>>,
     /// The signature.
     pub sig: Sig,
     /// Visible outside its module.
@@ -601,6 +603,63 @@ impl<'a> Checker<'a> {
         body.subst(&map)
     }
 
+    /// The bounds of a method's `where`, one list for each type parameter of its `impl` block
+    /// (chapter 4, section 8.6). A `where` anywhere else, or one that names something other
+    /// than a parameter of the block, is E0442.
+    pub(crate) fn lower_where(
+        &mut self,
+        sig: &ast::FnSig,
+        block_generics: &[ast::GenericParam],
+        in_interface_impl: bool,
+        scope: &Scope,
+    ) -> Vec<Vec<Ty>> {
+        let mut out: Vec<Vec<Ty>> = vec![Vec::new(); block_generics.len()];
+        for param in &sig.where_bounds {
+            let name = &param.name.name;
+            let index = block_generics.iter().position(|g| g.name.name == *name);
+            let why = if in_interface_impl {
+                Some(
+                    "an interface implementation adds no bounds; the interface decides".to_string(),
+                )
+            } else if sig.generics.iter().any(|g| g.name.name == *name) {
+                Some(format!(
+                    "`{name}` is a parameter of the method: write `<{name}: ...>`"
+                ))
+            } else if index.is_none() {
+                Some(format!(
+                    "`{name}` is not a type parameter of the `impl` block"
+                ))
+            } else {
+                None
+            };
+            if let Some(why) = why {
+                self.report(
+                    Diagnostic::new(codes::E0442, "`where` that is not allowed here")
+                        .primary(param.name.span, why),
+                );
+                continue;
+            }
+            let outer = std::mem::replace(&mut self.in_bound, true);
+            let bounds: Vec<Ty> = param.bounds.iter().map(|b| self.lower(b, scope)).collect();
+            self.in_bound = outer;
+            if let Some(slot) = index.and_then(|i| out.get_mut(i)) {
+                slot.extend(bounds);
+            }
+        }
+        out
+    }
+
+    /// E0442 for a `where` on a function that is not a method of an inherent block.
+    pub(crate) fn no_where(&mut self, sig: &ast::FnSig, what: &str) {
+        if let Some(first) = sig.where_bounds.first() {
+            self.report(
+                Diagnostic::new(codes::E0442, "`where` that is not allowed here")
+                    .primary(first.name.span, format!("{what} has no `where`"))
+                    .help("put the bounds in `<T: ...>` after the name"),
+            );
+        }
+    }
+
     /// The struct type an alias stands for, with the written type arguments of the alias or new
     /// inference variables; `None` when the alias stands for something else.
     pub(crate) fn struct_of_alias(&mut self, def: DefId, written: Option<Vec<Ty>>) -> Option<Ty> {
@@ -842,6 +901,7 @@ impl<'a> Checker<'a> {
                             let mut sigs = BTreeMap::new();
                             for method in &decl.methods {
                                 let sig = self.lower_sig(&method.sig, &iscope);
+                                self.no_where(&method.sig, "a method of an interface");
                                 self.interface_member(&method.sig, &sig);
                                 sigs.entry(method.sig.name.name.clone()).or_insert(sig);
                             }
@@ -862,6 +922,7 @@ impl<'a> Checker<'a> {
                         ItemKind::Fn(decl) => {
                             if let Some(def) = self.item_def(&decl.sig.name) {
                                 let sig = self.lower_sig(&decl.sig, &scope);
+                                self.no_where(&decl.sig, "a free function");
                                 self.fns.insert(def, sig);
                             }
                             if decl.body.is_some() {
@@ -1091,6 +1152,12 @@ impl<'a> Checker<'a> {
             let sig = self.lower_sig(&method.decl.sig, &scope);
             let has_self = sig.self_mode.is_some();
             let name = method.decl.sig.name.clone();
+            let where_bounds = self.lower_where(
+                &method.decl.sig,
+                &block.generics,
+                interface.is_some(),
+                &scope,
+            );
             implemented.push((name.name.clone(), name.span, sig.clone()));
             let index = self.methods.len();
             self.methods.push(Method {
@@ -1100,6 +1167,7 @@ impl<'a> Checker<'a> {
                 module,
                 impl_generics: impl_generics.clone(),
                 impl_bounds: generics.iter().map(|g| g.bounds.clone()).collect(),
+                where_bounds,
                 sig,
                 public: public_methods.unwrap_or(method.decl.public),
                 interface,

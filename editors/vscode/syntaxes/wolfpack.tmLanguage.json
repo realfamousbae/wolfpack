@@ -276,6 +276,10 @@
           "match": "\\b(?:from|as|async|await)\\b"
         },
         {
+          "name": "keyword.other.wolfpack",
+          "match": "\\bwhere\\b(?=\\s+[A-Za-z_]\\w*\\s*:)"
+        },
+        {
           "name": "keyword.other.test.wolfpack",
           "match": "\\btest\\b(?=\\s*\\\")"
         },

@@ -574,6 +574,9 @@ impl<'a> Fmt<'a> {
             parts.push(text(" -> "));
             parts.push(self.ty(r));
         }
+        if let Some(w) = self.where_bounds(&sig.where_bounds) {
+            parts.push(text(w));
+        }
         cat(parts)
     }
 
@@ -603,7 +606,25 @@ impl<'a> Fmt<'a> {
             parts.push(text(" -> "));
             parts.push(self.ty(r));
         }
+        if let Some(w) = self.where_bounds(&sig.where_bounds) {
+            parts.push(text(w));
+        }
         cat(parts)
+    }
+
+    /// ` where T: A + B, U: C`, or nothing.
+    fn where_bounds(&self, bounds: &[GenericParam]) -> Option<String> {
+        if bounds.is_empty() {
+            return None;
+        }
+        let list: Vec<String> = bounds
+            .iter()
+            .map(|g| {
+                let b: Vec<String> = g.bounds.iter().map(|t| self.ty_text(t)).collect();
+                format!("{}: {}", g.name.name, b.join(" + "))
+            })
+            .collect();
+        Some(format!(" where {}", list.join(", ")))
     }
 
     fn generics(&self, generics: &[GenericParam]) -> String {

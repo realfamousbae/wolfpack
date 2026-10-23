@@ -352,7 +352,7 @@ fn sig_types<'a>(sig: &'a FnSig, out: &mut Vec<&'a Ty>) {
     if let Some(ret) = &sig.ret {
         out.push(ret);
     }
-    for generic in &sig.generics {
+    for generic in sig.generics.iter().chain(&sig.where_bounds) {
         out.extend(generic.bounds.iter());
     }
 }
