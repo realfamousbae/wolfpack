@@ -15,7 +15,9 @@
 //!   payload in place.
 //! - Bounds `Equatable`, `Copyable` and `Comparable` are passed as functions (dictionary
 //!   passing, spec chapter 8, section 5.4); `Hashable` is `comparable`, interfaces of the program
-//!   are constraints.
+//!   are constraints. An interface implementation keeps the signature of the interface, so the
+//!   bounds of the type's parameters are found at run time from the type argument instead
+//!   (`wolfrt.Show[T]`, `Compare`, `Equal` and `Copy`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -75,6 +77,17 @@ enum Dict {
     Show,
 }
 
+/// Where the dictionary of a bound of a type parameter comes from.
+#[derive(Clone)]
+enum DictFrom {
+    /// A parameter of the function.
+    Param(String),
+    /// The runtime, which finds it from the type argument (`wolfrt.Show[T]`): the bounds of the
+    /// type's parameters in an interface implementation, since the method keeps the signature
+    /// of the interface.
+    Runtime,
+}
+
 /// The signature facts calls need.
 #[derive(Clone)]
 struct FnInfo {
@@ -112,8 +125,8 @@ struct FnState {
     /// last, with the form of the result.
     rets: Vec<(IrType, Form)>,
     self_local: Option<Local>,
-    /// Dictionary parameters in scope: type parameter and bound to the parameter's name.
-    dicts: BTreeMap<(String, Dict), String>,
+    /// Dictionaries in scope: type parameter and bound to where the dictionary comes from.
+    dicts: BTreeMap<(String, Dict), DictFrom>,
     loops: Vec<Loop>,
     switches: usize,
 }
@@ -188,6 +201,9 @@ pub(crate) struct Emitter<'p> {
     pub(crate) need_copy: BTreeSet<DefRef>,
     /// Interfaces whose values are copied: they get a `Copy<Name>` method.
     pub(crate) need_copy_iface: BTreeSet<DefRef>,
+    /// Types with interface implementations whose head bounds `Equatable` and `Copyable` are
+    /// found at run time: the index of the type parameter and the bound.
+    runtime_bounds: BTreeMap<DefRef, Vec<(usize, Dict)>>,
     /// Tests of the test build, in order.
     pub(crate) test_list: Vec<TestEntry>,
     test_names: BTreeSet<String>,
@@ -453,6 +469,8 @@ fn needs_stmts(e: &IrExpr) -> bool {
 struct Scan {
     reads: BTreeSet<LocalRef>,
     assigned: BTreeSet<LocalRef>,
+    /// The generic types of the values, once each.
+    types: Vec<IrType>,
 }
 
 impl Scan {
@@ -497,6 +515,7 @@ impl Scan {
     }
 
     fn expr(&mut self, e: &IrExpr) {
+        generic_types(&e.ty, &mut self.types);
         match &e.kind {
             ExprKind::Local(l) => {
                 self.reads.insert(*l);
@@ -595,6 +614,32 @@ impl Scan {
     }
 }
 
+/// The generic types in `t` (`Bag<Int>` in `List<Bag<Int>>`), added to `out` once each.
+fn generic_types(t: &IrType, out: &mut Vec<IrType>) {
+    match t {
+        IrType::Named(_, args) if !args.is_empty() => {
+            if !out.contains(t) {
+                out.push(t.clone());
+            }
+            for a in args {
+                generic_types(a, out);
+            }
+        }
+        IrType::List(a) | IrType::Option(a) => generic_types(a, out),
+        IrType::Map(a, b) | IrType::Result(a, b) => {
+            generic_types(a, out);
+            generic_types(b, out);
+        }
+        IrType::Fn(params, ret) => {
+            for (_, p) in params {
+                generic_types(p, out);
+            }
+            generic_types(ret, out);
+        }
+        _ => {}
+    }
+}
+
 fn binds(p: &Pattern) -> bool {
     match p {
         Pattern::Bind(_) => true,
@@ -687,6 +732,7 @@ impl<'p> Emitter<'p> {
             need_eq: BTreeSet::new(),
             need_copy: BTreeSet::new(),
             need_copy_iface: BTreeSet::new(),
+            runtime_bounds: BTreeMap::new(),
             test_list: Vec::new(),
             test_names: BTreeSet::new(),
             module: 0,
@@ -939,6 +985,26 @@ impl<'p> Emitter<'p> {
             }
         }
         self.recursion();
+        // The runtime's `Equal` and `Copy` call the generated methods of the type arguments.
+        let owners = self
+            .structs
+            .values()
+            .map(|s| (s.def, &s.methods))
+            .chain(self.enums.values().map(|e| (e.def, &e.methods)));
+        let mut runtime_bounds: BTreeMap<DefRef, Vec<(usize, Dict)>> = BTreeMap::new();
+        for (def, methods) in owners {
+            for f in methods.iter().filter(|f| f.interface.is_some()) {
+                for (i, bounds) in f.impl_bounds.iter().enumerate() {
+                    for d in self.dicts_of(bounds) {
+                        let list = runtime_bounds.entry(def).or_default();
+                        if matches!(d, Dict::Eq | Dict::Copy) && !list.contains(&(i, d)) {
+                            list.push((i, d));
+                        }
+                    }
+                }
+            }
+        }
+        self.runtime_bounds = runtime_bounds;
         for (def, index, name) in derived {
             let set = taken.entry(index).or_default();
             let mut n = name;
@@ -1323,11 +1389,150 @@ impl<'p> Emitter<'p> {
                     },
                     g.name
                 ));
-                self.f.dicts.insert((g.name.clone(), d), name.clone());
+                self.f
+                    .dicts
+                    .insert((g.name.clone(), d), DictFrom::Param(name.clone()));
                 out.push((name, ty));
             }
         }
         Ok(out)
+    }
+
+    /// The bounds of the type's parameters in an interface implementation: their dictionaries
+    /// are found at run time from the type argument.
+    fn runtime_dicts(&mut self, generics: &[ir::Generic]) {
+        for g in generics {
+            for d in self.dicts_of(&g.bounds) {
+                self.f.dicts.insert((g.name.clone(), d), DictFrom::Runtime);
+            }
+        }
+    }
+
+    /// The dictionary of a bound of the type parameter `n`, if it is in scope.
+    fn param_dict(&mut self, n: &str, d: Dict) -> Option<Expr> {
+        match self.f.dicts.get(&(n.to_string(), d)).cloned()? {
+            DictFrom::Param(name) => Some(id(&name)),
+            DictFrom::Runtime => {
+                let (piece, name) = match d {
+                    Dict::Eq => ("Equal", "Equal"),
+                    Dict::Copy => ("Copy", "Copy"),
+                    Dict::Cmp => ("Compare", "Compare"),
+                    Dict::Show => ("Show", "Show"),
+                };
+                let f = self.rt(piece, name);
+                Some(Expr::Inst(Box::new(f), vec![Type::name(n)]))
+            }
+        }
+    }
+
+    /// Asks for the generated `Equal` and `Copy` that the runtime's `Equal` and `Copy` call for
+    /// the type arguments of implementations whose head bounds are found at run time. `types`
+    /// are the generic types of the values of a function.
+    fn need_runtime_dicts(&mut self, types: &[IrType]) {
+        for t in types {
+            let IrType::Named(def, args) = t else {
+                continue;
+            };
+            let Some(bounds) = self.runtime_bounds.get(def).cloned() else {
+                continue;
+            };
+            for (i, d) in bounds {
+                // A type argument without the bound does not use the implementation.
+                if let Some(a) = args.get(i) {
+                    if self.derives(a, d, &mut Vec::new()) {
+                        self.need_methods(a, d);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Whether `t` has `==` (`Dict::Eq`) or `.copy()` (`Dict::Copy`) by the rules that derive
+    /// them (spec chapter 4, section 9), and the backend can generate them: interface values
+    /// are copied only as far as `copies_behind` allows. Type parameters count as having both.
+    fn derives(&self, t: &IrType, d: Dict, seen: &mut Vec<IrType>) -> bool {
+        match t {
+            IrType::Fn(..) => false,
+            IrType::List(x) | IrType::Option(x) => self.derives(x, d, seen),
+            IrType::Map(_, v) => self.derives(v, d, seen),
+            IrType::Result(a, b) => self.derives(a, d, seen) && self.derives(b, d, seen),
+            IrType::Named(def, args) => {
+                if self.ifaces.contains_key(def) {
+                    return d == Dict::Copy && self.copies_behind(*def);
+                }
+                // A type met again has what its other fields give it.
+                if seen.contains(t) || seen.len() > 64 {
+                    return true;
+                }
+                seen.push(t.clone());
+                let (generics, fields): (&[ir::Generic], Vec<IrType>) =
+                    if let Some(s) = self.structs.get(def) {
+                        (&s.generics, s.fields.iter().map(|f| f.ty.clone()).collect())
+                    } else if let Some(e) = self.enums.get(def) {
+                        let payloads = e.variants.iter().flat_map(|v| self.payload(v).1);
+                        (&e.generics, payloads.collect())
+                    } else {
+                        return true;
+                    };
+                let map: BTreeMap<String, IrType> = generics
+                    .iter()
+                    .map(|g| g.name.clone())
+                    .zip(args.iter().cloned())
+                    .collect();
+                fields
+                    .iter()
+                    .all(|f| self.derives(&subst(f, &map), d, seen))
+            }
+            _ => true,
+        }
+    }
+
+    /// Asks for the generated `Equal` (`Dict::Eq`) or `Copy` (`Dict::Copy`) of the types in `t`.
+    fn need_methods(&mut self, t: &IrType, d: Dict) {
+        match t {
+            IrType::List(x) | IrType::Option(x) => self.need_methods(x, d),
+            IrType::Map(_, v) => self.need_methods(v, d),
+            IrType::Result(a, b) => {
+                self.need_methods(a, d);
+                self.need_methods(b, d);
+            }
+            IrType::Named(def, args) => {
+                for a in args {
+                    self.need_methods(a, d);
+                }
+                if self.std_pieces.contains_key(def) || self.plain_enum(t) {
+                    return;
+                }
+                if self.ifaces.contains_key(def) {
+                    if d == Dict::Copy && self.copies_behind(*def) {
+                        self.need_copy_iface.insert(*def);
+                    }
+                } else if self.structs.contains_key(def) || self.enums.contains_key(def) {
+                    if d == Dict::Eq {
+                        self.need_eq.insert(*def);
+                    } else {
+                        self.need_copy.insert(*def);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Whether the values of the interface `iface` can be copied in Go: the types that implement
+    /// it are structs or enums without payloads, none of them generic (see `iface_copies`).
+    fn copies_behind(&self, iface: DefRef) -> bool {
+        let implements =
+            |methods: &[ir::Function]| methods.iter().any(|f| f.interface == Some(iface));
+        !self.std_pieces.contains_key(&iface)
+            && self
+                .structs
+                .values()
+                .all(|s| !implements(&s.methods) || s.generics.is_empty())
+            && self.enums.values().all(|e| {
+                !implements(&e.methods)
+                    || (e.generics.is_empty() && e.variants.iter().all(|v| v.payload.is_empty()))
+            })
     }
 
     fn dicts_of(&self, bounds: &[IrType]) -> Vec<Dict> {
@@ -1381,10 +1586,7 @@ impl<'p> Emitter<'p> {
                 }),
             IrType::String => Ok(self.rt("Display", "StringString")),
             IrType::Param(n) => self
-                .f
-                .dicts
-                .get(&(n.clone(), Dict::Show))
-                .map(|d| id(d))
+                .param_dict(n, Dict::Show)
                 .ok_or_else(|| format!("to_string on `{n}` without `Display`")),
             IrType::Named(def, args) if args.is_empty() && !self.ptr_recv.contains(def) => {
                 let ty = self.ty(t)?;
@@ -1434,12 +1636,9 @@ impl<'p> Emitter<'p> {
             }
             IrType::Param(n) => {
                 let d = self
-                    .f
-                    .dicts
-                    .get(&(n.clone(), Dict::Eq))
-                    .cloned()
+                    .param_dict(n, Dict::Eq)
                     .ok_or_else(|| format!("== on `{n}` without `Equatable`"))?;
-                call(id(&d), vec![a, b])
+                call(d, vec![a, b])
             }
             IrType::Named(def, args) => {
                 if !self.std_pieces.contains_key(def) {
@@ -1466,10 +1665,7 @@ impl<'p> Emitter<'p> {
         }
         match t {
             IrType::Param(n) => self
-                .f
-                .dicts
-                .get(&(n.clone(), Dict::Eq))
-                .map(|d| id(d))
+                .param_dict(n, Dict::Eq)
                 .ok_or_else(|| format!("== on `{n}` without `Equatable`")),
             IrType::Named(def, args) if args.is_empty() => {
                 if !self.std_pieces.contains_key(def) {
@@ -1518,12 +1714,9 @@ impl<'p> Emitter<'p> {
             }
             IrType::Param(n) => {
                 let d = self
-                    .f
-                    .dicts
-                    .get(&(n.clone(), Dict::Copy))
-                    .cloned()
+                    .param_dict(n, Dict::Copy)
                     .ok_or_else(|| format!(".copy() on `{n}` without `Copyable`"))?;
-                call(id(&d), vec![x])
+                call(d, vec![x])
             }
             IrType::Named(def, args) if !self.ifaces.contains_key(def) => {
                 if !self.std_pieces.contains_key(def) {
@@ -1552,10 +1745,7 @@ impl<'p> Emitter<'p> {
         }
         match t {
             IrType::Param(n) => self
-                .f
-                .dicts
-                .get(&(n.clone(), Dict::Copy))
-                .map(|d| id(d))
+                .param_dict(n, Dict::Copy)
                 .ok_or_else(|| format!(".copy() on `{n}` without `Copyable`")),
             IrType::Named(def, args) if args.is_empty() && !self.ifaces.contains_key(def) => {
                 if !self.std_pieces.contains_key(def) {
@@ -1589,10 +1779,7 @@ impl<'p> Emitter<'p> {
             IrType::Int => Ok(self.rt("Ordering", "CompareInt")),
             IrType::String => Ok(self.rt("Ordering", "CompareString")),
             IrType::Param(n) => self
-                .f
-                .dicts
-                .get(&(n.clone(), Dict::Cmp))
-                .map(|d| id(d))
+                .param_dict(n, Dict::Cmp)
                 .ok_or_else(|| format!("compare on `{n}` without `Comparable`")),
             IrType::Named(def, args) if args.is_empty() && !self.ptr_recv.contains(def) => {
                 let ty = self.ty(t)?;
@@ -1913,6 +2100,7 @@ impl<'p> Emitter<'p> {
         self.f = FnState::default();
         let mut scan = Scan::default();
         scan.block(&t.body);
+        self.need_runtime_dicts(&scan.types);
         self.f.reads = scan.reads;
         self.f.assigned = scan.assigned;
         self.f.used.insert("t".to_string());
@@ -2223,7 +2411,9 @@ impl<'p> Emitter<'p> {
             let t = IrType::Param(g.name.clone());
             let ty = self.dict_ty(d, &t)?;
             let name = format!("{}{}", if d == Dict::Eq { "eq" } else { "copy" }, g.name);
-            self.f.dicts.insert((g.name.clone(), d), name.clone());
+            self.f
+                .dicts
+                .insert((g.name.clone(), d), DictFrom::Param(name.clone()));
             out.push((name, ty));
         }
         Ok(out)
@@ -3063,6 +3253,7 @@ impl<'p> Emitter<'p> {
         if let Some(b) = &f.body {
             scan.block(b);
         }
+        self.need_runtime_dicts(&scan.types);
         self.f.reads = scan.reads;
         self.f.assigned = scan.assigned;
         let form = self.ret_form(&f.ret);
@@ -3091,21 +3282,26 @@ impl<'p> Emitter<'p> {
         } else {
             self.tparams(&all)?
         };
-        // Dictionaries: for a Go method, the impl block's bounds and the function's own.
+        // Dictionaries: the impl block's bounds and the function's own. An implementation of an
+        // interface keeps the interface's signature: the bounds of the type's parameters are
+        // found at run time instead.
         let mut params = Vec::new();
-        if let Some((r, _, local)) = &recv {
+        let owner_dicts: Vec<ir::Generic> = if let Some((r, _, local)) = &recv {
             self.f.used.insert(r.clone());
             self.f.self_local = Some(local.clone());
-            let gens: Vec<ir::Generic> = self
-                .fns
+            self.fns
                 .get(&f.def)
                 .map(|i| i.owner_generics.clone())
-                .unwrap_or_default();
-            params.extend(self.dict_params(&gens)?);
-            params.extend(self.dict_params(&f.generics)?);
+                .unwrap_or_default()
         } else {
-            params.extend(self.dict_params(&all)?);
+            owner_generics
+        };
+        if f.interface.is_some() {
+            self.runtime_dicts(&owner_dicts);
+        } else {
+            params.extend(self.dict_params(&owner_dicts)?);
         }
+        params.extend(self.dict_params(&f.generics)?);
         if let (Some(mode), Some(st)) = (f.self_mode, self_ty) {
             let t = self.param_ty(mode, st)?;
             let n = self.fresh("self");
@@ -4253,10 +4449,15 @@ impl<'p> Emitter<'p> {
         }
         let info = self.fns.get(&def).cloned().ok_or("unknown function")?;
         if !info.generics.is_empty() || !info.owner_generics.is_empty() {
+            let owner: &[ir::Generic] = if info.interface.is_some() {
+                &[]
+            } else {
+                &info.owner_generics
+            };
             let has_dicts = info
                 .generics
                 .iter()
-                .chain(&info.owner_generics)
+                .chain(owner)
                 .any(|g| !self.dicts_of(&g.bounds).is_empty());
             if has_dicts {
                 return Err(format!("the generic function `{}` used as a value", d.name));
@@ -4715,7 +4916,13 @@ impl<'p> Emitter<'p> {
         } else {
             info.generics.clone()
         };
-        for g in &gens {
+        // An implementation of an interface takes no dictionaries for the type's parameters.
+        let skip = if info.interface.is_some() {
+            info.owner_generics.len()
+        } else {
+            0
+        };
+        for g in gens.iter().skip(skip) {
             for d in self.dicts_of(&g.bounds) {
                 let t = map.get(&g.name).cloned().unwrap_or(IrType::Void);
                 dicts.push(self.dict(d, &t)?);
