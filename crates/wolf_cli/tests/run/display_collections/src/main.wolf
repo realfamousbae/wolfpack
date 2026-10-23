@@ -1,0 +1,111 @@
+// `Display` of lists, options, maps and results (spec chapter 4, section 9, rule 7; chapter 7,
+// section 4.1): written as the literal that would build them, strings inside in quotes.
+module main
+
+imports {
+    std.string.{ParseError}
+}
+
+types {
+    struct Point {
+        x: Int
+        y: Int
+    }
+
+    struct Oops {
+        code: Int
+    }
+
+    struct Loud {
+        code: Int
+    }
+
+    enum Color {
+        Red
+        Green
+    }
+}
+
+impl {
+    Point: Display {
+        fn to_string(self) -> String {
+            f"({self.x}, {self.y})"
+        }
+    }
+
+    Oops: Error {
+        fn message(self) -> String {
+            f"oops {self.code}"
+        }
+    }
+
+    Loud: Error {
+        fn message(self) -> String {
+            "quiet"
+        }
+    }
+
+    Color: Display {
+        fn to_string(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+
+    Loud: Display {
+        fn to_string(self) -> String {
+            f"LOUD {self.code}"
+        }
+    }
+}
+
+main {
+    let empty: List<Int> = []
+    print(f"{[1, 2, 3]} {empty} {[1.0, 2.5, -0.0]} {[true]}")
+    print(
+        f"{["a", "b\n", "q\"t", "back\\slash", "tab\there", "nul\0", "esc\u{1b}", "del\u{7f}", "é"]}",
+    )
+    let nothing: Option<Int> = None
+    print(f"{Some(2.5)} {nothing} {Some("a")} {Some(Some(1))}")
+    let ages = ["Ann": 31, "Bob": 25]
+    let none_yet: Map<String, Int> = Map.new()
+    print(f"{ages} {none_yet} {[1: [true], 2: []]}")
+    let good: Result<Int, String> = Ok(12)
+    let bad: Result<Int, String> = Err("bad")
+    print(f"{good} {bad}")
+    let parsed: Result<Int, ParseError> = "x".parse_int()
+    let oops: Result<String, Oops> = Err(Oops { code: 7 })
+    let loud: Result<Int, Loud> = Err(Loud { code: 9 })
+    print(f"{parsed} {oops} {loud}")
+    let failed: Result<Int, Error> = Err(error("plain"))
+    print(failed.to_string())
+    print(f"{[Some([1]), None]} {[Point { x: 1, y: 2 }, Point { x: 3, y: 4 }]}")
+    let mixed: List<Display> = ["a", 1, [2], Some("b"), Point { x: 0, y: 0 }]
+    print(f"{mixed}")
+    let one: Display = "x"
+    let many: Display = ["x"]
+    print(f"{one} {many} {[one]}")
+    print(show(["a"]) + " " + show(mixed) + " " + show([["a"]]))
+    let fine: Result<Int, Oops> = Ok(1)
+    print(f"{err_text(fine)} {err_text(Err(Oops { code: 1 }))} {err_text(Err(Loud { code: 2 }))}")
+    print([1, 2].to_string() + Some("s").to_string())
+    print(f"{[Color.Red, Color.Green]} {Some(Color.Green)} {[Color.Red: 1]}")
+    let colors: List<Display> = [Color.Red, "Green"]
+    print(f"{colors} {show_one(["a"])} {show_one(Some(["b"]))} {show_one(Color.Green)}")
+}
+
+functions {
+    fn show<T: Display>(items: List<T>) -> String {
+        f"{items}"
+    }
+
+    fn show_one<T: Display>(x: T) -> String {
+        f"<{x}>"
+    }
+
+    fn err_text<E: Error>(r: Result<Int, E>) -> String {
+        f"{r}"
+    }
+}

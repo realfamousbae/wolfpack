@@ -1,0 +1,9 @@
+// `assert_eq` of two lists shows both with the `Display` of lists (spec chapter 4, section 9,
+// rule 7).
+module main
+
+main {
+    let got = ["a", "b"]
+    print("comparing")
+    assert_eq(got, ["a", "c"])
+}

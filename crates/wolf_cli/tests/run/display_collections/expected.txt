@@ -1,0 +1,15 @@
+[1, 2, 3] [] [1.0, 2.5, -0.0] [true]
+["a", "b\n", "q\"t", "back\\slash", "tab\there", "nul\0", "esc\u{1b}", "del\u{7f}", "é"]
+Some(2.5) None Some("a") Some(Some(1))
+["Ann": 31, "Bob": 25] [:] [1: [true], 2: []]
+Ok(12) Err("bad")
+Err(cannot parse x) Err(oops 7) Err(LOUD 9)
+Err(plain)
+[Some([1]), None] [(1, 2), (3, 4)]
+[a, 1, [2], Some("b"), (0, 0)]
+x ["x"] [x]
+["a"] [a, 1, [2], Some("b"), (0, 0)] [["a"]]
+Ok(1) Err(oops 1) Err(LOUD 2)
+[1, 2]Some("s")
+[red, green] Some(green) [red: 1]
+[red, Green] <["a"]> <Some(["b"])> <green>
