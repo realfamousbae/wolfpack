@@ -832,8 +832,14 @@ impl<'p> Emitter<'p> {
         let mut taken: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
         for (index, m) in p.modules.iter().enumerate() {
             let std = m.role == ModuleRole::Std;
-            let mut put = |names: &mut BTreeMap<DefRef, String>, def: DefRef, n: String| {
-                taken.entry(index).or_default().insert(n.clone());
+            // A private type `Chain` and a private function `chain` are both `chain` in Go: the
+            // declaration that comes later gets a `_` suffix (spec chapter 8, section 3, rule 4).
+            let mut put = |names: &mut BTreeMap<DefRef, String>, def: DefRef, mut n: String| {
+                let set = taken.entry(index).or_default();
+                while set.contains(&n) {
+                    n.push('_');
+                }
+                set.insert(n.clone());
                 names.insert(def, n);
             };
             for item in &m.items {
