@@ -46,9 +46,10 @@ in 0.2.
 
 ## Distribution (from 2026-10-17)
 
-The full plan is in `docs/plans/distribution.md`. `wolf self update` is done in 0.2.
+The full plan is in `docs/plans/distribution.md`. `wolf self update` is done in 0.2; Homebrew,
+Scoop, winget, `.deb`/`.rpm` packages and static Linux builds after 0.3.
 
-- Package managers: a Homebrew tap, winget, Scoop, and later Debian/RPM packages and the AUR.
+- The AUR (`wolfpack-bin`).
 - Signed installers: a notarized macOS package and a signed Windows installer.
 - `wolf self uninstall`, which removes `wolf`, its `PATH` lines and, after a question,
   `~/.wolfpack`.

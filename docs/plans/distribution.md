@@ -1,7 +1,11 @@
 # Plan: installing wolf everywhere
 
-Status: **draft plan** (2026-10-17). Stage D1 is done; `wolf self update` of stage D4 is done in
-0.2 (2026-10-18); the other stages wait for the author.
+Status: stage D1 is done; `wolf self update` of stage D4 is done in 0.2 (2026-10-18). Stage D2
+and the static builds of D4 are done after 0.3.0 (2026-10-23, the author chose all of D2): the tap
+and the bucket exist with 0.3.0, the release workflow builds the static archives and the `.deb`
+and `.rpm` packages, and `packages.yml` updates the managers when a release is published. What is
+left for the author: the secrets `PACKAGES_TOKEN` and `WINGET_TOKEN`, and the first winget pull
+request (section 3). Stage D3 waits for paid accounts; `wolf self uninstall` and the AUR wait.
 
 ## 1. Goal
 
@@ -40,19 +44,27 @@ PowerShell 5.1 and PowerShell 7) with the files of the run, before a release is 
 
 Ordered by how many users each one reaches and how little it costs to keep.
 
-| Manager | What is needed | Update on release |
+| Manager | What is there | Update on release |
 | --- | --- | --- |
-| Homebrew (macOS, Linux) | a tap repository `realfamousbae/homebrew-wolfpack` with `Formula/wolfpack.rb` that downloads the release archives | a workflow step that rewrites the version and the sums and pushes to the tap |
-| Scoop (Windows) | a bucket repository with `wolfpack.json` (the zip, `bin: wolf.exe`, `checkver`, `autoupdate`) | Scoop's `autoupdate` reads the release; nothing to push |
-| winget (Windows) | a manifest in `microsoft/winget-pkgs` for the setup program | `wingetcreate update` in the release workflow; each version is a pull request reviewed by Microsoft |
-| Debian/Ubuntu, Fedora | `.deb` and `.rpm` built with `cargo-deb` / `cargo-generate-rpm`, attached to the release | built in the release workflow |
-| Arch Linux | an AUR package `wolfpack-bin` | a workflow step pushing to the AUR |
-| Cargo | done: `cargo install --locked wolfpack-lang` (version 0.1.0 on crates.io) | `cargo publish` of every crate in order, in the release workflow |
+| Homebrew (macOS, Linux) | done: the tap `realfamousbae/homebrew-wolfpack`, `Formula/wolfpack.rb` written by `release/homebrew/formula.sh` (it passes `brew audit --strict`) | `packages.yml` writes the formula of the published release and pushes it to the tap (`PACKAGES_TOKEN`) |
+| Scoop (Windows) | done: the bucket `realfamousbae/scoop-wolfpack`, `bucket/wolfpack.json` written by `release/scoop/manifest.sh`, with `checkver` and `autoupdate` | `packages.yml`, as for Homebrew |
+| winget (Windows) | `release/winget/manifests.sh` writes the manifests: the zip as a portable command `wolf`, because the setup program runs `wolf setup` (about 1 GB) | `packages.yml` opens a pull request with `release/winget/submit.sh` (`WINGET_TOKEN`); Microsoft reviews each version |
+| Debian/Ubuntu, Fedora | done: `.deb` and `.rpm` of the static builds, made with nfpm (`release/linux/nfpm.yaml`) | built in the release workflow, tried on Ubuntu and Fedora |
+| Arch Linux | an AUR package `wolfpack-bin` | not yet |
+| Cargo | done: `cargo install --locked wolfpack-lang` | `cargo publish` of every crate in order |
 
-Questions for the author:
+Answers of the author (2026-10-23): separate repositories for the tap and the bucket are
+acceptable, and winget is wanted with its pull request for every release.
 
-1. Are separate repositories (the Homebrew tap, the Scoop bucket) acceptable?
-2. winget needs a public pull request to a Microsoft repository for every release. Is that wanted?
+The first winget pull request is opened by the author, because Microsoft asks its author to sign
+the contributor license agreement: `release/winget/manifests.sh 0.3.0 SHA256SUMS.txt out`, then
+`release/winget/submit.sh 0.3.0 out new`, with `gh` signed in. The later ones are opened by
+`packages.yml`.
+
+The tokens are fine-grained personal access tokens of the owner, added under **Settings, Secrets
+and variables, Actions** of `realfamousbae/wolfpack`: `PACKAGES_TOKEN` with **Contents: read and
+write** on the tap and the bucket, `WINGET_TOKEN` a classic token with `public_repo`, which can
+fork `microsoft/winget-pkgs` and open pull requests there.
 
 ## 4. Stage D3: trust
 
@@ -68,5 +80,6 @@ Questions for the author:
 - `wolf self update` downloads the latest release, checks the sum and replaces itself, with the
   same rules as the scripts. `wolf self uninstall` removes `wolf`, the `PATH` lines and, after a
   question, `~/.wolfpack`.
-- A Linux build for musl (`x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`), static, so
-  Alpine and old distributions are supported and the glibc check of `install.sh` goes away.
+- Done after 0.3.0: a Linux build for musl (`x86_64-unknown-linux-musl`,
+  `aarch64-unknown-linux-musl`), static, so Alpine and old distributions are supported;
+  `install.sh` picks it where glibc 2.35 is missing, and the `.deb` and `.rpm` packages hold it.

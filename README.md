@@ -60,6 +60,7 @@ This program prints the same output on all three targets.
   - [What the installer does](#what-the-installer-does)
   - [Installer options](#installer-options)
   - [Other ways to install](#other-ways-to-install)
+  - [Package managers](#package-managers)
   - [Check the installation](#check-the-installation)
   - [Update](#update)
   - [Uninstall](#uninstall)
@@ -187,11 +188,11 @@ The same variables work: `WOLFPACK_VERSION`, `WOLFPACK_INSTALL_DIR`, `WOLFPACK_N
 
 Every way to install, for each system:
 
-| System | Terminal script | Graphical installer | Archive (only `wolf`) | From source |
-| --- | --- | --- | --- | --- |
-| macOS | `install.sh` | `wolfpack-<version>-macos.pkg` | `wolfpack-macos-universal.tar.gz` | `cargo install` |
-| Linux | `install.sh` | none | `wolfpack-linux-x64.tar.gz`, `wolfpack-linux-arm64.tar.gz` | `cargo install` |
-| Windows | `install.ps1` | `wolfpack-<version>-windows-x64-setup.exe` | `wolfpack-windows-x64.zip` | `cargo install` |
+| System | Terminal script | Graphical installer | Archive (only `wolf`) | Package manager | From source |
+| --- | --- | --- | --- | --- | --- |
+| macOS | `install.sh` | `wolfpack-<version>-macos.pkg` | `wolfpack-macos-universal.tar.gz` | Homebrew | `cargo install` |
+| Linux | `install.sh` | none | `wolfpack-linux-x64.tar.gz`, `wolfpack-linux-arm64.tar.gz`, and their static builds `...-musl.tar.gz` | Homebrew, `.deb`, `.rpm` | `cargo install` |
+| Windows | `install.ps1` | `wolfpack-<version>-windows-x64-setup.exe` | `wolfpack-windows-x64.zip` | Scoop, winget | `cargo install` |
 
 #### Graphical installers
 
@@ -209,7 +210,24 @@ can double-click. They do the same as the scripts, including `wolf setup`.
 
 `wolfpack-macos-universal.tar.gz`, `wolfpack-linux-x64.tar.gz`, `wolfpack-linux-arm64.tar.gz` and
 `wolfpack-windows-x64.zip` contain only the `wolf` binary. Unpack it into any directory on your
-`PATH` and run `wolf setup`.
+`PATH` and run `wolf setup`. `wolfpack-linux-x64-musl.tar.gz` and `wolfpack-linux-arm64-musl.tar.gz`
+(from the release after 0.3.0) are static builds that need no glibc: they run on Alpine and on
+older distributions, and `install.sh` picks them there.
+
+### Package managers
+
+| Manager | Install | Update |
+| --- | --- | --- |
+| Homebrew (macOS, Linux) | `brew install realfamousbae/wolfpack/wolfpack` | `brew upgrade wolfpack` |
+| Scoop (Windows) | `scoop bucket add wolfpack https://github.com/realfamousbae/scoop-wolfpack`, then `scoop install wolfpack` | `scoop update wolfpack` |
+| winget (Windows) | `winget install realfamousbae.wolfpack` | `winget upgrade realfamousbae.wolfpack` |
+| apt (Debian, Ubuntu) | `sudo apt install ./wolfpack-linux-x64.deb` | the `.deb` of a newer release |
+| dnf (Fedora, RHEL) | `sudo dnf install ./wolfpack-linux-x64.rpm` | the `.rpm` of a newer release |
+
+Package managers do not run `wolf setup`: run it yourself for the tools of the targets, or run
+programs with `wolf run --vm`, which needs no tools. The `.deb` and `.rpm` files (`-x64` and
+`-arm64`) are attached to the releases after 0.3.0 and hold the static build, so they work on every
+distribution. winget offers the package once Microsoft has accepted it into its catalog.
 
 #### Build from source
 
@@ -257,8 +275,9 @@ looks for a new release in the background and asks `Update now? [y/N]` before th
 only in a terminal. To turn the question off, set `WOLFPACK_NO_UPDATE_CHECK=1`, or write
 `update.check = false` into `~/.wolfpack/config.toml`; it is never asked in CI.
 
-A `wolf` installed with Cargo or Homebrew is updated with that tool. Older versions are updated
-by running the installer again: the [quick install](#quick-install) command, or the newest
+A `wolf` installed with Cargo, Homebrew, Scoop, winget or a `.deb` or `.rpm` package is updated
+with that tool, and `wolf self update` says which command to use. Versions older than 0.2 are
+updated by running the installer again: the [quick install](#quick-install) command, or the newest
 graphical installer.
 
 ### Uninstall
@@ -281,6 +300,10 @@ sudo rm /usr/local/bin/wolf
 sudo pkgutil --forget io.github.realfamousbae.wolfpack
 rm -rf ~/.wolfpack
 ```
+
+**A package manager**: `brew uninstall wolfpack`, `scoop uninstall wolfpack`,
+`winget uninstall realfamousbae.wolfpack`, `sudo apt remove wolfpack` or `sudo dnf remove
+wolfpack`, then `rm -rf ~/.wolfpack` for the target tools.
 
 **Windows**: if you used the setup program, uninstall **wolfpack** under **Settings, Apps**. If
 you used `install.ps1`, delete `%LOCALAPPDATA%\Programs\wolfpack` and remove it from your user's
@@ -317,8 +340,9 @@ with `shasum -a 256` (macOS), `sha256sum` (Linux) or `Get-FileHash` (Windows).
 <details>
 <summary><code>this Linux uses musl</code> or <code>wolf needs glibc 2.35 or newer</code></summary>
 
-The ready builds of `wolf` need a recent glibc. [Build wolf from source](#build-from-source); it
-takes a few minutes.
+The installers of 0.3.0 and older say this on Alpine and on distributions older than Ubuntu 22.04.
+From the next release on, `install.sh` installs the static build there instead. Until then,
+[build wolf from source](#build-from-source); it takes a few minutes.
 </details>
 
 <details>

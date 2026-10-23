@@ -4,6 +4,14 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Package managers (spec chapter 8, sections 2a and 2b; `docs/plans/distribution.md`): Homebrew
+  (`brew install realfamousbae/wolfpack/wolfpack`) and Scoop (the bucket
+  `realfamousbae/scoop-wolfpack`) have 0.3.0 already; winget manifests are ready for its first
+  pull request. Each release now also has static Linux builds (`...-musl.tar.gz`), which
+  `install.sh` picks on Alpine and on systems older than Ubuntu 22.04, and `.deb` and `.rpm`
+  packages of them. The new workflow `packages.yml` updates the tap and the bucket and opens the
+  winget pull request when a release is published. `wolf self update` names the command of
+  Scoop, winget and the system's package manager instead of replacing their `wolf`.
 - `wolf lsp`, a language server for editors (ADR 0017): the diagnostics of `wolf check` as you
   type, also before saving, the declaration and doc comments of a name on hover, go to
   definition, and formatting with `wolf fmt`. The new crate `wolfpack-lsp` holds the protocol
