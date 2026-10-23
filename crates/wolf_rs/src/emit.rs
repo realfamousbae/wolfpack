@@ -2469,7 +2469,10 @@ impl<'p> Emitter<'p> {
                     | ExprKind::Coerce { .. }
                     | ExprKind::Closure { .. }
                     | ExprKind::FnValue(_) => true,
-                    ExprKind::Call { .. } => mentions_param_result(value),
+                    // `Tree::Leaf` says nothing about `T` either.
+                    ExprKind::Call { .. } | ExprKind::Variant { .. } => {
+                        mentions_param_result(value)
+                    }
                     _ => false,
                 };
                 let t = if annotate && !matches!(ty, IrType::Void | IrType::Never) {
@@ -4443,9 +4446,14 @@ fn paren_callee(e: Expr) -> Expr {
     }
 }
 
-/// Whether a call's result type involves a type parameter that Rust may not infer.
+/// Whether a call's result type involves a type parameter that Rust may not infer: also a
+/// generic type of the program, as in `let s = Stack::new()` followed only by `s.size()`.
 fn mentions_param_result(e: &IrExpr) -> bool {
-    matches!(e.ty, IrType::List(_) | IrType::Map(..))
+    match &e.ty {
+        IrType::List(_) | IrType::Map(..) => true,
+        IrType::Named(_, args) => !args.is_empty(),
+        _ => false,
+    }
 }
 
 /// The text of a type, for bounds.
