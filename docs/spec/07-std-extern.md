@@ -186,23 +186,27 @@ Free function: `string.join(parts: List<String>, separator: String) -> String`.
 Full Unicode case mapping is not in v1, because Go, Rust and JS disagree on it (for example `ß`).
 **[PROPOSAL]** (see D7.3)
 
-### 4.4 Format specifications **[DRAFT]** (2026-10-23, D4.18)
+### 4.4 Format specifications (author, 2026-10-23, D4.18)
 
 An interpolation with a format specification (chapter 1, section 5.3a), `f"{value:spec}"`, takes
 the text of the value (its `Display`, chapter 4, section 9) and changes it as the specification
 says, on every target and in the VM:
 
 1. **Precision** `.p`, only for `Float` (else E0441): the value is written in plain notation with
-   exactly `p` digits after the point, rounded to the nearest, ties to even on the exact binary
-   value (`2.675` is `2.67`, as its exact value is below 2.675). `NaN`, `inf` and `-inf` are
-   written as without a precision. `{x:.0}` has no point: `3`.
+   exactly `p` digits after the point, rounded to the nearest; a value exactly halfway rounds to
+   the even digit, on its exact binary value (`{2.5:.0}` is `2`, `{0.125:.2}` is `0.12`, and
+   `{2.675:.2}` is `2.67` because the exact value of `2.675` is below it). This is the rule of
+   `printf`, Python, Go and Rust; `Float.round` (section 4.2) rounds halves away from zero
+   instead. `{x:.0}` has no point: `3`. A negative zero keeps its sign: `{-0.0:.1}` is `-0.0`.
+   `NaN`, `inf` and `-inf` are written as without a precision.
 2. **Width** `w`: when the text has fewer than `w` Unicode scalar values, it is padded to `w` with
    the fill character (a space by default). A longer text is never cut.
 3. **Alignment**: `<` pads on the right, `>` on the left, `^` on both sides with the extra
    character on the right. Without an alignment, `Int` and `Float` align to the right and every
    other type to the left.
-4. **`0`**, only for `Int` and `Float` (else E0441): pads with zeros after the sign, as
-   `{n:05}` gives `-0042` for -42; an alignment or a fill given with it wins.
+4. **`0`**, only for `Int` and `Float` (else E0441) and never with a fill or an alignment (E0117):
+   pads with zeros after the sign, as `{n:05}` gives `-0042` for -42. `NaN` and the infinities are
+   padded with spaces instead: `{x:05}` of `NaN` is `  NaN`.
 
 | Interpolation | Text |
 | --- | --- |
@@ -211,6 +215,7 @@ says, on every target and in the VM:
 | `f"{7:03}"`, `f"{-7:03}"` | `007`, `-07` |
 | `f"{"x":*>4}"` | `***x` |
 | `f"{1.5:8.3}"` | `   1.500` |
+| `f"{[1, 2]:>8}"` | `  [1, 2]` |
 
 ## 5. Lists (module `std.list`)
 

@@ -209,13 +209,14 @@ Added in 0.2 (author, 2026-10-18). The forms combine as follows: `f"..."`, `r"..
      without its matching `}` before the end of the string, and a `}` that closes nothing, are
      errors (E0114, with the hint to write `{{` or `}}`).
    - There are no format specifications such as `{x:>5}`; widths and precision are std functions.
-     **[DRAFT]** (2026-10-23, D4.18): an interpolation may end with a format specification,
+     Since D4.18 (author, 2026-10-23) an interpolation may end with a format specification,
      `{price:>8.2}`. It starts at the first `:` of the interpolation that is outside parentheses,
-     brackets, braces and string literals, so `{m["a"]:>3}` and `{(|x: Int| x)(1)}` keep their
-     inner colons; it runs to the closing `}` and is written
+     brackets, braces and string literals, so `{m["a"]:>3}` and `{items.map(|x: Int| x)}` keep
+     their inner colons; it runs to the closing `}` and is written
      `[[fill] align] ["0"] [width] ["." precision]`, with `align` one of `<`, `^`, `>`, `fill`
-     any character other than `{` and `}`, and `width` and `precision` decimal digits. Anything
-     else after the `:` is an error (E0117). Chapter 7, section 4.4 says what it does.
+     any character other than `{` and `}`, `width` at most 1000 and `precision` at most 100,
+     both in decimal digits. `0` cannot be combined with a fill or an alignment. Anything else
+     after the `:` is an error (E0117). Chapter 7, section 4.4 says what it does.
      A `:` inside the braces belongs to the expression (`f"{[1: 2].len()}"`).
 2. **Raw string** `r"..."`. The text is taken as written: `\` is an ordinary character and there
    are no escape sequences, so `r"\d+\.\d+"` is the five-character regular expression `\d+\.\d+`.
@@ -343,7 +344,7 @@ The complete list of errors the lexer reports. This is the scope of milestone M1
 | E0114 | Unbalanced brace in an interpolated string (added in 0.2) | `f"{name"`, `f"a } b"` (hint: `{{`, `}}`) |
 | E0115 | Empty interpolation (added in 0.2) | `f"x = {}"` |
 | E0116 | Malformed multiline string (added in 0.2) | text after the opening `"""`, closing `"""` not on its own line, a line less indented than the closing `"""` |
-| E0117 | Malformed format specification **[DRAFT]** | `f"{x:>>}"`, `f"{x:5.}"`, `f"{x:}"` |
+| E0117 | Malformed format specification (D4.18) | `f"{x:>>}"`, `f"{x:5.}"`, `f"{x:}"`, `f"{x:<05}"`, `f"{x:1001}"`, `f"{x:.101}"` |
 
 Recovery: after an error the lexer emits an `Error` token covering the bad text and continues, so
 that all lexical errors of a file are reported at once **[PLAN]** (section 9). The lexer never
