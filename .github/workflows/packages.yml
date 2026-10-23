@@ -1,0 +1,72 @@
+name: Packages
+
+# When a release is published, the Homebrew tap and the Scoop bucket get its version and sums, and
+# winget gets a pull request (docs/plans/distribution.md). The jobs need tokens that the owner of
+# the repository adds as secrets: PACKAGES_TOKEN may write to realfamousbae/homebrew-wolfpack and
+# realfamousbae/scoop-wolfpack; WINGET_TOKEN may fork microsoft/winget-pkgs and open pull requests
+# there. A job without its token says so and changes nothing. Run by hand with a tag, it does the
+# same for that release.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release tag, such as v0.3.0"
+        required: true
+
+env:
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+jobs:
+  homebrew-and-scoop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The formula and the manifest of the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$TAG" -p SHA256SUMS.txt
+          release/homebrew/formula.sh "${TAG#v}" SHA256SUMS.txt > wolfpack.rb
+          release/scoop/manifest.sh "${TAG#v}" SHA256SUMS.txt > wolfpack.json
+      - name: The tap and the bucket
+        env:
+          GH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::PACKAGES_TOKEN is not set: the tap and the bucket are not updated"
+            exit 0
+          fi
+          gh auth setup-git
+          git config --global user.name "Aleksey"
+          git config --global user.email "223102174+realfamousbae@users.noreply.github.com"
+          publish() {
+            gh repo clone "realfamousbae/$1" "$1" -- --depth 1
+            mkdir -p "$1/$(dirname "$2")"
+            cp "$3" "$1/$2"
+            cd "$1"
+            git add "$2"
+            git diff --cached --quiet || git commit -m "wolfpack ${TAG#v}"
+            git push
+            cd ..
+          }
+          publish homebrew-wolfpack Formula/wolfpack.rb wolfpack.rb
+          publish scoop-wolfpack bucket/wolfpack.json wolfpack.json
+
+  winget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: A pull request to microsoft/winget-pkgs
+        env:
+          GH_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::WINGET_TOKEN is not set: no pull request to winget"
+            exit 0
+          fi
+          gh release download "$TAG" -p SHA256SUMS.txt -R "$GITHUB_REPOSITORY"
+          release/winget/manifests.sh "${TAG#v}" SHA256SUMS.txt out
+          release/winget/submit.sh "${TAG#v}" out
