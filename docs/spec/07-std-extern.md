@@ -138,6 +138,11 @@ list, an option, a map and a result writes it as the literal that would build it
    whose `to_string` gives `(1, 2)` is `[(1, 2), (3, 4)]`, and a list of the interface type
    `Display` writes each value as its `to_string` gives it.
 3. Parts are separated by `, `, and a key from its value by `: `; nothing is ever cut.
+4. In generic code the type argument decides (author, 2026-10-23): a part of type `T` is written
+   as a part of its type argument would be, so `show<T: Display>(items: List<T>)` writes
+   `["a"]` for a `List<String>` and `[a]` for a `List<Display>`; an `Err` of type `E` is written
+   by its `to_string` when the type argument of `E` is `Display`, and by `message()` otherwise,
+   also where the bounds of `E` name only `Error`.
 
 **Canonical `Float` format** (G9) **[PROPOSAL]** (see D7.2):
 
