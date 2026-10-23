@@ -2556,7 +2556,8 @@ impl<'p> Emitter<'p> {
             }
             IrStmt::Expr(e) => {
                 let v = self.expr(e, Want::Own)?;
-                if matches!(e.ty, IrType::Result(..)) {
+                // Rust wants a `Result` or a closure to be used; `let _ =` drops it on purpose.
+                if matches!(e.ty, IrType::Result(..) | IrType::Fn(..)) {
                     out.push(Stmt::Let(Pat::Wild, None, Some(v)));
                 } else if !matches!(v, Expr::Tuple(ref t) if t.is_empty()) {
                     out.push(Stmt::Expr(v));
