@@ -91,6 +91,12 @@ pub(crate) enum Install {
     Cargo,
     /// By Homebrew.
     Homebrew,
+    /// By Scoop.
+    Scoop,
+    /// By winget.
+    Winget,
+    /// By a `.deb` or `.rpm` package of the system.
+    System,
 }
 
 /// How the `wolf` at `exe` was installed; `cargo_home` is `CARGO_HOME` or `~/.cargo`.
@@ -105,13 +111,27 @@ pub(crate) fn install_kind(exe: &Path, cargo_home: Option<&Path>) -> Install {
     {
         return Install::Homebrew;
     }
+    // Windows paths compare without case and with either separator.
+    let windows = text.replace('\\', "/").to_lowercase();
+    if windows.contains("/scoop/apps/") {
+        return Install::Scoop;
+    }
+    if windows.contains("/microsoft/winget/") {
+        return Install::Winget;
+    }
+    if exe == Path::new("/usr/bin/wolf") {
+        return Install::System;
+    }
     Install::Own(exe.to_path_buf())
 }
 
-/// The release archive for this system.
+/// The release archive for this system: a static `wolf` is replaced by a static one.
 fn asset() -> Option<&'static str> {
+    let musl = cfg!(target_env = "musl");
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", _) => Some("wolfpack-macos-universal.tar.gz"),
+        ("linux", "x86_64") if musl => Some("wolfpack-linux-x64-musl.tar.gz"),
+        ("linux", "aarch64") if musl => Some("wolfpack-linux-arm64-musl.tar.gz"),
         ("linux", "x86_64") => Some("wolfpack-linux-x64.tar.gz"),
         ("linux", "aarch64") => Some("wolfpack-linux-arm64.tar.gz"),
         ("windows", "x86_64" | "aarch64") => Some("wolfpack-windows-x64.zip"),
@@ -166,6 +186,25 @@ pub(crate) fn update(wanted: Option<&str>) -> Result<Option<Version>, Box<Diagno
             return Err(Box::new(
                 fail("this wolf was installed by Homebrew")
                     .help("update it with `brew upgrade wolfpack`"),
+            ));
+        }
+        Install::Scoop => {
+            return Err(Box::new(
+                fail("this wolf was installed by Scoop")
+                    .help("update it with `scoop update wolfpack`"),
+            ));
+        }
+        Install::Winget => {
+            return Err(Box::new(
+                fail("this wolf was installed by winget")
+                    .help("update it with `winget upgrade realfamousbae.wolfpack`"),
+            ));
+        }
+        Install::System => {
+            return Err(Box::new(
+                fail("this wolf was installed by a package of the system").help(
+                    "update it with the package manager of the system, such as `apt` or `dnf`",
+                ),
             ));
         }
         Install::Own(_) => {}
@@ -507,6 +546,26 @@ mod tests {
                 None
             ),
             Install::Homebrew
+        );
+        assert_eq!(
+            install_kind(
+                Path::new(r"C:\Users\Ann\scoop\apps\wolfpack\0.3.0\wolf.exe"),
+                None
+            ),
+            Install::Scoop
+        );
+        assert_eq!(
+            install_kind(
+                Path::new(
+                    r"C:\Users\Ann\AppData\Local\Microsoft\WinGet\Packages\realfamousbae.wolfpack_Microsoft.Winget.Source_8wekyb3d8bbwe\wolf.exe"
+                ),
+                None
+            ),
+            Install::Winget
+        );
+        assert_eq!(
+            install_kind(Path::new("/usr/bin/wolf"), None),
+            Install::System
         );
         let own = Path::new("/home/ann/.local/bin/wolf");
         assert_eq!(
