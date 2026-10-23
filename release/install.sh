@@ -26,7 +26,8 @@
 set -eu
 
 releases="https://github.com/realfamousbae/wolfpack/releases"
-# The Linux builds are made on Ubuntu 22.04 and need this glibc or a newer one.
+# The Linux builds are made on Ubuntu 22.04 and need this glibc or a newer one; other systems get
+# the static builds (`-musl`).
 min_glibc="2.35"
 
 say() {
@@ -120,19 +121,17 @@ pick_asset() {
             ;;
     esac
 
-    # glibc first: a glibc system may have the musl package installed too.
+    # glibc first: a glibc system may have the musl package installed too. A system with an older
+    # glibc, or with musl (Alpine) or another libc, gets the static build, which needs none.
     glibc=$(getconf GNU_LIBC_VERSION 2>/dev/null | sed -n 's/^glibc \([0-9]*\.[0-9]*\).*/\1/p')
-    if [ -n "$glibc" ]; then
-        if ! version_at_least "$glibc" "$min_glibc"; then
-            fail "wolf needs glibc $min_glibc or newer, this system has $glibc; update the system or build wolf from source"
-        fi
-    elif ls /lib/ld-musl-* >/dev/null 2>&1 || { has ldd && ldd --version 2>&1 | grep -qi musl; }; then
-        fail "this Linux uses musl (Alpine?); the builds of wolf need glibc. Build it from source: cargo install --locked wolfpack-lang"
+    static=""
+    if [ -z "$glibc" ] || ! version_at_least "$glibc" "$min_glibc"; then
+        static="-musl"
     fi
 
     case "$arch" in
-        x86_64 | amd64) echo "wolfpack-linux-x64.tar.gz" ;;
-        aarch64 | arm64) echo "wolfpack-linux-arm64.tar.gz" ;;
+        x86_64 | amd64) echo "wolfpack-linux-x64$static.tar.gz" ;;
+        aarch64 | arm64) echo "wolfpack-linux-arm64$static.tar.gz" ;;
         *) fail "there is no build of wolf for Linux on $arch; build it from source: cargo install --locked wolfpack-lang" ;;
     esac
 }
