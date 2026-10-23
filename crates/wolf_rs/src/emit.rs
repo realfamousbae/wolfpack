@@ -1942,7 +1942,28 @@ impl<'p> Emitter<'p> {
                             )),
                         });
                     }
-                    Some(Type::name(&p))
+                    // The interface's type arguments: `impl<T> Holder<T> for Pair<T>`.
+                    let args: Vec<IrType> = self
+                        .structs
+                        .get(&def)
+                        .map(|st| &st.implements)
+                        .or_else(|| self.enums.get(&def).map(|en| &en.implements))
+                        .and_then(|list| {
+                            list.iter().find_map(|t| match t {
+                                IrType::Named(d, a) if *d == i => Some(a.clone()),
+                                _ => None,
+                            })
+                        })
+                        .unwrap_or_default();
+                    if args.is_empty() {
+                        Some(Type::name(&p))
+                    } else {
+                        let mut list = Vec::new();
+                        for a in &args {
+                            list.push(self.ty(a)?);
+                        }
+                        Some(Type::Path(p, list))
+                    }
                 }
                 None => None,
             };
