@@ -29,6 +29,7 @@ wolf_fmt = { package = "wolfpack-fmt", path = "crates/wolf_fmt", version = "0.3.
 wolf_driver = { package = "wolfpack-driver", path = "crates/wolf_driver", version = "0.3.0" }
 wolf_native = { package = "wolfpack-native", path = "crates/wolf_native", version = "0.3.0" }
 wolf_vm = { package = "wolfpack-vm", path = "crates/wolf_vm", version = "0.3.0" }
+wolf_lsp = { package = "wolfpack-lsp", path = "crates/wolf_lsp", version = "0.3.0" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

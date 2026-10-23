@@ -18,6 +18,7 @@ wolf_diag = { workspace = true }
 wolf_driver = { workspace = true }
 wolf_fmt = { workspace = true }
 wolf_lexer = { workspace = true }
+wolf_lsp = { workspace = true }
 wolf_native = { workspace = true }
 wolf_parser = { workspace = true }
 wolf_project = { workspace = true }
@@ -43,3 +44,7 @@ workspace = true
 [[bin]]
 name = "wolf"
 path = "src/main.rs"
+
+[dev-dependencies]
+serde_json = "1"
+url = "2"

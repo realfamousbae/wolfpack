@@ -7,6 +7,7 @@
 mod build;
 mod check;
 mod fmt;
+mod lsp;
 mod native_modules;
 mod setup;
 mod tools;
@@ -53,6 +54,8 @@ enum Command {
     Explain(ExplainArgs),
     /// Install the tools of the targets (Node.js, TypeScript, Go, Rust) for `wolf run`.
     Setup(SetupArgs),
+    /// Serve an editor: the language server, on standard input and output.
+    Lsp,
     /// Manage `wolf` itself.
     #[command(name = "self", subcommand)]
     SelfCmd(SelfCommand),
@@ -292,7 +295,10 @@ fn run() -> ExitCode {
         Err(error) => return usage_error(&error),
     };
     update::clean_old();
-    if !matches!(cli.command, Command::SelfCmd(_) | Command::Explain(_)) {
+    if !matches!(
+        cli.command,
+        Command::SelfCmd(_) | Command::Explain(_) | Command::Lsp
+    ) {
         if let Some(code) = update::at_start() {
             return code;
         }
@@ -358,6 +364,7 @@ fn run() -> ExitCode {
             }
         }
         Command::Explain(args) => explain(&args.code),
+        Command::Lsp => ExitCode::from(lsp::run()),
         Command::Setup(args) => setup(&args),
         Command::Check(args) => {
             let result = check::run(&args);

@@ -1,0 +1,28 @@
+[package]
+name = "wolfpack-lsp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../INTERNAL.md"
+description = "The language server of the wolfpack compiler (`wolf lsp`). Internal part of wolfpack-lang, not a stable API"
+
+[lib]
+name = "wolf_lsp"
+
+[dependencies]
+lsp-server = "0.7"
+lsp-types = "0.94"
+serde = "1"
+serde_json = "1"
+wolf_ast = { workspace = true }
+wolf_diag = { workspace = true }
+wolf_driver = { workspace = true }
+wolf_fmt = { workspace = true }
+wolf_resolve = { workspace = true }
+wolf_span = { workspace = true }
+wolf_types = { workspace = true }
+
+[lints]
+workspace = true
