@@ -4,6 +4,20 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Fixed in the Rust backend: an interface value passed for a type parameter bounded by its
+  interface (`fn hello<T: Named>(x: T)` called with a `Named`) was rejected, because
+  `Box<dyn Named>` did not implement the trait; it now does, by calling the value it holds. A
+  generic struct with an interface bound that implements an interface (`Labeled<T: Named>:
+  Named`) was rejected too (its `copy_dyn` needs `T: Clone`), and a generic function used as a
+  function value failed Clippy's `redundant_closure`.
+- Fixed in the Go backend: a `where T: Named` bound by a user interface on a method of a generic
+  type gave Go code that calls `x.Name()` on `T any`; such a method is now a function of the
+  package with the constraint. A type with a `mut self` method no longer gives every method a
+  pointer receiver, so its values meet a bound by an interface of its other methods. A `mut
+  self` default called on a payload-less enum, `Step.twice(mut light)`, changed a copy.
+- Fixed in the TypeScript backend: a `mut self` method of an interface called on a payload-less
+  enum (a default it gets, or `Step.twice(mut light)`) changed a wrapper and not the variable;
+  the wrapper now holds the place (`$rt.viewOf`).
 - Fixed in the TypeScript backend: a payload-less enum passed for a type parameter bounded by a
   user interface (`hello(Color.Red)` with `fn hello<T: Named>(x: T)`) was rejected by tsc,
   because the enum is a string. Such a bound is now a dictionary parameter, `$asNamedT`, that
