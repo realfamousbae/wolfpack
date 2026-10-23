@@ -314,6 +314,16 @@ copy types. For other types TS uses the structural `eq` and `copy` of the genera
 ADR 0008), Go generates `equals` and `copy` functions, and Rust derives `PartialEq` and `Clone`.
 **[PLAN]**
 
+**Depth** (chapter 4, section 7.4, rule 3). The TypeScript `eq` and `copy` keep a list of the
+parts still to visit instead of calling themselves, so the depth of a value does not matter. Go's
+generated `equals` and `copy` and Rust's derived `PartialEq`, `Clone` and drop call themselves once
+per level, so the runtimes make the stack deep enough: the Go entry wrappers and the test wrapper
+let a goroutine's stack grow to 2 GiB (`debug.SetMaxStack`; Go's own limit is 1 GB), and the Rust
+ones run the program or the test on a thread with a stack of 2 GiB (512 MiB when the system refuses
+2 GiB, the current thread when it refuses both). Only the part of a stack that the program reaches
+takes memory, so a program whose own recursion never ends uses up to that much before it stops.
+The generated code itself does not change. **[INTERNAL]**
+
 ## 6. Ownership
 
 **[PLAN]** (section 4):

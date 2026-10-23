@@ -226,6 +226,13 @@ error. **[PROPOSAL]**
    needed **[PLAN]** (section 4).
 2. A struct that contains itself directly (`struct A { a: A }`), possibly through other structs, has
    no finite values and is an error. **[PROPOSAL]**
+3. **Depth of values** (author, 2026-10-23). `==`, `!=`, `.copy()` and dropping a value
+   (chapter 5, section 4, rule 5) work on values nested at least 1,000,000 levels deep, on every
+   target and in the VM: a chain of 1,000,000 variants built by a loop
+   (`c = Chain.Link(i, c)`) is compared, copied and dropped like a short one, and never overflows
+   the stack. The rule is about the data only; how deep the program's own functions may recurse is
+   not specified (chapter 10, section 2, rule 7). How each target meets the rule is in chapter 8,
+   section 5.5.
 
 ## 8. Generics and interfaces
 
@@ -422,4 +429,5 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.10 | No `s[i]` on strings; `for` over `List` and ranges only (other collections through std functions returning `List`) | **answered**: yes |
 | D4.12 | 0.2: the built-in interface `Display`, implemented for `Int`, `Float`, `Bool`, `String` and by the user | **answered** (author, 2026-10-18): yes |
 | D4.13 | 0.2: the typing of `loop` (rules 9 and 9a), irrefutable patterns in `let` (rule 9b), `f"..."` needs `Display` (rule 11), codes E0433 to E0438 | **answered** (author, 2026-10-18): yes |
+| D4.14 | `==`, `.copy()` and dropping work on values at least 1,000,000 levels deep on every target and in the VM (section 7.4, rule 3) | **answered** (author, 2026-10-23): yes, at least a million levels |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |
