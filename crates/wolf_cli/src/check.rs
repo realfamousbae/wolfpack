@@ -5,6 +5,7 @@
 //! `.wolf` file argument is checked on its own, without a project: lexing and parsing only. That
 //! mode is a tool for tests and debugging.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -53,6 +54,10 @@ impl Project {
     }
 }
 
+/// Texts that replace files on disk, by canonical path: the documents an editor has open
+/// (`wolf lsp`).
+pub(crate) type Overlay = BTreeMap<PathBuf, String>;
+
 pub(crate) fn run(args: &CheckArgs) -> CheckResult {
     let mut result = CheckResult {
         map: SourceMap::new(),
@@ -63,21 +68,21 @@ pub(crate) fn run(args: &CheckArgs) -> CheckResult {
     };
     if args.paths.is_empty() {
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        project(&cwd, args, &mut result);
+        project(&cwd, args, &Overlay::new(), &mut result);
         return result;
     }
     for path in &args.paths {
         if path.is_dir() {
-            project(path, args, &mut result);
+            project(path, args, &Overlay::new(), &mut result);
         } else {
             let name = display(path);
-            let _ = parse_file(path, name, args, &mut result);
+            let _ = parse_file(path, name, args, &Overlay::new(), &mut result);
         }
     }
     result
 }
 
-fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
+fn project(start: &Path, args: &CheckArgs, overlay: &Overlay, result: &mut CheckResult) {
     let Some(root) = wolf_project::find_root(start) else {
         result.diagnostics.push(
             Diagnostic::new(
@@ -110,7 +115,8 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
     result.diagnostics.extend(diagnostics);
     let mut parsed = wolf_driver::std_modules(&mut result.map, &mut result.diagnostics);
     for file in &files {
-        if let Some((id, ast)) = parse_file(&file.path, file.display.clone(), args, result) {
+        if let Some((id, ast)) = parse_file(&file.path, file.display.clone(), args, overlay, result)
+        {
             let role = match file.role {
                 wolf_project::Role::Entry => wolf_resolve::Role::Entry,
                 wolf_project::Role::Src => wolf_resolve::Role::Src,
@@ -149,6 +155,11 @@ fn project(start: &Path, args: &CheckArgs, result: &mut CheckResult) {
 
 /// Loads and checks the project around `start` (used by `wolf build` and `wolf run`).
 pub(crate) fn load(start: &Path, args: &CheckArgs) -> CheckResult {
+    load_with(start, args, &Overlay::new())
+}
+
+/// [`load`], with the texts of `overlay` instead of the files on disk.
+pub(crate) fn load_with(start: &Path, args: &CheckArgs, overlay: &Overlay) -> CheckResult {
     let mut result = CheckResult {
         map: SourceMap::new(),
         diagnostics: Vec::new(),
@@ -156,23 +167,33 @@ pub(crate) fn load(start: &Path, args: &CheckArgs) -> CheckResult {
         native: false,
         listings: Vec::new(),
     };
-    project(start, args, &mut result);
+    project(start, args, overlay, &mut result);
     result
 }
 
-/// Reads, lexes and parses one file. Returns `None` if it could not be read or decoded.
+/// Reads, lexes and parses one file, or its text in `overlay`. Returns `None` if it could not be
+/// read or decoded.
 fn parse_file(
     path: &Path,
     name: String,
     args: &CheckArgs,
+    overlay: &Overlay,
     result: &mut CheckResult,
 ) -> Option<(FileId, wolf_ast::File)> {
-    let bytes = match fs::read(path) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            result.diagnostics.push(read_error(&name, &error));
-            return None;
-        }
+    let open = if overlay.is_empty() {
+        None
+    } else {
+        fs::canonicalize(path).ok().and_then(|p| overlay.get(&p))
+    };
+    let bytes = match open {
+        Some(text) => text.clone().into_bytes(),
+        None => match fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                result.diagnostics.push(read_error(&name, &error));
+                return None;
+            }
+        },
     };
     if bytes.len() > MAX_FILE_SIZE {
         result.diagnostics.push(
