@@ -114,6 +114,22 @@ section 9); `String` implements it too and returns a copy.
 
 `ParseError` is a struct implementing `Error`; its message names the input.
 
+**Text of collections** **[DRAFT]** (2026-10-23, chapter 4, section 9, rule 7): the `to_string` of
+a list, an option, a map and a result writes it as the literal that would build it, with the
+`to_string` of the parts:
+
+| Value | Text |
+| --- | --- |
+| `[1, 2, 3]`, `[]` | `[1, 2, 3]`, `[]` |
+| `["a", "b\n"]` | `["a", "b\n"]`: a `String` part is in quotes, with the escapes of chapter 1, section 5.3 for `"`, `\` and control characters |
+| `Some(2.5)`, `None` | `Some(2.5)`, `None` |
+| `Ok(1)`, `Err(e)` | `Ok(1)`, `Err(` and the text of `e` `)` |
+| `["Ann": 31, "Bob": 25]`, an empty map | `["Ann": 31, "Bob": 25]` in insertion order, `[:]` |
+| `[Some([1]), None]` | `[Some([1]), None]`: parts that are collections are written the same way |
+
+A part of another type is written by its own `to_string`, without quotes: a list of `Point`s
+whose `to_string` gives `(1, 2)` is `[(1, 2), (3, 4)]`.
+
 **Canonical `Float` format** (G9) **[PROPOSAL]** (see D7.2):
 
 1. Digits: the shortest decimal that reads back as the same value (round trip).
