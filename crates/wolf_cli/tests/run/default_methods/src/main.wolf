@@ -1,0 +1,144 @@
+// Default methods of interfaces (spec chapter 4, section 8.2, rules 4 and 5; section 8.3).
+module main
+
+types {
+    struct Cat {
+        nick: String
+    }
+
+    struct Dog {
+        title: String
+    }
+
+    struct Counter {
+        n: Int
+    }
+
+    enum Shape {
+        Circle(Float)
+        Square(Float)
+    }
+
+    enum Light {
+        Red
+        Green
+    }
+
+    struct Pair {
+        a: Int
+        b: Int
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+
+        fn greeting(self) -> String {
+            "Hello, " + self.name() + "!"
+        }
+
+        fn shout(self) -> String {
+            self.greeting().to_upper_ascii()
+        }
+    }
+
+    interface Step {
+        fn step(mut self)
+
+        fn twice(mut self) {
+            self.step()
+            self.step()
+        }
+    }
+
+    interface Holder<T> {
+        fn first(self) -> T
+
+        fn first_or_same(self, other: T) -> T {
+            self.first()
+        }
+    }
+}
+
+impl {
+    Cat: Named {
+        fn name(self) -> String {
+            self.nick.copy()
+        }
+    }
+
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+
+        override fn greeting(self) -> String {
+            Named.greeting(self) + " Woof!"
+        }
+    }
+
+    Counter: Step {
+        fn step(mut self) {
+            self.n += 1
+        }
+    }
+
+    Shape: Named {
+        fn name(self) -> String {
+            match self {
+                Shape.Circle(r) => f"circle {r}"
+                Shape.Square(s) => f"square {s}"
+            }
+        }
+    }
+
+    Light: Named {
+        fn name(self) -> String {
+            match self {
+                Light.Red => "red"
+                Light.Green => "green"
+            }
+        }
+
+        override fn shout(self) -> String {
+            "STOP " + Named.shout(self)
+        }
+    }
+
+    Pair: Holder<Int> {
+        fn first(self) -> Int {
+            self.a
+        }
+    }
+}
+
+main {
+    let cat = Cat { nick: "Tom" }
+    let dog = Dog { title: "Rex" }
+    print(cat.greeting())
+    print(dog.greeting())
+    print(cat.shout())
+    print(dog.shout())
+    print(Named.greeting(dog))
+    let all: List<Named> = [cat, Dog { title: "Fido" }, Shape.Circle(1.5), Light.Red]
+    for n in all {
+        print(n.greeting() + " / " + n.shout())
+    }
+    print(Named.greeting(all[1]))
+    print(welcome(Dog { title: "Max" }))
+    print(Light.Green.greeting() + " " + Light.Green.shout())
+    print(Shape.Square(2.0).greeting())
+    var c = Counter { n: 0 }
+    c.twice()
+    Step.twice(mut c)
+    print(c.n.to_string())
+    let p = Pair { a: 7, b: 8 }
+    print(p.first_or_same(9).to_string())
+}
+
+functions {
+    fn welcome<T: Named>(x: T) -> String {
+        x.greeting() + " (" + Named.greeting(x) + ")"
+    }
+}

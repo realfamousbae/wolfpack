@@ -1,0 +1,15 @@
+Hello, Tom!
+Hello, Rex! Woof!
+HELLO, TOM!
+HELLO, REX! WOOF!
+Hello, Rex!
+Hello, Tom! / HELLO, TOM!
+Hello, Fido! Woof! / HELLO, FIDO! WOOF!
+Hello, circle 1.5! / HELLO, CIRCLE 1.5!
+Hello, red! / STOP HELLO, RED!
+Hello, Fido!
+Hello, Max! Woof! (Hello, Max!)
+Hello, green! STOP HELLO, GREEN!
+Hello, square 2.0!
+4
+7

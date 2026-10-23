@@ -1,0 +1,42 @@
+// A default of an interface of another module (spec chapter 4, section 8.2, rule 4).
+module main
+
+imports {
+    names
+    names.{Named}
+}
+
+types {
+    struct Cat {
+        nick: String
+    }
+
+    struct Dog {
+        title: String
+    }
+}
+
+impl {
+    Cat: Named {
+        fn name(self) -> String {
+            self.nick.copy()
+        }
+    }
+
+    Dog: names.Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+
+        override fn greeting(self) -> String {
+            names.Named.greeting(self) + " Woof!"
+        }
+    }
+}
+
+main {
+    let cat = Cat { nick: "Tom" }
+    print(cat.greeting())
+    print(Dog { title: "Rex" }.greeting())
+    print(Named.greeting(Dog { title: "Max" }))
+}

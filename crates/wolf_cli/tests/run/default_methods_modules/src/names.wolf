@@ -1,0 +1,12 @@
+module names
+
+interfaces {
+    /// Something with a name and a greeting.
+    pub interface Named {
+        fn name(self) -> String
+
+        fn greeting(self) -> String {
+            "Hello, " + self.name() + "!"
+        }
+    }
+}
