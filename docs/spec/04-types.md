@@ -443,6 +443,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0438 | A label that repeats the label of an enclosing loop (added in 0.2) |
 | E0439 | A struct literal or a struct pattern whose name is not a struct, an alias of one or a variant with named fields (section 7.1, rule 3; added after 0.3) |
 | E0440 | A call of a method whose `where` bounds the type arguments of the receiver do not satisfy (section 8.6, rule 2) **[DRAFT]** |
+| E0441 | A format specification that the type of the interpolation cannot take: a precision for a type other than `Float`, `0` for a type other than `Int` and `Float` (chapter 7, section 4.4) **[DRAFT]** |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
@@ -472,5 +473,6 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.14 | `==`, `.copy()` and dropping work on values at least 1,000,000 levels deep on every target and in the VM (section 7.4, rule 3) | **answered** (author, 2026-10-23): yes, at least a million levels |
 | D4.16 | **[DRAFT]** Methods with bounds of their own (section 8.6): the form `where T: Equatable` after the result type, as in Rust (instead of repeating the parameter, `fn contains<T: Equatable>`, which would declare a new `T`); code E0440; the bounded functions of `std.list` become methods too (chapter 7, section 5), and the free functions stay, so no program breaks | **proposed** (2026-10-23), waiting for the author |
 | D4.17 | **[DRAFT]** `Display` of `List`, `Option`, `Map` and `Result` (section 9, rule 7; chapter 7, section 4.1): the text is written as the literal would be, strings in quotes with the escapes of chapter 1 (`["a", "b"]`, not `[a, b]`, which cannot be told from one string `"a, b"`), a map as a map literal in insertion order, and `Result` is included | **proposed** (2026-10-23), waiting for the author |
+| D4.18 | **[DRAFT]** Format specifications in interpolations (chapter 1, section 5.3a; chapter 7, section 4.4): the form `[[fill] align] ["0"] [width] ["." precision]` of Rust without its other parts; numbers align to the right by default, other values to the left; width counts Unicode scalar values; precision only for `Float` (fixed decimals, ties to even); `0` only for numbers; codes E0117 (lexical) and E0441 (a specification the type cannot take) | **proposed** (2026-10-23), waiting for the author |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |

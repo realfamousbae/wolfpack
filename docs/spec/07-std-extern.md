@@ -177,6 +177,32 @@ Free function: `string.join(parts: List<String>, separator: String) -> String`.
 Full Unicode case mapping is not in v1, because Go, Rust and JS disagree on it (for example `ß`).
 **[PROPOSAL]** (see D7.3)
 
+### 4.4 Format specifications **[DRAFT]** (2026-10-23, D4.18)
+
+An interpolation with a format specification (chapter 1, section 5.3a), `f"{value:spec}"`, takes
+the text of the value (its `Display`, chapter 4, section 9) and changes it as the specification
+says, on every target and in the VM:
+
+1. **Precision** `.p`, only for `Float` (else E0441): the value is written in plain notation with
+   exactly `p` digits after the point, rounded to the nearest, ties to even on the exact binary
+   value (`2.675` is `2.67`, as its exact value is below 2.675). `NaN`, `inf` and `-inf` are
+   written as without a precision. `{x:.0}` has no point: `3`.
+2. **Width** `w`: when the text has fewer than `w` Unicode scalar values, it is padded to `w` with
+   the fill character (a space by default). A longer text is never cut.
+3. **Alignment**: `<` pads on the right, `>` on the left, `^` on both sides with the extra
+   character on the right. Without an alignment, `Int` and `Float` align to the right and every
+   other type to the left.
+4. **`0`**, only for `Int` and `Float` (else E0441): pads with zeros after the sign, as
+   `{n:05}` gives `-0042` for -42; an alignment or a fill given with it wins.
+
+| Interpolation | Text |
+| --- | --- |
+| `f"{3.14159:.2}"` | `3.14` |
+| `f"[{42:>5}]"`, `f"[{42:<5}]"`, `f"[{"ab":^6}]"` | `[   42]`, `[42   ]`, `[  ab  ]` |
+| `f"{7:03}"`, `f"{-7:03}"` | `007`, `-07` |
+| `f"{"x":*>4}"` | `***x` |
+| `f"{1.5:8.3}"` | `   1.500` |
+
 ## 5. Lists (module `std.list`)
 
 Methods of `List<T>`, available without import:
