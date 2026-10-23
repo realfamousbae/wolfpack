@@ -16,6 +16,34 @@ All notable changes are recorded here at the end of each milestone.
 - Fixed in the Rust backend: `let _ = f()` where `f` returns a function value is `let _ = f();`,
   without rustc's warning about an unused closure; a single tuple, call or struct literal in an
   array is laid out as rustfmt lays it out (`[(` ... `)]`).
+- Fixed in the TypeScript backend: `self = ...` in a `mut self` method of an enum stopped `wolf`
+  with an internal error. A method of a payload-less enum now takes a reference to the place of its
+  receiver, and an object of an enum with payloads takes the new variant in place
+  (`$rt.become`). A payload-less enum used as a value of an interface is an object of a small
+  class `Color$Animal` that holds the value, instead of an object of closures, so that its
+  `mut self` methods and its copies work. The program `plain_enum_interface` moved to
+  `tests/run/`, so it runs on every target and in the VM.
+- The generated Rust passes `cargo clippy -D warnings` also when the program drops values or
+  computes with literals: a dropped value without effects is `let _ = ...` (rustc wants the
+  values of `#[must_use]` methods used, clippy wants statements to do something),
+  `3.to_float()` is the literal `3.0`, and the crate allows `eq_op`, `zero_divided_by_zero` and
+  `match_single_binding`, which judge what the program wrote (`0.0 / 0.0` is how it writes NaN).
+  The new test `tests/run/discarded_values` checks it.
+- Native modules in TypeScript: a method of a class declared more than once (overloads) is not
+  available, as an overloaded function is not; before, its last declaration was taken. A method
+  with a `Map` whose keys stay `number` is not available either, as such a function is not
+  (`wolf check --native` lists both with the reason).
+- New diagnostic E0439: a struct literal or a struct pattern whose name is not a struct, an alias
+  of one or a variant with named fields (`String { w: 1.0 }`, `Shape { w: 2.0 }` for an enum).
+  Before, such a program stopped `wolf` with an internal error. Literals and patterns written with
+  an alias of a struct (`type P = Point`, `P { x: 1, y: 2 }`) now build and match the struct, as
+  chapter 4, section 7.3 says; before, they stopped `wolf` too.
+- Fuzzing of the whole compiler: `crates/wolf_wasm/tests/mutations.rs` sends programs a token or a
+  line away from every `.wolf` file of the repository through the check, the three backends and
+  the formatter, and checks that formatting is idempotent and keeps the diagnostics
+  (`WOLF_MUTATIONS=200` for a long run). The new fuzz target `pipeline` does the same with
+  libFuzzer and `fuzz/wolf.dict`; it runs on stable Rust with `cargo fuzz run -s none`. The
+  one-file pipeline of the playground moved to `wolf_driver::single`.
 
 ## 0.3.0 (2026-10-22)
 
