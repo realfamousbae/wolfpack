@@ -390,7 +390,7 @@ export function sliceStr(text: string, start: bigint | undefined, end: bigint | 
         code: r#"/**
  * Structural `==` for lists, maps, structs, enums, `Option` and `Result`. It keeps the pairs of
  * parts still to compare in a list instead of calling itself, so the depth of a value does not
- * matter.
+ * matter. Fields whose names start with `$` are skipped.
  */
 export function eq(a: unknown, b: unknown): boolean {
   const pending: unknown[] = [a, b];
@@ -431,7 +431,10 @@ export function eq(a: unknown, b: unknown): boolean {
       const rx = x as Record<string, unknown>;
       const ry = y as Record<string, unknown>;
       for (const k of keys) {
-        pending.push(rx[k], ry[k]);
+        // The dictionaries of a generic type (`$asNamedT`) are not part of its value.
+        if (!k.startsWith("$")) {
+          pending.push(rx[k], ry[k]);
+        }
       }
     }
   }

@@ -103,8 +103,9 @@ struct FnState {
     rets: Vec<(IrType, bool)>,
     /// `mut` parameters passed by reference (lists, maps, structs).
     by_reference: BTreeSet<LocalRef>,
-    /// The dictionary parameters in scope, by type parameter.
-    dicts: BTreeMap<(String, Dict), String>,
+    /// The dictionaries in scope, by type parameter: parameters, or fields of `self` in an
+    /// implementation of an interface.
+    dicts: BTreeMap<(String, Dict), Expr>,
     /// The user interface bounds of the type parameters in scope, by type parameter and
     /// interface: the types of the dictionaries, and of a cast where there is no dictionary.
     bounds: BTreeMap<(String, DefRef), IrType>,
@@ -479,6 +480,9 @@ impl<'p> Emitter<'p> {
                         self.ifaces.insert(i.def, i);
                         for f in &i.methods {
                             self.iface_fns.insert((i.def, f.name.clone()), info(f));
+                            if f.body.is_some() {
+                                self.fns.insert(f.def, info(f));
+                            }
                         }
                         if m.role == ModuleRole::Std {
                             match i.name.as_str() {
@@ -533,6 +537,21 @@ impl<'p> Emitter<'p> {
                         ir::Item::Struct(s) => (Some((s.def, &s.generics)), &s.methods),
                         ir::Item::Enum(e) => (Some((e.def, &e.generics)), &e.methods),
                         ir::Item::Fn(f) => (None, std::slice::from_ref(f)),
+                        // A default takes the dictionaries of its interface's bounds.
+                        ir::Item::Interface(i) => {
+                            let mut dicts = Vec::new();
+                            for g in &i.generics {
+                                for d in self.dicts_of(&g.bounds) {
+                                    dicts.push((g.name.clone(), d));
+                                }
+                            }
+                            for f in i.methods.iter().filter(|f| f.body.is_some()) {
+                                if let Some(info) = self.fns.get_mut(&f.def) {
+                                    info.dicts = dicts.clone();
+                                }
+                            }
+                            continue;
+                        }
                         _ => continue,
                     };
                 for f in methods {
@@ -581,6 +600,91 @@ impl<'p> Emitter<'p> {
             }
         }
         out
+    }
+
+    /// The name of the dictionary of the bound `d` of the type parameter `g`, as a parameter and
+    /// as a field of an instance.
+    fn dict_name(&self, g: &str, d: Dict) -> String {
+        match d {
+            Dict::Show => format!("$show{g}"),
+            Dict::Cmp => format!("$cmp{g}"),
+            Dict::View(i) => {
+                let iface = self.p.def(i).map(|d| d.name.clone()).unwrap_or_default();
+                format!("$as{iface}{g}")
+            }
+        }
+    }
+
+    /// The dictionaries that the instances of a generic struct or enum with payloads carry, by
+    /// type parameter: those of the bounds of its declaration, when it implements an interface.
+    /// An implementation keeps the interface's signature and so takes no dictionaries; it finds
+    /// them in `self` (and so do the defaults it gets). The fields start with `$`, which `==`
+    /// skips.
+    fn type_dicts(&self, def: DefRef) -> Vec<(String, Dict)> {
+        let (generics, implements) = match (self.structs.get(&def), self.enums.get(&def)) {
+            (Some(s), _) => (&s.generics, &s.implements),
+            (_, Some(e)) if !e.variants.iter().all(|v| v.payload.is_empty()) => {
+                (&e.generics, &e.implements)
+            }
+            _ => return Vec::new(),
+        };
+        let implements_one = implements
+            .iter()
+            .any(|t| !matches!(t, IrType::Named(d, _) if self.markers.contains(d)));
+        if !implements_one {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        for g in generics {
+            for d in self.dicts_of(&g.bounds) {
+                out.push((g.name.clone(), d));
+            }
+        }
+        out
+    }
+
+    /// The fields of [`Self::type_dicts`] with their types, and the bounds of the type's
+    /// parameters set in `self.f.bounds` for the types of the dictionaries.
+    fn type_dict_fields(&mut self, def: DefRef, generics: &[ir::Generic]) -> Vec<(String, Type)> {
+        for g in generics {
+            for b in &g.bounds {
+                if let IrType::Named(i, _) = b {
+                    if self.view_iface(*i) {
+                        self.f.bounds.insert((g.name.clone(), *i), b.clone());
+                    }
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for (g, d) in self.type_dicts(def) {
+            let ty = self.dict_ty(d, &IrType::Param(g.clone()));
+            out.push((self.dict_name(&g, d), ty));
+        }
+        self.f.bounds.clear();
+        out
+    }
+
+    /// The dictionaries an instance of `t` (a struct or a variant of its enum) is built with.
+    fn instance_dicts(&mut self, def: DefRef, t: &IrType) -> Result<Vec<Expr>, Error> {
+        let IrType::Named(_, targs) = t else {
+            return Ok(Vec::new());
+        };
+        let names: Vec<String> = match (self.structs.get(&def), self.enums.get(&def)) {
+            (Some(s), _) => s.generics.iter().map(|g| g.name.clone()).collect(),
+            (_, Some(e)) => e.generics.iter().map(|g| g.name.clone()).collect(),
+            _ => return Ok(Vec::new()),
+        };
+        let mut out = Vec::new();
+        for (g, d) in self.type_dicts(def) {
+            let t = names
+                .iter()
+                .position(|n| *n == g)
+                .and_then(|i| targs.get(i))
+                .cloned()
+                .unwrap_or(IrType::Void);
+            out.push(self.dict(d, &t)?);
+        }
+        Ok(out)
     }
 
     /// Whether a bound gets a [`Dict::View`]: a user interface whose methods mention `Self` only
@@ -632,7 +736,7 @@ impl<'p> Emitter<'p> {
     /// does the same: it calls the method of a class and handles the built-in types.
     fn dict_for(&mut self, d: Dict, t: &IrType) -> Option<Expr> {
         match t {
-            IrType::Param(n) => self.f.dicts.get(&(n.clone(), d)).map(|x| ident(x)),
+            IrType::Param(n) => self.f.dicts.get(&(n.clone(), d)).cloned(),
             IrType::Named(def, _) => {
                 let e = self.enums.get(def)?;
                 let iface = match d {
@@ -665,7 +769,7 @@ impl<'p> Emitter<'p> {
     fn view(&mut self, iface: DefRef, t: &IrType) -> Result<Expr, Error> {
         if let IrType::Param(n) = t {
             if let Some(d) = self.f.dicts.get(&(n.clone(), Dict::View(iface))) {
-                return Ok(ident(d));
+                return Ok(d.clone());
             }
         }
         let to = match t {
@@ -735,7 +839,7 @@ impl<'p> Emitter<'p> {
                 match view {
                     Some(d) => {
                         let ty = self.ty(t);
-                        let body = self.rt_call("errText", vec![call(ident(&d), vec![ident("x")])]);
+                        let body = self.rt_call("errText", vec![call(d, vec![ident("x")])]);
                         Expr::Arrow(
                             vec![("x".to_string(), Some(ty))],
                             None,
@@ -1317,10 +1421,17 @@ impl<'p> Emitter<'p> {
                 .map(|(n, t, _)| (n.clone(), t.clone()))
                 .collect(),
         );
-        let body = fields
+        let mut body: Vec<Stmt> = fields
             .iter()
             .map(|(n, _, _)| Stmt::Assign(member(Expr::This, n), member(ident("fields"), n)))
             .collect();
+        let mut fields = fields;
+        let mut ctor = vec![("fields".to_string(), object)];
+        for (n, t) in self.type_dict_fields(s.def, &s.generics) {
+            body.push(Stmt::Assign(member(Expr::This, &n), ident(&n)));
+            fields.push((n.clone(), t.clone(), None));
+            ctor.push((n, t));
+        }
         let mut methods = Vec::new();
         for f in &s.methods {
             if f.body.is_none() {
@@ -1351,7 +1462,7 @@ impl<'p> Emitter<'p> {
             });
         }
         for (iface, args, f) in self.inherited(&s.implements, &s.methods) {
-            methods.push(self.delegate(Expr::This, iface, &args, f));
+            methods.push(self.delegate(Expr::This, s.def, iface, &args, f)?);
         }
         out.push(Item::Class {
             docs: s.docs.clone(),
@@ -1360,7 +1471,7 @@ impl<'p> Emitter<'p> {
             generics,
             implements,
             fields,
-            constructor: Some((vec![("fields".to_string(), object)], body)),
+            constructor: Some((ctor, body)),
             methods,
         });
         Ok(())
@@ -1394,6 +1505,11 @@ impl<'p> Emitter<'p> {
     fn iface_args(&self, iface: DefRef, t: &IrType) -> Vec<IrType> {
         match t {
             IrType::Named(d, args) if *d == iface => args.clone(),
+            // `self` in a default of the interface.
+            IrType::SelfType => match &self.self_iface {
+                Some(IrType::Named(d, args)) if *d == iface => args.clone(),
+                _ => Vec::new(),
+            },
             IrType::Named(d, targs) => {
                 let (generics, implements) = match (self.structs.get(d), self.enums.get(d)) {
                     (Some(s), _) => (&s.generics, &s.implements),
@@ -1446,8 +1562,15 @@ impl<'p> Emitter<'p> {
         ident(&alias)
     }
 
-    /// A method that calls the default `f` of `iface` on `recv`.
-    fn delegate(&mut self, recv: Expr, iface: DefRef, args: &[IrType], f: &ir::Function) -> Method {
+    /// A method that calls the default `f` of `iface` on `recv`, a value of the type `owner`.
+    fn delegate(
+        &mut self,
+        recv: Expr,
+        owner: DefRef,
+        iface: DefRef,
+        args: &[IrType],
+        f: &ir::Function,
+    ) -> Result<Method, Error> {
         let names: Vec<String> = self
             .ifaces
             .get(&iface)
@@ -1459,7 +1582,16 @@ impl<'p> Emitter<'p> {
             .iter()
             .map(|p| (camel(&p.name), self.param_ty(p.mode, &subst(&p.ty, &map))))
             .collect();
+        // The dictionaries of the type's bounds are fields of the receiver.
+        let saved = std::mem::take(&mut self.f.dicts);
+        for (g, d) in self.type_dicts(owner) {
+            let name = self.dict_name(&g, d);
+            self.f.dicts.insert((g, d), member(recv.clone(), &name));
+        }
+        let dicts = self.default_dicts(f, &map);
+        self.f.dicts = saved;
         let mut all = vec![recv];
+        all.extend(dicts?);
         all.extend(params.iter().map(|(n, _)| ident(n)));
         let result = call(self.default_fn(iface, &f.name), all);
         let ret = subst(&f.ret, &map);
@@ -1468,7 +1600,7 @@ impl<'p> Emitter<'p> {
         } else {
             vec![Stmt::Return(Some(result))]
         };
-        Method {
+        Ok(Method {
             docs: Vec::new(),
             is_static: false,
             name: camel(&f.name),
@@ -1476,7 +1608,27 @@ impl<'p> Emitter<'p> {
             params,
             ret: self.ret_ty(&ret),
             body,
+        })
+    }
+
+    /// The dictionaries that the default `f` takes after the receiver (those of the bounds of
+    /// its interface's type parameters), for the type arguments `map` of the interface.
+    fn default_dicts(
+        &mut self,
+        f: &ir::Function,
+        map: &BTreeMap<String, IrType>,
+    ) -> Result<Vec<Expr>, Error> {
+        let dicts = self
+            .fns
+            .get(&f.def)
+            .map(|i| i.dicts.clone())
+            .unwrap_or_default();
+        let mut out = Vec::new();
+        for (g, d) in dicts {
+            let t = map.get(&g).cloned().unwrap_or(IrType::Void);
+            out.push(self.dict(d, &t)?);
         }
+        Ok(out)
     }
 
     /// Implemented interfaces, without the derived ones.
@@ -1563,10 +1715,15 @@ impl<'p> Emitter<'p> {
                     fields.push((n.clone(), t.clone(), None));
                     params.push((n.clone(), t));
                 }
-                let body = names
+                let mut body: Vec<Stmt> = names
                     .iter()
                     .map(|n| Stmt::Assign(member(Expr::This, n), ident(n)))
                     .collect();
+                for (n, t) in self.type_dict_fields(e.def, &e.generics) {
+                    body.push(Stmt::Assign(member(Expr::This, &n), ident(&n)));
+                    fields.push((n.clone(), t.clone(), None));
+                    params.push((n, t));
+                }
                 // Interface methods delegate to the enum's functions.
                 let mut methods = Vec::new();
                 for f in e
@@ -1595,7 +1752,7 @@ impl<'p> Emitter<'p> {
                     });
                 }
                 for (iface, args, f) in self.inherited(&e.implements, &e.methods) {
-                    methods.push(self.delegate(Expr::This, iface, &args, f));
+                    methods.push(self.delegate(Expr::This, e.def, iface, &args, f)?);
                 }
                 out.push(Item::Class {
                     docs: v.docs.clone(),
@@ -2133,19 +2290,26 @@ impl<'p> Emitter<'p> {
                 }
             }
         }
+        let owner = info.as_ref().and_then(|i| i.owner.as_ref()).map(|o| o.0);
         let dicts = info.map(|i| i.dicts).unwrap_or_default();
         for (g, d) in dicts {
-            let name = match d {
-                Dict::Show => format!("$show{g}"),
-                Dict::Cmp => format!("$cmp{g}"),
-                Dict::View(i) => {
-                    let iface = self.p.def(i).map(|d| d.name.clone()).unwrap_or_default();
-                    format!("$as{iface}{g}")
-                }
-            };
+            let name = self.dict_name(&g, d);
             let ty = self.dict_ty(d, &IrType::Param(g.clone()));
-            self.f.dicts.insert((g, d), name.clone());
+            self.f.dicts.insert((g, d), ident(&name));
             params.push((name, ty));
+        }
+        // An implementation of an interface keeps the interface's signature: the dictionaries of
+        // the type's bounds are fields of `self`.
+        if let (Some(owner), Some(this)) = (owner, self.f.self_expr.clone()) {
+            if f.interface.is_some() {
+                for (g, d) in self.type_dicts(owner) {
+                    let name = self.dict_name(&g, d);
+                    self.f
+                        .dicts
+                        .entry((g, d))
+                        .or_insert(member(this.clone(), &name));
+                }
+            }
         }
         for p in &f.params {
             let name = self.local_name(p.local);
@@ -2786,9 +2950,11 @@ impl<'p> Emitter<'p> {
                 }
                 entries.extend(fields.iter().zip(values).map(|((n, _), v)| (camel(n), v)));
                 let object = Expr::Object(entries);
+                let mut args = vec![object];
+                args.extend(self.instance_dicts(*def, &e.ty)?);
                 let name = self.def_name(*def);
                 let name = self.with_args(name, &e.ty);
-                tagged(Expr::New(name, vec![object]))
+                tagged(Expr::New(name, args))
             }
             ExprKind::Variant { def, values } => {
                 let parent = match self.p.def(*def).map(|d| d.kind) {
@@ -2806,7 +2972,8 @@ impl<'p> Emitter<'p> {
                 }
                 let items: Vec<(&IrExpr, Repr)> =
                     values.iter().map(|v| (v, Repr::Tagged)).collect();
-                let vs = self.seq(&items, out)?;
+                let mut vs = self.seq(&items, out)?;
+                vs.extend(self.instance_dicts(parent, &e.ty)?);
                 // The class lives in the module of the enum.
                 let _ = self.def_name(parent);
                 let class = self.variant_class(*def, parent);
@@ -3116,7 +3283,7 @@ impl<'p> Emitter<'p> {
         // default has none) the value is cast: right for classes, not for a payload-less enum.
         if let (IrType::Param(n), IrType::Named(iface, _)) = (from, to) {
             if let Some(d) = self.f.dicts.get(&(n.clone(), Dict::View(*iface))).cloned() {
-                return Ok(call(ident(&d), vec![v]));
+                return Ok(call(d, vec![v]));
             }
             return Ok(match self.f.bounds.get(&(n.clone(), *iface)).cloned() {
                 Some(b) => Expr::As(Box::new(v), self.ty(&b)),
@@ -3188,7 +3355,7 @@ impl<'p> Emitter<'p> {
                         IrType::Named(_, a) => a.clone(),
                         _ => Vec::new(),
                     };
-                    methods.push(self.delegate(Expr::This, iface, &args, f));
+                    methods.push(self.delegate(Expr::This, e, iface, &args, f)?);
                     continue;
                 }
             }
@@ -3667,13 +3834,25 @@ impl<'p> Emitter<'p> {
                 } else {
                     all.remove(0)
                 };
-                let to = IrType::Named(*interface, self.iface_args(*interface, &recv.ty));
+                let iargs = self.iface_args(*interface, &recv.ty);
+                let to = IrType::Named(*interface, iargs.clone());
                 let r = if iface_mut {
                     self.plain_view(r, &recv.ty, &to)
                 } else {
                     self.coerce(r, &recv.ty, &to)?
                 };
                 let mut a = vec![r];
+                let iface = self.ifaces.get(interface).copied();
+                let default = iface.and_then(|i| i.methods.iter().find(|f| f.name == *name));
+                if let (Some(i), Some(f)) = (iface, default) {
+                    let map = i
+                        .generics
+                        .iter()
+                        .map(|g| g.name.clone())
+                        .zip(iargs)
+                        .collect();
+                    a.extend(self.default_dicts(f, &map)?);
+                }
                 a.extend(all);
                 call(self.default_fn(*interface, name), a)
             }
