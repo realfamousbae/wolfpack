@@ -263,8 +263,8 @@ the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`).
    13a). The reason: neither Go nor a Rust trait object can express a generic interface method.
 3. A signature may use `Self`, meaning "the implementing type": `fn compare(self, other: Self) ->
    Ordering`.
-4. **[DRAFT]** (2026-10-23, D4.19) **Default methods.** A method of an interface may have a
-   body, its default:
+4. **Default methods** (author, 2026-10-23, D4.19). A method of an interface may have a body,
+   its default:
    ```
    interface Named {
        fn name(self) -> String
@@ -274,26 +274,43 @@ the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`).
    }
    ```
    The body is checked once, as a generic function over `Self: Named`: on `self` it can use the
-   methods of the interface, defaults included, and nothing else. A type that implements the
-   interface gets the default when its block leaves the method out (section 8.3, rule 1), and
-   replaces it when the block defines the method, with the same signature. A default is part of
-   the interface everywhere the interface is: on interface values, through bounds, and in the
-   implementing type's own calls `x.greeting()`.
+   methods of the interface, defaults included, and nothing else (`Self` is not known to be
+   `Copyable` or `Equatable`). A type that implements the interface gets the default when its
+   block leaves the method out, and replaces it with `override fn` (section 8.3, rule 1). A default
+   is part of the interface everywhere the interface is: on interface values, through bounds, and
+   in the implementing type's own calls `x.greeting()`.
+5. **Calling a default by the interface's name** (D4.19). `Named.greeting(x)` calls the body of
+   the interface, also when the type of `x` replaces it: an override can build on the default.
+   ```
+   Dog: Named {
+       fn name(self) -> String { self.title.copy() }
+       override fn greeting(self) -> String {
+           Named.greeting(self) + " Woof!"
+       }
+   }
+   ```
+   The receiver is the first argument, passed in the mode of the method's `self` (`mut x` for
+   `mut self`), and its type must implement the interface (E0404). Only a method with a default
+   can be called this way (E0444).
 
 ### 8.3 Implementations
 
 1. `Type: Interface { ... }` must define every method of the interface, with exactly the same
    parameter modes, parameter types and result type (after substituting `Self`). Extra methods are
-   not allowed in such a block. **[DRAFT]** (D4.19): a method with a default (section 8.2, rule 4)
-   may be left out; a block that leaves out a method without a default is the error it is today
-   (E0413).
+   not allowed in such a block. A method with a default (section 8.2, rule 4) may be left out; a
+   block that leaves out a method without a default is the error it is today (E0413). A method
+   that replaces a default is written `override fn`; without `override` it is an error, and so is
+   `override` on a method without a default or outside an interface implementation block (E0443).
+   (D4.19, author, 2026-10-23.)
 2. **Coherence** **[PROPOSAL]** (see D4.5): every `impl` block for a type, inherent or for an
    interface, must be in the module that declares the type. Consequently user interfaces cannot be
    implemented for `Int`, `String`, `List` or extern types. Reason: Go allows methods only on types
    of the same package; this rule makes every `impl` map onto Go methods.
 3. A type may implement an interface at most once.
 4. **No two methods with the same name** on one type, across its inherent block and all its
-   interface blocks. Go cannot express that. **[PROPOSAL]**
+   interface blocks. Go cannot express that. **[PROPOSAL]** The defaults that a type gets from its
+   interfaces (section 8.2, rule 4) count as its methods: for them too, this rule is E0415 and
+   rule 6 is E0432, reported at the implementation block. (D4.19.)
 5. Generic inherent methods (`fn map<U>(self, f: fn(T) -> U) -> Stack<U>`) are allowed (author). The
    Go backend may emit them as free generic functions until it can rely on generic methods in Go;
    this is a backend matter (chapter 8).
@@ -471,6 +488,8 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0439 | A struct literal or a struct pattern whose name is not a struct, an alias of one or a variant with named fields (section 7.1, rule 3; added after 0.3) |
 | E0441 | A format specification that the type of the interpolation cannot take: a precision for a type other than `Float`, `0` for a type other than `Int` and `Float` (chapter 7, section 4.4; D4.18) |
 | E0442 | A `where` that is not allowed there: on a free function, in an interface or an interface implementation, or naming a type parameter that is not one of the block (section 8.6, rule 3) |
+| E0443 | A default method replaced without `override`, or `override` on a method that replaces no default (section 8.3, rule 1; D4.19) |
+| E0444 | `Interface.method(x)` for a method without a default (section 8.2, rule 5; D4.19) |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
@@ -501,6 +520,6 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.16 | Methods with bounds of their own (section 8.6): `where T: Equatable` after the result type; the error at the call is E0404 (E0406 for `Equatable` and `Copyable`), a misplaced `where` E0442; `contains`, `index_of`, `get`, `sort`, `min` and `max` become methods of `List<T>` and the free functions of `std.list` are removed | **answered** (author, 2026-10-23): `where` at the method; remove the free functions |
 | D4.17 | `Display` of `List`, `Option`, `Map` and `Result` (section 9, rule 7; chapter 7, section 4.1): written as the literal would be, strings in quotes with the escapes of chapter 7, a map as a map literal in insertion order; `Result` also when its error implements `Error`, through `message()` | **answered** (author, 2026-10-23): strings in quotes, `Result` with `Error` too, maps as `["Ann": 31]` |
 | D4.18 | Format specifications in interpolations (chapter 1, section 5.3a; chapter 7, section 4.4): `[[fill] align] ["0"] [width] ["." precision]`; numbers align to the right by default, other values to the left; width counts Unicode scalar values; precision only for `Float`, rounded to the nearest with ties to even; `0` only for numbers and never with a fill or an alignment; width at most 1000, precision at most 100; codes E0117 and E0441 | **answered** (author, 2026-10-23): ties to even; `0` with an alignment forbidden; limits 1000 and 100 |
-| D4.19 | **[DRAFT]** Default methods in interfaces (section 8.2, rule 4; section 8.3, rule 1): a body after the signature is the default, checked once over `Self: I` with only the methods of `I` on `self`; an implementation may leave it out or replace it with the same signature; no new diagnostic codes. Targets: Rust trait defaults; TypeScript and Go a function of the interface that the implementing types call; the VM dispatches to it | **proposed** (2026-10-23), waiting for the author |
+| D4.19 | Default methods in interfaces (section 8.2, rules 4 and 5; section 8.3, rules 1 and 4): a body after the signature is the default, checked once over `Self: I`; a replacement is written `override fn` (E0443); `I.m(x)` calls the default also when it is replaced (E0444 for a method without one); inherited defaults count for E0415 and E0432. Targets: the default is a function of its own that the implementing types and `I.m(x)` call (in Rust too, which cannot call a replaced trait default) | **answered** (author, 2026-10-23): replacements marked with `override`; `Named.greeting(self)` calls the default |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |

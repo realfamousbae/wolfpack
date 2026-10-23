@@ -109,6 +109,7 @@ Contextual:
 | `intrinsic` | as a modifier of a declaration in a `std` module (chapter 7) |
 | `test` | at the start of a declaration inside `tests { }` |
 | `where` | between the signature of a method and its body (chapter 4, section 8.6; D4.16) |
+| `override` | before `fn` in an interface implementation block (chapter 4, section 8.3, rule 1; D4.19) |
 
 So `let config = load()` and `let types = List.new()` are valid.
 

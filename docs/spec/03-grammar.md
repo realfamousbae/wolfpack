@@ -51,10 +51,10 @@ field_sig    = IDENT ":" type
 alias_decl   = visibility "type" IDENT generics? "=" type
 intrinsic_type = visibility "intrinsic" "type" IDENT generics?   // std only, chapter 7
 
-interface_decl = visibility "interface" IDENT generics? "{" ( fn_sig block? )* "}"   // [DRAFT] a block is a default, chapter 4, section 8.2
+interface_decl = visibility "interface" IDENT generics? "{" ( fn_sig block? )* "}"   // a block is a default, chapter 4, section 8.2
 fn_sig       = "fn" IDENT generics? "(" params? ")" ( "->" type )?
 
-impl_block   = IDENT generics? ( ":" type_path )? "{" fn_decl* "}"
+impl_block   = IDENT generics? ( ":" type_path )? "{" ( "override"? fn_decl )* "}"   // `override`: chapter 4, section 8.3, rule 1
 
 config_entry = visibility IDENT ":" type "=" expr
 test_decl    = "test" STRING block
@@ -81,7 +81,10 @@ Rules:
    `T: Comparable`. The head may add further bounds. (Author, 2026-10-09.)
 7. Interfaces in v1 contain only signatures: no default method bodies, no super-interfaces.
    **[PROPOSAL]** (see D3.3). Whether a signature without `self` is allowed in an interface is
-   decided in chapter 4 together with register item 13.
+   decided in chapter 4 together with register item 13. Since D4.19 (author, 2026-10-23) a method
+   of an interface may have a body, its default, and a method of an implementation block that
+   replaces one starts with `override` (chapter 4, sections 8.2 and 8.3); there are still no
+   super-interfaces.
 8. Generic parameters are written in declarations as `<T: Bound + Other>`. There is no `where`
    clause in v1. **[PROPOSAL]** Since D4.16 (author, 2026-10-23) a method of a generic inherent
    `impl` block may end its signature with `where T: Bound`, which adds bounds to the parameters
