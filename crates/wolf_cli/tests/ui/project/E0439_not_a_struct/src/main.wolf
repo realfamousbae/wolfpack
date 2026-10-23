@@ -1,0 +1,23 @@
+module main
+
+types {
+    enum Shape {
+        Dot
+        Rect { w: Float, h: Float }
+    }
+
+    type Size = Int
+}
+
+main {
+    let a = String { w: 1.0 }
+    let b = Shape { w: 2.0, h: 3.0 }
+    let c = Size { w: 1.0 }
+    match Shape.Dot {
+        Shape { w, h } => print((w + h).to_string())
+        _ => print("other")
+    }
+    let _ = a
+    let _ = b
+    let _ = c
+}

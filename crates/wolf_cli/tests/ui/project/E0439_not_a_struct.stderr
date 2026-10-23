@@ -1,0 +1,29 @@
+error[E0439]: `String` is a type without fields
+   --> src/main.wolf:13:13
+   |
+13 |     let a = String { w: 1.0 }
+   |             ^^^^^^ a struct literal names a struct or a variant with named fields
+
+error[E0439]: `Shape` is an enum, not a struct
+   --> src/main.wolf:14:13
+   |
+14 |     let b = Shape { w: 2.0, h: 3.0 }
+   |             ^^^^^ a struct literal names a struct or a variant with named fields
+   |
+   = help: name one of its variants: `Shape.Variant { ... }`
+
+error[E0439]: `Size` is an alias of a type that is not a struct
+   --> src/main.wolf:15:13
+   |
+15 |     let c = Size { w: 1.0 }
+   |             ^^^^ a struct literal names a struct or a variant with named fields
+
+error[E0439]: `Shape` is an enum, not a struct
+   --> src/main.wolf:17:9
+   |
+17 |         Shape { w, h } => print((w + h).to_string())
+   |         ^^^^^ a struct pattern names a struct or a variant with named fields
+   |
+   = help: name one of its variants: `Shape.Variant { ... }`
+
+error: aborting due to 4 errors

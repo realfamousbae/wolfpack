@@ -371,13 +371,32 @@ impl Checker<'_> {
                 }
             }
         };
-        let Some(Res::Def(def)) = self.res(b, pat.id) else {
+        let res = self.res(b, pat.id);
+        let Some(Res::Def(mut def)) = res else {
+            self.not_a_struct(res, path, true);
             check_subpatterns(self, b);
             return;
         };
+        // `type P = Point`: the pattern matches the struct the alias stands for (chapter 4,
+        // section 7.3).
+        let mut alias_ty = None;
+        if self.def_kind(def) == Some(DefKind::Alias) {
+            match self.struct_of_alias(def, None) {
+                Some(t @ Ty::Named(target, _)) => {
+                    self.out.alias_structs.insert((b.file, pat.id), target);
+                    def = target;
+                    alias_ty = Some(t);
+                }
+                _ => {
+                    self.not_a_struct(res, path, true);
+                    check_subpatterns(self, b);
+                    return;
+                }
+            }
+        }
         let (owner, infos, what, map) = match self.def_kind(def) {
             Some(DefKind::Struct) => {
-                let t = self.fresh_named(def);
+                let t = alias_ty.unwrap_or_else(|| self.fresh_named(def));
                 self.pattern_type(pat.span, ty, &t);
                 let map = self.param_map(def, &t);
                 (
@@ -402,6 +421,7 @@ impl Checker<'_> {
                 }
             },
             _ => {
+                self.not_a_struct(res, path, true);
                 check_subpatterns(self, b);
                 return;
             }

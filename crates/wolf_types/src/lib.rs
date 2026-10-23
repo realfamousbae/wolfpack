@@ -110,6 +110,9 @@ pub struct Typed {
     pub coercions: BTreeMap<(FileId, NodeId), Ty>,
     /// `?` expressions whose error is converted to an interface type, and that type.
     pub try_coercions: BTreeMap<(FileId, NodeId), Ty>,
+    /// Struct literals and struct patterns written with an alias (`P { x: 1 }` for
+    /// `type P = Point`), and the struct the alias stands for (chapter 4, section 7.3).
+    pub alias_structs: BTreeMap<(FileId, NodeId), DefId>,
     /// The values of `config` constants, with overrides applied.
     pub consts: BTreeMap<DefId, ConstValue>,
     /// The types of all declarations.

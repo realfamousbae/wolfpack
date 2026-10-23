@@ -1110,7 +1110,9 @@ impl<'a> Checker<'a> {
                 );
             }
         }
-        let Some(Res::Def(def)) = self.res(b, e.id) else {
+        let res = self.res(b, e.id);
+        let Some(Res::Def(mut def)) = res else {
+            self.not_a_struct(res, path, false);
             for f in fields {
                 if let Some(v) = &f.value {
                     self.expr(b, v, None);
@@ -1118,6 +1120,32 @@ impl<'a> Checker<'a> {
             }
             return Ty::Error;
         };
+        // `type P = Point`: the literal builds the struct the alias stands for (section 7.3).
+        let mut alias_args = None;
+        if self.def_kind(def) == Some(DefKind::Alias) {
+            let written = if type_args.is_empty() {
+                None
+            } else {
+                let scope = self.scope(b);
+                Some(type_args.iter().map(|a| self.lower(a, &scope)).collect())
+            };
+            match self.struct_of_alias(def, written) {
+                Some(Ty::Named(target, args)) => {
+                    self.out.alias_structs.insert((b.file, e.id), target);
+                    def = target;
+                    alias_args = Some(args);
+                }
+                _ => {
+                    self.not_a_struct(res, path, false);
+                    for f in fields {
+                        if let Some(v) = &f.value {
+                            self.expr(b, v, None);
+                        }
+                    }
+                    return Ty::Error;
+                }
+            }
+        }
         let (owner, infos, what) = match self.def_kind(def) {
             Some(DefKind::Struct) => (
                 def,
@@ -1147,6 +1175,7 @@ impl<'a> Checker<'a> {
                 }
             }
             _ => {
+                self.not_a_struct(res, path, false);
                 for f in fields {
                     if let Some(v) = &f.value {
                         self.expr(b, v, None);
@@ -1160,8 +1189,8 @@ impl<'a> Checker<'a> {
             .get(&owner)
             .map(|g| g.iter().map(|g| g.span).collect())
             .unwrap_or_default();
-        let mut args: Vec<Ty> = Vec::new();
-        if !type_args.is_empty() {
+        let mut args: Vec<Ty> = alias_args.unwrap_or_default();
+        if args.is_empty() && !type_args.is_empty() {
             let scope = self.scope(b);
             let lowered: Vec<Ty> = type_args.iter().map(|a| self.lower(a, &scope)).collect();
             if lowered.len() == generics.len() {

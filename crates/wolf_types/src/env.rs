@@ -373,6 +373,45 @@ impl<'a> Checker<'a> {
             .unwrap_or_default()
     }
 
+    /// E0439: a struct literal or a struct pattern whose name is not a struct, an alias of one or
+    /// a variant with named fields. A name that did not resolve was reported already.
+    pub(crate) fn not_a_struct(&mut self, res: Option<Res>, path: &ast::Path, pattern: bool) {
+        let name = path
+            .segments
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect::<Vec<_>>()
+            .join(".");
+        let kind = match res {
+            None => return,
+            Some(Res::Def(def)) => self.def_kind(def),
+            Some(_) => None,
+        };
+        let what = match kind {
+            Some(DefKind::Enum) => "an enum, not a struct",
+            Some(DefKind::Interface) => "an interface, not a struct",
+            Some(DefKind::Fn | DefKind::ExternFn | DefKind::Member { .. }) => {
+                "a function, not a struct"
+            }
+            Some(DefKind::Config) => "a constant, not a struct",
+            Some(DefKind::Alias) => "an alias of a type that is not a struct",
+            Some(DefKind::IntrinsicType | DefKind::ExternType) => "a type without fields",
+            _ => "not a struct",
+        };
+        let form = if pattern { "pattern" } else { "literal" };
+        let message = format!("`{name}` is {what}");
+        let mut d = Diagnostic::new(codes::E0439, message).primary(
+            path.span,
+            format!("a struct {form} names a struct or a variant with named fields"),
+        );
+        if kind == Some(DefKind::Enum) {
+            d = d.help(format!(
+                "name one of its variants: `{name}.Variant {{ ... }}`"
+            ));
+        }
+        self.report(d);
+    }
+
     pub(crate) fn def_kind(&self, def: DefId) -> Option<DefKind> {
         self.resolved.def(def).map(|d| d.kind)
     }
@@ -545,7 +584,7 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn expand_alias(&mut self, def: DefId, args: Vec<Ty>) -> Ty {
+    pub(crate) fn expand_alias(&mut self, def: DefId, args: Vec<Ty>) -> Ty {
         let body = match self.alias_state.get(&def) {
             Some(AliasState::Done(t)) => t.clone(),
             Some(AliasState::InProgress) => {
@@ -560,6 +599,20 @@ impl<'a> Checker<'a> {
             .map(|g| g.iter().map(|g| ParamId::Decl(g.span)).zip(args).collect())
             .unwrap_or_default();
         body.subst(&map)
+    }
+
+    /// The struct type an alias stands for, with the written type arguments of the alias or new
+    /// inference variables; `None` when the alias stands for something else.
+    pub(crate) fn struct_of_alias(&mut self, def: DefId, written: Option<Vec<Ty>>) -> Option<Ty> {
+        let count = self.type_generics.get(&def).map_or(0, Vec::len);
+        let args = match written {
+            Some(args) if args.len() == count => args,
+            _ => (0..count).map(|_| self.infer.fresh()).collect(),
+        };
+        match self.expand_alias(def, args) {
+            t @ Ty::Named(target, _) if self.def_kind(target) == Some(DefKind::Struct) => Some(t),
+            _ => None,
+        }
     }
 
     /// The type an alias without type parameters stands for.

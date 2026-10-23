@@ -1401,6 +1401,13 @@ impl<'a> Lowerer<'a> {
         let Some(Res::Def(def)) = self.res(ctx, e.id) else {
             return Err(unsupported("struct literal without a type"));
         };
+        // A literal written with an alias builds the struct it stands for.
+        let def = self
+            .typed
+            .alias_structs
+            .get(&(ctx.file, e.id))
+            .copied()
+            .unwrap_or(def);
         let names: Vec<String> = match self.resolved.def(def).map(|d| d.kind) {
             Some(RDef::Struct) => self
                 .typed
@@ -1821,6 +1828,13 @@ impl<'a> Lowerer<'a> {
                 let Some(Res::Def(def)) = res else {
                     return Err(unsupported("unresolved pattern"));
                 };
+                // A pattern written with an alias matches the struct it stands for.
+                let def = self
+                    .typed
+                    .alias_structs
+                    .get(&(ctx.file, pat.id))
+                    .copied()
+                    .unwrap_or(def);
                 let (names, is_struct): (Vec<String>, bool) =
                     match self.resolved.def(def).map(|d| d.kind) {
                         Some(RDef::Struct) => (

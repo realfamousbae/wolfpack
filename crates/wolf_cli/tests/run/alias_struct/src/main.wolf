@@ -1,0 +1,36 @@
+//! An alias of a struct builds and matches the struct it stands for (spec chapter 4, section 7.3):
+//! literals, the update syntax and patterns, also through a generic alias.
+
+module main
+
+types {
+    struct Point {
+        x: Int
+        y: Int
+    }
+
+    struct Pair<T> {
+        left: T
+        right: T
+    }
+
+    type P = Point
+    type Names = Pair<String>
+    type Same<T> = Pair<T>
+}
+
+main {
+    let p = P { x: 1, y: 2 }
+    let q = P { x: 10, ..p.copy() }
+    print(f"{p.x} {p.y} {q.x} {q.y} {p == Point { x: 1, y: 2 }}")
+    match q {
+        P { x, y } => print(f"x {x} y {y}")
+    }
+    let n = Names { left: "a", right: "b" }
+    print(n.left + n.right)
+    let s = Same.<Int> { left: 3, right: 4 }
+    let t = Same { left: 5, right: 6 }
+    match s {
+        Same { left, right } => print(f"{left + right} {t.left * t.right}")
+    }
+}
