@@ -4,6 +4,15 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- `Display` of collections (spec chapter 4, section 9, rule 7; chapter 7, section 4.1; D4.17):
+  `List<T>` and `Option<T>` are `Display` when `T` is, `Map<K, V>` when `K` and `V` are, and
+  `Result<T, E>` when `T` is and `E` is `Display` or implements `Error`. They are written as the
+  literal that would build them: `[1, 2, 3]`, `Some("a")`, `["Ann": 31]`, `[:]`, `Ok(12)`,
+  `Err(cannot parse x)`; a `String` inside is in quotes with escapes, and a value of the interface
+  `Display` is written by its own `to_string`. So `f"{items}"`, `items.to_string()` and
+  `assert_eq` of two lists work, on every target and in the VM. In generic code the type argument
+  decides. A collection whose contents are not `Display` is E0404 (E0401 for a coercion), with
+  a note that names what it needs.
 - Methods with bounds of their own (spec chapter 4, section 8.6; D4.16): a method of a generic
   type may write `where T: Equatable` after its result type and then exists only for the types
   that have the bound; a call with another type is E0404 (E0406 for `Equatable` and `Copyable`).
