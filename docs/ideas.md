@@ -10,7 +10,6 @@ Do not implement anything listed here without an approved spec change.
 
 ## Syntax (from chapter 3)
 
-- Default method bodies in interfaces.
 - Super-interfaces: `interface Ordered: Comparable { }`.
 - Chains in conditions: `if let Some(x) = a && x > 0` (taken in 0.2 without chains).
 - `break label value`: leaving a labelled outer `loop` with a value (0.2 has `break label` and

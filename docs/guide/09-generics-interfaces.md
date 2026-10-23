@@ -325,6 +325,73 @@ Not every interface can be a type. When a method uses `Self` other than as the r
 `compare(self, other: Self)`, two values of the same type are needed, and a list of mixed shapes
 could not provide them. `Comparable` is therefore only a bound.
 
+### Default methods
+
+A method of an interface may have a body, its **default**. A type that implements the interface
+gets the default when its block leaves the method out, and replaces it with `override fn`. The
+interface's own `Named.greeting(x)` calls the default, also from a replacement that builds on it:
+
+```wolf
+module main
+
+types {
+    struct Cat {
+        nick: String
+    }
+
+    struct Dog {
+        title: String
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+
+        fn greeting(self) -> String {
+            "Hello, " + self.name() + "!"
+        }
+    }
+}
+
+impl {
+    Cat: Named {
+        fn name(self) -> String {
+            self.nick.copy()
+        }
+    }
+
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+
+        override fn greeting(self) -> String {
+            Named.greeting(self) + " Woof!"
+        }
+    }
+}
+
+main {
+    let pets: List<Named> = [Cat { nick: "Tom" }, Dog { title: "Rex" }]
+    for pet in pets {
+        print(pet.greeting())
+    }
+}
+```
+
+```output
+Hello, Tom!
+Hello, Rex! Woof!
+```
+
+- A default is checked once, for any type that implements the interface: on `self` it can use the
+  methods of the interface and nothing else, so `self.copy()` or `==` is an error there.
+- A method that replaces a default must say `override`, and `override` on anything else is an
+  error (E0443): a default is never replaced by accident.
+- The defaults a type gets are its methods, so they cannot have the name of another method of the
+  type or of one of its fields.
+
 A few more rules keep interfaces translatable to Go and Rust:
 
 - Every interface method takes `self`, and has no type parameters of its own. The interface itself
@@ -332,4 +399,4 @@ A few more rules keep interfaces translatable to Go and Rust:
 - A type implements an interface at most once, in the module that declares the type.
 - A type cannot have two methods with the same name, even from two different interfaces, and a
   method of a struct cannot have the name of one of its fields.
-- Interfaces have no default method bodies and do not extend each other.
+- Interfaces do not extend each other.
