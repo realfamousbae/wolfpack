@@ -468,8 +468,9 @@ impl Resolver<'_> {
         }
     }
 
-    fn record(&mut self, file_node: (wolf_span::FileId, NodeId), res: Res) {
+    fn record(&mut self, file_node: (wolf_span::FileId, NodeId), span: wolf_span::Span, res: Res) {
         self.res.insert(file_node, res);
+        self.spans.insert(file_node, span);
     }
 
     fn file(&self, ctx: &Ctx) -> wolf_span::FileId {
@@ -488,7 +489,7 @@ impl Resolver<'_> {
                     self.ty(ctx, arg);
                 }
                 if let Some(res) = self.type_path(ctx, path) {
-                    self.record((file, ty.id), res);
+                    self.record((file, ty.id), ty.span, res);
                 }
             }
             TyKind::Fn { params, ret } => {
@@ -509,7 +510,7 @@ impl Resolver<'_> {
                             ),
                     );
                 } else {
-                    self.record((file, ty.id), Res::SelfType);
+                    self.record((file, ty.id), ty.span, Res::SelfType);
                 }
             }
             TyKind::Error => {}
@@ -796,7 +797,7 @@ impl Resolver<'_> {
             }
             ExprKind::Name(name) => {
                 if let Some(res) = self.value_name(ctx, name, locals) {
-                    self.record((file, expr.id), res);
+                    self.record((file, expr.id), expr.span, res);
                 }
             }
             ExprKind::SelfValue => {
@@ -837,7 +838,7 @@ impl Resolver<'_> {
                     self.ty(ctx, arg);
                 }
                 if let Some(res) = self.struct_path(ctx, path, locals) {
-                    self.record((file, expr.id), res);
+                    self.record((file, expr.id), expr.span, res);
                 }
                 for field in fields {
                     match &field.value {
@@ -845,7 +846,7 @@ impl Resolver<'_> {
                         // `User { id }` uses the variable `id`.
                         None => {
                             if let Some(res) = self.value_name(ctx, &field.name, locals) {
-                                self.record((file, field.id), res);
+                                self.record((file, field.id), field.name.span, res);
                             }
                         }
                     }
@@ -938,7 +939,7 @@ impl Resolver<'_> {
         match &expr.kind {
             ExprKind::Name(name) => match self.value_name(ctx, name, locals) {
                 Some(res) => {
-                    self.record((file, expr.id), res);
+                    self.record((file, expr.id), expr.span, res);
                     match res {
                         Res::Module(m) => Head::Module(m),
                         Res::Def(def) if self.def(def).is_some_and(|d| d.kind.is_type()) => {
@@ -951,7 +952,7 @@ impl Resolver<'_> {
             },
             ExprKind::SelfType => match ctx.self_type {
                 Some(Some(owner)) => {
-                    self.record((file, expr.id), Res::SelfType);
+                    self.record((file, expr.id), expr.span, Res::SelfType);
                     Head::Type(owner)
                 }
                 Some(None) => Head::UnknownType,
@@ -966,11 +967,11 @@ impl Resolver<'_> {
             ExprKind::Field { base, name } => match self.head(ctx, base, locals) {
                 Head::Module(m) => match self.module_member(ctx, m, name) {
                     Some(Binding::Module(inner)) => {
-                        self.record((file, expr.id), Res::Module(inner));
+                        self.record((file, expr.id), expr.span, Res::Module(inner));
                         Head::Module(inner)
                     }
                     Some(Binding::Def(def)) => {
-                        self.record((file, expr.id), Res::Def(def));
+                        self.record((file, expr.id), expr.span, Res::Def(def));
                         if self.def(def).is_some_and(|d| d.kind.is_type()) {
                             Head::Type(def)
                         } else {
@@ -981,7 +982,7 @@ impl Resolver<'_> {
                 },
                 Head::Type(owner) => {
                     if let Some(member) = self.type_member(ctx, owner, name) {
-                        self.record((file, expr.id), Res::Def(member));
+                        self.record((file, expr.id), expr.span, Res::Def(member));
                     }
                     Head::Value
                 }
@@ -1073,7 +1074,7 @@ impl Resolver<'_> {
                     if let Some(Binding::Def(def)) =
                         self.lookup_module_level(ctx.module, &name.name, ctx.in_tests, true)
                     {
-                        self.record((file, pat.id), Res::Def(def));
+                        self.record((file, pat.id), pat.span, Res::Def(def));
                     }
                 } else if locals
                     .scopes
@@ -1082,22 +1083,22 @@ impl Resolver<'_> {
                 {
                     // The same name in two alternatives of `A(x) | B(x)` is one binding.
                     if let Some(id) = self.lookup_local(&name.name, locals) {
-                        self.record((file, pat.id), Res::Local(id));
+                        self.record((file, pat.id), pat.span, Res::Local(id));
                     }
                 } else {
                     self.style(name, false, "binding");
                     let id = self.declare(name, locals, Kind::Pattern);
-                    self.record((file, pat.id), Res::Local(id));
+                    self.record((file, pat.id), pat.span, Res::Local(id));
                 }
             }
             PatKind::Path(path) => {
                 if let Some(res) = self.struct_path(ctx, path, locals) {
-                    self.record((file, pat.id), res);
+                    self.record((file, pat.id), pat.span, res);
                 }
             }
             PatKind::Tuple { path, items } => {
                 if let Some(res) = self.struct_path(ctx, path, locals) {
-                    self.record((file, pat.id), res);
+                    self.record((file, pat.id), pat.span, res);
                 }
                 for item in items {
                     self.pattern(ctx, item, locals);
@@ -1105,7 +1106,7 @@ impl Resolver<'_> {
             }
             PatKind::Struct { path, fields, .. } => {
                 if let Some(res) = self.struct_path(ctx, path, locals) {
-                    self.record((file, pat.id), res);
+                    self.record((file, pat.id), pat.span, res);
                 }
                 for field in fields {
                     match &field.pat {
@@ -1113,7 +1114,7 @@ impl Resolver<'_> {
                         None => {
                             self.style(&field.name, false, "binding");
                             let id = self.declare(&field.name, locals, Kind::Pattern);
-                            self.record((file, field.id), Res::Local(id));
+                            self.record((file, field.id), field.name.span, Res::Local(id));
                         }
                     }
                 }

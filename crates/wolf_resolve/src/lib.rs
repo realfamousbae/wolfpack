@@ -230,6 +230,8 @@ pub struct Resolved {
     /// What each resolved node names: `Name` and `Field` expressions, types, patterns, struct
     /// literals and the shorthand fields of struct literals and patterns.
     pub res: BTreeMap<(FileId, NodeId), Res>,
+    /// Where each node of `res` is in the source, for tools such as the language server.
+    pub spans: BTreeMap<(FileId, NodeId), Span>,
     /// The local declared at each name span (`let`, `var`, parameters, loop variables, closure
     /// parameters, pattern bindings).
     pub local_decls: BTreeMap<Span, LocalId>,

@@ -52,6 +52,7 @@ pub(crate) struct Resolver<'a> {
     pub(crate) defs: Vec<Def>,
     pub(crate) locals: Vec<Local>,
     pub(crate) res: BTreeMap<(FileId, NodeId), Res>,
+    pub(crate) spans: BTreeMap<(FileId, NodeId), Span>,
     pub(crate) members: BTreeMap<DefId, BTreeMap<String, DefId>>,
     pub(crate) diagnostics: Vec<Diagnostic>,
     pub(crate) by_path: BTreeMap<String, ModuleId>,
@@ -91,6 +92,7 @@ impl<'a> Resolver<'a> {
             defs: Vec::new(),
             locals: Vec::new(),
             res: BTreeMap::new(),
+            spans: BTreeMap::new(),
             members: BTreeMap::new(),
             diagnostics: Vec::new(),
             by_path: BTreeMap::new(),
@@ -123,6 +125,7 @@ impl<'a> Resolver<'a> {
             locals: self.locals,
             local_decls,
             res: self.res,
+            spans: self.spans,
             members: self.members,
             impls: self
                 .impl_owners

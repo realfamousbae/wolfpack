@@ -130,3 +130,92 @@ pub fn check(modules: &[ModuleInput<'_>], resolved: &Resolved, project: &Project
     checker.eval_consts();
     checker.finish()
 }
+
+/// A type as it is written in source (`List<Int>`, `fn(Int) -> String`), for tools such as the
+/// language server.
+pub fn show(ty: &Ty, resolved: &Resolved, typed: &Typed) -> String {
+    let name = |def: &DefId| {
+        resolved
+            .def(*def)
+            .map(|d| d.name.clone())
+            .unwrap_or_default()
+    };
+    let list = |types: &[Ty]| {
+        types
+            .iter()
+            .map(|t| show(t, resolved, typed))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    match ty {
+        Ty::Named(def, args) if args.is_empty() => name(def),
+        Ty::Named(def, args) => format!("{}<{}>", name(def), list(args)),
+        Ty::Fn(params, ret) => {
+            let params: Vec<String> = params
+                .iter()
+                .map(|(mode, t)| format!("{}{}", env::mode_prefix(*mode), show(t, resolved, typed)))
+                .collect();
+            match &**ret {
+                Ty::Named(d, _) if name(d) == "Void" => format!("fn({})", params.join(", ")),
+                ret => format!(
+                    "fn({}) -> {}",
+                    params.join(", "),
+                    show(ret, resolved, typed)
+                ),
+            }
+        }
+        Ty::Param(ParamId::Decl(span)) => typed
+            .decls
+            .param_names
+            .get(span)
+            .cloned()
+            .unwrap_or_else(|| "T".to_string()),
+        Ty::Param(ParamId::SelfType) => "Self".to_string(),
+        Ty::Var(_) | Ty::Error => "_".to_string(),
+        Ty::Never => "Never".to_string(),
+    }
+}
+
+/// The signature of a function as it is written in source: `fn area(s: Shape) -> Float`, with
+/// the names of its parameters when they are given.
+pub fn show_fn(
+    name: &str,
+    sig: &Sig,
+    params: &[String],
+    resolved: &Resolved,
+    typed: &Typed,
+) -> String {
+    let mut parts = Vec::new();
+    if let Some(mode) = sig.self_mode {
+        parts.push(format!("{}self", env::mode_prefix(mode)));
+    }
+    for (i, (mode, t)) in sig.params.iter().enumerate() {
+        let ty = show(t, resolved, typed);
+        match params.get(i) {
+            Some(p) => parts.push(format!("{}{p}: {ty}", env::mode_prefix(*mode))),
+            None => parts.push(format!("{}{ty}", env::mode_prefix(*mode))),
+        }
+    }
+    let generics = if sig.generics.is_empty() {
+        String::new()
+    } else {
+        let names: Vec<String> = sig
+            .generics
+            .iter()
+            .map(|g| {
+                typed
+                    .decls
+                    .param_names
+                    .get(&g.span)
+                    .cloned()
+                    .unwrap_or_default()
+            })
+            .collect();
+        format!("<{}>", names.join(", "))
+    };
+    let ret = match &sig.ret {
+        Ty::Named(d, _) if resolved.def(*d).is_some_and(|d| d.name == "Void") => String::new(),
+        ret => format!(" -> {}", show(ret, resolved, typed)),
+    };
+    format!("fn {name}{generics}({}){ret}", parts.join(", "))
+}
