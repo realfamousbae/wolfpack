@@ -1,0 +1,199 @@
+//! Interfaces that mention `Self` beyond the receiver, as bounds: their methods and defaults on
+//! structs, enums with and without payloads and a generic type, a `mut self` default that
+//! replaces the value, `Self` inside a list, and a generic interface.
+
+module main
+
+types {
+    enum Light {
+        Red
+        Green
+        Blue
+    }
+
+    enum Shape {
+        Dot
+        Line(Int)
+    }
+
+    struct Dog {
+        title: String
+    }
+
+    struct Pair<T: Cycle + Copyable> {
+        a: T
+        b: T
+    }
+}
+
+interfaces {
+    interface Cycle {
+        fn same(self, other: Self) -> Bool
+        fn next(self) -> Self
+        fn label(self) -> String
+
+        fn differs(self, other: Self) -> Bool {
+            !self.same(other)
+        }
+
+        fn advance(mut self) {
+            self = self.next()
+        }
+
+        fn skip(mut self) -> String {
+            self.advance()
+            Cycle.advance(mut self)
+            self.label()
+        }
+
+        fn first_same(self, others: List<Self>) -> Int {
+            for i in 0..others.len() {
+                if others[i].same(self) {
+                    return i
+                }
+            }
+            -1
+        }
+    }
+
+    interface Weigh<W> {
+        fn weight(self) -> W
+        fn heavier(self, other: Self) -> Self
+    }
+}
+
+impl {
+    Light: Cycle {
+        fn same(self, other: Light) -> Bool {
+            self == other
+        }
+
+        fn next(self) -> Light {
+            match self {
+                Light.Red => Light.Green
+                Light.Green => Light.Blue
+                Light.Blue => Light.Red
+            }
+        }
+
+        fn label(self) -> String {
+            match self {
+                Light.Red => "red"
+                Light.Green => "green"
+                Light.Blue => "blue"
+            }
+        }
+    }
+
+    Light: Weigh<Int> {
+        fn weight(self) -> Int {
+            match self {
+                Light.Red => 1
+                Light.Green => 2
+                Light.Blue => 3
+            }
+        }
+
+        fn heavier(self, other: Light) -> Light {
+            if self.weight() >= other.weight() { self } else { other }
+        }
+    }
+
+    Shape: Cycle {
+        fn same(self, other: Shape) -> Bool {
+            self.label() == other.label()
+        }
+
+        fn next(self) -> Shape {
+            match self {
+                Shape.Dot => Shape.Line(1)
+                Shape.Line(n) => Shape.Line(n + 1)
+            }
+        }
+
+        fn label(self) -> String {
+            match self {
+                Shape.Dot => "dot"
+                Shape.Line(n) => f"line{n}"
+            }
+        }
+    }
+
+    Dog: Cycle {
+        fn same(self, other: Dog) -> Bool {
+            self.title == other.title
+        }
+
+        fn next(self) -> Dog {
+            Dog { title: self.title + "!" }
+        }
+
+        fn label(self) -> String {
+            self.title.copy()
+        }
+    }
+
+    Pair<T>: Cycle {
+        fn same(self, other: Pair<T>) -> Bool {
+            self.a.same(other.a) && self.b.same(other.b)
+        }
+
+        fn next(self) -> Pair<T> {
+            Pair { a: self.b.copy(), b: self.a.next() }
+        }
+
+        fn label(self) -> String {
+            f"({self.a.label()} {self.b.label()})"
+        }
+    }
+}
+
+main {
+    print(check(Light.Red, Light.Red))
+    print(check(Light.Red, Light.Green))
+    print(check(Dog { title: "a" }, Dog { title: "a" }))
+    print(check(Shape.Dot, Shape.Line(1)))
+    print(check(Pair { a: Light.Red, b: Light.Blue }, Pair { a: Light.Blue, b: Light.Green }))
+    print(f"{Light.Red.differs(Light.Green)} {Cycle.differs(Light.Blue, Light.Blue)}")
+    var l = Light.Red
+    l.advance()
+    print(l.label())
+    print(l.skip())
+    Cycle.advance(mut l)
+    print(l.label())
+    var d = Dog { title: "x" }
+    d.advance()
+    print(d.skip())
+    var s = Shape.Dot
+    print(s.skip())
+    var p = Pair { a: Light.Red, b: Light.Green }
+    print(p.skip())
+    print(f"{Light.Green.first_same([Light.Red, Light.Green])} {Dog { title: "z" }.first_same([])}")
+    var lights = [Light.Red, Light.Blue]
+    print(spin(mut lights))
+    print(heaviest([Light.Green, Light.Blue, Light.Red]).label())
+}
+
+functions {
+    fn check<T: Cycle>(a: T, b: T) -> String {
+        let n = a.next()
+        f"{a.same(b)} {a.differs(b)} {n.same(b)} {Cycle.differs(a, n)} {n.label()}"
+    }
+
+    fn spin<T: Cycle>(mut xs: List<T>) -> String {
+        var out = ""
+        for i in 0..xs.len() {
+            xs[i].advance()
+            out += xs[i].skip() + ";"
+        }
+        out
+    }
+
+    fn heaviest<T: Weigh<Int> + Copyable>(xs: List<T>) -> T {
+        var best = xs[0].copy()
+        for x in xs {
+            best = best.heavier(x)
+        }
+        best
+    }
+}

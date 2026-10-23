@@ -1,0 +1,15 @@
+true false false true green
+false true true true green
+true false false true a!
+false true true true line1
+false true true true (blue green)
+true false
+green
+red
+green
+x!!!
+line2
+(green blue)
+1 -1
+red;blue;
+blue
