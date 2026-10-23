@@ -2,9 +2,10 @@
 
 A static page that compiles wolfpack in the browser: edit `src/main.wolf`, see errors as you
 type, run the program, and read the TypeScript, Go and Rust it compiles to. The compiler is the
-crate `crates/wolf_wasm` compiled to WebAssembly; programs run as their generated TypeScript in a
-worker (ADR 0012). It is published at https://realfamousbae.github.io/wolfpack/ by the workflow
-`.github/workflows/pages.yml` on every push to `master`.
+crate `crates/wolf_wasm` compiled to WebAssembly; programs run in its virtual machine in a worker
+(`worker.js`, ADR 0012), with the box *Input* as their standard input. It is published at
+https://realfamousbae.github.io/wolfpack/ by the workflow `.github/workflows/pages.yml` on every
+push to `master`.
 
 ## Building and serving
 
@@ -24,8 +25,7 @@ brew install wasm-pack
 python3 -m http.server 8642 --directory playground
 ```
 
-Then open http://localhost:8642. The page needs network access once, to load the TypeScript
-compiler for running programs.
+Then open http://localhost:8642. The page needs no network access except for its fonts.
 
 The examples in `examples/` are checked by the tests of the compiler
 (`crates/wolf_cli/tests/guide.rs`); add a new one there and to the list in `index.html`.

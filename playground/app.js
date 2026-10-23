@@ -1,10 +1,11 @@
 // The wolfpack playground: the compiler runs in WebAssembly (`pkg/`, built from `crates/wolf_wasm`),
-// and programs run as the generated TypeScript, transpiled in the browser and run in a worker.
+// and programs run in its virtual machine in a worker (`worker.js`), which the page stops after
+// a few seconds.
 
 import init, * as wolf from "./pkg/wolf_wasm.js";
 
-const TYPESCRIPT = "https://cdn.jsdelivr.net/npm/typescript@5.9.3/lib/typescript.js";
 const RUN_LIMIT_MS = 5000;
+const OUTPUT_LIMIT = 1 << 20;
 const STORAGE_KEY = "wolfpack-playground-source";
 const MAIN_FILE = { ts: "src/main.ts", go: "main.go", rust: "src/main.rs" };
 
@@ -15,6 +16,7 @@ const view = $("view");
 const status = $("status");
 const fileSelect = $("file");
 const runButton = $("run");
+const input = $("input");
 
 let current = "output";
 let output = null; // the last result shown in the Output tab: a DOM fragment
@@ -221,75 +223,37 @@ fileSelect.addEventListener("change", () => {
 
 // ----- Running ------------------------------------------------------------------------------
 
-let typescript = null;
-
-function loadTypeScript() {
-  if (typescript) return typescript;
-  typescript = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = TYPESCRIPT;
-    script.onload = () => resolve(globalThis.ts);
-    script.onerror = () => {
-      typescript = null;
-      reject(new Error("TypeScript could not be loaded; check the network connection"));
+/** Runs the program in a worker; the result of `run_live`, or `null` when it was stopped. */
+function runInWorker(append) {
+  const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      worker.terminate();
+      append(`stopped after ${RUN_LIMIT_MS / 1000} seconds\n`, "stderr");
+      resolve(null);
+    }, RUN_LIMIT_MS);
+    const finish = (result) => {
+      clearTimeout(timer);
+      worker.terminate();
+      resolve(result);
     };
-    document.head.append(script);
+    worker.onmessage = ({ data }) => {
+      if (!data.done) {
+        append(data.text, data.stream === "stderr" ? "stderr" : "");
+      } else if (data.failed) {
+        append(`the virtual machine failed: ${data.failed}\n`, "stderr");
+        finish(null);
+      } else {
+        finish(data.result);
+      }
+    };
+    worker.onerror = (event) => {
+      append(`the virtual machine could not start: ${event.message}\n`, "stderr");
+      finish(null);
+    };
+    worker.postMessage({ source: code.value, input: input.value });
   });
-  return typescript;
 }
-
-/** Transpiles the generated files to JavaScript modules behind blob URLs; the URL of `entry`. */
-function modules(ts, files, entry) {
-  const sources = new Map(files.map((f) => [f.path, f.contents]));
-  const urls = new Map();
-  const resolve = (from, spec) => {
-    const parts = from.split("/").slice(0, -1);
-    for (const part of spec.split("/")) {
-      if (part === "..") parts.pop();
-      else if (part !== ".") parts.push(part);
-    }
-    return parts.join("/").replace(/\.js$/, ".ts");
-  };
-  const urlFor = (path) => {
-    if (urls.has(path)) return urls.get(path);
-    const source = sources.get(path);
-    if (source === undefined) throw new Error(`the generated module ${path} is missing`);
-    let js = ts.transpileModule(source, {
-      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-    }).outputText;
-    js = js.replace(
-      /(\bfrom\s*|\bimport\s*)(["'])(\.{1,2}\/[^"']+)\2/g,
-      (_, keyword, quote, spec) => `${keyword}${quote}${urlFor(resolve(path, spec))}${quote}`,
-    );
-    const url = URL.createObjectURL(new Blob([js], { type: "text/javascript" }));
-    urls.set(path, url);
-    return url;
-  };
-  return { entry: urlFor(entry), urls: [...urls.values()] };
-}
-
-const WORKER = `
-const send = (stream, text) => self.postMessage({ stream, text });
-self.process = {
-  stdout: { write: (t) => (send("stdout", t), true) },
-  stderr: { write: (t) => (send("stderr", t), true) },
-  exitCode: undefined,
-  argv: ["node", "main"],
-  env: {},
-  getBuiltinModule() {
-    throw new Error("files, input and the environment are not available in the playground");
-  },
-};
-self.onmessage = async (event) => {
-  try {
-    await import(event.data);
-  } catch (error) {
-    send("stderr", "error: " + (error && error.message ? error.message : String(error)) + "\\n");
-    self.process.exitCode = self.process.exitCode ?? 101;
-  }
-  self.postMessage({ done: true, code: self.process.exitCode ?? 0 });
-};
-`;
 
 async function run() {
   clearTimeout(checkTimer);
@@ -298,55 +262,34 @@ async function run() {
     select("output");
     return;
   }
-  const result = build("ts");
-  if (result.errors > 0) {
-    showDiagnostics(result.text);
-    select("output");
-    return;
-  }
   runButton.disabled = true;
   const pre = document.createDocumentFragment();
   output = pre;
   select("output");
+  setStatus("Running…", false);
+  let written = 0;
+  const append = (text, className) => {
+    if (written > OUTPUT_LIMIT) return;
+    written += text.length;
+    const span = document.createElement("span");
+    if (className) span.className = className;
+    span.textContent = written > OUTPUT_LIMIT ? "\n[the rest of the output is not shown]\n" : text;
+    pre.append(span);
+    if (current === "output") renderOutput();
+  };
   try {
-    setStatus("Loading TypeScript…", false);
-    const ts = await loadTypeScript();
-    setStatus("Running…", false);
-    const { entry, urls } = modules(ts, result.files, "src/main.ts");
-    const worker = new Worker(URL.createObjectURL(new Blob([WORKER], { type: "text/javascript" })), {
-      type: "module",
-    });
-    const append = (text, className) => {
-      const span = document.createElement("span");
-      if (className) span.className = className;
-      span.textContent = text;
-      pre.append(span);
-      if (current === "output") renderOutput();
-    };
-    const code = await new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        worker.terminate();
-        append(`stopped after ${RUN_LIMIT_MS / 1000} seconds\n`, "stderr");
-        resolve(null);
-      }, RUN_LIMIT_MS);
-      worker.onmessage = ({ data }) => {
-        if (data.done) {
-          clearTimeout(timer);
-          worker.terminate();
-          resolve(data.code);
-        } else {
-          append(data.text, data.stream === "stderr" ? "stderr" : "");
-        }
-      };
-      worker.postMessage(entry);
-    });
-    urls.forEach((url) => URL.revokeObjectURL(url));
-    if (code === null) setStatus("The program ran too long and was stopped.", true);
-    else if (code === 0) setStatus("The program finished.", false);
-    else setStatus(`The program exited with code ${code}.`, true);
-    if (pre.childNodes.length === 0 && code === 0) append("The program printed nothing.\n", "");
-  } catch (error) {
-    setStatus(error.message, true);
+    const result = await runInWorker(append);
+    if (result === null) {
+      setStatus("The program ran too long or failed, and was stopped.", true);
+    } else if (result.errors > 0) {
+      showDiagnostics(result.text);
+      setStatus("The program cannot run in the playground.", true);
+    } else if (result.code === 0) {
+      if (pre.childNodes.length === 0) append("The program printed nothing.\n", "");
+      setStatus("The program finished.", false);
+    } else {
+      setStatus(`The program exited with code ${result.code}.`, true);
+    }
   } finally {
     runButton.disabled = false;
   }
