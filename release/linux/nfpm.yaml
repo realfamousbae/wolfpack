@@ -1,0 +1,24 @@
+# The .deb and .rpm packages of wolf, made by the release workflow with nfpm from the static
+# build, so that they run on every distribution: `nfpm pkg --packager deb` (or `rpm`) with VERSION
+# and ARCH (amd64 or arm64) set, in a directory that holds `wolf` and the two licenses.
+name: wolfpack
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+section: devel
+priority: optional
+maintainer: "The wolfpack authors (https://github.com/realfamousbae/wolfpack)"
+description: |
+  Statically typed language that compiles to readable TypeScript, Go and Rust.
+  The wolf command checks, builds, runs, tests and formats wolfpack programs.
+homepage: https://github.com/realfamousbae/wolfpack
+license: MIT OR Apache-2.0
+contents:
+  - src: wolf
+    dst: /usr/bin/wolf
+    file_info:
+      mode: 0755
+  - src: LICENSE-MIT
+    dst: /usr/share/doc/wolfpack/LICENSE-MIT
+  - src: LICENSE-APACHE
+    dst: /usr/share/doc/wolfpack/LICENSE-APACHE

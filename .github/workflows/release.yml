@@ -23,6 +23,10 @@ jobs:
           # The oldest supported Ubuntu, so the binary runs on older glibc versions too.
           - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
           - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          # Static builds for systems without glibc 2.35 (Alpine, older distributions), and for
+          # the .deb and .rpm packages.
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl }
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
     runs-on: ${{ matrix.os }}
     steps:
@@ -36,6 +40,9 @@ jobs:
         run: |
           version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
           test "v$version" = "$GITHUB_REF_NAME"
+      - name: The C compiler of musl, for the C code of the crates
+        if: endsWith(matrix.target, '-musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo build --release --locked -p wolfpack-lang --target ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
@@ -70,14 +77,30 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          pattern: wolf-*-linux-gnu
-      - run: |
+          pattern: wolf-*-linux-*
+          path: bin
+      - name: The archives, and the .deb and .rpm packages of the static builds
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.48.0
           mkdir -p dist
-          chmod 755 wolf-*/wolf
-          tar -czf dist/wolfpack-linux-x64.tar.gz -C wolf-x86_64-unknown-linux-gnu wolf
-          tar -czf dist/wolfpack-linux-arm64.tar.gz -C wolf-aarch64-unknown-linux-gnu wolf
+          chmod 755 bin/*/wolf
+          for arch in x64:x86_64:amd64 arm64:aarch64:arm64; do
+            name=${arch%%:*}; rest=${arch#*:}; cpu=${rest%%:*}; deb=${rest#*:}
+            tar -czf "dist/wolfpack-linux-$name.tar.gz" -C "bin/wolf-$cpu-unknown-linux-gnu" wolf
+            tar -czf "dist/wolfpack-linux-$name-musl.tar.gz" -C "bin/wolf-$cpu-unknown-linux-musl" wolf
+            mkdir -p "stage-$name"
+            cp "bin/wolf-$cpu-unknown-linux-musl/wolf" LICENSE-MIT LICENSE-APACHE "stage-$name/"
+            for packager in deb rpm; do
+              (cd "stage-$name" && VERSION="$version" ARCH="$deb" "$(go env GOPATH)/bin/nfpm" pkg \
+                --config ../release/linux/nfpm.yaml --packager "$packager" \
+                --target "../dist/wolfpack-linux-$name.$packager")
+            done
+          done
+          ls -l dist
       - uses: actions/upload-artifact@v4
         with:
           name: package-linux
@@ -150,6 +173,30 @@ jobs:
           for target in ts go rust; do
             test "$("$WOLF" run --target "$target")" = "Hello, wolfpack!"
           done
+
+  # The static build where there is no glibc, and the .deb and .rpm packages where they belong.
+  try-linux:
+    needs: package-linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: package-linux
+          path: dist
+      - name: The static build on Alpine
+        run: |
+          mkdir -p musl && tar -xzf dist/wolfpack-linux-x64-musl.tar.gz -C musl
+          docker run --rm -v "$PWD/musl:/w" alpine:3.20 sh -c \
+            'cd /tmp && /w/wolf --version && /w/wolf new hello && cd hello && test "$(/w/wolf run --vm)" = "Hello, wolfpack!"'
+      - name: The .deb package on Ubuntu
+        run: |
+          sudo dpkg -i dist/wolfpack-linux-x64.deb
+          wolf --version
+          sudo dpkg -r wolfpack
+      - name: The .rpm package on Fedora
+        run: |
+          docker run --rm -v "$PWD/dist:/dist" fedora:41 sh -c \
+            'rpm -i /dist/wolfpack-linux-x64.rpm && wolf --version && cd /tmp && wolf new hello && cd hello && test "$(wolf run --vm)" = "Hello, wolfpack!"'
 
   # The terminal installers on a clean machine, with the files of this run instead of a release.
   try-scripts:
@@ -266,7 +313,7 @@ jobs:
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [try, try-scripts, try-update]
+    needs: [try, try-linux, try-scripts, try-update]
     runs-on: ubuntu-latest
     permissions:
       contents: write
