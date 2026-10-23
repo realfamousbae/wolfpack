@@ -201,6 +201,13 @@ and after a question at start.
 3. Names that the backend generates (copy and equality helpers, temporaries) use prefixes that a
    wolfpack name cannot produce. If a generated helper would collide with a user name, the helper is
    renamed, never the user name. **[INTERNAL]**
+4. Names made of two names can meet a user name: in TS the class of the variant `Shape.Circle`
+   is `ShapeCircle`, or `Shape$Circle` when the module also declares a type `ShapeCircle`. Go has
+   one namespace per package and writes private names in lower case, so even two user names can
+   meet there: a private type `Chain` and a private function `chain` are both `chain`. Go gives
+   names to the declarations of a module in their order, user declarations before the names made
+   from them (variant types, methods written as functions), and a name that is already taken gets
+   `_` suffixes until it is free (`chain_`, `shapeCircle_`). **[INTERNAL]**
 
 ## 4. Types
 
