@@ -1677,13 +1677,19 @@ func MapValues[K comparable, V any](m Map[K, V], copy func(V) V) []V {
     },
     Piece {
         name: "Show",
-        deps: &["Display"],
-        imports: &["strconv"],
+        deps: &["Display", "Text", "Option", "Result", "Map"],
+        imports: &["reflect", "strconv", "strings"],
         code: r#"// Show is to_string for a type parameter with the bound Display in an interface implementation.
 // Such a method keeps the signature of the interface and takes no dictionaries, so the
 // operation is found from the value at run time.
 func Show[T any](x T) string {
-	switch v := any(x).(type) {
+	return ShowAny(x)
+}
+
+// ShowAny is to_string of a value whose type is known only at run time, also a list, a map, an
+// option or a result (spec chapter 7, section 4.1): a String inside them is quoted.
+func ShowAny(x any) string {
+	switch v := x.(type) {
 	case int64:
 		return strconv.FormatInt(v, 10)
 	case float64:
@@ -1695,10 +1701,65 @@ func Show[T any](x T) string {
 	case Display:
 		return v.ToString()
 	}
-	if v, ok := any(&x).(Display); ok {
+	rv := reflect.ValueOf(x)
+	if rv.Kind() == reflect.Slice {
+		parts := make([]string, rv.Len())
+		for i := range parts {
+			parts[i] = PartAny(rv.Index(i).Interface())
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	}
+	p := reflect.New(rv.Type())
+	p.Elem().Set(rv)
+	if v, ok := p.Interface().(Display); ok {
 		return v.ToString()
 	}
 	panic("unreachable: no to_string")
+}
+
+// PartAny is the text of a part of a collection whose type is known only at run time.
+func PartAny(x any) string {
+	if s, ok := x.(string); ok {
+		return Quote(s)
+	}
+	return ShowAny(x)
+}
+
+// ToString writes the option for ShowAny.
+func (o Option[T]) ToString() string {
+	if o.Some {
+		return "Some(" + PartAny(o.Value) + ")"
+	}
+	return "None"
+}
+
+// ToString writes the result for ShowAny: an error by its to_string, or else its message.
+func (r Result[T, E]) ToString() string {
+	if r.Ok {
+		return "Ok(" + PartAny(r.Value) + ")"
+	}
+	if s, ok := any(r.Err).(string); ok {
+		return "Err(" + Quote(s) + ")"
+	}
+	if d, ok := any(r.Err).(Display); ok {
+		return "Err(" + d.ToString() + ")"
+	}
+	if m, ok := any(r.Err).(interface{ Message() string }); ok {
+		return "Err(" + m.Message() + ")"
+	}
+	return "Err(" + ShowAny(r.Err) + ")"
+}
+
+// ToString writes the map for ShowAny, in insertion order.
+func (m Map[K, V]) ToString() string {
+	if len(m.keys) == 0 {
+		return "[:]"
+	}
+	parts := make([]string, len(m.keys))
+	for i, k := range m.keys {
+		parts[i] = PartAny(k) + ": " + PartAny(m.values[i])
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }"#,
     },
     Piece {

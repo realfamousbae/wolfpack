@@ -509,8 +509,12 @@ export function compare<T>(a: T, b: T): Ordering {
     },
     Piece {
         name: "display",
-        deps: &["floatToString"],
-        code: r#"/** `x.to_string()` for `Display` values: built-in types or a type with `toString`. */
+        deps: &["floatToString", "quote"],
+        code: r#"/**
+ * `x.to_string()` for `Display` values: built-in types, a type with `toString`, and the lists,
+ * maps, options and results that generic code holds without their types (spec chapter 7,
+ * section 4.1): a string inside them is quoted.
+ */
 export function display(x: unknown): string {
   if (typeof x === "number") {
     return floatToString(x);
@@ -518,7 +522,39 @@ export function display(x: unknown): string {
   if (typeof x === "bigint" || typeof x === "boolean" || typeof x === "string") {
     return String(x);
   }
-  return (x as { toString(): string }).toString();
+  const part = (v: unknown): string => (typeof v === "string" ? quote(v) : display(v));
+  if (Array.isArray(x)) {
+    return "[" + x.map(part).join(", ") + "]";
+  }
+  if (x instanceof Map) {
+    if (x.size === 0) {
+      return "[:]";
+    }
+    const parts: string[] = [];
+    for (const [k, v] of x) {
+      parts.push(part(k) + ": " + part(v));
+    }
+    return "[" + parts.join(", ") + "]";
+  }
+  const o = x as { toString(): string; message(): string };
+  if (typeof x === "object" && x !== null && o.toString === Object.prototype.toString) {
+    const r = x as { some?: boolean; ok?: boolean; value?: unknown; error?: unknown };
+    if (typeof r.some === "boolean") {
+      return r.some ? "Some(" + part(r.value) + ")" : "None";
+    }
+    if (typeof r.ok === "boolean") {
+      if (r.ok) {
+        return "Ok(" + part(r.value) + ")";
+      }
+      const e = r.error as { toString(): string; message(): string };
+      const shown =
+        typeof r.error === "object" && r.error !== null && e.toString === Object.prototype.toString
+          ? e.message()
+          : part(r.error);
+      return "Err(" + shown + ")";
+    }
+  }
+  return o.toString();
 }"#,
     },
     Piece {
