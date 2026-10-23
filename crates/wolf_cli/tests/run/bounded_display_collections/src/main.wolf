@@ -1,0 +1,50 @@
+// Collections in a generic implementation of `Display`, where the method has no static type for
+// its value (spec chapter 7, section 4.1): they are written as everywhere else.
+module main
+
+types {
+    struct Box<T> {
+        value: T
+    }
+
+    struct Point {
+        x: Int
+    }
+
+    struct Oops {
+        code: Int
+    }
+}
+
+impl {
+    Box<T: Display>: Display {
+        fn to_string(self) -> String {
+            f"<{self.value}>"
+        }
+    }
+
+    Point: Display {
+        fn to_string(self) -> String {
+            f"P{self.x}"
+        }
+    }
+
+    Oops: Error {
+        fn message(self) -> String {
+            f"oops {self.code}"
+        }
+    }
+}
+
+main {
+    print(f"{Box { value: [1, 2] }} {Box { value: ["a", "b\n"] }} {Box { value: [1.5] }}")
+    let nothing: Option<Int> = None
+    print(f"{Box { value: Some("a") }} {Box { value: nothing }} {Box { value: [Some([true])] }}")
+    print(f"{Box { value: ["k": 1] }} {Box { value: [Point { x: 1 }] }}")
+    let good: Result<Int, String> = Ok(1)
+    let bad: Result<Int, String> = Err("no")
+    let oops: Result<Int, Oops> = Err(Oops { code: 2 })
+    print(f"{Box { value: good }} {Box { value: bad }} {Box { value: oops }}")
+    let shown: List<Display> = ["s", 1]
+    print(f"{Box { value: shown }} {Box { value: Box { value: ["x"] } }}")
+}

@@ -1,0 +1,4 @@
+[package]
+name = "bounded-display-collections"
+version = "0.1.0"
+kind = "cli"
