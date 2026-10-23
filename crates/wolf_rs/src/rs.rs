@@ -238,6 +238,8 @@ pub enum Item {
         name: String,
         /// Type parameters with bounds.
         generics: Vec<(String, Vec<String>)>,
+        /// Supertraits: `trait Name: Sized`.
+        supertraits: Vec<String>,
         /// Method signatures.
         methods: Vec<Fn>,
     },
@@ -1448,11 +1450,17 @@ impl Printer {
                 vis,
                 name,
                 generics,
+                supertraits,
                 methods,
             } => {
                 self.docs(out, docs, ind);
+                let supers = if supertraits.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", supertraits.join(" + "))
+                };
                 out.push_str(&format!(
-                    "{pad}{vis}trait {name}{} {{\n",
+                    "{pad}{vis}trait {name}{}{supers} {{\n",
                     self.generics(generics)
                 ));
                 for m in methods {

@@ -139,6 +139,18 @@ pub(crate) struct Emitter<'p> {
 
 // ----- small helpers --------------------------------------------------------------------------
 
+/// Whether a type mentions `Self`.
+fn mentions_self(t: &IrType) -> bool {
+    match t {
+        IrType::SelfType => true,
+        IrType::List(a) | IrType::Option(a) => mentions_self(a),
+        IrType::Map(a, b) | IrType::Result(a, b) => mentions_self(a) || mentions_self(b),
+        IrType::Named(_, args) => args.iter().any(mentions_self),
+        IrType::Fn(ps, r) => ps.iter().any(|(_, t)| mentions_self(t)) || mentions_self(r),
+        _ => false,
+    }
+}
+
 fn path(s: &str) -> Expr {
     Expr::Path(s.to_string())
 }
@@ -2164,11 +2176,22 @@ impl<'p> Emitter<'p> {
             });
         }
         let forwards = methods.clone();
+        // An interface that mentions `Self` beyond the receiver is a bound only (spec chapter 4,
+        // section 8.5): its defaults may hold, move and replace values of `Self`.
+        let sized = i
+            .methods
+            .iter()
+            .any(|f| f.params.iter().any(|p| mentions_self(&p.ty)) || mentions_self(&f.ret));
         out.push(Item::Trait {
             docs: i.docs.clone(),
             vis: self.vis(i.public),
             name: name.clone(),
             generics: generics.clone(),
+            supertraits: if sized {
+                vec!["Sized".to_string()]
+            } else {
+                Vec::new()
+            },
             methods,
         });
         if copyable {
