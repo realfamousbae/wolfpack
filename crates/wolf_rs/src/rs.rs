@@ -763,8 +763,7 @@ impl Printer {
             }
             Expr::Macro(name, args) => {
                 if name == "vec" {
-                    let head = "vec!".to_string();
-                    return self.array(&head, "[", "]", args, ind);
+                    return self.array_broken("vec!", args, ind, col, reserve);
                 }
                 let head = format!("{name}!");
                 self.args(&head, "(", ")", args, ind, col + width(&head), reserve)
@@ -795,7 +794,7 @@ impl Printer {
                 s.push_str(&format!("{}}}", spaces(ind)));
                 s
             }
-            Expr::Array(items) => self.array("", "[", "]", items, ind),
+            Expr::Array(items) => self.array_broken("", items, ind, col, reserve),
             Expr::Tuple(items) => self.args("", "(", ")", items, ind, col, reserve),
             Expr::Unary(op, x) => {
                 format!("{op}{}", self.operand(x, 12, ind, col + op.len(), reserve))
@@ -1028,6 +1027,30 @@ impl Printer {
                 .map(|s| format!("{op}{s}")),
             _ => None,
         }
+    }
+
+    /// `head[a, b]` that does not fit on one line. A single item that may overflow (a tuple, a
+    /// call, a struct literal) starts on the line of `[` and ends on the line of `]`, as the last
+    /// argument of a call does: `[(` ... `)]`.
+    fn array_broken(
+        &self,
+        head: &str,
+        items: &[Expr],
+        ind: usize,
+        col: usize,
+        reserve: usize,
+    ) -> String {
+        if let [one] = items {
+            if overflows(one, 1) {
+                let c = col + width(head) + 1;
+                let l = self.broken(one, ind, c, 1 + reserve);
+                let first = l.lines().next().unwrap_or("");
+                if c + width(first) <= MAX_WIDTH && l.contains('\n') {
+                    return format!("{head}[{l}]");
+                }
+            }
+        }
+        self.array(head, "[", "]", items, ind)
     }
 
     /// `[a, b]` over several lines: short simple items fill the lines, others one per line.
@@ -1586,6 +1609,34 @@ mod tests {
         assert_eq!(
             p.expr(&e, 1, 12, 1),
             "self\n        .tasks\n        .iter()\n        .map(|task| task.describe())\n        .collect::<Vec<_>>()"
+        );
+    }
+
+    #[test]
+    fn a_single_tuple_in_an_array_hugs_the_brackets() {
+        let p = Printer;
+        let entry = Expr::Tuple(vec![
+            Expr::Method(
+                Box::new(path("bottom")),
+                "to_string".to_string(),
+                Vec::new(),
+                Vec::new(),
+            ),
+            Expr::Struct(
+                "Dir".to_string(),
+                vec![(
+                    "files".to_string(),
+                    Expr::Call(Box::new(path("wolf_rt::Map::new")), Vec::new()),
+                )],
+            ),
+        ]);
+        let e = Expr::Call(
+            Box::new(path("wolf_rt::Map::from")),
+            vec![Expr::Array(vec![entry])],
+        );
+        assert_eq!(
+            p.expr(&e, 2, 15, 1),
+            "wolf_rt::Map::from([(\n            bottom.to_string(),\n            Dir {\n                files: wolf_rt::Map::new(),\n            },\n        )])"
         );
     }
 
