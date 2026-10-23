@@ -325,7 +325,7 @@ bounds. Associated functions are called as `Type.f(args)`.
 4. In Rust the type is `Box<dyn I>`; `own self` methods take `self: Box<Self>`. Chapter 8 has
    the mapping.
 
-### 8.6 Methods with bounds of their own **[DRAFT]** (2026-10-23)
+### 8.6 Methods with bounds of their own (author, 2026-10-23, D4.16)
 
 1. A method of a generic inherent `impl` block may add bounds to the type parameters of the block
    with `where`, written after its result type:
@@ -333,22 +333,29 @@ bounds. Associated functions are called as `Type.f(args)`.
    impl {
        Stack<T> {
            fn contains(self, item: T) -> Bool where T: Equatable {
-               self.items.any(|x| x == item)
+               for x in self.items {
+                   if x == item {
+                       return true
+                   }
+               }
+               false
            }
        }
    }
    ```
    Inside the method the added bounds hold; the other methods of the block see only the bounds
-   of the block.
+   of the block. Several parameters are separated by commas: `where T: Comparable, U: Display`.
 2. A call `s.contains(x)` needs the added bounds for the type arguments of the receiver. When one
-   is missing, the error names the method, the type and the interface (E0440): "`contains` needs
-   `List<fn() -> Int>` to be `Equatable`".
+   is missing, it is the error of a bound that is not satisfied, which names the method: E0404, or
+   E0406 for `Equatable` and `Copyable` ("`fn() -> Int` is not `Equatable`", with the label
+   "`contains` needs `Equatable`"). The same holds for the bounds that the head of the block adds
+   (chapter 3, section 2, rule 6): they too are checked at every call of a method of the block.
 3. `where` is a contextual word (chapter 1, section 4): special only between the signature of a
-   method and its body. It may name only type parameters of the block; free functions and the
-   methods of interfaces keep their bounds in `<T: ...>`, and an interface implementation block
-   adds none.
-4. std uses it (chapter 7, section 5): `items.contains(x)`, `items.index_of(x)`, `items.get(i)`,
-   `items.sort()`, `items.min()` and `items.max()` are methods of `List<T>`.
+   method and its body. It may name only type parameters of the block: a `where` on a free
+   function, in an interface, in an interface implementation block, or naming the method's own
+   type parameters or an unknown name, is an error (E0442).
+4. std uses it (chapter 7, section 5): `contains`, `index_of`, `get`, `sort`, `min` and `max` are
+   methods of `List<T>` with `where` bounds, and no longer free functions of `std.list`.
 
 ## 9. Built-in interfaces
 
@@ -460,8 +467,8 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0437 | A name after `break` that is both an enclosing label and a variable (added in 0.2) |
 | E0438 | A label that repeats the label of an enclosing loop (added in 0.2) |
 | E0439 | A struct literal or a struct pattern whose name is not a struct, an alias of one or a variant with named fields (section 7.1, rule 3; added after 0.3) |
-| E0440 | A call of a method whose `where` bounds the type arguments of the receiver do not satisfy (section 8.6, rule 2) **[DRAFT]** |
 | E0441 | A format specification that the type of the interpolation cannot take: a precision for a type other than `Float`, `0` for a type other than `Int` and `Float` (chapter 7, section 4.4) **[DRAFT]** |
+| E0442 | A `where` that is not allowed there: on a free function, in an interface or an interface implementation, or naming a type parameter that is not one of the block (section 8.6, rule 3) |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
@@ -489,7 +496,7 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.12 | 0.2: the built-in interface `Display`, implemented for `Int`, `Float`, `Bool`, `String` and by the user | **answered** (author, 2026-10-18): yes |
 | D4.13 | 0.2: the typing of `loop` (rules 9 and 9a), irrefutable patterns in `let` (rule 9b), `f"..."` needs `Display` (rule 11), codes E0433 to E0438 | **answered** (author, 2026-10-18): yes |
 | D4.14 | `==`, `.copy()` and dropping work on values at least 1,000,000 levels deep on every target and in the VM (section 7.4, rule 3) | **answered** (author, 2026-10-23): yes, at least a million levels |
-| D4.16 | **[DRAFT]** Methods with bounds of their own (section 8.6): the form `where T: Equatable` after the result type, as in Rust (instead of repeating the parameter, `fn contains<T: Equatable>`, which would declare a new `T`); code E0440; the bounded functions of `std.list` become methods too (chapter 7, section 5), and the free functions stay, so no program breaks | **proposed** (2026-10-23), waiting for the author |
+| D4.16 | Methods with bounds of their own (section 8.6): `where T: Equatable` after the result type; the error at the call is E0404 (E0406 for `Equatable` and `Copyable`), a misplaced `where` E0442; `contains`, `index_of`, `get`, `sort`, `min` and `max` become methods of `List<T>` and the free functions of `std.list` are removed | **answered** (author, 2026-10-23): `where` at the method; remove the free functions |
 | D4.17 | **[DRAFT]** `Display` of `List`, `Option`, `Map` and `Result` (section 9, rule 7; chapter 7, section 4.1): the text is written as the literal would be, strings in quotes with the escapes of chapter 1 (`["a", "b"]`, not `[a, b]`, which cannot be told from one string `"a, b"`), a map as a map literal in insertion order, and `Result` is included | **proposed** (2026-10-23), waiting for the author |
 | D4.18 | **[DRAFT]** Format specifications in interpolations (chapter 1, section 5.3a; chapter 7, section 4.4): the form `[[fill] align] ["0"] [width] ["." precision]` of Rust without its other parts; numbers align to the right by default, other values to the left; width counts Unicode scalar values; precision only for `Float` (fixed decimals, ties to even); `0` only for numbers; codes E0117 (lexical) and E0441 (a specification the type cannot take) | **proposed** (2026-10-23), waiting for the author |
 | D4.19 | **[DRAFT]** Default methods in interfaces (section 8.2, rule 4; section 8.3, rule 1): a body after the signature is the default, checked once over `Self: I` with only the methods of `I` on `self`; an implementation may leave it out or replace it with the same signature; no new diagnostic codes. Targets: Rust trait defaults; TypeScript and Go a function of the interface that the implementing types call; the VM dispatches to it | **proposed** (2026-10-23), waiting for the author |

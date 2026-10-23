@@ -32,7 +32,7 @@ generic_param = IDENT ( ":" bounds )?
 bounds       = type_path ( "+" type_path )*
 
 fn_decl      = visibility "intrinsic"? "fn" IDENT generics? "(" params? ")" ( "->" type )? where_clause? block?
-where_clause = "where" sep(IDENT ":" bounds, ",")    // [DRAFT] methods of generic impl blocks only, chapter 4, section 8.6
+where_clause = "where" sep(IDENT ":" bounds, ",")    // methods of generic inherent impl blocks only, chapter 4, section 8.6
 params       = sep(param, ",")
 param        = self_param | mode? IDENT ":" type
 self_param   = mode? "self"
@@ -83,7 +83,9 @@ Rules:
    **[PROPOSAL]** (see D3.3). Whether a signature without `self` is allowed in an interface is
    decided in chapter 4 together with register item 13.
 8. Generic parameters are written in declarations as `<T: Bound + Other>`. There is no `where`
-   clause in v1. **[PROPOSAL]**
+   clause in v1. **[PROPOSAL]** Since D4.16 (author, 2026-10-23) a method of a generic inherent
+   `impl` block may end its signature with `where T: Bound`, which adds bounds to the parameters
+   of the block for that method only (chapter 4, section 8.6); there is no other `where`.
 9. The grammar of `imports` entries is in chapter 6, the grammar of `extern` declarations in
    chapter 7.
 

@@ -108,7 +108,7 @@ Contextual:
 | `as` | inside `imports`, before an alias (chapter 6) |
 | `intrinsic` | as a modifier of a declaration in a `std` module (chapter 7) |
 | `test` | at the start of a declaration inside `tests { }` |
-| `where` | between the signature of a method and its body (chapter 4, section 8.6) **[DRAFT]** |
+| `where` | between the signature of a method and its body (chapter 4, section 8.6; D4.16) |
 
 So `let config = load()` and `let types = List.new()` are valid.
 

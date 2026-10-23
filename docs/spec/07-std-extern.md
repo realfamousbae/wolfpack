@@ -221,20 +221,22 @@ Methods of `List<T>`, available without import:
 | `filter(own self, keep: fn(T) -> Bool) -> List<T>` | **consumes** the list, see D7.4 |
 | `any(self, f: fn(T) -> Bool) -> Bool`, `all(...)`, `count(self, f: fn(T) -> Bool) -> Int` | |
 
-Operations that need a bound on `T` are **free functions** in `std.list`, because methods cannot add
-bounds to the type parameters of their `impl` block (chapter 3, D3.2) **[PROPOSAL]** (see D7.4).
-**[DRAFT]** (2026-10-23, D4.16): with chapter 4, section 8.6, the first six of them are also
-methods of `List<T>` with `where` bounds: `items.contains(x)`, `items.index_of(x)`, `items.get(i)`,
-`items.sort()`, `items.min()`, `items.max()`; the free functions stay.
+Operations that need a bound on `T` are methods with `where` bounds (chapter 4, section 8.6;
+D4.16, author, 2026-10-23); until 0.3 they were free functions of `std.list`, which are removed:
+
+| Method | |
+| --- | --- |
+| `contains(self, item: T) -> Bool where T: Equatable` | |
+| `index_of(self, item: T) -> Option<Int> where T: Equatable` | |
+| `get(self, index: Int) -> Option<T> where T: Copyable` | a copy, `None` out of range |
+| `sort(mut self) where T: Comparable` | **stable** on every target |
+| `min(self) -> Option<T> where T: Comparable + Copyable`, `max` | |
+
+Free functions of `std.list`:
 
 | Function | |
 | --- | --- |
-| `contains<T: Equatable>(items: List<T>, item: T) -> Bool` | |
-| `index_of<T: Equatable>(items: List<T>, item: T) -> Option<Int>` | |
-| `get<T: Copyable>(items: List<T>, index: Int) -> Option<T>` | a copy, `None` out of range |
-| `sort<T: Comparable>(mut items: List<T>)` | **stable** on every target |
 | `sort_by<T>(mut items: List<T>, compare: fn(T, T) -> Ordering)` | stable |
-| `min<T: Comparable + Copyable>(items: List<T>) -> Option<T>`, `max` | |
 | `sum(items: List<Int>) -> Int` | panics on overflow |
 | `range(from: Int, to: Int) -> List<Int>` | `from..to` as a list |
 
