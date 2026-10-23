@@ -348,64 +348,111 @@ export function sliceStr(text: string, start: bigint | undefined, end: bigint | 
     Piece {
         name: "eq",
         deps: &[],
-        code: r#"/** Structural `==` for lists, maps, structs, enums, `Option` and `Result`. */
+        code: r#"/**
+ * Structural `==` for lists, maps, structs, enums, `Option` and `Result`. It keeps the pairs of
+ * parts still to compare in a list instead of calling itself, so the depth of a value does not
+ * matter.
+ */
 export function eq(a: unknown, b: unknown): boolean {
-  if (a === b) {
-    return true;
-  }
-  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) {
-    return false;
-  }
-  if (Array.isArray(a)) {
-    return Array.isArray(b) && a.length === b.length && a.every((x, i) => eq(x, b[i]));
-  }
-  if (a instanceof Map) {
-    if (!(b instanceof Map) || a.size !== b.size) {
+  const pending: unknown[] = [a, b];
+  while (pending.length > 0) {
+    const y = pending.pop();
+    const x = pending.pop();
+    if (x === y) {
+      continue;
+    }
+    if (typeof x !== "object" || typeof y !== "object" || x === null || y === null) {
       return false;
     }
-    for (const [k, v] of a) {
-      if (!b.has(k) || !eq(v, b.get(k))) {
+    if (Array.isArray(x)) {
+      if (!Array.isArray(y) || x.length !== y.length) {
         return false;
       }
+      for (let i = 0; i < x.length; i++) {
+        pending.push(x[i], y[i]);
+      }
+    } else if (x instanceof Map) {
+      if (!(y instanceof Map) || x.size !== y.size) {
+        return false;
+      }
+      for (const [k, v] of x) {
+        if (!y.has(k)) {
+          return false;
+        }
+        pending.push(v, y.get(k));
+      }
+    } else {
+      if (Object.getPrototypeOf(x) !== Object.getPrototypeOf(y)) {
+        return false;
+      }
+      const keys = Object.keys(x);
+      if (keys.length !== Object.keys(y).length) {
+        return false;
+      }
+      const rx = x as Record<string, unknown>;
+      const ry = y as Record<string, unknown>;
+      for (const k of keys) {
+        pending.push(rx[k], ry[k]);
+      }
     }
-    return true;
   }
-  if (Object.getPrototypeOf(a) !== Object.getPrototypeOf(b)) {
-    return false;
-  }
-  const ka = Object.keys(a);
-  const kb = Object.keys(b);
-  if (ka.length !== kb.length) {
-    return false;
-  }
-  const ra = a as Record<string, unknown>;
-  const rb = b as Record<string, unknown>;
-  return ka.every((k) => eq(ra[k], rb[k]));
+  return true;
 }"#,
     },
     Piece {
         name: "copy",
         deps: &[],
-        code: r#"/** `.copy()`: a deep copy that keeps classes. */
+        code: r#"/**
+ * `.copy()`: a deep copy that keeps classes. Each list, map or object is first copied with the
+ * parts of the original in it, and its parts are then replaced by their own copies, one at a
+ * time, so the depth of a value does not matter.
+ */
 export function copy<T>(value: T): T {
+  const out = copyOneLevel(value);
+  const pending: unknown[] = out === value ? [] : [out];
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    if (Array.isArray(next)) {
+      for (let i = 0; i < next.length; i++) {
+        const part = copyOneLevel(next[i]);
+        if (part !== next[i]) {
+          next[i] = part;
+          pending.push(part);
+        }
+      }
+    } else if (next instanceof Map) {
+      for (const [k, v] of next) {
+        const part = copyOneLevel(v);
+        if (part !== v) {
+          next.set(k, part);
+          pending.push(part);
+        }
+      }
+    } else {
+      const parts = next as Record<string, unknown>;
+      for (const k of Object.keys(parts)) {
+        const part = copyOneLevel(parts[k]);
+        if (part !== parts[k]) {
+          parts[k] = part;
+          pending.push(part);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** A new list, map or object whose parts are still those of `value`; other values as they are. */
+function copyOneLevel<T>(value: T): T {
   if (typeof value !== "object" || value === null) {
     return value;
   }
   if (Array.isArray(value)) {
-    return value.map(copy) as T;
+    return value.slice() as T;
   }
   if (value instanceof Map) {
-    const out = new Map();
-    for (const [k, v] of value) {
-      out.set(copy(k), copy(v));
-    }
-    return out as T;
+    return new Map(value) as T;
   }
-  const out = Object.create(Object.getPrototypeOf(value)) as Record<string, unknown>;
-  for (const [k, v] of Object.entries(value)) {
-    out[k] = copy(v);
-  }
-  return out as T;
+  return Object.assign(Object.create(Object.getPrototypeOf(value)), value) as T;
 }"#,
     },
     Piece {
