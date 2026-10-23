@@ -114,21 +114,30 @@ section 9); `String` implements it too and returns a copy.
 
 `ParseError` is a struct implementing `Error`; its message names the input.
 
-**Text of collections** **[DRAFT]** (2026-10-23, chapter 4, section 9, rule 7): the `to_string` of
-a list, an option, a map and a result writes it as the literal that would build it, with the
+**Text of collections** (author, 2026-10-23, chapter 4, section 9, rule 7): the `to_string` of a
+list, an option, a map and a result writes it as the literal that would build it, with the
 `to_string` of the parts:
 
 | Value | Text |
 | --- | --- |
 | `[1, 2, 3]`, `[]` | `[1, 2, 3]`, `[]` |
-| `["a", "b\n"]` | `["a", "b\n"]`: a `String` part is in quotes, with the escapes of chapter 1, section 5.3 for `"`, `\` and control characters |
+| `[1.0, 2.5]` | `[1.0, 2.5]`: a `Float` part in the canonical format below |
+| `["a", "b\n"]` | `["a", "b\n"]`: a part of type `String` is in quotes and escaped (below) |
 | `Some(2.5)`, `None` | `Some(2.5)`, `None` |
-| `Ok(1)`, `Err(e)` | `Ok(1)`, `Err(` and the text of `e` `)` |
 | `["Ann": 31, "Bob": 25]`, an empty map | `["Ann": 31, "Bob": 25]` in insertion order, `[:]` |
+| `Ok(12)`, `Err("bad")` | `Ok(12)`, `Err("bad")`: an error of a `Display` type by its `to_string` |
+| `Err(e)` with `e` a `ParseError` | `Err(not a number: x)`: an error that is not `Display` but implements `Error`, by `message()`, without quotes |
 | `[Some([1]), None]` | `[Some([1]), None]`: parts that are collections are written the same way |
 
-A part of another type is written by its own `to_string`, without quotes: a list of `Point`s
-whose `to_string` gives `(1, 2)` is `[(1, 2), (3, 4)]`.
+1. A part whose type is `String` is written in `"` quotes. Inside them `"` is `\"`, `\` is
+   `\\`, line feed, carriage return, tab and U+0000 are `\n`, `\r`, `\t` and `\0`, and the
+   other control characters (U+0001 to U+001F and U+007F) are `\u{` with their code in lower-case
+   hexadecimal without leading zeros `}` (`\u{1b}`); every other character is written as it is.
+   A `String` written by itself, outside a collection, keeps no quotes: `f"{name}"` is `Ann`.
+2. A part of any other type is written by its own `to_string`, without quotes: a list of `Point`s
+   whose `to_string` gives `(1, 2)` is `[(1, 2), (3, 4)]`, and a list of the interface type
+   `Display` writes each value as its `to_string` gives it.
+3. Parts are separated by `, `, and a key from its value by `: `; nothing is ever cut.
 
 **Canonical `Float` format** (G9) **[PROPOSAL]** (see D7.2):
 

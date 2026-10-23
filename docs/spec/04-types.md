@@ -384,11 +384,13 @@ bounds. Associated functions are called as `Type.f(args)`.
    section 4.1; for `String` it returns a copy of the string. By the coherence rule (section 8.3)
    a user cannot implement it for `List`, `Option` or other built-in types; `f"{items}"` with a
    list is an error, and the text is built with std functions (`join`).
-7. **[DRAFT]** (2026-10-23, D4.17) **`Display` of collections.** `List<T>` and `Option<T>` are
-   `Display` when `T` is, `Map<K, V>` when `K` and `V` are, and `Result<T, E>` when `T` and `E`
-   are: the implementations are built in, like those of `Equatable`, and written as chapter 7,
-   section 4.1 shows (`[1, 2, 3]`, `Some("a")`, `["Ann": 31]`). `f"{items}"` and `assert_eq` of
-   two lists then work; the last sentence of rule 6 no longer holds.
+7. **`Display` of collections** (author, 2026-10-23, D4.17). `List<T>` and `Option<T>` are
+   `Display` when `T` is, and `Map<K, V>` when `K` and `V` are. `Result<T, E>` is `Display` when
+   `T` is and `E` is `Display` or implements `Error` (whose `message()` then gives the text of an
+   `Err`). These implementations are built in, like those of `Equatable`, and write the value as
+   chapter 7, section 4.1 shows (`[1, 2, 3]`, `Some("a")`, `["Ann": 31]`, `Ok(12)`), so
+   `f"{items}"` and `assert_eq` of two lists or two results work. The last sentence of rule 6 no
+   longer holds.
 
 ## 10. Type inference
 
@@ -497,7 +499,7 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.13 | 0.2: the typing of `loop` (rules 9 and 9a), irrefutable patterns in `let` (rule 9b), `f"..."` needs `Display` (rule 11), codes E0433 to E0438 | **answered** (author, 2026-10-18): yes |
 | D4.14 | `==`, `.copy()` and dropping work on values at least 1,000,000 levels deep on every target and in the VM (section 7.4, rule 3) | **answered** (author, 2026-10-23): yes, at least a million levels |
 | D4.16 | Methods with bounds of their own (section 8.6): `where T: Equatable` after the result type; the error at the call is E0404 (E0406 for `Equatable` and `Copyable`), a misplaced `where` E0442; `contains`, `index_of`, `get`, `sort`, `min` and `max` become methods of `List<T>` and the free functions of `std.list` are removed | **answered** (author, 2026-10-23): `where` at the method; remove the free functions |
-| D4.17 | **[DRAFT]** `Display` of `List`, `Option`, `Map` and `Result` (section 9, rule 7; chapter 7, section 4.1): the text is written as the literal would be, strings in quotes with the escapes of chapter 1 (`["a", "b"]`, not `[a, b]`, which cannot be told from one string `"a, b"`), a map as a map literal in insertion order, and `Result` is included | **proposed** (2026-10-23), waiting for the author |
+| D4.17 | `Display` of `List`, `Option`, `Map` and `Result` (section 9, rule 7; chapter 7, section 4.1): written as the literal would be, strings in quotes with the escapes of chapter 7, a map as a map literal in insertion order; `Result` also when its error implements `Error`, through `message()` | **answered** (author, 2026-10-23): strings in quotes, `Result` with `Error` too, maps as `["Ann": 31]` |
 | D4.18 | **[DRAFT]** Format specifications in interpolations (chapter 1, section 5.3a; chapter 7, section 4.4): the form `[[fill] align] ["0"] [width] ["." precision]` of Rust without its other parts; numbers align to the right by default, other values to the left; width counts Unicode scalar values; precision only for `Float` (fixed decimals, ties to even); `0` only for numbers; codes E0117 (lexical) and E0441 (a specification the type cannot take) | **proposed** (2026-10-23), waiting for the author |
 | D4.19 | **[DRAFT]** Default methods in interfaces (section 8.2, rule 4; section 8.3, rule 1): a body after the signature is the default, checked once over `Self: I` with only the methods of `I` on `self`; an implementation may leave it out or replace it with the same signature; no new diagnostic codes. Targets: Rust trait defaults; TypeScript and Go a function of the interface that the implementing types call; the VM dispatches to it | **proposed** (2026-10-23), waiting for the author |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
