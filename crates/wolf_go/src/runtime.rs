@@ -352,8 +352,19 @@ func message(r any) string {
 }"#,
     },
     Piece {
+        name: "deepStacks",
+        deps: &[],
+        imports: &["math", "runtime/debug"],
+        code: r#"// allowDeepStacks lets the stack of a goroutine grow to 2 GiB instead of Go's 1 GB: equality and
+// copies of values a million levels deep call themselves once per level (spec chapter 4, section
+// 7.4). Only the part of the stack that the program reaches is used.
+func allowDeepStacks() {
+	debug.SetMaxStack(int(min(2<<30, uint64(math.MaxInt))))
+}"#,
+    },
+    Piece {
         name: "RunMain",
-        deps: &["message"],
+        deps: &["message", "deepStacks"],
         imports: &["os"],
         code: r#"func recovered() {
 	if r := recover(); r != nil {
@@ -364,6 +375,7 @@ func message(r any) string {
 
 // RunMain runs main.
 func RunMain(main func()) {
+	allowDeepStacks()
 	defer recovered()
 	main()
 }"#,
@@ -374,6 +386,7 @@ func RunMain(main func()) {
         imports: &["os"],
         code: r#"// RunMainResult runs a main that returns Result<Void, Error>.
 func RunMainResult(main func() error) {
+	allowDeepStacks()
 	defer recovered()
 	if err := main(); err != nil {
 		text := err.Error()
@@ -406,7 +419,7 @@ func RunMainArgsResult(main func([]string) error) {
     },
     Piece {
         name: "Test",
-        deps: &["message"],
+        deps: &["message", "deepStacks"],
         imports: &["fmt"],
         code: r#"// T is the part of *testing.T that tests use.
 type T interface {
@@ -415,6 +428,7 @@ type T interface {
 
 // Test runs the body of a test; a panic fails the test with its message.
 func Test(t T, body func()) {
+	allowDeepStacks()
 	failed := true
 	defer func() {
 		if r := recover(); r != nil || failed {
