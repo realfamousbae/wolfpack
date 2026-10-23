@@ -1,9 +1,5 @@
 module main
 
-imports {
-    std.list
-}
-
 types {
     struct Point {
         x: Int
@@ -12,7 +8,7 @@ types {
 
 main {
     var prices = [1.5, 0.5]
-    list.sort(mut prices)
+    prices.sort()
     var points = [Point { x: 1 }]
-    list.sort(mut points)
+    points.sort()
 }

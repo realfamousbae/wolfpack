@@ -115,7 +115,7 @@ main {
         Ordering.Less => print("less")
         Ordering.Equal | Ordering.Greater => print("not less")
     }
-    let maybe = list.get(lens, 0)
+    let maybe = lens.get(0)
     let shown = match maybe {
         Some(v) => v.to_string()
         None => panic("empty")

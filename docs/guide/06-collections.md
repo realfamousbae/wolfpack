@@ -76,11 +76,12 @@ element. `filter` keeps the elements for which the function returns `true`; it *
 list, so after `prices.filter(...)` the variable `prices` is moved. Pass a copy to keep it:
 `prices.copy().filter(...)`.
 
-### The `std.list` module
+### Sorting, searching and `std.list`
 
-Some operations need more from the element type than a list can promise for every `T`: sorting
-needs elements that can be compared, searching needs elements that can be checked for equality.
-They are free functions of the module `std.list`, which is imported:
+Some methods need more from the element type than a list can promise for every `T`: sorting needs
+elements that can be compared, searching needs elements that can be checked for equality. They
+exist only for the lists whose elements can do it (chapter 9, *Methods that need more*). A few
+more operations are free functions of the module `std.list`, which is imported:
 
 ```wolf
 module main
@@ -91,11 +92,11 @@ imports {
 
 main {
     var scores = [42, 7, 19, 7]
-    list.sort(mut scores)
+    scores.sort()
     print(scores[0].to_string() + " " + scores[3].to_string())
-    print(list.contains(scores, 19).to_string())
+    print(scores.contains(19).to_string())
     print(list.sum(scores).to_string())
-    match list.max(scores) {
+    match scores.max() {
         Some(best) => print("best " + best.to_string())
         None => print("no scores")
     }
@@ -115,17 +116,20 @@ ann Bob Cid
 4
 ```
 
-| Function | |
-| --- | --- |
-| `list.contains(items, x)`, `list.index_of(items, x)` | search for an element |
-| `list.get(items, i)` | a copy of the element, or `None` outside the list |
-| `list.sort(mut items)`, `list.sort_by(mut items, compare)` | stable sorts |
-| `list.min(items)`, `list.max(items)` | `None` for an empty list |
-| `list.sum(items)` | sum of a `List<Int>` |
-| `list.range(from, to)` | the integers from `from` up to `to`, as a list |
+| Method or function | Needs | |
+| --- | --- | --- |
+| `items.contains(x)`, `items.index_of(x)` | `Equatable` elements | search for an element |
+| `items.get(i)` | `Copyable` elements | a copy of the element, or `None` outside the list |
+| `items.sort()` | `Comparable` elements | a stable sort |
+| `items.min()`, `items.max()` | `Comparable` elements | `None` for an empty list |
+| `list.sort_by(mut items, compare)` | | a stable sort by a comparison function |
+| `list.sum(items)` | | sum of a `List<Int>` |
+| `list.range(from, to)` | | the integers from `from` up to `to`, as a list |
 
-`list.sort` needs elements that are `Comparable`: `Int`, `String`, or your own types (chapter 9).
-`Float` is not `Comparable`, because NaN has no place in an order; sort floats with `sort_by`.
+`Comparable` elements are `Int`, `String`, or your own types (chapter 9). `Float` is not
+`Comparable`, because NaN has no place in an order; sort floats with `list.sort_by`. Before 0.4
+the methods of the first four lines were functions of `std.list` too: `list.sort(mut items)` is
+now `items.sort()`.
 `compare` returns an `Ordering`: `Ordering.Less`, `Ordering.Equal` or `Ordering.Greater`.
 
 ## Maps

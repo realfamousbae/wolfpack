@@ -68,7 +68,7 @@ file
             (struct Rect (w: 2.0) (h: 3.0))
             (struct Rect (w: 0.5) (h: 2.0))
         match
-          (call (. list max) rects)
+          (call (. rects max))
           =>
             (Some r)
             call

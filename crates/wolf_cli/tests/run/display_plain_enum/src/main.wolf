@@ -3,7 +3,6 @@
 module main
 
 imports {
-    std.list
     std.string
 }
 
@@ -56,14 +55,14 @@ main {
     print(show(largest([Color.Red, Color.Blue, Color.Green])))
     print(twice(Color.Red))
     var cs = [Color.Blue, Color.Red, Color.Green]
-    list.sort(mut cs)
+    cs.sort()
     print(string.join(cs.map(|c| c.to_string()), ","))
     print(show(3) + show("s") + show(1.5))
-    match list.max(cs) {
+    match cs.max() {
         Some(c) => print(c.to_string())
         None => print("none")
     }
-    match list.min([Color.Blue, Color.Green]) {
+    match [Color.Blue, Color.Green].min() {
         Some(c) => print(c.to_string())
         None => print("none")
     }
@@ -108,7 +107,7 @@ functions {
 
     fn sorted_names<T: Display + Comparable>(own items: List<T>) -> String {
         var xs = items
-        list.sort(mut xs)
+        xs.sort()
         string.join(xs.map(|x| show(x)), ",")
     }
 }

@@ -5,7 +5,6 @@ module main
 
 imports {
     std.string
-    std.list
 }
 
 types {
@@ -87,7 +86,7 @@ main {
     print(loud(zoo) + " | " + loud(zoo2))
     let words = "one two three".split(" ")
     var lens = words.map(|w| w.len())
-    list.sort(mut lens)
+    lens.sort()
     print(lens.map(|n| n.to_string()).len().to_string() + " " + lens[2].to_string())
     let nested = |x: Int| -> Int {
         let add = |y: Int| -> Int { x + y }

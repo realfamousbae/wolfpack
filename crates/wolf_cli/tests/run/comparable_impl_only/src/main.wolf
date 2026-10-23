@@ -3,7 +3,6 @@
 module main
 
 imports {
-    std.list
     std.string
 }
 
@@ -31,6 +30,6 @@ main {
         Version { major: 1, minor: 5 },
         Version { major: 1, minor: 2 },
     ]
-    list.sort(mut vs)
+    vs.sort()
     print(string.join(vs.map(|v| v.major.to_string() + "." + v.minor.to_string()), " "))
 }

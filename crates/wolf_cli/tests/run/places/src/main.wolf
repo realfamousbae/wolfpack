@@ -4,7 +4,7 @@
 module main
 
 imports {
-    std.list.{sort, sort_by, min, max, get}
+    std.list.{sort_by}
     std.map.{values}
     std.string.{join}
 }
@@ -111,7 +111,7 @@ functions {
         let part = items[1..]
         let some = items[..=1]
         print(f"slices {part.len()} {some[1]} {"wolfpack"[1..4]}")
-        let found = get(items, 5)
+        let found = items.get(5)
         let none = match found {
             Some(_) => "some"
             None => "none"
@@ -192,19 +192,19 @@ functions {
 
     fn sorting() {
         var words = ["pear", "fig", "apple", "kiwi"]
-        sort(mut words)
+        words.sort()
         print(join(words, " "))
         var pairs = [
             Pair { left: 2, right: 1 },
             Pair { left: 1, right: 2 },
             Pair { left: 2, right: 0 },
         ]
-        sort(mut pairs)
+        pairs.sort()
         print(f"{pairs[0].right} {pairs[1].right} {pairs[2].right}")
         sort_by(mut words, |a, b| b.len().compare(a.len()))
         print(join(words, " "))
-        if let Some(low) = min(pairs) {
-            if let Some(high) = max(pairs) {
+        if let Some(low) = pairs.min() {
+            if let Some(high) = pairs.max() {
                 print(f"min {low.left}/{low.right}, max {high.left}/{high.right}")
             }
         }

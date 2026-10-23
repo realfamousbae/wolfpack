@@ -3959,22 +3959,22 @@ impl<'p> Emitter<'p> {
                 );
                 Expr::Cast(Box::new(c), Type::name("i64"))
             }
-            "list.contains" => {
-                let l = op(self, 0)?;
+            "list.List.contains" => {
+                let l = read(self, 0)?;
                 let x = read(self, 1)?;
-                method(l, "contains", vec![x])
+                self.rt_call("list", "contains", vec![l, x])
             }
-            "list.index_of" => {
+            "list.List.index_of" => {
                 let l = read(self, 0)?;
                 let x = read(self, 1)?;
                 self.rt_call("list", "index_of", vec![l, x])
             }
-            "list.get" => {
+            "list.List.get" => {
                 let l = read(self, 0)?;
                 let i = op(self, 1)?;
                 self.rt_call("list", "get", vec![l, i])
             }
-            "list.sort" => {
+            "list.List.sort" => {
                 let l = get(0)?;
                 let l = self.expr(l, Want::Mut)?;
                 self.rt_call("sort", "sort", vec![l])
@@ -3986,7 +3986,7 @@ impl<'p> Emitter<'p> {
                 let f = self.expr(f, Want::Read(true))?;
                 self.rt_call("sort", "sort_by", vec![l, f])
             }
-            "list.min" | "list.max" => {
+            "list.List.min" | "list.List.max" => {
                 let l = read(self, 0)?;
                 let f = if short.ends_with("min") { "min" } else { "max" };
                 self.rt_call("sort", f, vec![l])

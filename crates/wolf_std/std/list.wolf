@@ -25,19 +25,20 @@ impl {
         pub intrinsic fn any(self, f: fn(T) -> Bool) -> Bool
         pub intrinsic fn all(self, f: fn(T) -> Bool) -> Bool
         pub intrinsic fn count(self, f: fn(T) -> Bool) -> Int
+        pub intrinsic fn contains(self, item: T) -> Bool where T: Equatable
+        pub intrinsic fn index_of(self, item: T) -> Option<Int> where T: Equatable
+        /// A copy of the element at `index`; `None` out of range.
+        pub intrinsic fn get(self, index: Int) -> Option<T> where T: Copyable
+        /// Sorts in place; stable on every target.
+        pub intrinsic fn sort(mut self) where T: Comparable
+        pub intrinsic fn min(self) -> Option<T> where T: Comparable + Copyable
+        pub intrinsic fn max(self) -> Option<T> where T: Comparable + Copyable
     }
 }
 
 functions {
-    pub intrinsic fn contains<T: Equatable>(items: List<T>, item: T) -> Bool
-    pub intrinsic fn index_of<T: Equatable>(items: List<T>, item: T) -> Option<Int>
-    pub intrinsic fn get<T: Copyable>(items: List<T>, index: Int) -> Option<T>
-    /// Sorts in place; stable on every target.
-    pub intrinsic fn sort<T: Comparable>(mut items: List<T>)
     /// Sorts in place with a comparison function; stable.
     pub intrinsic fn sort_by<T>(mut items: List<T>, compare: fn(T, T) -> Ordering)
-    pub intrinsic fn min<T: Comparable + Copyable>(items: List<T>) -> Option<T>
-    pub intrinsic fn max<T: Comparable + Copyable>(items: List<T>) -> Option<T>
     pub intrinsic fn sum(items: List<Int>) -> Int
     /// `from..to` as a list.
     pub intrinsic fn range(from: Int, to: Int) -> List<Int>

@@ -861,7 +861,7 @@ impl Comparable for String {
     Piece {
         name: "sort",
         deps: &["Comparable"],
-        code: r#"/// `std.list.sort`: a stable sort.
+        code: r#"/// `List.sort`: a stable sort.
 pub fn sort<T: Comparable>(items: &mut [T]) {
     items.sort_by(|a, b| order(a.compare(b)));
 }
@@ -871,12 +871,12 @@ pub fn sort_by<T>(items: &mut [T], compare: &dyn Fn(&T, &T) -> Ordering) {
     items.sort_by(|a, b| order(compare(a, b)));
 }
 
-/// `std.list.min`
+/// `List.min`
 pub fn min<T: Comparable + Clone>(items: &[T]) -> Option<T> {
     best(items, Ordering::Less)
 }
 
-/// `std.list.max`
+/// `List.max`
 pub fn max<T: Comparable + Clone>(items: &[T]) -> Option<T> {
     best(items, Ordering::Greater)
 }
@@ -918,12 +918,17 @@ pub fn swap<T>(items: &mut [T], i: i64, j: i64) {
     items.swap(a, b);
 }
 
-/// `std.list.index_of`
-pub fn index_of<T: PartialEq>(items: &[T], item: &T) -> Option<i64> {
+/// `List.contains`: a `&str` item finds a `String` element.
+pub fn contains<T: PartialEq<U>, U: ?Sized>(items: &[T], item: &U) -> bool {
+    items.iter().any(|x| x == item)
+}
+
+/// `List.index_of`
+pub fn index_of<T: PartialEq<U>, U: ?Sized>(items: &[T], item: &U) -> Option<i64> {
     items.iter().position(|x| x == item).map(|i| i as i64)
 }
 
-/// `std.list.get`
+/// `List.get`
 pub fn get<T: Clone>(items: &[T], i: i64) -> Option<T> {
     usize::try_from(i).ok().and_then(|k| items.get(k)).cloned()
 }"#,

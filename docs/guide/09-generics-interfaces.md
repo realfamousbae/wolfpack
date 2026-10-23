@@ -134,6 +134,55 @@ the missing interface. Four interfaces are built in:
 `Equatable` and `Copyable` are derived from the fields of a type and cannot be written by hand.
 `Comparable` is implemented like any other interface.
 
+### Methods that need more
+
+A method of a generic type may need more from `T` than the type itself does. It says so with
+`where` after its result type, and exists only for the types that have it:
+
+```wolf
+module main
+
+types {
+    struct Shelf<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Shelf<T> {
+        fn size(self) -> Int {
+            self.items.len()
+        }
+
+        fn has(self, item: T) -> Bool where T: Equatable {
+            for x in self.items {
+                if x == item {
+                    return true
+                }
+            }
+            false
+        }
+    }
+}
+
+main {
+    let books = Shelf { items: ["Dune", "Emma"] }
+    print(f"{books.size()} {books.has("Emma")}")
+    let tasks = Shelf { items: [|| 1] }
+    print(tasks.size().to_string())
+}
+```
+
+```output
+2 true
+1
+```
+
+`tasks.size()` works for a shelf of functions, but `tasks.has(...)` would be an error at the call:
+functions are not `Equatable`. Lists work the same way: `items.contains(x)`, `items.sort()` and
+`items.max()` exist for the lists whose elements can do it. `where` names only the type
+parameters of the `impl` block; a free function puts its bounds after its name, `<T: Equatable>`.
+
 ## Interfaces
 
 An **interface** is a set of method signatures. A type implements it in the `impl` section with a
@@ -141,10 +190,6 @@ block `Type: Interface { ... }` that defines every method, with exactly the decl
 
 ```wolf
 module main
-
-imports {
-    std.list
-}
 
 types {
     struct Rect {
@@ -205,7 +250,7 @@ main {
         print(shape.name() + " " + shape.area().to_string())
     }
     var rects = [Rect { w: 5.0, h: 1.0 }, Rect { w: 1.0, h: 1.0 }]
-    list.sort(mut rects)
+    rects.sort()
     print(rects[0].area().to_string())
 }
 
@@ -230,7 +275,7 @@ square 4.0
 An interface is used in two ways:
 
 - **As a bound**: `fn largest<T: Comparable + Copyable>(...)` works with any one type that has the
-  interface. `list.sort` needs `Comparable`, so `Rect` implements it.
+  interface. `rects.sort()` needs `Comparable`, so `Rect` implements it.
 - **As a type**: `List<Shape>` holds values of different types that all implement `Shape`. A value
   of a concrete type becomes a `Shape` where a `Shape` is expected, as in the list above. Such a
   value supports the methods of the interface and `.copy()`, but not `==`, and it cannot be turned

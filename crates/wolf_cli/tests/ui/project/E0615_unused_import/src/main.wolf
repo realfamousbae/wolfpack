@@ -2,7 +2,7 @@ module main
 
 imports {
     std.fs
-    std.list.{sort, sum}
+    std.list.{range, sum}
 }
 
 main {

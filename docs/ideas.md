@@ -23,8 +23,6 @@ Do not implement anything listed here without an approved spec change.
 
 ## Standard library (from chapter 7)
 
-- Bounds on individual methods (`fn contains(self, item: T) -> Bool where T: Equatable`), so that
-  `items.contains(x)` and `items.sort()` can be methods instead of free functions in `std.list`.
 - Full Unicode case mapping (`to_upper`), once the targets can be made to agree.
 - `Display` for `List`, `Option` and `Map` when their elements are `Display`, so that `f"{items}"`
   works.

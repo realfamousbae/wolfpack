@@ -6,11 +6,11 @@ error[E0615]: unused import `fs`
   |
   = help: remove it from `imports`
 
-error[E0615]: unused import `sort`
+error[E0615]: unused import `range`
   --> src/main.wolf:5:15
   |
-5 |     std.list.{sort, sum}
-  |               ^^^^ imported but never used
+5 |     std.list.{range, sum}
+  |               ^^^^^ imported but never used
   |
   = help: remove it from `imports`
 

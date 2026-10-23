@@ -1272,13 +1272,13 @@ func ListCount[T any](items []T, f func(T) bool) int64 {
 	return n
 }
 
-// ListContains is std.list.contains.
+// ListContains is List.contains.
 func ListContains[T any](items []T, item T, eq func(T, T) bool) bool {
 	_, found := ListIndexOf(items, item, eq)
 	return found
 }
 
-// ListIndexOf is std.list.index_of.
+// ListIndexOf is List.index_of.
 func ListIndexOf[T any](items []T, item T, eq func(T, T) bool) (int64, bool) {
 	for i, x := range items {
 		if eq(x, item) {
@@ -1288,7 +1288,7 @@ func ListIndexOf[T any](items []T, item T, eq func(T, T) bool) (int64, bool) {
 	return 0, false
 }
 
-// ListGet is std.list.get.
+// ListGet is List.get.
 func ListGet[T any](items []T, i int64, copy func(T) T) (T, bool) {
 	if i < 0 || i >= int64(len(items)) {
 		var zero T
@@ -1319,19 +1319,19 @@ func ListRange(from, to int64) []int64 {
         name: "sort",
         deps: &["Ordering"],
         imports: &["slices"],
-        code: r#"// ListSort is std.list.sort: a stable sort.
+        code: r#"// ListSort is List.sort: a stable sort.
 func ListSort[T any](items []T, compare func(T, T) Ordering) {
 	slices.SortStableFunc(items, func(a, b T) int {
 		return order(compare(a, b))
 	})
 }
 
-// ListMin is std.list.min.
+// ListMin is List.min.
 func ListMin[T any](items []T, compare func(T, T) Ordering, copy func(T) T) (T, bool) {
 	return best(items, compare, copy, OrderingLess)
 }
 
-// ListMax is std.list.max.
+// ListMax is List.max.
 func ListMax[T any](items []T, compare func(T, T) Ordering, copy func(T) T) (T, bool) {
 	return best(items, compare, copy, OrderingGreater)
 }

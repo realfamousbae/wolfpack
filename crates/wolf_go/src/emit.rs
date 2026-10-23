@@ -4840,7 +4840,7 @@ impl<'p> Emitter<'p> {
                 | "map.Map.remove"
                 | "map.Map.clear"
                 | "prelude.replace"
-                | "list.sort"
+                | "list.List.sort"
                 | "list.sort_by"
         );
         let mut a: Vec<Expr> = if mutating {
@@ -5057,25 +5057,25 @@ impl<'p> Emitter<'p> {
                 let l = arg();
                 data(self.rt_call("list", "ListCount", vec![l, arg()]))
             }
-            "list.contains" => {
+            "list.List.contains" => {
                 let l = arg();
                 let x = arg();
                 let eq = self.eq_fn(&elem)?;
                 data(self.rt_call("list", "ListContains", vec![l, x, eq]))
             }
-            "list.index_of" => {
+            "list.List.index_of" => {
                 let l = arg();
                 let x = arg();
                 let eq = self.eq_fn(&elem)?;
                 pair(self.rt_call("list", "ListIndexOf", vec![l, x, eq]))
             }
-            "list.get" => {
+            "list.List.get" => {
                 let l = arg();
                 let i = arg();
                 let c = self.copy_fn(&elem)?;
                 pair(self.rt_call("list", "ListGet", vec![l, i, c]))
             }
-            "list.sort" => {
+            "list.List.sort" => {
                 let l = arg();
                 let c = self.cmp_fn(&elem)?;
                 data(self.rt_call("sort", "ListSort", vec![l, c]))
@@ -5084,7 +5084,7 @@ impl<'p> Emitter<'p> {
                 let l = arg();
                 data(self.rt_call("sort", "ListSort", vec![l, arg()]))
             }
-            "list.min" | "list.max" => {
+            "list.List.min" | "list.List.max" => {
                 let l = arg();
                 let c = self.cmp_fn(&elem)?;
                 let k = self.copy_fn(&elem)?;

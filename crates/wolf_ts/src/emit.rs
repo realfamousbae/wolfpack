@@ -3073,8 +3073,9 @@ impl<'p> Emitter<'p> {
         if let Some(name) = intrinsic {
             // Sorting and the smallest or largest item use the elements' `compare`.
             let short = name.strip_prefix("std.").unwrap_or(&name);
-            if matches!(short, "list.sort" | "list.min" | "list.max") {
-                if let Some(IrType::List(t)) = args.first().map(|a| &a.value.ty) {
+            if matches!(short, "list.List.sort" | "list.List.min" | "list.List.max") {
+                let list = recv.map(|r| &r.ty).or(args.first().map(|a| &a.value.ty));
+                if let Some(IrType::List(t)) = list {
                     if let Some(c) = self.dict_for(Dict::Cmp, t) {
                         all.push(c);
                     }
@@ -3333,13 +3334,13 @@ impl<'p> Emitter<'p> {
                 call(member(l, "every"), vec![self.unary_fn(f)])
             }
             "list.List.count" => self.rt_call("listCount", a),
-            "list.contains" => self.rt_call("listContains", a),
-            "list.index_of" => self.rt_call("listIndexOf", a),
-            "list.get" => self.rt_call("listGet", a),
-            "list.sort" => self.rt_call("listSort", a),
+            "list.List.contains" => self.rt_call("listContains", a),
+            "list.List.index_of" => self.rt_call("listIndexOf", a),
+            "list.List.get" => self.rt_call("listGet", a),
+            "list.List.sort" => self.rt_call("listSort", a),
             "list.sort_by" => self.rt_call("listSortBy", a),
-            "list.min" => self.rt_call("listMin", a),
-            "list.max" => self.rt_call("listMax", a),
+            "list.List.min" => self.rt_call("listMin", a),
+            "list.List.max" => self.rt_call("listMax", a),
             "list.sum" => self.rt_call("listSum", a),
             "list.range" => self.rt_call("listRange", a),
             "map.Map.new" => {

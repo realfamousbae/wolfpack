@@ -14,7 +14,7 @@ is the output of `wolf run --example demo`.
 | `calculator` | cli | enums with data, `Result`, `?`, a user `Error` type, `main` returning `Result` | no | yes |
 | `word_count` | cli | string methods, `config`, `Map` in insertion order, closures, `list.sort_by` | no | no |
 | `todo` | cli | three modules, `pub` fields and methods, `mut self`, `for x in mut`, `match mut` | no | no |
-| `shapes` | cli | an interface as a value type, `Comparable`, sorting | uses `list.max` | no |
+| `shapes` | cli | an interface as a value type, `Comparable`, sorting | uses `.max()` of a list | no |
 | `generic_stack` | cli | a generic struct, a generic method, bounds | yes | yes |
 | `binary_tree` | cli | a recursive enum, `own self`, `match own` | no | yes |
 | `bank` | cli | `mut` and `own` parameters, moves, errors | no | yes |

@@ -66,7 +66,7 @@ main {
     print("total: " + total_area(shapes).to_string())
 
     let rects = [Rect { w: 1.0, h: 1.0 }, Rect { w: 2.0, h: 3.0 }, Rect { w: 0.5, h: 2.0 }]
-    match list.max(rects) {
+    match rects.max() {
         Some(r) => print("largest rectangle: " + r.w.to_string() + " x " + r.h.to_string())
         None => print("no rectangles")
     }
