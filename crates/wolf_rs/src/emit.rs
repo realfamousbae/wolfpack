@@ -1923,6 +1923,23 @@ impl<'p> Emitter<'p> {
             let trait_ = match iface {
                 Some(i) => {
                     let p = self.def_path(i);
+                    // The interface's type arguments: `impl<T> Holder<T> for Pair<T>`.
+                    let args: Vec<IrType> = self
+                        .structs
+                        .get(&def)
+                        .map(|st| &st.implements)
+                        .or_else(|| self.enums.get(&def).map(|en| &en.implements))
+                        .and_then(|list| {
+                            list.iter().find_map(|t| match t {
+                                IrType::Named(d, a) if *d == i => Some(a.clone()),
+                                _ => None,
+                            })
+                        })
+                        .unwrap_or_default();
+                    let mut targs = Vec::new();
+                    for a in &args {
+                        targs.push(self.ty(a)?);
+                    }
                     if self.dyn_ifaces.contains(&i) && self.clone.contains(&def) {
                         // `copy_dyn` boxes a clone of the value, which needs its type parameters
                         // cloned and owned.
@@ -1933,8 +1950,10 @@ impl<'p> Emitter<'p> {
                                 }
                             }
                         }
-                        let r =
-                            Type::Path("Box".to_string(), vec![Type::Dyn(p.clone(), Vec::new())]);
+                        let r = Type::Path(
+                            "Box".to_string(),
+                            vec![Type::Dyn(p.clone(), targs.clone())],
+                        );
                         items.push(rs::Fn {
                             docs: Vec::new(),
                             attrs: Vec::new(),
@@ -1957,27 +1976,10 @@ impl<'p> Emitter<'p> {
                             )),
                         });
                     }
-                    // The interface's type arguments: `impl<T> Holder<T> for Pair<T>`.
-                    let args: Vec<IrType> = self
-                        .structs
-                        .get(&def)
-                        .map(|st| &st.implements)
-                        .or_else(|| self.enums.get(&def).map(|en| &en.implements))
-                        .and_then(|list| {
-                            list.iter().find_map(|t| match t {
-                                IrType::Named(d, a) if *d == i => Some(a.clone()),
-                                _ => None,
-                            })
-                        })
-                        .unwrap_or_default();
-                    if args.is_empty() {
+                    if targs.is_empty() {
                         Some(Type::name(&p))
                     } else {
-                        let mut list = Vec::new();
-                        for a in &args {
-                            list.push(self.ty(a)?);
-                        }
-                        Some(Type::Path(p, list))
+                        Some(Type::Path(p, targs))
                     }
                 }
                 None => None,
@@ -2133,6 +2135,7 @@ impl<'p> Emitter<'p> {
         }
         self.in_iface_decl = false;
         let name = self.name_of(i.def);
+        let targs: Vec<Type> = i.generics.iter().map(|g| Type::name(&g.name)).collect();
         let copyable = self.dyn_ifaces.contains(&i.def) && self.implementors_clone(i.def);
         if copyable {
             methods.push(rs::Fn {
@@ -2145,7 +2148,7 @@ impl<'p> Emitter<'p> {
                 params: Vec::new(),
                 ret: Some(Type::Path(
                     "Box".to_string(),
-                    vec![Type::Dyn(name.clone(), Vec::new())],
+                    vec![Type::Dyn(name.clone(), targs.clone())],
                 )),
                 body: None,
             });
@@ -2155,13 +2158,30 @@ impl<'p> Emitter<'p> {
             docs: i.docs.clone(),
             vis: self.vis(i.public),
             name: name.clone(),
-            generics,
+            generics: generics.clone(),
             methods,
         });
         if copyable {
-            out.push(Item::Raw(format!(
-                "impl Clone for Box<dyn {name}> {{\n    fn clone(&self) -> Self {{\n        self.copy_dyn()\n    }}\n}}"
-            )));
+            let copy = rs::Fn {
+                docs: Vec::new(),
+                attrs: Vec::new(),
+                vis: String::new(),
+                name: "clone".to_string(),
+                generics: Vec::new(),
+                self_param: Some("&self".to_string()),
+                params: Vec::new(),
+                ret: Some(Type::name("Self")),
+                body: Some(block(
+                    Vec::new(),
+                    Some(method(path("self"), "copy_dyn", Vec::new())),
+                )),
+            };
+            out.push(Item::Impl {
+                generics,
+                trait_: Some(Type::name("Clone")),
+                ty: Type::Path("Box".to_string(), vec![Type::Dyn(name.clone(), targs)]),
+                fns: vec![copy],
+            });
         }
         // An interface value is a value of the interface, also for a type parameter bounded by
         // it: `Box<dyn Named>` implements `Named` by calling the value it holds.
