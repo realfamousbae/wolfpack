@@ -131,6 +131,9 @@ pub(crate) struct Emitter<'p> {
     imported_defaults: BTreeMap<(DefRef, String), String>,
     /// The interface whose default is being emitted: there `Self` is that interface.
     self_iface: Option<IrType>,
+    /// In the declaration and the defaults of an interface that mentions `Self` beyond the
+    /// receiver (see [`Emitter::self_typed`]), `Self` is the type parameter `Self`.
+    self_param: bool,
     enums: BTreeMap<DefRef, &'p ir::Enum>,
     structs: BTreeMap<DefRef, &'p ir::Struct>,
     names: BTreeMap<DefRef, String>,
@@ -227,6 +230,33 @@ fn mentions_self(t: &IrType) -> bool {
         IrType::Named(_, args) => args.iter().any(mentions_self),
         IrType::Fn(ps, r) => ps.iter().any(|(_, t)| mentions_self(t)) || mentions_self(r),
         _ => false,
+    }
+}
+
+/// `t` with `Self` replaced by `with`.
+fn replace_self(t: &IrType, with: &IrType) -> IrType {
+    match t {
+        IrType::SelfType => with.clone(),
+        IrType::List(a) => IrType::List(Box::new(replace_self(a, with))),
+        IrType::Option(a) => IrType::Option(Box::new(replace_self(a, with))),
+        IrType::Map(a, b) => IrType::Map(
+            Box::new(replace_self(a, with)),
+            Box::new(replace_self(b, with)),
+        ),
+        IrType::Result(a, b) => IrType::Result(
+            Box::new(replace_self(a, with)),
+            Box::new(replace_self(b, with)),
+        ),
+        IrType::Named(d, args) => {
+            IrType::Named(*d, args.iter().map(|a| replace_self(a, with)).collect())
+        }
+        IrType::Fn(ps, r) => IrType::Fn(
+            ps.iter()
+                .map(|(m, t)| (*m, replace_self(t, with)))
+                .collect(),
+            Box::new(replace_self(r, with)),
+        ),
+        _ => t.clone(),
     }
 }
 
@@ -392,6 +422,7 @@ impl<'p> Emitter<'p> {
             ifaces: BTreeMap::new(),
             imported_defaults: BTreeMap::new(),
             self_iface: None,
+            self_param: false,
             enums: BTreeMap::new(),
             structs: BTreeMap::new(),
             names: BTreeMap::new(),
@@ -551,6 +582,9 @@ impl<'p> Emitter<'p> {
                         // A default takes the dictionaries of its interface's bounds.
                         ir::Item::Interface(i) => {
                             let mut dicts = Vec::new();
+                            if self.self_typed(i.def) {
+                                dicts.push(("Self".to_string(), Dict::View(i.def)));
+                            }
                             for g in &i.generics {
                                 for d in self.dicts_of(&g.bounds) {
                                     dicts.push((g.name.clone(), d));
@@ -698,18 +732,66 @@ impl<'p> Emitter<'p> {
         Ok(out)
     }
 
-    /// Whether a bound gets a [`Dict::View`]: a user interface whose methods mention `Self` only
-    /// as the receiver, so that a wrapper class can give a payload-less enum its methods. Such a
-    /// bound is no constraint of the TypeScript type parameter, which a string would not meet.
+    /// Whether a bound gets a [`Dict::View`]: a user interface, whose methods a wrapper class
+    /// gives a payload-less enum. Such a bound is no constraint of the TypeScript type parameter,
+    /// which a string would not meet.
     fn view_iface(&self, def: DefRef) -> bool {
         Some(def) != self.display
             && Some(def) != self.comparable
             && !self.markers.contains(&def)
+            && self.ifaces.contains_key(&def)
+    }
+
+    /// Whether a user interface mentions `Self` beyond the receiver (spec chapter 4, section 8.2,
+    /// rule 3). It is a bound only (section 8.5, rule 1); its TypeScript interface takes the
+    /// implementing type as its last type parameter `Self` (`class Dog implements Same<Dog>`),
+    /// and its defaults are generic over `Self` and take its dictionary, so that a value of
+    /// `Self` is the value itself, not its wrapper.
+    fn self_typed(&self, def: DefRef) -> bool {
+        self.view_iface(def)
             && self.ifaces.get(&def).is_some_and(|i| {
-                i.methods.iter().all(|f| {
-                    !f.params.iter().any(|p| mentions_self(&p.ty)) && !mentions_self(&f.ret)
-                })
+                i.methods
+                    .iter()
+                    .any(|f| f.params.iter().any(|p| mentions_self(&p.ty)) || mentions_self(&f.ret))
             })
+    }
+
+    /// The TypeScript type of the interface type `t` implemented by `self_ty`: an interface that
+    /// mentions `Self` takes it as its last type argument.
+    fn iface_type(&mut self, t: &IrType, self_ty: &IrType) -> Type {
+        let ty = self.ty(t);
+        match (t, ty) {
+            (IrType::Named(d, _), Type::Ref(name, mut args)) if self.self_typed(*d) => {
+                args.push(self.ty(self_ty));
+                Type::Ref(name, args)
+            }
+            (_, ty) => ty,
+        }
+    }
+
+    /// `t` with `Self` as the type parameter `Self` in a default of an interface that mentions it.
+    fn norm(&self, t: &IrType) -> IrType {
+        if self.self_param && mentions_self(t) {
+            replace_self(t, &IrType::Param("Self".to_string()))
+        } else {
+            t.clone()
+        }
+    }
+
+    /// The type of a struct or an enum with its own type parameters: `Pair<T>`.
+    fn owner_ty(&self, owner: DefRef) -> IrType {
+        let generics = match (self.structs.get(&owner), self.enums.get(&owner)) {
+            (Some(s), _) => &s.generics,
+            (_, Some(e)) => &e.generics,
+            _ => return IrType::Named(owner, Vec::new()),
+        };
+        IrType::Named(
+            owner,
+            generics
+                .iter()
+                .map(|g| IrType::Param(g.name.clone()))
+                .collect(),
+        )
     }
 
     /// Whether the dictionary of a [`Dict::View`] takes the place of the value (a `Ref`) instead
@@ -728,11 +810,12 @@ impl<'p> Emitter<'p> {
             (Dict::View(i), IrType::Param(n)) => self.f.bounds.get(&(n.clone(), i)).cloned(),
             _ => None,
         };
+        let of = t;
         let t = self.ty(t);
         match d {
             Dict::View(i) => {
                 let to = bound.unwrap_or(IrType::Named(i, Vec::new()));
-                let to = self.ty(&to);
+                let to = self.iface_type(&to, of);
                 if self.place_view(i) {
                     self.rt.insert("Ref");
                     let r = Type::Ref("$rt.Ref".to_string(), vec![t]);
@@ -760,6 +843,7 @@ impl<'p> Emitter<'p> {
     /// The dictionary for the type `t`, or `None` where the runtime's `display` or `compare`
     /// does the same: it calls the method of a class and handles the built-in types.
     fn dict_for(&mut self, d: Dict, t: &IrType) -> Option<Expr> {
+        let t = &self.norm(t);
         match t {
             IrType::Param(n) => self.f.dicts.get(&(n.clone(), d)).cloned(),
             IrType::Named(def, _) => {
@@ -792,6 +876,7 @@ impl<'p> Emitter<'p> {
     /// The dictionary of the user interface `iface` for values of type `t`: that of a type
     /// parameter, or a function that makes the interface value as a coercion does.
     fn view(&mut self, iface: DefRef, t: &IrType) -> Result<Expr, Error> {
+        let t = &self.norm(t);
         if let IrType::Param(n) = t {
             if let Some(d) = self.f.dicts.get(&(n.clone(), Dict::View(iface))) {
                 return Ok(d.clone());
@@ -826,6 +911,7 @@ impl<'p> Emitter<'p> {
     /// method reaches the place. A class is changed in place anyway; a payload-less enum gets a
     /// wrapper that holds the place.
     fn view_place(&mut self, r: Expr, from: &IrType, to: &IrType) -> Result<Expr, Error> {
+        let from = &self.norm(from);
         if let (IrType::Param(n), IrType::Named(iface, _)) = (from, to) {
             if let Some(d) = self.f.dicts.get(&(n.clone(), Dict::View(*iface))).cloned() {
                 return Ok(call(d, vec![r]));
@@ -1065,6 +1151,7 @@ impl<'p> Emitter<'p> {
                 Type::Fn(params, Box::new(ret))
             }
             IrType::Param(n) => Type::name(n),
+            IrType::SelfType if self.self_param => Type::name("Self"),
             IrType::SelfType => match self.self_iface.clone() {
                 // In a default, `Self` is the interface.
                 Some(t) => self.ty(&t),
@@ -1335,7 +1422,12 @@ impl<'p> Emitter<'p> {
                 if self.markers.contains(&i.def) {
                     return Ok(());
                 }
-                let generics = self.generics(&i.generics);
+                let self_typed = self.self_typed(i.def);
+                let mut generics = self.generics(&i.generics);
+                if self_typed {
+                    generics.push(("Self".to_string(), None));
+                }
+                let outer_param = std::mem::replace(&mut self.self_param, self_typed);
                 let mut methods = Vec::new();
                 for f in &i.methods {
                     let params = f
@@ -1363,11 +1455,32 @@ impl<'p> Emitter<'p> {
                         .collect(),
                 );
                 for f in i.methods.iter().filter(|f| f.body.is_some()) {
+                    // With `Self`, `self` is a value of the type parameter `Self`, and a `Ref` to
+                    // it for `mut self`.
+                    let by_ref = self_typed && f.self_mode == Some(Mode::Mut);
+                    let this = if by_ref {
+                        member(ident("self"), "v")
+                    } else {
+                        ident("self")
+                    };
                     let outer = self.self_iface.replace(iface_ty.clone());
-                    let r = self.function(f, Some(ident("self")));
+                    let r = self.function_with(f, Some(this), by_ref);
                     self.self_iface = outer;
-                    let (mut g, mut params, ret, body) = r?;
-                    let t = self.ty(&iface_ty);
+                    let (mut g, mut params, ret, body) = match r {
+                        Ok(r) => r,
+                        Err(e) => {
+                            self.self_param = outer_param;
+                            return Err(e);
+                        }
+                    };
+                    let t = if !self_typed {
+                        self.ty(&iface_ty)
+                    } else if by_ref {
+                        self.rt.insert("Ref");
+                        Type::Ref("$rt.Ref".to_string(), vec![Type::name("Self")])
+                    } else {
+                        Type::name("Self")
+                    };
                     params.insert(0, ("self".to_string(), t));
                     let mut all = generics.clone();
                     all.append(&mut g);
@@ -1381,6 +1494,7 @@ impl<'p> Emitter<'p> {
                         body,
                     });
                 }
+                self.self_param = outer_param;
                 Ok(())
             }
             ir::Item::Fn(f) if f.in_tests && !self.tests => Ok(()),
@@ -1460,7 +1574,8 @@ impl<'p> Emitter<'p> {
 
     fn struct_item(&mut self, s: &'p ir::Struct, out: &mut Vec<Item>) -> Result<(), Error> {
         let generics = self.generics(&s.generics);
-        let implements = self.implements(&s.implements);
+        let self_ty = self.owner_ty(s.def);
+        let implements = self.implements(&s.implements, &self_ty);
         let fields: Vec<(String, Type, Option<Expr>)> = s
             .fields
             .iter()
@@ -1627,11 +1742,16 @@ impl<'p> Emitter<'p> {
             .get(&iface)
             .map(|i| i.generics.iter().map(|g| g.name.clone()).collect())
             .unwrap_or_default();
-        let map: BTreeMap<String, IrType> = names.into_iter().zip(args.iter().cloned()).collect();
+        let mut map: BTreeMap<String, IrType> =
+            names.into_iter().zip(args.iter().cloned()).collect();
+        let self_ty = self.owner_ty(owner);
         let params: Vec<(String, Type)> = f
             .params
             .iter()
-            .map(|p| (camel(&p.name), self.param_ty(p.mode, &subst(&p.ty, &map))))
+            .map(|p| {
+                let t = replace_self(&subst(&p.ty, &map), &self_ty);
+                (camel(&p.name), self.param_ty(p.mode, &t))
+            })
             .collect();
         // The dictionaries of the type's bounds are fields of the receiver.
         let saved = std::mem::take(&mut self.f.dicts);
@@ -1639,18 +1759,47 @@ impl<'p> Emitter<'p> {
             let name = self.dict_name(&g, d);
             self.f.dicts.insert((g, d), member(recv.clone(), &name));
         }
+        map.insert("Self".to_string(), self_ty.clone());
         let dicts = self.default_dicts(f, &map);
         self.f.dicts = saved;
-        let mut all = vec![recv];
+        // The default of an interface that mentions `Self` takes the value itself: the string of a
+        // payload-less enum (its wrapper is the place for `mut self`), the object of a class (in a
+        // place of its own for `mut self`, whose new value the object then takes).
+        let mut before = Vec::new();
+        let mut after = Vec::new();
+        let receiver = if !self.self_typed(iface) {
+            recv
+        } else if self.plain_enum(&self_ty) {
+            if f.self_mode == Some(Mode::Mut) {
+                recv
+            } else {
+                member(recv, "v")
+            }
+        } else if f.self_mode == Some(Mode::Mut) {
+            let place = Expr::Object(vec![("v".to_string(), recv.clone())]);
+            before.push(Stmt::Const("$self".to_string(), None, place));
+            let back = self.rt_call("become", vec![recv, member(ident("$self"), "v")]);
+            after.push(Stmt::Expr(back));
+            ident("$self")
+        } else {
+            recv
+        };
+        let mut all = vec![receiver];
         all.extend(dicts?);
         all.extend(params.iter().map(|(n, _)| ident(n)));
         let result = call(self.default_fn(iface, &f.name), all);
-        let ret = subst(&f.ret, &map);
-        let body = if matches!(ret, IrType::Void) {
-            vec![Stmt::Expr(result)]
+        let ret = replace_self(&subst(&f.ret, &map), &self_ty);
+        let mut body = before;
+        if matches!(ret, IrType::Void) {
+            body.push(Stmt::Expr(result));
+            body.extend(after);
+        } else if after.is_empty() {
+            body.push(Stmt::Return(Some(result)));
         } else {
-            vec![Stmt::Return(Some(result))]
-        };
+            body.push(Stmt::Const("$result".to_string(), None, result));
+            body.extend(after);
+            body.push(Stmt::Return(Some(ident("$result"))));
+        }
         Ok(Method {
             docs: Vec::new(),
             is_static: false,
@@ -1683,12 +1832,14 @@ impl<'p> Emitter<'p> {
     }
 
     /// Implemented interfaces, without the derived ones.
-    fn implements(&mut self, list: &[IrType]) -> Vec<Type> {
+    fn implements(&mut self, list: &[IrType], self_ty: &IrType) -> Vec<Type> {
         let kept: Vec<&IrType> = list
             .iter()
             .filter(|t| !matches!(t, IrType::Named(d, _) if self.markers.contains(d)))
             .collect();
-        kept.into_iter().map(|t| self.ty(t)).collect()
+        kept.into_iter()
+            .map(|t| self.iface_type(t, self_ty))
+            .collect()
     }
 
     fn enum_item(&mut self, e: &'p ir::Enum, out: &mut Vec<Item>) -> Result<(), Error> {
@@ -1741,7 +1892,8 @@ impl<'p> Emitter<'p> {
                 .filter(|t| !matches!(t, IrType::Named(i, _) if intrinsic.contains(i)))
                 .cloned()
                 .collect();
-            let implements = self.implements(&declared);
+            let self_ty = self.owner_ty(e.def);
+            let implements = self.implements(&declared, &self_ty);
             let enum_ty = Type::Ref(type_name(&e.name), gtypes.clone());
             for v in &e.variants {
                 let class = self.names.get(&v.def).cloned().unwrap_or_default();
@@ -2330,6 +2482,10 @@ impl<'p> Emitter<'p> {
                     bounds.extend(g.bounds.iter().map(|b| (g.name.clone(), b)));
                 }
             }
+        }
+        // In a default of an interface that mentions `Self`, `Self` is bounded by it.
+        if let (true, Some(t @ IrType::Named(i, _))) = (self.self_param, self.self_iface.clone()) {
+            self.f.bounds.insert(("Self".to_string(), i), t);
         }
         for g in &f.generics {
             bounds.extend(g.bounds.iter().map(|b| (g.name.clone(), b)));
@@ -3311,6 +3467,7 @@ impl<'p> Emitter<'p> {
 
     /// A value of a concrete type used as a value of an interface type.
     fn coerce(&mut self, v: Expr, from: &IrType, to: &IrType) -> Result<Expr, Error> {
+        let from = &self.norm(from);
         // A `String` or a collection as a value of `Display` keeps the text of its type: a list
         // of `Display` writes a string without quotes (spec chapter 7, section 4.1).
         if matches!(
@@ -3343,7 +3500,7 @@ impl<'p> Emitter<'p> {
                 return Ok(call(d, vec![arg]));
             }
             return Ok(match self.f.bounds.get(&(n.clone(), *iface)).cloned() {
-                Some(b) => Expr::As(Box::new(v), self.ty(&b)),
+                Some(b) => Expr::As(Box::new(v), self.iface_type(&b, from)),
                 None => v,
             });
         }
@@ -3479,7 +3636,7 @@ impl<'p> Emitter<'p> {
             .def(iface)
             .map(|d| d.name.clone())
             .unwrap_or_default();
-        let implements = vec![self.ty(to)];
+        let implements = vec![self.iface_type(to, from)];
         Ok(Item::Class {
             docs: vec![format!("`{enum_name}` as a value of `{iface_name}`.")],
             export: false,
@@ -3697,7 +3854,10 @@ impl<'p> Emitter<'p> {
                     .is_some_and(|f| f.self_mode == Some(Mode::Mut))
                     && recv.is_some_and(|r| {
                         self.plain_enum(&r.ty)
-                            || matches!(r.ty, IrType::Param(_)) && self.place_view(*interface)
+                            || matches!(self.norm(&r.ty), IrType::Param(_))
+                                && self.place_view(*interface)
+                            || matches!(callee, Callee::Default { .. })
+                                && self.self_typed(*interface)
                     })
             }
             _ => false,
@@ -3900,7 +4060,12 @@ impl<'p> Emitter<'p> {
                 };
                 let iargs = self.iface_args(*interface, &recv.ty);
                 let to = IrType::Named(*interface, iargs.clone());
-                let r = if iface_mut {
+                // The default of an interface that mentions `Self` takes the value itself (its
+                // place for `mut self`) and the dictionary of its type.
+                let self_typed = self.self_typed(*interface);
+                let r = if self_typed {
+                    r
+                } else if iface_mut {
                     self.view_place(r, &recv.ty, &to)?
                 } else {
                     self.coerce(r, &recv.ty, &to)?
@@ -3909,12 +4074,13 @@ impl<'p> Emitter<'p> {
                 let iface = self.ifaces.get(interface).copied();
                 let default = iface.and_then(|i| i.methods.iter().find(|f| f.name == *name));
                 if let (Some(i), Some(f)) = (iface, default) {
-                    let map = i
+                    let mut map: BTreeMap<String, IrType> = i
                         .generics
                         .iter()
                         .map(|g| g.name.clone())
                         .zip(iargs)
                         .collect();
+                    map.insert("Self".to_string(), recv.ty.clone());
                     a.extend(self.default_dicts(f, &map)?);
                 }
                 a.extend(all);
