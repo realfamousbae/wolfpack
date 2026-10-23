@@ -4,6 +4,19 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Methods with bounds of their own (spec chapter 4, section 8.6; D4.16): a method of a generic
+  type may write `where T: Equatable` after its result type and then exists only for the types
+  that have the bound; a call with another type is E0404 (E0406 for `Equatable` and `Copyable`).
+  The new diagnostic E0442 is a `where` that is not allowed: on a free function, in an interface
+  or an interface implementation, or naming a parameter that is not one of the `impl` block.
+  **Breaking**: `contains`, `index_of`, `get`, `sort`, `min` and `max` are now methods of
+  `List<T>`, and the free functions of `std.list` with these names are removed:
+  `list.sort(mut items)` is `items.sort()`, `list.contains(items, x)` is `items.contains(x)`.
+  `sort_by`, `sum` and `range` stay functions of `std.list`.
+- Fixed in the Rust backend: a list literal of two or more closures (`[|| 1, || 2]`) outside a
+  typed `let` was rejected by rustc, because each closure has its own type; `contains` and
+  `index_of` of a `List<String>` with a string literal (`words.contains("fig")`) were rejected
+  too.
 - Package managers (spec chapter 8, sections 2a and 2b; `docs/plans/distribution.md`): Homebrew
   (`brew install realfamousbae/wolfpack/wolfpack`) and Scoop (the bucket
   `realfamousbae/scoop-wolfpack`) have 0.3.0 already; winget manifests are ready for its first
