@@ -1,0 +1,377 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Wolfpack",
+  "scopeName": "source.wolfpack",
+  "fileTypes": [
+    "wolf"
+  ],
+  "patterns": [
+    {
+      "include": "#sections"
+    },
+    {
+      "include": "#expression"
+    }
+  ],
+  "repository": {
+    "sections": {
+      "patterns": [
+        {
+          "name": "keyword.other.section.wolfpack",
+          "match": "^\\s*(?:imports|config|types|interfaces|functions|tests)\\b(?=\\s*\\{)"
+        },
+        {
+          "name": "keyword.other.section.wolfpack",
+          "match": "^\\s*main\\b(?=\\s*(?:\\{|\\(|->))"
+        },
+        {
+          "name": "keyword.other.target.wolfpack",
+          "match": "^\\s*(?:ts|go|rust)\\b(?=\\s*\\{)"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.documentation.wolfpack",
+          "match": "//[/!](?!/).*$"
+        },
+        {
+          "name": "comment.line.double-slash.wolfpack",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.documentation.wolfpack",
+          "begin": "/\\*[*!](?![*/])",
+          "end": "\\*/",
+          "patterns": [
+            {
+              "include": "#block-comment"
+            }
+          ]
+        },
+        {
+          "include": "#block-comment"
+        }
+      ]
+    },
+    "block-comment": {
+      "name": "comment.block.wolfpack",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "patterns": [
+        {
+          "include": "#block-comment"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.triple.interpolated.wolfpack",
+          "begin": "f\"\"\"",
+          "end": "\"\"\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.wolfpack"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.wolfpack"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.wolfpack",
+              "match": "\\{\\{|\\}\\}"
+            },
+            {
+              "begin": "\\{(?!\\{)",
+              "end": "\\}",
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.section.interpolation.begin.wolfpack"
+                }
+              },
+              "endCaptures": {
+                "0": {
+                  "name": "punctuation.section.interpolation.end.wolfpack"
+                }
+              },
+              "name": "meta.interpolation.wolfpack",
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            },
+            {
+              "name": "constant.character.escape.wolfpack",
+              "match": "\\\\(?:[nrt0\\\\\\\"]|x[0-7][0-9A-Fa-f]|u\\{[0-9A-Fa-f]{1,6}\\})"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.triple.raw.wolfpack",
+          "begin": "r\"\"\"",
+          "end": "\"\"\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.wolfpack"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.wolfpack"
+            }
+          },
+          "patterns": []
+        },
+        {
+          "name": "string.quoted.triple.wolfpack",
+          "begin": "\"\"\"",
+          "end": "\"\"\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.wolfpack"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.wolfpack"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.wolfpack",
+              "match": "\\\\(?:[nrt0\\\\\\\"]|x[0-7][0-9A-Fa-f]|u\\{[0-9A-Fa-f]{1,6}\\})"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.interpolated.wolfpack",
+          "begin": "f\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.wolfpack"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.wolfpack"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.wolfpack",
+              "match": "\\{\\{|\\}\\}"
+            },
+            {
+              "begin": "\\{(?!\\{)",
+              "end": "\\}",
+              "beginCaptures": {
+                "0": {
+                  "name": "punctuation.section.interpolation.begin.wolfpack"
+                }
+              },
+              "endCaptures": {
+                "0": {
+                  "name": "punctuation.section.interpolation.end.wolfpack"
+                }
+              },
+              "name": "meta.interpolation.wolfpack",
+              "patterns": [
+                {
+                  "include": "#expression"
+                }
+              ]
+            },
+            {
+              "name": "constant.character.escape.wolfpack",
+              "match": "\\\\(?:[nrt0\\\\\\\"]|x[0-7][0-9A-Fa-f]|u\\{[0-9A-Fa-f]{1,6}\\})"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.raw.wolfpack",
+          "begin": "r\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.wolfpack"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.wolfpack"
+            }
+          },
+          "patterns": []
+        },
+        {
+          "name": "string.quoted.double.wolfpack",
+          "begin": "\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.wolfpack"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.wolfpack"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.wolfpack",
+              "match": "\\\\(?:[nrt0\\\\\\\"]|x[0-7][0-9A-Fa-f]|u\\{[0-9A-Fa-f]{1,6}\\})"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.wolfpack",
+          "match": "\\b0x[0-9A-Fa-f](?:_?[0-9A-Fa-f])*\\b"
+        },
+        {
+          "name": "constant.numeric.octal.wolfpack",
+          "match": "\\b0o[0-7](?:_?[0-7])*\\b"
+        },
+        {
+          "name": "constant.numeric.binary.wolfpack",
+          "match": "\\b0b[01](?:_?[01])*\\b"
+        },
+        {
+          "name": "constant.numeric.float.wolfpack",
+          "match": "\\b[0-9](?:_?[0-9])*(?:\\.[0-9](?:_?[0-9])*(?:[eE][+-]?[0-9](?:_?[0-9])*)?|[eE][+-]?[0-9](?:_?[0-9])*)\\b"
+        },
+        {
+          "name": "constant.numeric.integer.wolfpack",
+          "match": "\\b[0-9](?:_?[0-9])*\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.wolfpack",
+          "match": "\\b(?:if|else|match|while|for|in|return|break|continue|loop)\\b"
+        },
+        {
+          "name": "storage.type.wolfpack",
+          "match": "\\b(?:let|var|type|struct|enum|interface|impl|extern|module)\\b"
+        },
+        {
+          "name": "storage.modifier.wolfpack",
+          "match": "\\b(?:pub|mut|own|intrinsic)\\b"
+        },
+        {
+          "name": "keyword.other.wolfpack",
+          "match": "\\b(?:from|as|async|await)\\b"
+        },
+        {
+          "name": "keyword.other.test.wolfpack",
+          "match": "\\btest\\b(?=\\s*\\\")"
+        },
+        {
+          "name": "variable.language.self.wolfpack",
+          "match": "\\bself\\b"
+        },
+        {
+          "name": "storage.type.self.wolfpack",
+          "match": "\\bSelf\\b"
+        },
+        {
+          "name": "constant.language.boolean.wolfpack",
+          "match": "\\b(?:true|false)\\b"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.wolfpack"
+            },
+            "2": {
+              "name": "entity.name.function.wolfpack"
+            }
+          }
+        },
+        {
+          "name": "storage.type.function.wolfpack",
+          "match": "\\bfn\\b"
+        },
+        {
+          "name": "entity.name.function.call.wolfpack",
+          "match": "\\b[a-z_][A-Za-z0-9_]*(?=\\s*\\()"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.constant.variant.wolfpack",
+          "match": "\\b(?:Some|None|Ok|Err)\\b"
+        },
+        {
+          "name": "support.type.builtin.wolfpack",
+          "match": "\\b(?:Int|Float|Bool|String|Void|List|Map|Option|Result|Error|Ordering)\\b"
+        },
+        {
+          "name": "entity.name.type.wolfpack",
+          "match": "\\b[A-Z][A-Za-z0-9]*\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.wolfpack",
+          "match": "=>|->"
+        },
+        {
+          "name": "keyword.operator.range.wolfpack",
+          "match": "\\.\\.=?"
+        },
+        {
+          "name": "keyword.operator.wolfpack",
+          "match": "==|!=|<=|>=|&&|\\|\\||[-+*/%<>=!&|^?]"
+        }
+      ]
+    },
+    "expression": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#keywords"
+        },
+        {
+          "include": "#functions"
+        },
+        {
+          "include": "#types"
+        },
+        {
+          "include": "#operators"
+        }
+      ]
+    }
+  }
+}

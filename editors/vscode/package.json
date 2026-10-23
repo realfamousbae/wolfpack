@@ -1,0 +1,56 @@
+{
+  "name": "wolfpack",
+  "displayName": "Wolfpack",
+  "description": "The wolfpack language: highlighting, and diagnostics, hover, go to definition and formatting from `wolf lsp`.",
+  "version": "0.3.0",
+  "publisher": "realfamousbae",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/realfamousbae/wolfpack"
+  },
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "wolfpack",
+        "aliases": [
+          "Wolfpack",
+          "wolfpack"
+        ],
+        "extensions": [
+          ".wolf"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "wolfpack",
+        "scopeName": "source.wolfpack",
+        "path": "./syntaxes/wolfpack.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Wolfpack",
+      "properties": {
+        "wolfpack.server.path": {
+          "type": "string",
+          "default": "wolf",
+          "description": "The `wolf` command that runs the language server (`wolf lsp`)."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}
