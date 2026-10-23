@@ -146,7 +146,8 @@ types {
 
 ### 3.5 `interfaces`
 
-Only `interface` declarations **[PLAN]**.
+Only `interface` declarations **[PLAN]**. **[DRAFT]** (2026-10-23): a method of an interface may
+have a body, its default (chapter 4, section 8.2, rule 4).
 
 ### 3.6 `impl`
 

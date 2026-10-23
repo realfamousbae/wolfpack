@@ -263,12 +263,30 @@ the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`).
    13a). The reason: neither Go nor a Rust trait object can express a generic interface method.
 3. A signature may use `Self`, meaning "the implementing type": `fn compare(self, other: Self) ->
    Ordering`.
+4. **[DRAFT]** (2026-10-23, D4.19) **Default methods.** A method of an interface may have a
+   body, its default:
+   ```
+   interface Named {
+       fn name(self) -> String
+       fn greeting(self) -> String {
+           "Hello, " + self.name() + "!"
+       }
+   }
+   ```
+   The body is checked once, as a generic function over `Self: Named`: on `self` it can use the
+   methods of the interface, defaults included, and nothing else. A type that implements the
+   interface gets the default when its block leaves the method out (section 8.3, rule 1), and
+   replaces it when the block defines the method, with the same signature. A default is part of
+   the interface everywhere the interface is: on interface values, through bounds, and in the
+   implementing type's own calls `x.greeting()`.
 
 ### 8.3 Implementations
 
 1. `Type: Interface { ... }` must define every method of the interface, with exactly the same
    parameter modes, parameter types and result type (after substituting `Self`). Extra methods are
-   not allowed in such a block.
+   not allowed in such a block. **[DRAFT]** (D4.19): a method with a default (section 8.2, rule 4)
+   may be left out; a block that leaves out a method without a default is the error it is today
+   (E0413).
 2. **Coherence** **[PROPOSAL]** (see D4.5): every `impl` block for a type, inherent or for an
    interface, must be in the module that declares the type. Consequently user interfaces cannot be
    implemented for `Int`, `String`, `List` or extern types. Reason: Go allows methods only on types
@@ -474,5 +492,6 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.16 | **[DRAFT]** Methods with bounds of their own (section 8.6): the form `where T: Equatable` after the result type, as in Rust (instead of repeating the parameter, `fn contains<T: Equatable>`, which would declare a new `T`); code E0440; the bounded functions of `std.list` become methods too (chapter 7, section 5), and the free functions stay, so no program breaks | **proposed** (2026-10-23), waiting for the author |
 | D4.17 | **[DRAFT]** `Display` of `List`, `Option`, `Map` and `Result` (section 9, rule 7; chapter 7, section 4.1): the text is written as the literal would be, strings in quotes with the escapes of chapter 1 (`["a", "b"]`, not `[a, b]`, which cannot be told from one string `"a, b"`), a map as a map literal in insertion order, and `Result` is included | **proposed** (2026-10-23), waiting for the author |
 | D4.18 | **[DRAFT]** Format specifications in interpolations (chapter 1, section 5.3a; chapter 7, section 4.4): the form `[[fill] align] ["0"] [width] ["." precision]` of Rust without its other parts; numbers align to the right by default, other values to the left; width counts Unicode scalar values; precision only for `Float` (fixed decimals, ties to even); `0` only for numbers; codes E0117 (lexical) and E0441 (a specification the type cannot take) | **proposed** (2026-10-23), waiting for the author |
+| D4.19 | **[DRAFT]** Default methods in interfaces (section 8.2, rule 4; section 8.3, rule 1): a body after the signature is the default, checked once over `Self: I` with only the methods of `I` on `self`; an implementation may leave it out or replace it with the same signature; no new diagnostic codes. Targets: Rust trait defaults; TypeScript and Go a function of the interface that the implementing types call; the VM dispatches to it | **proposed** (2026-10-23), waiting for the author |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |

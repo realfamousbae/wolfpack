@@ -51,7 +51,7 @@ field_sig    = IDENT ":" type
 alias_decl   = visibility "type" IDENT generics? "=" type
 intrinsic_type = visibility "intrinsic" "type" IDENT generics?   // std only, chapter 7
 
-interface_decl = visibility "interface" IDENT generics? "{" fn_sig* "}"
+interface_decl = visibility "interface" IDENT generics? "{" ( fn_sig block? )* "}"   // [DRAFT] a block is a default, chapter 4, section 8.2
 fn_sig       = "fn" IDENT generics? "(" params? ")" ( "->" type )?
 
 impl_block   = IDENT generics? ( ":" type_path )? "{" fn_decl* "}"
