@@ -1,0 +1,13 @@
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+}
+
+main {
+    let stack = Stack.<Int>.empty()
+    let numbers = List.<Int>.empty()
+    print(f"{stack} {numbers}")
+}

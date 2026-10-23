@@ -1,0 +1,13 @@
+error[E0609]: `Stack` has no associated function `empty`
+   --> src/main.wolf:10:29
+   |
+10 |     let stack = Stack.<Int>.empty()
+   |                             ^^^^^ not found
+
+error[E0609]: `List` has no associated function `empty`
+   --> src/main.wolf:11:30
+   |
+11 |     let numbers = List.<Int>.empty()
+   |                              ^^^^^ not found
+
+error: aborting due to 2 errors

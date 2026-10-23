@@ -1,0 +1,6 @@
+module main
+
+main {
+    let names: List<String> = List.<Int>.new()
+    print(names.len().to_string())
+}

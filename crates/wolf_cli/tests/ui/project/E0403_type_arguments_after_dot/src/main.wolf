@@ -1,0 +1,20 @@
+module main
+
+types {
+    enum Tree<T> {
+        Leaf
+        Node(T)
+    }
+
+    type Ints = List<Int>
+}
+
+main {
+    let numbers: List<Int> = List.<Int, Int>.new()
+    let leaf: Tree<Int> = Tree.<Int, Int>.Leaf
+    let node: Tree<Int> = Tree.<String, Int>.Node(1)
+    let more = Ints.<Int>.new()
+    print(f"{numbers.len()} {more.len()}")
+    let _ = leaf
+    let _ = node
+}

@@ -635,7 +635,7 @@ impl<'a> Checker<'a> {
             ExprKind::Bool(_) => self.bool(),
             ExprKind::Unit => self.void(),
             ExprKind::Name(_) => match self.res(b, e.id) {
-                Some(res) => self.path_value(b, res, e.span, None),
+                Some(res) => self.path_value(b, res, e.span, None, None),
                 None => Ty::Error,
             },
             ExprKind::SelfValue => b.self_ty.clone().unwrap_or(Ty::Error),
@@ -682,12 +682,16 @@ impl<'a> Checker<'a> {
             }
             ExprKind::StructLit { .. } => self.struct_lit(b, e, expected),
             ExprKind::Field { base, name } => match self.res(b, e.id) {
-                Some(res) => self.path_value(b, res, name.span, None),
+                Some(res) => self.path_value(b, res, name.span, None, Some(base)),
                 None => self.field_access(b, base, name),
             },
             ExprKind::TypeArgs { base, args } => match self.res(b, base.id) {
                 Some(res) => {
-                    let ty = self.path_value(b, res, base.span, Some((args, e.span)));
+                    let head = match &base.kind {
+                        ExprKind::Field { base: head, .. } => Some(head.as_ref()),
+                        _ => None,
+                    };
+                    let ty = self.path_value(b, res, base.span, Some((args, e.span)), head);
                     self.record(b, base, &ty);
                     ty
                 }
@@ -895,13 +899,15 @@ impl<'a> Checker<'a> {
         }
     }
 
-    /// A name that refers to a declaration, a local or a module, used as a value.
+    /// A name that refers to a declaration, a local or a module, used as a value. `head` is the
+    /// expression before the last dot, which may write the type's arguments: `List.<Int>.new`.
     fn path_value(
         &mut self,
         b: &mut Body,
         res: Res,
         span: Span,
         explicit: Option<(&[ast::Ty], Span)>,
+        head: Option<&ast::Expr>,
     ) -> Ty {
         match res {
             Res::Local(id) => b.locals.get(&id).cloned().unwrap_or(Ty::Error),
@@ -957,10 +963,19 @@ impl<'a> Checker<'a> {
                             );
                             return Ty::Error;
                         }
+                        // The impl block's parameters are those of the type, in its order.
+                        let written = self.written_args(b, head, owner).unwrap_or_default();
                         let map: BTreeMap<ParamId, Ty> = m
                             .impl_generics
                             .iter()
-                            .map(|s| (ParamId::Decl(*s), self.infer.fresh()))
+                            .enumerate()
+                            .map(|(i, s)| {
+                                let ty = written
+                                    .get(i)
+                                    .cloned()
+                                    .unwrap_or_else(|| self.infer.fresh());
+                                (ParamId::Decl(*s), ty)
+                            })
                             .collect();
                         // `Map.new()`: the bounds of the impl block apply to the new arguments.
                         for (s, bounds) in m.impl_generics.iter().zip(&m.impl_bounds) {
@@ -990,7 +1005,10 @@ impl<'a> Checker<'a> {
                     DefKind::Variant { parent, .. } => {
                         let shape = self.variants.get(&def).map(|v| v.shape.clone());
                         match shape {
-                            Some(Shape::None) => self.fresh_named(parent),
+                            Some(Shape::None) => match self.written_args(b, head, parent) {
+                                Some(args) => Ty::Named(parent, args),
+                                None => self.fresh_named(parent),
+                            },
                             Some(shape) => {
                                 let name = self.variant_name(def);
                                 let help = match shape {
@@ -1036,6 +1054,53 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+    }
+
+    /// The type arguments written after the type in `Type.<Args>.name` (chapter 3, section 5,
+    /// rule 2), when `head` is `Type.<Args>` and `Type` is `owner`. A wrong number of them is
+    /// reported, and then they are not used.
+    fn written_args(
+        &mut self,
+        b: &Body,
+        head: Option<&ast::Expr>,
+        owner: DefId,
+    ) -> Option<Vec<Ty>> {
+        let head = head?;
+        let ExprKind::TypeArgs { base, args } = &head.kind else {
+            return None;
+        };
+        if self.res(b, base.id) != Some(Res::Def(owner)) {
+            return None;
+        }
+        let scope = self.scope(b);
+        let lowered: Vec<Ty> = args.iter().map(|a| self.lower(a, &scope)).collect();
+        let n = self.type_generics.get(&owner).map_or(0, Vec::len);
+        if lowered.len() == n {
+            return Some(lowered);
+        }
+        let name = self.def_name(owner);
+        let d = if n == 0 {
+            Diagnostic::new(
+                codes::E0403,
+                format!(
+                    "`{name}` takes no type arguments, but {} given",
+                    given(lowered.len())
+                ),
+            )
+            .primary(head.span, "remove the type arguments")
+        } else {
+            Diagnostic::new(
+                codes::E0403,
+                format!(
+                    "`{name}` takes {}, but {} given",
+                    count(n, "type argument"),
+                    given(lowered.len())
+                ),
+            )
+            .primary(head.span, format!("expected {}", count(n, "type argument")))
+        };
+        self.report(d);
+        None
     }
 
     /// A named type with fresh type arguments.
@@ -1316,7 +1381,7 @@ impl<'a> Checker<'a> {
                         None => {
                             let local_ty = match self.res(b, f.id) {
                                 Some(res @ Res::Local(_)) | Some(res @ Res::Def(_)) => {
-                                    self.path_value(b, res, f.name.span, None)
+                                    self.path_value(b, res, f.name.span, None, None)
                                 }
                                 _ => Ty::Error,
                             };
@@ -1467,6 +1532,7 @@ impl<'a> Checker<'a> {
 
     /// Whether an expression names a module or a type, so that `.name` after it is a path.
     fn is_path_head(&self, b: &Body, e: &ast::Expr) -> bool {
+        let e = without_type_args(e);
         // Only names and dotted names are paths; a struct literal also has a resolution.
         if !matches!(
             e.kind,
@@ -1505,12 +1571,12 @@ impl<'a> Checker<'a> {
     ) -> Ty {
         if let ExprKind::Field { base, name } = &callee.kind {
             if self.res(b, callee.id).is_none() {
-                if let Some(Res::Def(owner)) = self.res(b, base.id) {
+                if let Some(Res::Def(owner)) = self.res(b, without_type_args(base).id) {
                     if matches!(
                         self.def_kind(owner),
                         Some(DefKind::Alias | DefKind::Interface | DefKind::ExternType)
                     ) {
-                        return self.assoc_through(b, e, owner, name, args);
+                        return self.assoc_through(b, e, owner, base, name, args);
                     }
                 }
                 return self.method_call(b, e, callee, base, name, args);
@@ -1605,19 +1671,29 @@ impl<'a> Checker<'a> {
     }
 
     /// `Alias.f(...)`, and `Interface.f(...)` or `Extern.f(...)`, which name resolution leaves
-    /// to the type checker.
+    /// to the type checker. `head` is the expression before the dot: `Alias` or `Alias.<Args>`.
     fn assoc_through(
         &mut self,
         b: &mut Body,
         e: &ast::Expr,
         owner: DefId,
+        head: &ast::Expr,
         name: &ast::Ident,
         args: &[ast::Arg],
     ) -> Ty {
-        let target = if self.def_kind(owner) == Some(DefKind::Alias) {
-            self.alias_type(owner)
-        } else {
+        let written = matches!(head.kind, ExprKind::TypeArgs { .. });
+        let target = if self.def_kind(owner) != Some(DefKind::Alias) {
             None
+        } else if written {
+            let Some(type_args) = self.written_args(b, Some(head), owner) else {
+                for a in args {
+                    self.expr(b, &a.value, None);
+                }
+                return Ty::Error;
+            };
+            Some(self.expand_alias(owner, type_args))
+        } else {
+            self.alias_type(owner)
         };
         if let Some(target @ Ty::Named(..)) = target {
             if let Some((found, sig)) = self.lookup_method(&target, &name.name) {
@@ -1671,7 +1747,14 @@ impl<'a> Checker<'a> {
             return Ty::Error;
         };
         let name = self.variant_name(def);
-        let ty = self.fresh_named(info.parent);
+        let head = match &callee.kind {
+            ExprKind::Field { base, .. } => Some(base.as_ref()),
+            _ => None,
+        };
+        let ty = match self.written_args(b, head, info.parent) {
+            Some(type_args) => Ty::Named(info.parent, type_args),
+            None => self.fresh_named(info.parent),
+        };
         if let Some(x) = expected {
             let x = self.infer.shallow(x);
             if matches!(&x, Ty::Named(d, _) if *d == info.parent) {
@@ -2848,5 +2931,14 @@ fn callee_name(callee: &ast::Expr) -> String {
         ExprKind::Field { name, .. } => format!("`{}`", name.name),
         ExprKind::TypeArgs { base, .. } => callee_name(base),
         _ => "this function".to_string(),
+    }
+}
+
+/// `Type` for `Type.<Args>`, which name resolution records under `Type`; other expressions as
+/// they are.
+fn without_type_args(e: &ast::Expr) -> &ast::Expr {
+    match &e.kind {
+        ExprKind::TypeArgs { base, .. } => base,
+        _ => e,
     }
 }
