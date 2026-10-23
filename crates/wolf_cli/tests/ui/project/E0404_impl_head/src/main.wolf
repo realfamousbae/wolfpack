@@ -1,0 +1,24 @@
+module main
+
+types {
+    struct Box<T> {
+        value: T
+    }
+}
+
+impl {
+    Box<T: Display>: Display {
+        fn to_string(self) -> String {
+            f"<{self.value}>"
+        }
+    }
+}
+
+main {
+    let b = Box { value: 1 }
+    print(f"{b}")
+    let task = Box { value: || 1 }
+    print(f"{task}")
+    let shown: Display = Box { value: || 2 }
+    print(shown.to_string())
+}

@@ -21,12 +21,12 @@ impl Checker<'_> {
     /// Whether a type implements an interface through an `impl` block (or is the interface).
     pub(crate) fn implements(&self, ty: &Ty, interface: DefId) -> bool {
         match self.infer.resolve(ty) {
-            Ty::Named(def, _) => {
+            Ty::Named(def, args) => {
                 def == interface
-                    || self
-                        .impls
-                        .get(&def)
-                        .is_some_and(|list| list.iter().any(|i| i.interface == interface))
+                    || self.impls.get(&def).is_some_and(|list| {
+                        list.iter()
+                            .any(|i| i.interface == interface && self.head_holds(&i.bounds, &args))
+                    })
             }
             Ty::Param(ParamId::Decl(span)) => self.has_bound(span, interface),
             Ty::Error | Ty::Never => true,
@@ -61,6 +61,63 @@ impl Checker<'_> {
             ok &= self.infer.unify(&a.subst(&map), b);
         }
         ok
+    }
+
+    /// Whether the type arguments of an implementation have the bounds that its head adds;
+    /// arguments that are not known yet are not held against it.
+    fn head_holds(&self, bounds: &[Vec<Ty>], args: &[Ty]) -> bool {
+        bounds.iter().zip(args).all(|(bounds, arg)| {
+            matches!(self.infer.resolve(arg), Ty::Var(_))
+                || bounds.iter().all(|b| match b {
+                    Ty::Named(iface, _) => self.satisfies(arg, *iface),
+                    _ => true,
+                })
+        })
+    }
+
+    /// For a type whose implementation of `interface` needs bounds that its arguments do not
+    /// have: "the implementation of `Display` for `Box` needs `T: Display`".
+    fn head_needs(&self, ty: &Ty, interface: DefId) -> Option<String> {
+        let Ty::Named(def, _) = self.infer.resolve(ty) else {
+            return None;
+        };
+        let imp = self
+            .impls
+            .get(&def)?
+            .iter()
+            .find(|i| i.interface == interface)?;
+        let needs: Vec<String> = imp
+            .generics
+            .iter()
+            .zip(&imp.bounds)
+            .filter(|(_, bounds)| !bounds.is_empty())
+            .map(|(span, bounds)| {
+                let name = self.param_names.get(span).cloned().unwrap_or_default();
+                let list: Vec<String> = bounds.iter().map(|b| self.show(b)).collect();
+                format!("`{name}: {}`", list.join(" + "))
+            })
+            .collect();
+        Some(format!(
+            "the implementation of `{}` for `{}` needs {}",
+            self.def_name(interface),
+            self.def_name(def),
+            needs.join(" and ")
+        ))
+    }
+
+    /// Whether `ty` has the interface `interface`, derived, closed or implemented.
+    pub(crate) fn satisfies(&self, ty: &Ty, interface: DefId) -> bool {
+        if Some(interface) == self.b.equatable {
+            self.derived(ty, Derived::Equatable, &mut BTreeSet::new())
+                .is_ok()
+        } else if Some(interface) == self.b.copyable {
+            self.derived(ty, Derived::Copyable, &mut BTreeSet::new())
+                .is_ok()
+        } else if Some(interface) == self.b.hashable {
+            self.hashable(ty)
+        } else {
+            self.implements(ty, interface)
+        }
     }
 
     /// Whether the type parameter declared at `span` has the bound `interface`.
@@ -132,7 +189,9 @@ impl Checker<'_> {
                 format!("`{shown}` does not implement `{iface}`"),
             )
             .primary(span, why.to_string());
-            if self.is(ty, self.b.float) && Some(interface) == self.b.comparable {
+            if let Some(needs) = self.head_needs(ty, interface) {
+                d = d.note(needs);
+            } else if self.is(ty, self.b.float) && Some(interface) == self.b.comparable {
                 d = d.note("`Float` has no total order because of NaN; sort floats with `list.sort_by` and a comparison function");
             } else if self.user_type(ty) {
                 d = d.help(format!(

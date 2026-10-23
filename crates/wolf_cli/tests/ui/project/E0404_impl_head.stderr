@@ -1,0 +1,17 @@
+error[E0404]: `Box<fn() -> Int>` does not implement `Display`
+   --> src/main.wolf:21:14
+   |
+21 |     print(f"{task}")
+   |              ^^^^ an interpolated value
+   |
+   = note: the implementation of `Display` for `Box` needs `T: Display`
+
+error[E0401]: expected `Display`, found `Box<fn() -> Int>`
+   --> src/main.wolf:22:26
+   |
+22 |     let shown: Display = Box { value: || 2 }
+   |                          ^^^^^^^^^^^^^^^^^^^ this is `Box<fn() -> Int>`
+   |
+   = note: `Box<fn() -> Int>` does not implement `Display`
+
+error: aborting due to 2 errors

@@ -152,6 +152,9 @@ pub struct ImplOf {
     pub args: Vec<Ty>,
     /// The impl block's type parameters, in the order of the type's parameters.
     pub generics: Vec<Span>,
+    /// The bounds that the head adds to them, in the same order: the implementation exists only
+    /// for the type arguments that have them (chapter 3, section 2, rule 6).
+    pub bounds: Vec<Vec<Ty>>,
 }
 
 /// A body to check.
@@ -1065,6 +1068,18 @@ impl<'a> Checker<'a> {
             .zip(&impl_generics)
             .map(|(d, s)| (ParamId::Decl(d.span), Ty::Param(ParamId::Decl(*s))))
             .collect();
+        let head_bounds: Vec<Vec<Ty>> = generics
+            .iter()
+            .zip(&declared)
+            .map(|(g, d)| {
+                let own: Vec<Ty> = d.bounds.iter().map(|b| b.subst(&to_impl)).collect();
+                g.bounds
+                    .iter()
+                    .filter(|b| !own.contains(b))
+                    .cloned()
+                    .collect()
+            })
+            .collect();
         for (g, d) in generics.iter_mut().zip(&declared) {
             for bound in &d.bounds {
                 let bound = bound.subst(&to_impl);
@@ -1130,6 +1145,7 @@ impl<'a> Checker<'a> {
                         interface: def,
                         args,
                         generics: impl_generics.clone(),
+                        bounds: head_bounds,
                     });
                 }
                 Ty::Error => return,
