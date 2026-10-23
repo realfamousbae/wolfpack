@@ -97,6 +97,26 @@ export type Test = { name: string; run: () => void };"#,
 export type Ref<T> = { v: T };"#,
     },
     Piece {
+        name: "become",
+        deps: &[],
+        code: r#"/**
+ * `self = value` in a `mut self` method of an enum with payloads: the object takes the variant
+ * and the fields of `value`, so that the place that holds it sees the new value. The ownership
+ * rules guarantee that `value` holds no part of the object.
+ */
+export function become<T extends object>(target: T, value: T): void {
+  if (target === value) {
+    return;
+  }
+  const fields = target as Record<string, unknown>;
+  for (const k of Object.keys(fields)) {
+    delete fields[k];
+  }
+  Object.setPrototypeOf(target, Object.getPrototypeOf(value));
+  Object.assign(target, value);
+}"#,
+    },
+    Piece {
         name: "Ordering",
         deps: &[],
         code: r#"type Ordering = "Less" | "Equal" | "Greater";"#,

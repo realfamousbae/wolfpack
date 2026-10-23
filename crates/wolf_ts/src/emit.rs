@@ -100,6 +100,8 @@ struct FnState {
     /// The dictionary parameters in scope, by type parameter.
     dicts: BTreeMap<(String, Dict), String>,
     self_expr: Option<Expr>,
+    /// `self` is a `Ref` (a `mut self` method of a payload-less enum): `self = v` sets `self.v`.
+    self_by_ref: bool,
     /// The loops around the current point, innermost last: the label and, for a `loop` whose
     /// value is used, where `break value` sends the value.
     loops: Vec<(Option<String>, Option<Target>)>,
@@ -133,6 +135,9 @@ pub(crate) struct Emitter<'p> {
     imports: BTreeMap<usize, BTreeSet<(String, String)>>,
     imported: BTreeMap<DefRef, String>,
     taken: BTreeSet<String>,
+    /// Payload-less enums used as values of an interface in the current module, with the
+    /// interface type: each gets a class `Enum$Interface` that holds the value.
+    wrappers: BTreeMap<(DefRef, DefRef), (IrType, IrType)>,
     externs: Vec<(String, String)>,
     f: FnState,
 }
@@ -356,6 +361,7 @@ impl<'p> Emitter<'p> {
             imports: BTreeMap::new(),
             imported: BTreeMap::new(),
             taken: BTreeSet::new(),
+            wrappers: BTreeMap::new(),
             externs: Vec::new(),
             f: FnState::default(),
         };
@@ -798,6 +804,20 @@ impl<'p> Emitter<'p> {
         }
     }
 
+    /// Whether `method` takes `mut self` of a payload-less enum: its receiver is a string in
+    /// TypeScript, so the method takes a `Ref` to the place of the receiver.
+    fn plain_mut_self(&self, method: DefRef) -> bool {
+        let Some(DefKind::Method { owner, .. }) = self.p.def(method).map(|d| d.kind) else {
+            return false;
+        };
+        self.enums.get(&owner).is_some_and(|e| {
+            e.variants.iter().all(|v| v.payload.is_empty())
+                && e.methods
+                    .iter()
+                    .any(|f| f.def == method && f.self_mode == Some(Mode::Mut))
+        })
+    }
+
     /// Whether a type is a payload-less enum (a union of string literals in TypeScript).
     fn plain_enum(&self, t: &IrType) -> bool {
         matches!(t, IrType::Named(d, _) if self.enums.get(d).is_some_and(|e| e.variants.iter().all(|v| v.payload.is_empty())))
@@ -831,6 +851,7 @@ impl<'p> Emitter<'p> {
         self.imports.clear();
         self.imported.clear();
         self.externs.clear();
+        self.wrappers.clear();
         self.taken = m
             .items
             .iter()
@@ -847,6 +868,10 @@ impl<'p> Emitter<'p> {
         let mut items = Vec::new();
         for item in &m.items {
             self.item(m, item, &mut items)?;
+        }
+        for ((e, iface), (from, to)) in std::mem::take(&mut self.wrappers) {
+            let class = self.plain_wrapper(e, iface, &from, &to)?;
+            items.push(class);
         }
         if m.role == ModuleRole::Std {
             self.std_snippets(index, &mut items);
@@ -1245,10 +1270,21 @@ impl<'p> Emitter<'p> {
                 e.def,
                 gnames.iter().map(|n| IrType::Param(n.clone())).collect(),
             );
-            let this = f.self_mode.map(|_| ident("self"));
-            let (mut g, mut params, ret, body) = self.function(f, this)?;
+            let by_ref = plain && f.self_mode == Some(Mode::Mut);
+            let this = f.self_mode.map(|_| {
+                if by_ref {
+                    member(ident("self"), "v")
+                } else {
+                    ident("self")
+                }
+            });
+            let (mut g, mut params, ret, body) = self.function_with(f, this, by_ref)?;
             if f.self_mode.is_some() {
-                let t = self.ty(&self_ty);
+                let mut t = self.ty(&self_ty);
+                if by_ref {
+                    self.rt.insert("Ref");
+                    t = Type::Ref("$rt.Ref".to_string(), vec![t]);
+                }
                 params.insert(0, ("self".to_string(), t));
             }
             let mut all = generics.clone();
@@ -1692,8 +1728,28 @@ impl<'p> Emitter<'p> {
         ),
         Error,
     > {
+        self.function_with(f, this, false)
+    }
+
+    /// [`Self::function`], with `self` passed as a `Ref` when `self_by_ref`.
+    #[allow(clippy::type_complexity)]
+    fn function_with(
+        &mut self,
+        f: &'p ir::Function,
+        this: Option<Expr>,
+        self_by_ref: bool,
+    ) -> Result<
+        (
+            Vec<(String, Option<Type>)>,
+            Vec<(String, Type)>,
+            Type,
+            Vec<Stmt>,
+        ),
+        Error,
+    > {
         let saved = std::mem::take(&mut self.f);
         self.f.self_expr = this;
+        self.f.self_by_ref = self_by_ref;
         self.f.rets.push((f.ret.clone(), true));
         let generics = self.generics(&f.generics);
         let mut params = Vec::new();
@@ -2062,7 +2118,11 @@ impl<'p> Emitter<'p> {
             },
             ExprKind::SelfValue => {
                 let s = self.f.self_expr.clone().unwrap_or(Expr::This);
-                PlaceKind::Whole(s, target.ty.clone())
+                if self.f.self_by_ref {
+                    PlaceKind::Simple(s)
+                } else {
+                    PlaceKind::Whole(s, target.ty.clone())
+                }
             }
             ExprKind::Field { base, name } => {
                 let b = self.expr(base, out)?;
@@ -2150,7 +2210,12 @@ impl<'p> Emitter<'p> {
                         vec![e, v],
                     )));
                 }
-                _ => return Err("assignment to `self` of an enum".to_string()),
+                // An enum with payloads: the object becomes the new variant in place.
+                IrType::Named(d, _) if self.enums.contains_key(&d) => {
+                    let c = self.rt_call("become", vec![e, v]);
+                    out.push(Stmt::Expr(c));
+                }
+                _ => return Err("assignment to `self` of this type".to_string()),
             },
         }
         Ok(())
@@ -2651,46 +2716,97 @@ impl<'p> Emitter<'p> {
         if !self.plain_enum(from) {
             return Ok(v);
         }
-        // A payload-less enum is a string: wrap it in an object with the interface's methods.
+        // A payload-less enum is a string: a class of this module holds it and has the
+        // interface's methods.
         let (IrType::Named(e, _), IrType::Named(iface, _)) = (from, to) else {
             return Ok(v);
         };
-        let methods: Vec<String> = self
+        self.wrappers
+            .entry((*e, *iface))
+            .or_insert_with(|| (from.clone(), to.clone()));
+        Ok(Expr::New(self.wrapper_name(*e, *iface), vec![v]))
+    }
+
+    /// The class that holds a payload-less enum used as a value of an interface: `Color$Animal`.
+    fn wrapper_name(&self, e: DefRef, iface: DefRef) -> String {
+        let name = |d: DefRef| self.p.def(d).map(|d| d.name.clone()).unwrap_or_default();
+        format!("{}${}", type_name(&name(e)), type_name(&name(iface)))
+    }
+
+    /// The class of [`Self::coerce`]: the value is the field `v`, so that the class is the `Ref`
+    /// that a `mut self` method takes, and a copy of the object is a copy of the value.
+    fn plain_wrapper(
+        &mut self,
+        e: DefRef,
+        iface: DefRef,
+        from: &IrType,
+        to: &IrType,
+    ) -> Result<Item, Error> {
+        let en = self.enums.get(&e).copied().ok_or("enum")?;
+        let names: Vec<String> = self
             .iface_fns
             .keys()
-            .filter(|(i, _)| i == iface)
+            .filter(|(i, _)| *i == iface)
             .map(|(_, n)| n.clone())
             .collect();
-        let en = self.enums.get(e).copied().ok_or("enum")?;
-        let mut fields = Vec::new();
-        for m in methods {
+        let mut methods = Vec::new();
+        for n in names {
             let f = en
                 .methods
                 .iter()
-                .find(|f| f.name == m)
+                .find(|f| f.name == n)
                 .ok_or("missing method")?;
-            let fname = self.def_name_local(f.def, *e);
-            let params: Vec<(String, Option<Type>)> =
-                f.params.iter().map(|p| (camel(&p.name), None)).collect();
-            let mut args = vec![ident("self")];
+            let fname = self.def_name_local(f.def, e);
+            let params: Vec<(String, Type)> = f
+                .params
+                .iter()
+                .map(|p| (camel(&p.name), self.param_ty(p.mode, &p.ty)))
+                .collect();
+            let recv = if f.self_mode == Some(Mode::Mut) {
+                Expr::This
+            } else {
+                member(Expr::This, "v")
+            };
+            let mut args = vec![recv];
             args.extend(params.iter().map(|(n, _)| ident(n)));
-            fields.push((
-                camel(&m),
-                Expr::Arrow(
-                    params,
-                    None,
-                    ArrowBody::Expr(Box::new(call(ident(&fname), args))),
-                ),
-            ));
+            let result = call(ident(&fname), args);
+            let body = if matches!(f.ret, IrType::Void) {
+                vec![Stmt::Expr(result)]
+            } else {
+                vec![Stmt::Return(Some(result))]
+            };
+            methods.push(Method {
+                docs: Vec::new(),
+                is_static: false,
+                name: camel(&n),
+                generics: Vec::new(),
+                params,
+                ret: self.ret_ty(&f.ret),
+                body,
+            });
         }
-        let to_ty = self.ty(to);
-        let from_ty = self.ty(from);
-        let wrapper = Expr::Arrow(
-            vec![("self".to_string(), Some(from_ty))],
-            Some(to_ty),
-            ArrowBody::Expr(Box::new(Expr::Object(fields))),
-        );
-        Ok(call(wrapper, vec![v]))
+        let value = self.ty(from);
+        let class = self.wrapper_name(e, iface);
+        let enum_name = self.p.def(e).map(|d| d.name.clone()).unwrap_or_default();
+        let iface_name = self
+            .p
+            .def(iface)
+            .map(|d| d.name.clone())
+            .unwrap_or_default();
+        let implements = vec![self.ty(to)];
+        Ok(Item::Class {
+            docs: vec![format!("`{enum_name}` as a value of `{iface_name}`.")],
+            export: false,
+            name: class,
+            generics: Vec::new(),
+            implements,
+            fields: vec![("v".to_string(), value.clone(), None)],
+            constructor: Some((
+                vec![("v".to_string(), value)],
+                vec![Stmt::Assign(member(Expr::This, "v"), ident("v"))],
+            )),
+            methods,
+        })
     }
 
     /// The name of a function of an enum, imported from the enum's module if needed.
@@ -2879,8 +2995,11 @@ impl<'p> Emitter<'p> {
         let mut pre_all = Vec::new();
         // References to places are built without evaluating the place.
         let mut plain_items = Vec::new();
+        let recv_ref =
+            matches!(callee, Callee::Method { method, .. } if self.plain_mut_self(*method));
         for (i, (e, r)) in items.iter().enumerate() {
-            let is_ref = recv.is_some() && i > 0 && refs.get(i - 1).copied().unwrap_or(false)
+            let is_ref = recv.is_some() && i == 0 && recv_ref
+                || recv.is_some() && i > 0 && refs.get(i - 1).copied().unwrap_or(false)
                 || recv.is_none() && refs.get(i).copied().unwrap_or(false);
             if is_ref {
                 plain_items.push(None);

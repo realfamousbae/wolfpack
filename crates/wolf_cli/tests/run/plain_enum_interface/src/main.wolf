@@ -1,5 +1,5 @@
-//! A plain enum with a `mut self` method used as an interface value, and copies of such values.
-//! Not in `tests/run/`: TypeScript does not support `self = ...` of an enum yet.
+//! A plain enum with a `mut self` method that assigns to `self`, used as an interface value, and
+//! copies of such values.
 
 module main
 
