@@ -30,6 +30,16 @@ All notable changes are recorded here at the end of each milestone.
 - Fixed: an interface implementation whose head adds bounds (`Box<T: Display>: Display`)
   counted for every type argument, so `f"{Box { value: || 1 }}"` was accepted. It is now E0404
   (E0401 for a coercion), with a note that names the bounds.
+- Fixed: type arguments written after a type and a dot (spec chapter 3, section 5, rule 2) were
+  ignored: `let e = List.<Int>.new()` with nothing else in the body that tells the type was
+  E0420, and so were `Map.<String, Int>.new()`, `Stack.<Int>.new()` of a user type,
+  `Tree.<Int>.Leaf` and `Option.<String>.None`. They now give the type its arguments; a wrong
+  number of them is E0403, and an unknown associated function after them
+  (`Stack.<Int>.empty()`) is reported once, as E0609, not also as E0429.
+- Fixed in the Rust backend: a `let` of a generic type of the program built by a call or by a
+  variant without a payload (`let s: Stack<Int> = Stack.new()` followed only by `s.size()`,
+  `let t: Tree<Int> = Tree.Leaf` followed only by a `match`) was rejected by rustc, which could
+  not infer the type argument; the `let` now writes its type.
 - Package managers (spec chapter 8, sections 2a and 2b; `docs/plans/distribution.md`): Homebrew
   (`brew install realfamousbae/wolfpack/wolfpack`) and Scoop (the bucket
   `realfamousbae/scoop-wolfpack`) have 0.3.0 already; winget manifests are ready for its first
