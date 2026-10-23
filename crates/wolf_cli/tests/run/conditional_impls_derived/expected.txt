@@ -1,0 +1,26 @@
+3 items, 2 distinct, first again true
+2 items, 1 distinct, first again true
+2 items, 1 distinct, first again true
+2 items, 2 distinct, first again true
+3 items, 2 distinct, first again true
+3 items, 2 distinct, first again true
+3 items, 2 distinct, first again true
+3 items, 2 distinct, first again true
+3 items, 2 distinct, first again true
+2 items, 1 distinct, first again true
+3 items, 2 distinct, first again true
+2 items, 1 distinct, first again true
+2 items, 1 distinct, first again true
+1 2
+2 items, 1 distinct, first again true
+point 1
+green
+point 1
+2 below the first
+1 below the first
+1 below the first
+0 below the first
+just 1
+nothing
+just s
+just just 2.5

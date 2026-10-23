@@ -52,6 +52,13 @@ All notable changes are recorded here at the end of each milestone.
 - Fixed: an interface implementation whose head adds bounds (`Box<T: Display>: Display`)
   counted for every type argument, so `f"{Box { value: || 1 }}"` was accepted. It is now E0404
   (E0401 for a coercion), with a note that names the bounds.
+- Fixed in the Go backend: an interface implementation of a generic type whose parameters have
+  the bounds `Display`, `Comparable`, `Equatable` or `Copyable`, from the head of the
+  implementation (`Box<T: Display>: Display`) or from the type's declaration (`struct Sorted<T:
+  Comparable>`), took their dictionaries as extra parameters, so the type did not implement the
+  interface and Go rejected the code. The method now keeps the signature of the interface and
+  finds these operations from the type argument at run time (`wolfrt.Show`, `Compare`, `Equal`
+  and `Copy`).
 - Package managers (spec chapter 8, sections 2a and 2b; `docs/plans/distribution.md`): Homebrew
   (`brew install realfamousbae/wolfpack/wolfpack`) and Scoop (the bucket
   `realfamousbae/scoop-wolfpack`) have 0.3.0 already; winget manifests are ready for its first

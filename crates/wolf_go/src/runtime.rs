@@ -1676,6 +1676,196 @@ func MapValues[K comparable, V any](m Map[K, V], copy func(V) V) []V {
 }"#,
     },
     Piece {
+        name: "Show",
+        deps: &["Display"],
+        imports: &["strconv"],
+        code: r#"// Show is to_string for a type parameter with the bound Display in an interface implementation.
+// Such a method keeps the signature of the interface and takes no dictionaries, so the
+// operation is found from the value at run time.
+func Show[T any](x T) string {
+	switch v := any(x).(type) {
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case float64:
+		return FloatString(v)
+	case bool:
+		return strconv.FormatBool(v)
+	case string:
+		return v
+	case Display:
+		return v.ToString()
+	}
+	if v, ok := any(&x).(Display); ok {
+		return v.ToString()
+	}
+	panic("unreachable: no to_string")
+}"#,
+    },
+    Piece {
+        name: "Compare",
+        deps: &["Ordering"],
+        imports: &[],
+        code: r#"// Compare is compare for a type parameter with the bound Comparable in an interface
+// implementation (see Show).
+func Compare[T any](a, b T) Ordering {
+	switch v := any(a).(type) {
+	case int64:
+		return CompareInt(v, any(b).(int64))
+	case string:
+		return CompareString(v, any(b).(string))
+	case interface{ Compare(T) Ordering }:
+		return v.Compare(b)
+	}
+	if v, ok := any(&a).(interface{ Compare(T) Ordering }); ok {
+		return v.Compare(b)
+	}
+	panic("unreachable: no compare")
+}"#,
+    },
+    Piece {
+        name: "dicts",
+        deps: &[],
+        imports: &["reflect"],
+        code: r#"// callWithDicts calls a generated Equal or Copy method: the parameters after args are
+// dictionaries, functions that apply op to their arguments.
+func callWithDicts(m reflect.Value, args []reflect.Value, op func([]reflect.Value) reflect.Value) reflect.Value {
+	t := m.Type()
+	for i := len(args); i < t.NumIn(); i++ {
+		args = append(args, reflect.MakeFunc(t.In(i), func(in []reflect.Value) []reflect.Value {
+			return []reflect.Value{op(in)}
+		}))
+	}
+	return m.Call(args)[0]
+}"#,
+    },
+    Piece {
+        name: "Equal",
+        deps: &["dicts", "Option", "Result", "Map"],
+        imports: &["reflect"],
+        code: r#"// Equal is == for a type parameter with the bound Equatable in an interface implementation (see
+// Show). Lists are compared element by element, other types by their Equal method.
+func Equal[T any](a, b T) bool {
+	switch v := any(a).(type) {
+	case int64:
+		return v == any(b).(int64)
+	case float64:
+		return v == any(b).(float64)
+	case bool:
+		return v == any(b).(bool)
+	case string:
+		return v == any(b).(string)
+	}
+	return equalValues(reflect.ValueOf(&a).Elem(), reflect.ValueOf(&b).Elem())
+}
+
+func equalValues(a, b reflect.Value) bool {
+	switch a.Kind() {
+	case reflect.Bool:
+		return a.Bool() == b.Bool()
+	case reflect.Int, reflect.Int64:
+		return a.Int() == b.Int()
+	case reflect.Float64:
+		return a.Float() == b.Float()
+	case reflect.String:
+		return a.String() == b.String()
+	case reflect.Slice:
+		if a.Len() != b.Len() {
+			return false
+		}
+		for i := range a.Len() {
+			if !equalValues(a.Index(i), b.Index(i)) {
+				return false
+			}
+		}
+		return true
+	case reflect.Struct:
+		if a.NumField() == 0 {
+			return true
+		}
+	}
+	if m := a.MethodByName("Equal"); m.IsValid() {
+		eq := func(in []reflect.Value) reflect.Value {
+			return reflect.ValueOf(equalValues(in[0], in[1]))
+		}
+		return callWithDicts(m, []reflect.Value{b}, eq).Bool()
+	}
+	panic("unreachable: no == for " + a.Type().String())
+}
+
+// Equal is ==.
+func (o Option[T]) Equal(other Option[T], eq func(T, T) bool) bool {
+	return OptionEqual(o, other, eq)
+}
+
+// Equal is ==.
+func (r Result[T, E]) Equal(other Result[T, E], eqT func(T, T) bool, eqE func(E, E) bool) bool {
+	return ResultEqual(r, other, eqT, eqE)
+}
+
+// Equal is ==.
+func (m Map[K, V]) Equal(other Map[K, V], eq func(V, V) bool) bool {
+	return MapEqual(m, other, eq)
+}"#,
+    },
+    Piece {
+        name: "Copy",
+        deps: &["dicts", "Option", "Result", "Map"],
+        imports: &["reflect", "strings"],
+        code: r#"// Copy is .copy() for a type parameter with the bound Copyable in an interface implementation
+// (see Show). Lists are copied element by element, interface values by their copy method, other
+// types by their Copy method.
+func Copy[T any](x T) T {
+	switch any(x).(type) {
+	case int64, float64, bool, string:
+		return x
+	}
+	return copyValue(reflect.ValueOf(&x).Elem()).Interface().(T)
+}
+
+func copyValue(v reflect.Value) reflect.Value {
+	switch v.Kind() {
+	case reflect.Bool, reflect.Int, reflect.Int64, reflect.Float64, reflect.String:
+		return v
+	case reflect.Slice:
+		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := range v.Len() {
+			out.Index(i).Set(copyValue(v.Index(i)))
+		}
+		return out
+	case reflect.Struct:
+		if v.NumField() == 0 {
+			return v
+		}
+	case reflect.Interface:
+		// The method that copies the value behind an interface of the program: CopyAnimal.
+		t := v.Type()
+		for i := range t.NumMethod() {
+			m := t.Method(i)
+			if strings.HasPrefix(m.Name, "Copy") && m.Type.NumIn() == 0 && m.Type.NumOut() == 1 && m.Type.Out(0) == t {
+				return v.Method(i).Call(nil)[0]
+			}
+		}
+	}
+	if m := v.MethodByName("Copy"); m.IsValid() {
+		cp := func(in []reflect.Value) reflect.Value {
+			return copyValue(in[0])
+		}
+		return callWithDicts(m, nil, cp)
+	}
+	panic("unreachable: no .copy() for " + v.Type().String())
+}
+
+// Copy is .copy().
+func (o Option[T]) Copy(copy func(T) T) Option[T] {
+	return CopyOption(o, copy)
+}
+
+// Copy is .copy().
+func (r Result[T, E]) Copy(copyT func(T) T, copyE func(E) E) Result[T, E] {
+	return CopyResult(r, copyT, copyE)
+}"#,
+    },
+    Piece {
         name: "FsError",
         deps: &[],
         imports: &[],
