@@ -14,9 +14,13 @@ All notable changes are recorded here at the end of each milestone.
   `list.sort(mut items)` is `items.sort()`, `list.contains(items, x)` is `items.contains(x)`.
   `sort_by`, `sum` and `range` stay functions of `std.list`.
 - Fixed in the Rust backend: a list literal of two or more closures (`[|| 1, || 2]`) outside a
-  typed `let` was rejected by rustc, because each closure has its own type; `contains` and
+  typed `let`, and closures in two fields of one type parameter (`Pair { first: || 1, second:
+  || 2 }`), were rejected by rustc, because each closure has its own type; `contains` and
   `index_of` of a `List<String>` with a string literal (`words.contains("fig")`) were rejected
   too.
+- Fixed: an interface implementation whose head adds bounds (`Box<T: Display>: Display`)
+  counted for every type argument, so `f"{Box { value: || 1 }}"` was accepted. It is now E0404
+  (E0401 for a coercion), with a note that names the bounds.
 - Package managers (spec chapter 8, sections 2a and 2b; `docs/plans/distribution.md`): Homebrew
   (`brew install realfamousbae/wolfpack/wolfpack`) and Scoop (the bucket
   `realfamousbae/scoop-wolfpack`) have 0.3.0 already; winget manifests are ready for its first
