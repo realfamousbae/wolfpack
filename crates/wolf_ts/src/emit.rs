@@ -268,6 +268,17 @@ fn not(e: Expr) -> Expr {
 }
 
 /// Expressions that may be evaluated twice or out of order.
+/// Whether an expression reads `this`, which the getter and setter of a `Ref` built from it
+/// would not see: there `this` is the `Ref`.
+fn uses_this(e: &Expr) -> bool {
+    match e {
+        Expr::This => true,
+        Expr::Member(base, _) => uses_this(base),
+        Expr::Index(a, b) => uses_this(a) || uses_this(b),
+        _ => false,
+    }
+}
+
 fn pure(e: &Expr) -> bool {
     match e {
         Expr::Ident(_)
@@ -3870,16 +3881,18 @@ impl<'p> Emitter<'p> {
             ExprKind::Local(l) => match self.f.locals.get(l).cloned() {
                 Some(Local::Boxed(n)) => Ok(ident(&n)),
                 Some(Local::Plain(n)) => Ok(Expr::RefTo(Box::new(ident(&n)))),
-                Some(Local::Alias(Place::Expr(p))) => Ok(Expr::RefTo(Box::new(p))),
+                Some(Local::Alias(Place::Expr(p))) => Ok(self.ref_of(p, out)),
                 Some(Local::Alias(Place::Elem(l, i))) => {
-                    Ok(Expr::RefTo(Box::new(Expr::Index(Box::new(l), Box::new(i)))))
+                    Ok(self.ref_of(Expr::Index(Box::new(l), Box::new(i)), out))
                 }
                 None => Err("unknown local".to_string()),
             },
+            // `self` of a `mut self` method of a payload-less enum is already a `Ref`.
+            ExprKind::SelfValue if self.f.self_by_ref => Ok(ident("self")),
             ExprKind::Field { base, name } => {
                 let b = self.expr(base, out)?;
                 let b = self.stable(b, "base", out);
-                Ok(Expr::RefTo(Box::new(member(b, &camel(name)))))
+                Ok(self.ref_of(member(b, &camel(name)), out))
             }
             ExprKind::Index { base, index } => {
                 let b = self.expr(base, out)?;
@@ -3893,6 +3906,34 @@ impl<'p> Emitter<'p> {
             }
             _ => Err("a `mut` argument that is not a place".to_string()),
         }
+    }
+
+    /// `Expr::RefTo` of a place; a place that reads `this` reads it through a constant, since
+    /// inside the getter and the setter `this` is the `Ref` itself.
+    fn ref_of(&mut self, place: Expr, out: &mut Vec<Stmt>) -> Expr {
+        let place = match place {
+            Expr::Member(base, name) if uses_this(&base) => {
+                let t = self.temp("this");
+                out.push(Stmt::Const(t.clone(), None, *base));
+                member(ident(&t), &name)
+            }
+            Expr::Index(base, i) if uses_this(&base) || uses_this(&i) => {
+                let mut hoist = |e: Expr, out: &mut Vec<Stmt>| {
+                    if uses_this(&e) {
+                        let t = self.temp("this");
+                        out.push(Stmt::Const(t.clone(), None, e));
+                        ident(&t)
+                    } else {
+                        e
+                    }
+                };
+                let b = hoist(*base, out);
+                let i = hoist(*i, out);
+                Expr::Index(Box::new(b), Box::new(i))
+            }
+            other => other,
+        };
+        Expr::RefTo(Box::new(place))
     }
 
     /// A call of an intrinsic of std, with the receiver first.
