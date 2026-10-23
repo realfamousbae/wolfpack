@@ -1,0 +1,65 @@
+module main
+
+types {
+    struct Box<T> {
+        value: T
+    }
+
+    struct Pair<T> {
+        first: T
+        second: T
+    }
+}
+
+impl {
+    Box<T: Display>: Display {
+        fn to_string(self) -> String {
+            f"<{self.value}>"
+        }
+    }
+
+    Pair<T: Comparable + Copyable>: Comparable {
+        fn compare(self, other: Self) -> Ordering {
+            match self.first.compare(other.first.copy()) {
+                Ordering.Equal => self.second.compare(other.second.copy())
+                order => order
+            }
+        }
+    }
+
+    Pair<T> {
+        fn swap(own self) -> Pair<T> {
+            match own self {
+                Pair { first, second } => Pair { first: second, second: first }
+            }
+        }
+    }
+}
+
+main {
+    let b = Box { value: 7 }
+    print(f"{b} {Box { value: "s" }} {Box { value: Box { value: 2.5 } }}")
+    let shown: List<Display> = [Box { value: 1 }, Box { value: true }, 3]
+    for s in shown {
+        print(s.to_string())
+    }
+    print(twice(Box { value: "x" }))
+    var pairs = [
+        Pair { first: 2, second: 1 },
+        Pair { first: 1, second: 5 },
+        Pair { first: 2, second: 0 },
+    ]
+    pairs.sort()
+    for p in pairs {
+        print(f"{p.first},{p.second}")
+    }
+    let tasks = Pair { first: || 1, second: || 2 }
+    let swapped = tasks.swap()
+    print((swapped.first)().to_string())
+}
+
+functions {
+    fn twice<T: Display>(x: T) -> String {
+        f"{x}{x}"
+    }
+}

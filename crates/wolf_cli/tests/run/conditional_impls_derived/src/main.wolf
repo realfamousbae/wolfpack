@@ -1,0 +1,185 @@
+//! The head of an interface implementation adds `Equatable` and `Copyable` to the parameter of
+//! its type (spec chapter 3, section 2, rule 6): the implementation exists for the type
+//! arguments that have them, of every kind. A bound of the type's declaration and the
+//! implementation of an enum with payloads work the same way.
+
+module main
+
+types {
+    struct Bag<T> {
+        items: List<T>
+    }
+
+    struct Point {
+        x: Int
+        y: Int
+    }
+
+    struct Labeled<T> {
+        label: String
+        value: T
+    }
+
+    enum Shape {
+        Circle(Int)
+        Square(Int)
+    }
+
+    enum Color {
+        Red
+        Green
+    }
+
+    struct Sorted<T: Comparable> {
+        items: List<T>
+    }
+
+    struct Book {
+        pages: Int
+    }
+
+    enum Maybe<T> {
+        Just(T)
+        Nothing
+    }
+}
+
+interfaces {
+    interface Grow {
+        fn grow(mut self)
+    }
+
+    interface Named {
+        fn name(self) -> String
+    }
+}
+
+impl {
+    Bag<T: Equatable + Copyable>: Display {
+        fn to_string(self) -> String {
+            var distinct: List<T> = []
+            for x in self.items {
+                var seen = false
+                for y in distinct {
+                    if x == y {
+                        seen = true
+                    }
+                }
+                if !seen {
+                    distinct.push(x.copy())
+                }
+            }
+            f"{self.items.len()} items, {distinct.len()} distinct, first again {distinct.contains(self.items[0])}"
+        }
+    }
+
+    Bag<T: Copyable>: Grow {
+        fn grow(mut self) {
+            let first = self.items[0].copy()
+            self.items.push(own first)
+        }
+    }
+
+    Point: Named {
+        fn name(self) -> String {
+            f"point {self.x}"
+        }
+    }
+
+    Color: Named {
+        fn name(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+
+    Sorted<T>: Display {
+        fn to_string(self) -> String {
+            var smaller = 0
+            for x in self.items {
+                if x.compare(self.items[0]) == Ordering.Less {
+                    smaller += 1
+                }
+            }
+            f"{smaller} below the first"
+        }
+    }
+
+    Book: Comparable {
+        fn compare(self, other: Book) -> Ordering {
+            self.pages.compare(other.pages)
+        }
+    }
+
+    Maybe<T: Display + Equatable>: Display {
+        fn to_string(self) -> String {
+            match self {
+                Maybe.Just(x) => f"just {x}"
+                Maybe.Nothing => "nothing"
+            }
+        }
+    }
+}
+
+main {
+    let p = Point { x: 1, y: 2 }
+    let bags: List<Display> = [
+        Bag { items: [1, 2, 1] },
+        Bag { items: [1.5, 1.5] },
+        Bag { items: ["a", "a"] },
+        Bag { items: [true, false] },
+        Bag { items: [Color.Red, Color.Green, Color.Red] },
+        Bag { items: [p.copy(), Point { x: 1, y: 2 }, Point { x: 2, y: 1 }] },
+        Bag { items: [[1, 2], [1, 2], [2]] },
+        Bag { items: [Some(p.copy()), None, None] },
+        Bag { items: [Shape.Circle(1), Shape.Circle(1), Shape.Square(1)] },
+        Bag {
+            items: [
+                Labeled { label: "a", value: p.copy() },
+                Labeled { label: "a", value: Point { x: 1, y: 2 } },
+            ],
+        },
+        Bag { items: [["k": [p.copy()]], ["k": [p.copy()]], ["k": []]] },
+        Bag { items: [Bag { items: [p.copy()] }, Bag { items: [p.copy()] }] },
+    ]
+    for b in bags {
+        print(b.to_string())
+    }
+    print(f"{Bag { items: [p.copy(), p.copy()] }}")
+
+    var nested = Bag { items: [[1], [2]] }
+    nested.grow()
+    nested.items[2].push(9)
+    print(f"{nested.items[0].len()} {nested.items[2].len()}")
+
+    var shapes = Bag { items: [Shape.Square(3)] }
+    shapes.grow()
+    print(f"{shapes}")
+
+    var names: Bag<Named> = Bag { items: [p.copy(), Color.Green] }
+    names.grow()
+    for n in names.items {
+        print(n.name())
+    }
+
+    let sorted: List<Display> = [
+        Sorted { items: [3, 1, 2] },
+        Sorted { items: ["b", "a"] },
+        Sorted { items: [Book { pages: 5 }, Book { pages: 2 }] },
+    ]
+    for s in sorted {
+        print(s.to_string())
+    }
+    print(f"{Sorted { items: [Book { pages: 1 }] }}")
+
+    let maybes: List<Maybe<Int>> = [Maybe.Just(1), Maybe.Nothing]
+    for m in maybes {
+        print(m.to_string())
+    }
+    let shown: List<Display> = [Maybe.Just("s"), Maybe.Just(Maybe.Just(2.5))]
+    for m in shown {
+        print(m.to_string())
+    }
+}

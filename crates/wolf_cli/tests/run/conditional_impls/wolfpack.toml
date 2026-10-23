@@ -1,0 +1,4 @@
+[package]
+name = "conditional-impls"
+version = "0.1.0"
+kind = "cli"
