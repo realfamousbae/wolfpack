@@ -51,6 +51,12 @@ All notable changes are recorded here at the end of each milestone.
   available, as an overloaded function is not; before, its last declaration was taken. A method
   with a `Map` whose keys stay `number` is not available either, as such a function is not
   (`wolf check --native` lists both with the reason).
+- Fixed: the bounds that the head of an `impl` block adds (`Stack<T: Equatable> { ... }`, spec
+  chapter 3, section 2, rule 6) were not checked when a method of the block was called, so a
+  program could call it with a type that does not have them: the VM and TypeScript then compared
+  functions, Go stopped with an internal error and Rust rejected the code. Such a call is now
+  E0404 (E0406 for `Equatable` and `Copyable`), and the label of these errors no longer says
+  "required by `f` needs `Equatable`".
 - New diagnostic E0439: a struct literal or a struct pattern whose name is not a struct, an alias
   of one or a variant with named fields (`String { w: 1.0 }`, `Shape { w: 2.0 }` for an enum).
   Before, such a program stopped `wolf` with an internal error. Literals and patterns written with
