@@ -138,7 +138,11 @@ main {
     print(a.name())
     print(f"{a == b}")
     print(Shown { item: Color.Red }.to_string())
-    let trees: List<Tree<Color>> = [Tree.Leaf(Color.Red), Tree.Pair(Color.Green, Color.Red), Tree.Empty]
+    let trees: List<Tree<Color>> = [
+        Tree.Leaf(Color.Red),
+        Tree.Pair(Color.Green, Color.Red),
+        Tree.Empty,
+    ]
     for t in trees {
         print(t.name())
     }
