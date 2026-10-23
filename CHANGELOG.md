@@ -4,6 +4,17 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Format specifications in interpolations (spec chapter 1, section 5.3a; chapter 7, section 4.4;
+  D4.18): `f"{price:>8.2}"`, `f"{n:05}"`, `f"{name:*^10}"`. A width counts Unicode scalar values,
+  numbers align to the right and other values to the left, a precision rounds a `Float` to the
+  nearest with ties to even on its exact value (TypeScript, whose `toFixed` rounds halves up, has
+  its own code), and `0` pads a number with zeros after its sign. New diagnostics: E0117 for a
+  malformed specification, a `0` with a fill or an alignment, a width over 1000 or a precision
+  over 100, and E0441 for a precision on a type other than `Float` or a `0` on a type that is not
+  a number.
+- Fixed in the Rust backend: a method of a negative number literal, `(-7).to_string()`, lost its
+  parentheses; and a program that writes a value close to π (`3.14159`) no longer fails Clippy's
+  `approx_constant`.
 - `Display` of collections (spec chapter 4, section 9, rule 7; chapter 7, section 4.1; D4.17):
   `List<T>` and `Option<T>` are `Display` when `T` is, `Map<K, V>` when `K` and `V` are, and
   `Result<T, E>` when `T` is and `E` is `Display` or implements `Error`. They are written as the
