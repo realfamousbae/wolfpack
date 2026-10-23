@@ -1,0 +1,58 @@
+//! A `mut self` method called on a payload-less enum from its other `mut self` methods and on
+//! the fields and elements of a struct from its methods: the change reaches the place.
+
+module main
+
+types {
+    enum Light {
+        Red
+        Green
+        Blue
+    }
+
+    struct Lamp {
+        light: Light
+        lights: List<Light>
+    }
+}
+
+impl {
+    Light {
+        fn step(mut self) {
+            self = match self {
+                Light.Red => Light.Green
+                Light.Green => Light.Blue
+                Light.Blue => Light.Red
+            }
+        }
+
+        fn double(mut self) {
+            self.step()
+            self.step()
+        }
+
+        fn label(self) -> String {
+            match self {
+                Light.Red => "red"
+                Light.Green => "green"
+                Light.Blue => "blue"
+            }
+        }
+    }
+
+    Lamp {
+        fn go(mut self) {
+            self.light.double()
+            self.lights[0].step()
+        }
+    }
+}
+
+main {
+    var l = Light.Red
+    l.double()
+    print(l.label())
+    var lamp = Lamp { light: Light.Red, lights: [Light.Red] }
+    lamp.go()
+    print(lamp.light.label() + " " + lamp.lights[0].label())
+}
