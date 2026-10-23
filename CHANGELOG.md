@@ -24,10 +24,34 @@ All notable changes are recorded here at the end of each milestone.
   gives the value as a value of the interface (the enum's wrapper class, or the value itself), so
   methods, defaults and `Named.greeting(x)` work through `T`, generic interfaces too, and `T`
   stays the enum in lists, comparisons and results. With `E: Error`, `f"{r}"` of a
-  `Result<Int, E>` writes the enum's message, or its `to_string` if it is also `Display`. Not yet
-  for interfaces that mention `Self` outside the receiver or have a `mut self` method, nor inside
-  an implementation of an interface by a generic type (`Labeled<T: Named>: Named`) or a default of
-  an interface with a bounded type parameter, which take no dictionary.
+  `Result<Int, E>` writes the enum's message, or its `to_string` if it is also `Display`. The
+  dictionary of an interface with a `mut self` method takes the place of the value, so that
+  `x.step()` through `T` changes `x`, also an element of a list or a field. An implementation of
+  an interface by a generic type finds the dictionaries of the type's bounds in the value
+  (`Labeled<T: Named>: Named` calling `self.item.name()`, `Shown<T: Display>: Display` writing
+  `self.item`): they are fields such as `$asNamedT`, which `==` skips. A default of an interface
+  with a bounded type parameter (`interface Holder<T: Named>`) takes them after the receiver.
+  Still a cast, right for classes only: a bound that only the head of an interface
+  implementation adds (`Box<T: Named>: Named` with `struct Box<T>`).
+- Fixed: interfaces that mention `Self` beyond the receiver (`fn same(self, other: Self) -> Bool`,
+  `fn next(self) -> Self`), which are bounds only. TypeScript rejected a class that implements one
+  whose method returns `Self` (TS2416), and a payload-less enum could not meet such a bound; the
+  interface is now `interface Same<Self>`, which a class implements as `Same<Dog>`, a bound by it
+  is a dictionary like the others, and its defaults are generic over `Self`. Rust rejected the
+  defaults that keep `Self` in a list or replace `self` (`self = self.next()`); such a trait is now
+  `Sized`.
+- Fixed in the Rust backend: a generic interface used as a value (`let h: Holder<Color> = ...`)
+  lost its type arguments in `copy_dyn` and `Clone` (`Box<dyn Holder>`); and a `mut` list
+  parameter whose body changes only its elements failed Clippy's `ptr_arg`.
+- Fixed in the TypeScript backend: a `mut` argument that is a field of `self` in a method of a
+  struct (`self.light.step()` with a `mut self` method of a payload-less enum) read and set the
+  field of the reference object itself, whose getter sees `this` as the reference; and a `mut
+  self` method of a payload-less enum that calls another one on `self` stopped `wolf` with an
+  internal error.
+- Not yet on Go (the end-to-end programs that need them have a `skip-go.txt` that says so): a type
+  parameter bounded by an interface with a `mut self` method, an interface that mentions `Self`
+  beyond the receiver, and a `mut self` method of an interface implemented by an enum with
+  payloads. The other targets and the VM run them.
 - Default methods in interfaces (spec chapter 4, sections 8.2 and 8.3; D4.19): a method of an
   interface may have a body, which a type that implements the interface gets when its block
   leaves the method out; a replacement is written `override fn`, and `Named.greeting(x)` calls
