@@ -163,6 +163,8 @@ impl SourceMap {
     /// Adds a file and returns its id. The caller must ensure `text.len() <= MAX_FILE_SIZE`;
     /// longer text is truncated at a character boundary.
     pub fn add(&mut self, name: impl Into<String>, mut text: String) -> FileId {
+        // On 32-bit targets (the playground) `MAX_FILE_SIZE` is `usize::MAX`, and this never holds.
+        #[allow(clippy::absurd_extreme_comparisons)]
         if text.len() > MAX_FILE_SIZE {
             let mut cut = MAX_FILE_SIZE;
             while !text.is_char_boundary(cut) {
