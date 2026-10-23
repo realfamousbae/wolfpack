@@ -5,8 +5,6 @@ Do not implement anything listed here without an approved spec change.
 
 ## Lexical (from chapter 1)
 
-- Format specifications in interpolated strings (`f"{x:>5}"`, `f"{price:.2}"`); for now widths and
-  precision are std functions.
 - A `Char` type with `'a'` literals. The `'` character is already reserved.
 - Numeric type suffixes (`5i32`) together with sized integer types. Suffixes are already reserved.
 

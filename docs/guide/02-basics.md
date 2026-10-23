@@ -258,6 +258,35 @@ Ann has 2 items, the first is tea
 half of 3 is 1.5, braces: {}, all: ["tea", "jam"]
 ```
 
+An interpolation may end with a **format specification** after a `:`. It sets a width, an
+alignment (`<`, `^`, `>`) with an optional fill character before it, `0` to pad a number with
+zeros, and the number of digits after the point of a `Float`:
+
+```wolf
+module main
+
+main {
+    let names = ["tea", "honey"]
+    let prices = [3.5, 12.25]
+    for i in 0..names.len() {
+        print(f"|{names[i]:<8}|{prices[i]:>8.2}|")
+    }
+    print(f"{7:03} {"mid":*^9} {2.5:.0} {3.5:.0}")
+}
+```
+
+```output
+|tea     |    3.50|
+|honey   |   12.25|
+007 ***mid*** 2 4
+```
+
+- Numbers align to the right and other values to the left, unless an alignment is written.
+- The width counts characters (Unicode scalar values) and never cuts a longer text.
+- A precision rounds to the nearest, and a value exactly halfway to the even digit, as `{2.5:.0}`
+  and `{3.5:.0}` show; it is only for `Float`, and `0` only for numbers (E0441).
+- The specification starts at the first `:` outside brackets and strings, so `{m["a"]:>3}` works.
+
 A **raw string** `r"..."` has no escapes: `r"\d+"` is the four characters `\d+`. A **multiline
 string** starts with `"""` at the end of a line and ends with `"""` on a line of its own; the
 indentation of the closing quotes is removed from every line. `f"""` and `r"""` combine both:
