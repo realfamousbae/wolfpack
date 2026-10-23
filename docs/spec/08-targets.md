@@ -130,16 +130,22 @@ and `tsc` for TypeScript, `go` for Go, `cargo` for Rust (author, 2026-10-16).
    Nothing half-installed is left in `<home>/toolchains/`.
 5. The release installers of `wolf` put `wolf` on `PATH` and run `wolf setup` as their last step
    (author, 2026-10-17: every way to install is listed for each system):
-   - **macOS**: the terminal script `install.sh` (`curl ... | sh`), the package `.pkg`, or the
-     archive `wolfpack-macos-universal.tar.gz`;
-   - **Linux**: the terminal script `install.sh`, or the archives `wolfpack-linux-x64.tar.gz` and
-     `wolfpack-linux-arm64.tar.gz`;
+   - **macOS**: the terminal script `install.sh` (`curl ... | sh`), the package `.pkg`, the
+     archive `wolfpack-macos-universal.tar.gz`, or Homebrew (`brew install
+     realfamousbae/wolfpack/wolfpack`);
+   - **Linux**: the terminal script `install.sh`, the archives `wolfpack-linux-x64.tar.gz` and
+     `wolfpack-linux-arm64.tar.gz`, their static builds `...-musl.tar.gz` for systems without
+     glibc 2.35 (`install.sh` picks them there), the packages `wolfpack-linux-x64.deb`,
+     `...-arm64.deb`, `...-x64.rpm` and `...-arm64.rpm` (of the static builds), or Homebrew;
    - **Windows**: the terminal script `install.ps1` (`irm ... | iex`), the setup program
-     `...-windows-x64-setup.exe`, or the archive `wolfpack-windows-x64.zip`;
+     `...-windows-x64-setup.exe`, the archive `wolfpack-windows-x64.zip`, Scoop (`scoop bucket add
+     wolfpack https://github.com/realfamousbae/scoop-wolfpack`, `scoop install wolfpack`) or winget
+     (`winget install realfamousbae.wolfpack`);
    - **every system**: building from source with `cargo install`.
 
-   The archives contain only `wolf`: they change no `PATH` and do not run `wolf setup`. The
-   terminal scripts check the download against the `SHA256SUMS.txt` of the release.
+   The archives contain only `wolf`: they change no `PATH` and do not run `wolf setup`; neither do
+   the package managers, which say to run it. The terminal scripts check the download against the
+   `SHA256SUMS.txt` of the release. (Package managers and static builds: author, 2026-10-23.)
 
 ## 2b. Updating `wolf`
 
@@ -162,9 +168,11 @@ and after a question at start.
 4. **Installations that `wolf` does not replace.** A `wolf` installed by a package manager is
    updated by that manager: under `~/.cargo/bin` (or `$CARGO_HOME/bin`) `wolf self update` prints
    `cargo install --locked wolfpack-lang`, under a Homebrew prefix (`/opt/homebrew`,
-   `/usr/local/Cellar`, `linuxbrew`) `brew upgrade wolfpack`, and it changes nothing. A `wolf`
-   whose directory cannot be written is not replaced either; the error names the directory and
-   the installer command.
+   `/usr/local/Cellar`, `linuxbrew`) `brew upgrade wolfpack`, under `scoop\apps\`
+   `scoop update wolfpack`, under `Microsoft\WinGet\` `winget upgrade realfamousbae.wolfpack`, and
+   as `/usr/bin/wolf` (a `.deb` or `.rpm` package) the package manager of the system, and it
+   changes nothing. A `wolf` whose directory cannot be written is not replaced either; the error
+   names the directory and the installer command.
 5. **The question at start.** At most once a day `wolf` asks GitHub for the latest release in the
    background: the command that runs does not wait for the answer, and a failure is silent. The
    answer is kept in `<home>/update-check.json`. When it names a newer release, the next command
@@ -499,3 +507,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.11 | 0.2: the target forms of records (section 8, rule 2): plain objects in TS, values of the struct type in Go and Rust, `Int` fields exactly `int64` in Go | **answered** (author, 2026-10-19): yes |
 | D8.12 | 0.2: the target forms of `Option` parameters of extern functions (section 8, rule 2): `T \| undefined` in TS, `*T` in Go, `Option<&T>` in Rust; no `Option<Option<T>>` parameter | **answered** (author, 2026-10-21): yes |
 | D8.13 | 0.2: `wolf check --native [module]` prints what the compiler read from the native code as pasteable wolfpack source, with the items left out and why (section 8b); code E0716 | **answered** (author, 2026-10-21): yes |
+| D8.14 | Homebrew, Scoop, winget, `.deb` and `.rpm` packages and static Linux builds (section 2a, rule 5), and the package managers that `wolf self update` leaves alone (section 2b, rule 4) | **answered** (author, 2026-10-23): yes, all of them; the exact list of rule 4 is proposed |
