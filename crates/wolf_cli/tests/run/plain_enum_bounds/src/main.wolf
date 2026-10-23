@@ -1,0 +1,196 @@
+//! A payload-less enum passed where a type parameter is bounded by a user interface: its methods,
+//! the defaults of the interface, a generic interface and `Error`, with the values of `T` still
+//! the enum.
+
+module main
+
+types {
+    enum Color {
+        Red
+        Green
+        Blue
+    }
+
+    enum Size {
+        Small
+        Large
+    }
+
+    struct Dog {
+        title: String
+    }
+
+    struct Labeled<T: Named> {
+        item: T
+    }
+
+    enum Oops {
+        Bad
+        Worse
+    }
+
+    enum Loud {
+        Boom
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+
+        fn greeting(self) -> String {
+            "Hello, " + self.name()
+        }
+    }
+
+    interface Weighted<W> {
+        fn weight(self) -> W
+    }
+}
+
+impl {
+    Color: Named {
+        fn name(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+                Color.Blue => "blue"
+            }
+        }
+    }
+
+    Color: Weighted<Int> {
+        fn weight(self) -> Int {
+            match self {
+                Color.Red => 1
+                Color.Green => 10
+                Color.Blue => 100
+            }
+        }
+    }
+
+    Size: Named {
+        fn name(self) -> String {
+            match self {
+                Size.Small => "small"
+                Size.Large => "large"
+            }
+        }
+
+        override fn greeting(self) -> String { "Hey, " + self.name() }
+    }
+
+    Dog: Named {
+        fn name(self) -> String { self.title.copy() }
+
+        override fn greeting(self) -> String { "Woof, " + self.name() }
+    }
+
+    Labeled<T> {
+        fn inner(self) -> String { self.item.greeting() }
+    }
+
+    Oops: Error {
+        fn message(self) -> String {
+            match self {
+                Oops.Bad => "bad"
+                Oops.Worse => "worse"
+            }
+        }
+    }
+
+    Loud: Error {
+        fn message(self) -> String { "boom" }
+    }
+
+    Loud: Display {
+        fn to_string(self) -> String { "BOOM" }
+    }
+}
+
+main {
+    print(hello(Color.Red))
+    let n: Named = Color.Green
+    print(n.name())
+    print(greet(Color.Blue))
+    print(greet(Size.Large))
+    print(greet(Dog { title: "rex" }))
+    print(twice(Color.Green))
+    let colors = [Color.Red, Color.Blue, Color.Red, Color.Green]
+    print(total(colors).to_string())
+    print(count(colors, Color.Red).to_string())
+    match pick(colors, "blue") {
+        Some(c) => print(if c == Color.Blue { "picked blue" } else { "picked another" })
+        None => print("none")
+    }
+    let first = largest(colors)
+    print(first.name())
+    print(wrap(Dog { title: "max" }).inner())
+    print(wrap(Color.Red).inner())
+    let bad: Result<Int, Oops> = Err(Oops.Worse)
+    let loud: Result<Int, Loud> = Err(Loud.Boom)
+    print(explain(bad) + " " + explain(loud) + " " + describe(Oops.Bad))
+}
+
+functions {
+    fn hello<T: Named>(x: T) -> String {
+        "hi " + x.name()
+    }
+
+    fn greet<T: Named>(x: T) -> String {
+        x.greeting() + " / " + Named.greeting(x)
+    }
+
+    fn twice<T: Named>(x: T) -> String {
+        hello(x) + ", " + hello(x)
+    }
+
+    fn total<T: Weighted<Int>>(items: List<T>) -> Int {
+        var sum = 0
+        for x in items {
+            sum += x.weight()
+        }
+        sum
+    }
+
+    fn count<T: Named + Equatable>(items: List<T>, target: T) -> Int {
+        var n = 0
+        for x in items {
+            if x == target {
+                n += 1
+            }
+        }
+        n
+    }
+
+    fn pick<T: Named + Copyable>(items: List<T>, want: String) -> Option<T> {
+        for x in items {
+            if x.name() == want {
+                return Some(x.copy())
+            }
+        }
+        None
+    }
+
+    fn largest<T: Weighted<Int> + Copyable>(items: List<T>) -> T {
+        var best = items[0].copy()
+        for x in items {
+            if x.weight() > best.weight() {
+                best = x.copy()
+            }
+        }
+        best
+    }
+
+    fn wrap<T: Named>(own x: T) -> Labeled<T> {
+        Labeled { item: x }
+    }
+
+    fn explain<E: Error>(r: Result<Int, E>) -> String {
+        f"{r}"
+    }
+
+    fn describe<E: Error>(e: E) -> String {
+        "error: " + e.message()
+    }
+}
