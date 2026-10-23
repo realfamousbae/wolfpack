@@ -4,6 +4,17 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Default methods in interfaces (spec chapter 4, sections 8.2 and 8.3; D4.19): a method of an
+  interface may have a body, which a type that implements the interface gets when its block
+  leaves the method out; a replacement is written `override fn`, and `Named.greeting(x)` calls
+  the default itself, also from a replacement. The default is checked once over `Self`, and the
+  defaults a type gets count as its methods for E0415 and E0432. New diagnostics: E0443 for a
+  replacement without `override` and an `override` that replaces nothing, E0444 for
+  `Interface.method(x)` of a method without a default. Rust keeps the default as a trait method
+  `greeting_default`, Go and TypeScript as a function per default with a method in each type that
+  gets it, and the VM dispatches to it.
+- Fixed in the Rust backend: an implementation of a generic interface, `Pair: Holder<Int>`, was
+  written without the interface's type arguments.
 - Format specifications in interpolations (spec chapter 1, section 5.3a; chapter 7, section 4.4;
   D4.18): `f"{price:>8.2}"`, `f"{n:05}"`, `f"{name:*^10}"`. A width counts Unicode scalar values,
   numbers align to the right and other values to the left, a precision rounds a `Float` to the
