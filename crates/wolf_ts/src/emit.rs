@@ -699,20 +699,27 @@ impl<'p> Emitter<'p> {
     }
 
     /// Whether a bound gets a [`Dict::View`]: a user interface whose methods mention `Self` only
-    /// as the receiver, so that a wrapper class can give a payload-less enum its methods, and do
-    /// not take `mut self`, which would change the wrapper and not the value. Such a bound is no
-    /// constraint of the TypeScript type parameter, which a string would not meet.
+    /// as the receiver, so that a wrapper class can give a payload-less enum its methods. Such a
+    /// bound is no constraint of the TypeScript type parameter, which a string would not meet.
     fn view_iface(&self, def: DefRef) -> bool {
         Some(def) != self.display
             && Some(def) != self.comparable
             && !self.markers.contains(&def)
             && self.ifaces.get(&def).is_some_and(|i| {
                 i.methods.iter().all(|f| {
-                    f.self_mode != Some(Mode::Mut)
-                        && !f.params.iter().any(|p| mentions_self(&p.ty))
-                        && !mentions_self(&f.ret)
+                    !f.params.iter().any(|p| mentions_self(&p.ty)) && !mentions_self(&f.ret)
                 })
             })
+    }
+
+    /// Whether the dictionary of a [`Dict::View`] takes the place of the value (a `Ref`) instead
+    /// of the value: the interface has a `mut self` method, whose change must reach the place
+    /// also when the value is a payload-less enum (its wrapper then holds the place, see
+    /// [`Self::plain_view`]).
+    fn place_view(&self, iface: DefRef) -> bool {
+        self.ifaces
+            .get(&iface)
+            .is_some_and(|i| i.methods.iter().any(|f| f.self_mode == Some(Mode::Mut)))
     }
 
     /// The type of a dictionary for the type `t`.
@@ -725,7 +732,14 @@ impl<'p> Emitter<'p> {
         match d {
             Dict::View(i) => {
                 let to = bound.unwrap_or(IrType::Named(i, Vec::new()));
-                Type::Fn(vec![("x".to_string(), t)], Box::new(self.ty(&to)))
+                let to = self.ty(&to);
+                if self.place_view(i) {
+                    self.rt.insert("Ref");
+                    let r = Type::Ref("$rt.Ref".to_string(), vec![t]);
+                    Type::Fn(vec![("r".to_string(), r)], Box::new(to))
+                } else {
+                    Type::Fn(vec![("x".to_string(), t)], Box::new(to))
+                }
             }
             Dict::Show => Type::Fn(vec![("x".to_string(), t)], Box::new(Type::name("string"))),
             Dict::Cmp => {
@@ -789,12 +803,38 @@ impl<'p> Emitter<'p> {
         }
         .unwrap_or_else(|| IrType::Named(iface, self.iface_args(iface, t)));
         let ty = self.ty(t);
+        if self.place_view(iface) {
+            self.rt.insert("Ref");
+            let r = Type::Ref("$rt.Ref".to_string(), vec![ty]);
+            let body = self.view_place(ident("r"), t, &to)?;
+            return Ok(Expr::Arrow(
+                vec![("r".to_string(), Some(r))],
+                None,
+                ArrowBody::Expr(Box::new(body)),
+            ));
+        }
         let body = self.coerce(ident("x"), t, &to)?;
         Ok(Expr::Arrow(
             vec![("x".to_string(), Some(ty))],
             None,
             ArrowBody::Expr(Box::new(body)),
         ))
+    }
+
+    /// The value of the interface `to` for the place `r` (a `Ref`) of a value of type `from`, for
+    /// an interface with `mut self` methods (see [`Self::place_view`]): the change of such a
+    /// method reaches the place. A class is changed in place anyway; a payload-less enum gets a
+    /// wrapper that holds the place.
+    fn view_place(&mut self, r: Expr, from: &IrType, to: &IrType) -> Result<Expr, Error> {
+        if let (IrType::Param(n), IrType::Named(iface, _)) = (from, to) {
+            if let Some(d) = self.f.dicts.get(&(n.clone(), Dict::View(*iface))).cloned() {
+                return Ok(call(d, vec![r]));
+            }
+        }
+        if self.plain_enum(from) {
+            return Ok(self.plain_view(r, from, to));
+        }
+        self.coerce(member(r, "v"), from, to)
     }
 
     /// `to_string` of `Display` for values of type `t`, as a function; for lists, maps, options
@@ -3294,7 +3334,13 @@ impl<'p> Emitter<'p> {
         // default has none) the value is cast: right for classes, not for a payload-less enum.
         if let (IrType::Param(n), IrType::Named(iface, _)) = (from, to) {
             if let Some(d) = self.f.dicts.get(&(n.clone(), Dict::View(*iface))).cloned() {
-                return Ok(call(d, vec![v]));
+                // A dictionary that takes a place gets one of its own for the value.
+                let arg = if self.place_view(*iface) {
+                    Expr::Object(vec![("v".to_string(), v)])
+                } else {
+                    v
+                };
+                return Ok(call(d, vec![arg]));
             }
             return Ok(match self.f.bounds.get(&(n.clone(), *iface)).cloned() {
                 Some(b) => Expr::As(Box::new(v), self.ty(&b)),
@@ -3643,12 +3689,19 @@ impl<'p> Emitter<'p> {
         // References to places are built without evaluating the place.
         let mut plain_items = Vec::new();
         // A payload-less enum is a string: a `mut self` method takes the place, also through an
-        // interface (its wrapper then holds the place, see `plain_view`).
-        let iface_mut = matches!(callee, Callee::Interface { .. } | Callee::Default { .. })
-            && info
-                .as_ref()
-                .is_some_and(|f| f.self_mode == Some(Mode::Mut))
-            && recv.is_some_and(|r| self.plain_enum(&r.ty));
+        // interface (its wrapper then holds the place, see `plain_view`), and so does one of a
+        // type parameter, whose dictionary takes the place (see `place_view`).
+        let iface_mut = match callee {
+            Callee::Interface { interface, .. } | Callee::Default { interface, .. } => {
+                info.as_ref()
+                    .is_some_and(|f| f.self_mode == Some(Mode::Mut))
+                    && recv.is_some_and(|r| {
+                        self.plain_enum(&r.ty)
+                            || matches!(r.ty, IrType::Param(_)) && self.place_view(*interface)
+                    })
+            }
+            _ => false,
+        };
         let recv_ref = iface_mut
             || matches!(callee, Callee::Method { method, .. } if self.plain_mut_self(*method));
         for (i, (e, r)) in items.iter().enumerate() {
@@ -3827,7 +3880,7 @@ impl<'p> Emitter<'p> {
                     // method. A value of a type parameter gets it from its dictionary.
                     let to = IrType::Named(*interface, self.iface_args(*interface, &recv.ty));
                     let r = if iface_mut {
-                        self.plain_view(r, &recv.ty, &to)
+                        self.view_place(r, &recv.ty, &to)?
                     } else {
                         self.coerce(r, &recv.ty, &to)?
                     };
@@ -3848,7 +3901,7 @@ impl<'p> Emitter<'p> {
                 let iargs = self.iface_args(*interface, &recv.ty);
                 let to = IrType::Named(*interface, iargs.clone());
                 let r = if iface_mut {
-                    self.plain_view(r, &recv.ty, &to)
+                    self.view_place(r, &recv.ty, &to)?
                 } else {
                     self.coerce(r, &recv.ty, &to)?
                 };
