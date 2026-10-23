@@ -8,4 +8,7 @@ main {
     print(calc.loose(1).to_string())
     print(calc.later().to_string())
     print(calc.keyed(["a": 1.0]).to_string())
+    let c = calc.Counter.new()
+    c.add(1.0)
+    print(c.keyed(["a": 1.0]).to_string())
 }

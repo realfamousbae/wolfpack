@@ -209,6 +209,15 @@ pub fn read_ts(source: &str) -> Result<Module, ReadError> {
                 matches!(e, ClassElement::MethodDefinition(m) if m.kind == MethodDefinitionKind::Constructor)
             })
             .count();
+        // A method declared more than once has overloads, as a function does.
+        let mut declared: BTreeMap<(bool, String), usize> = BTreeMap::new();
+        for e in &c.body.body {
+            if let ClassElement::MethodDefinition(m) = e {
+                if let Some(name) = m.key.static_name() {
+                    *declared.entry((m.r#static, name.to_string())).or_default() += 1;
+                }
+            }
+        }
         for e in &c.body.body {
             let ClassElement::MethodDefinition(m) = e else {
                 continue;
@@ -235,7 +244,12 @@ pub fn read_ts(source: &str) -> Result<Module, ReadError> {
                 MethodDefinitionKind::Get | MethodDefinitionKind::Set
             ) {
                 Err("it is a getter or a setter".to_string())
-            } else if constructor && constructors > 1 {
+            } else if constructor && constructors > 1
+                || !constructor
+                    && declared
+                        .get(&(m.r#static, name.to_string()))
+                        .is_some_and(|&n| n > 1)
+            {
                 Err("it has overloads".to_string())
             } else if constructor {
                 reader.constructor(&owner, &m.value)

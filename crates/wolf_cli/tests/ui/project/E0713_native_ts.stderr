@@ -22,4 +22,20 @@ error[E0713]: `keyed` of the native module `native.calc` is not available
    |
    = note: `keyed`: a map with `number` keys: write `bigint` for `Int` keys
 
-error: aborting due to 3 errors
+error[E0713]: `Counter.add` of the native module `native.calc` is not available
+   --> src/main.wolf:12:7
+   |
+12 |     c.add(1.0)
+   |       ^^^ cannot be used from wolfpack
+   |
+   = note: `Counter.add`: it has overloads
+
+error[E0713]: `Counter.keyed` of the native module `native.calc` is not available
+   --> src/main.wolf:13:13
+   |
+13 |     print(c.keyed(["a": 1.0]).to_string())
+   |             ^^^^^ cannot be used from wolfpack
+   |
+   = note: `Counter.keyed`: a map with `number` keys: write `bigint` for `Int` keys
+
+error: aborting due to 5 errors

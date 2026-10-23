@@ -9,3 +9,15 @@ export async function later(): Promise<number> {
 export function keyed(m: Map<number, number>): number {
   return m.size;
 }
+
+export class Counter {
+  constructor() {}
+
+  add(n: number): void;
+  add(n: string): void;
+  add(n: number | string): void {}
+
+  keyed(m: Map<number, number>): number {
+    return m.size;
+  }
+}

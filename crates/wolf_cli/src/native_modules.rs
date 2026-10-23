@@ -624,6 +624,18 @@ fn float_keys(ts: &mut wolf_native::Module) {
         ts.fns.retain(|f| f.name != n);
         ts.unavailable.insert(n, reason.clone());
     }
+    let bad: Vec<(String, String)> = ts
+        .methods
+        .iter()
+        .filter(|m| m.func.params.iter().any(|(_, w)| has(w)) || has(&m.func.ret))
+        .map(|m| (m.owner.clone(), m.func.name.clone()))
+        .collect();
+    for (owner, name) in bad {
+        ts.methods
+            .retain(|m| !(m.owner == owner && m.func.name == name));
+        ts.unavailable
+            .insert(format!("{owner}.{name}"), reason.clone());
+    }
 }
 
 /// The module paths `native.<path>` imported by the modules of the project, in a fixed order,
