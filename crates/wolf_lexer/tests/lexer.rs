@@ -278,12 +278,60 @@ fn fstring(text: &str) -> Vec<String> {
         .iter()
         .map(|part| match part {
             FPart::Text(text) => format!("{text:?}"),
-            FPart::Expr(tokens, _) => {
+            FPart::Expr(tokens, _, spec) => {
                 let kinds: Vec<String> = tokens.iter().map(|t| format!("{:?}", t.kind)).collect();
-                format!("{{{}}}", kinds.join(" "))
+                match spec {
+                    None => format!("{{{}}}", kinds.join(" ")),
+                    Some(s) => format!(
+                        "{{{}:{:?} {:?} {} {:?} {:?}}}",
+                        kinds.join(" "),
+                        s.fill,
+                        s.align,
+                        s.zero,
+                        s.width,
+                        s.precision
+                    ),
+                }
             }
         })
         .collect()
+}
+
+#[test]
+fn format_specifications() {
+    // The first `:` outside brackets and strings starts the specification.
+    assert_eq!(
+        fstring(r#"f"{x:>8.2}""#),
+        ["{Ident Eof:None Some(Right) false Some(8) Some(2)}"]
+    );
+    assert_eq!(
+        fstring(r#"f"{m["a"]:*^5}""#),
+        [r#"{Ident LBracket Str("a") RBracket Eof:Some('*') Some(Center) false Some(5) None}"#]
+    );
+    assert_eq!(
+        fstring(r#"f"{-x:05}{[1: 2].len()}""#),
+        [
+            "{Minus Ident Eof:None None true Some(5) None}",
+            "{LBracket Int(1) Colon Int(2) RBracket Dot Ident LParen RParen Eof}"
+        ]
+    );
+    assert_eq!(
+        fstring(r#"f"{x:>>}{x:0>3}""#),
+        [
+            "{Ident Eof:Some('>') Some(Right) false None None}",
+            "{Ident Eof:Some('0') Some(Right) false Some(3) None}"
+        ]
+    );
+    for bad in [
+        r#"f"{x:>>>}""#,
+        r#"f"{x:5.}""#,
+        r#"f"{x:}""#,
+        r#"f"{x:<05}""#,
+        r#"f"{x:1001}""#,
+        r#"f"{x:.101}""#,
+    ] {
+        assert_eq!(errors(bad), ["E0117"], "{bad}");
+    }
 }
 
 #[test]

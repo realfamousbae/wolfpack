@@ -1,0 +1,11 @@
+module main
+
+main {
+    let count = 3
+    let name = "Ann"
+    print(f"{count:.2}")
+    print(f"{name:05}")
+    print(f"{name:.1}")
+    print(f"{[1.5]:.1}")
+    print(f"{count:05} {1.5:08.3} {name:0>5}")
+}

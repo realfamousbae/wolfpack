@@ -911,8 +911,63 @@ pub enum ExprKind {
 pub enum FStrPart {
     /// Text.
     Text(String),
-    /// An interpolated expression.
-    Expr(Expr),
+    /// An interpolated expression, with its format specification.
+    Expr(Expr, Option<FormatSpec>),
+}
+
+/// How an interpolation is aligned in its width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Align {
+    /// `<`
+    Left,
+    /// `^`
+    Center,
+    /// `>`
+    Right,
+}
+
+/// A format specification `[[fill] align] ["0"] [width] ["." precision]` after the `:` of an
+/// interpolation (spec chapter 1, section 5.3a; chapter 7, section 4.4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FormatSpec {
+    /// The fill character, if one is written.
+    pub fill: Option<char>,
+    /// The alignment, if one is written.
+    pub align: Option<Align>,
+    /// `0`: pad a number with zeros after its sign.
+    pub zero: bool,
+    /// The width.
+    pub width: Option<u32>,
+    /// The number of digits after the point of a `Float`.
+    pub precision: Option<u32>,
+    /// Where the specification is, after the `:`.
+    pub span: Span,
+}
+
+impl FormatSpec {
+    /// The specification as it is written, such as `*>8.2`.
+    pub fn text(&self) -> String {
+        let mut out = String::new();
+        if let Some(f) = self.fill {
+            out.push(f);
+        }
+        match self.align {
+            Some(Align::Left) => out.push('<'),
+            Some(Align::Center) => out.push('^'),
+            Some(Align::Right) => out.push('>'),
+            None => {}
+        }
+        if self.zero {
+            out.push('0');
+        }
+        if let Some(w) = self.width {
+            out.push_str(&w.to_string());
+        }
+        if let Some(p) = self.precision {
+            out.push_str(&format!(".{p}"));
+        }
+        out
+    }
 }
 
 /// A field in a struct literal.

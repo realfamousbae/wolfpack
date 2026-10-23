@@ -113,6 +113,8 @@ struct Builtins {
     assert: Option<DefId>,
     assert_eq: Option<DefId>,
     display: Option<DefId>,
+    fixed: Option<DefId>,
+    pad: Option<DefId>,
 }
 
 struct Lowerer<'a> {
@@ -192,6 +194,8 @@ impl<'a> Lowerer<'a> {
             assert: get("std.prelude", "assert"),
             assert_eq: get("std.prelude", "assert_eq"),
             display: get("std.prelude", "Display"),
+            fixed: get("std.string", "fixed"),
+            pad: get("std.string", "pad"),
         };
         let def_at = resolved
             .defs
@@ -1134,9 +1138,12 @@ impl<'a> Lowerer<'a> {
                             ty: Type::String,
                             span: e.span,
                         }),
-                        ast::FStrPart::Expr(value) => {
+                        ast::FStrPart::Expr(value, spec) => {
                             let value = self.expr(ctx, value)?;
-                            list.push(self.display(value)?);
+                            list.push(match spec {
+                                None => self.display(value)?,
+                                Some(spec) => self.formatted(value, spec)?,
+                            });
                         }
                     }
                 }
@@ -1482,6 +1489,59 @@ impl<'a> Lowerer<'a> {
 
     /// The text of a value for an interpolated string: the value itself for a `String`, else a
     /// call of `to_string` of `Display` (chapter 4, section 9).
+    /// An interpolation with a format specification (spec chapter 7, section 4.4): the text of
+    /// the value, with `fixed` for a precision, padded by `pad` to the width.
+    fn formatted(&mut self, value: Expr, spec: &ast::FormatSpec) -> Result<Expr, LowerError> {
+        let span = value.span;
+        let number = matches!(value.ty, Type::Int | Type::Float);
+        let lit = |kind: ExprKind, ty: Type| Expr { kind, ty, span };
+        let call = |f: Option<DefId>, args: Vec<Expr>| -> Result<Expr, LowerError> {
+            let f = f.ok_or_else(|| unsupported("format specifications"))?;
+            Ok(Expr {
+                kind: ExprKind::Call {
+                    callee: Callee::Fn(Lowerer::dref(f)),
+                    args: args
+                        .into_iter()
+                        .map(|value| Arg {
+                            mode: Mode::Read,
+                            value,
+                        })
+                        .collect(),
+                },
+                ty: Type::String,
+                span,
+            })
+        };
+        let text = match spec.precision {
+            Some(p) => call(
+                self.b.fixed,
+                vec![value, lit(ExprKind::Int(i64::from(p)), Type::Int)],
+            )?,
+            None => self.display(value)?,
+        };
+        let Some(width) = spec.width else {
+            return Ok(text);
+        };
+        let align = match spec.align {
+            Some(ast::Align::Left) => 0,
+            Some(ast::Align::Center) => 1,
+            Some(ast::Align::Right) => 2,
+            None if number => 2,
+            None => 0,
+        };
+        let fill = spec.fill.unwrap_or(' ').to_string();
+        call(
+            self.b.pad,
+            vec![
+                text,
+                lit(ExprKind::Int(i64::from(width)), Type::Int),
+                lit(ExprKind::Str(fill), Type::String),
+                lit(ExprKind::Int(align), Type::Int),
+                lit(ExprKind::Bool(spec.zero), Type::Bool),
+            ],
+        )
+    }
+
     fn display(&mut self, value: Expr) -> Result<Expr, LowerError> {
         let span = value.span;
         let owner = match &value.ty {

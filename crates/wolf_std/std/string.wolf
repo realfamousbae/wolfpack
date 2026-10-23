@@ -50,4 +50,13 @@ impl {
 functions {
     /// Joins `parts` with `separator` between them.
     pub intrinsic fn join(parts: List<String>, separator: String) -> String
+
+    /// `x` with `digits` digits after the point, rounded to the nearest with ties to even on its
+    /// exact value (chapter 7, section 4.4). Interpolations with a precision use it.
+    intrinsic fn fixed(x: Float, digits: Int) -> String
+
+    /// `text` padded with `fill` to `width` Unicode scalar values (chapter 7, section 4.4):
+    /// `align` is 0 for left, 1 for center and 2 for right, and `zero` pads a number with zeros
+    /// after its sign. Interpolations with a width use it.
+    intrinsic fn pad(text: String, width: Int, fill: String, align: Int, zero: Bool) -> String
 }

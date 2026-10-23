@@ -1027,7 +1027,7 @@ impl Parser<'_> {
         for part in parts {
             match part {
                 wolf_lexer::FPart::Text(text) => out.push(FStrPart::Text(text)),
-                wolf_lexer::FPart::Expr(tokens, _) => {
+                wolf_lexer::FPart::Expr(tokens, _, spec) => {
                     let mut sub = Parser::new(self.file, self.text, &tokens);
                     sub.next_id = self.next_id;
                     sub.depth = self.depth;
@@ -1045,7 +1045,19 @@ impl Parser<'_> {
                     for d in sub.diagnostics {
                         self.report(d);
                     }
-                    out.push(FStrPart::Expr(expr));
+                    let spec = spec.map(|s| FormatSpec {
+                        fill: s.fill,
+                        align: s.align.map(|a| match a {
+                            wolf_lexer::Align::Left => Align::Left,
+                            wolf_lexer::Align::Center => Align::Center,
+                            wolf_lexer::Align::Right => Align::Right,
+                        }),
+                        zero: s.zero,
+                        width: s.width,
+                        precision: s.precision,
+                        span: s.span,
+                    });
+                    out.push(FStrPart::Expr(expr, spec));
                 }
             }
         }

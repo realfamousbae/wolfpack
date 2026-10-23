@@ -929,6 +929,47 @@ func (x Shown[T]) ToString() string {
 }"#,
     },
     Piece {
+        name: "Format",
+        deps: &["FloatString"],
+        imports: &["math", "strconv", "strings", "unicode/utf8"],
+        code: r#"// Fixed is x with digits digits after the point, rounded to the nearest with ties to even
+// on its exact value (spec chapter 7, section 4.4).
+func Fixed(x float64, digits int64) string {
+	if math.IsNaN(x) || math.IsInf(x, 0) {
+		return FloatString(x)
+	}
+	return strconv.FormatFloat(x, 'f', int(digits), 64)
+}
+
+// Pad is text padded with fill to width Unicode scalar values: align 0 pads on the right, 1 on
+// both sides with the extra character on the right, 2 on the left. zero pads a number with
+// zeros after its sign, and NaN and the infinities with spaces on the left.
+func Pad(text string, width int64, fill string, align int64, zero bool) string {
+	missing := int(width) - utf8.RuneCountInString(text)
+	if missing <= 0 {
+		return text
+	}
+	if zero {
+		if text == "NaN" || text == "inf" || text == "-inf" {
+			return strings.Repeat(" ", missing) + text
+		}
+		if rest, ok := strings.CutPrefix(text, "-"); ok {
+			return "-" + strings.Repeat("0", missing) + rest
+		}
+		return strings.Repeat("0", missing) + text
+	}
+	switch align {
+	case 0:
+		return text + strings.Repeat(fill, missing)
+	case 1:
+		left := missing / 2
+		return strings.Repeat(fill, left) + text + strings.Repeat(fill, missing-left)
+	default:
+		return strings.Repeat(fill, missing) + text
+	}
+}"#,
+    },
+    Piece {
         name: "FloatString",
         deps: &[],
         imports: &["math", "strconv", "strings"],

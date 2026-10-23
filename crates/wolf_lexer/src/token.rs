@@ -338,8 +338,38 @@ pub enum FPart {
     /// Text, with escapes resolved and `{{` / `}}` turned into single braces.
     Text(String),
     /// An interpolation: the tokens of its expression, ending with an `Eof` token at the closing
-    /// `}`, and the span of the braces with their content.
-    Expr(Vec<Token>, Span),
+    /// `}` or at the `:` of its format specification, the span of the braces with their content,
+    /// and the format specification.
+    Expr(Vec<Token>, Span, Option<FormatSpec>),
+}
+
+/// How an interpolation is aligned in its width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Align {
+    /// `<`
+    Left,
+    /// `^`
+    Center,
+    /// `>`
+    Right,
+}
+
+/// A format specification `[[fill] align] ["0"] [width] ["." precision]` after the `:` of an
+/// interpolation (spec chapter 1, section 5.3a).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FormatSpec {
+    /// The fill character, if one is written.
+    pub fill: Option<char>,
+    /// The alignment, if one is written.
+    pub align: Option<Align>,
+    /// `0`: pad a number with zeros after its sign.
+    pub zero: bool,
+    /// The width, at most 1000.
+    pub width: Option<u32>,
+    /// The precision, at most 100.
+    pub precision: Option<u32>,
+    /// Where the specification is, after the `:`.
+    pub span: Span,
 }
 
 /// An ordinary comment. It has no meaning for the language, but is kept for `wolf fmt`.

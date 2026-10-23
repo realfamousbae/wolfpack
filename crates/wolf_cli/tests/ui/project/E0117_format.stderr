@@ -1,0 +1,49 @@
+error[E0117]: unexpected `>` in a format specification
+  --> src/main.wolf:5:16
+  |
+5 |     print(f"{x:>>>}")
+  |                ^^^ in this format specification
+  |
+  = help: a specification is `[[fill] align] [0] [width] [.precision]`, as in `*>8.2`
+
+error[E0117]: a `.` without a precision
+  --> src/main.wolf:6:16
+  |
+6 |     print(f"{x:5.}")
+  |                ^^ in this format specification
+  |
+  = help: write the number of digits after the `.`, as in `.2`
+
+error[E0117]: empty format specification
+  --> src/main.wolf:7:15
+  |
+7 |     print(f"{x:}")
+  |               ^ nothing follows this `:`
+  |
+  = help: write a specification such as `>8.2` after the `:`, or remove the `:`
+
+error[E0117]: `0` cannot be combined with a fill or an alignment
+  --> src/main.wolf:8:16
+  |
+8 |     print(f"{x:<05}")
+  |                ^^^ in this format specification
+  |
+  = help: pad with zeros by `0` alone (`05`), or with the fill `0` (`0>5`)
+
+error[E0117]: the width is more than 1000
+  --> src/main.wolf:9:16
+  |
+9 |     print(f"{x:1001}")
+  |                ^^^^ in this format specification
+  |
+  = help: a width is at most 1000
+
+error[E0117]: the precision is more than 100
+   --> src/main.wolf:10:16
+   |
+10 |     print(f"{x:.101}")
+   |                ^^^^ in this format specification
+   |
+   = help: a precision is at most 100
+
+error: aborting due to 6 errors

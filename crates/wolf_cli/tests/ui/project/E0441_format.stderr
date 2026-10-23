@@ -1,0 +1,33 @@
+error[E0441]: `Int` takes no precision
+  --> src/main.wolf:6:20
+  |
+6 |     print(f"{count:.2}")
+  |                    ^^ a precision is only for `Float`
+  |
+  = help: convert the value first: `{n.to_float():.2}`
+
+error[E0441]: `String` cannot be padded with `0`
+  --> src/main.wolf:7:19
+  |
+7 |     print(f"{name:05}")
+  |                   ^^ `0` is only for `Int` and `Float`
+  |
+  = help: pad with the fill character `0` instead: `0>5`
+
+error[E0441]: `String` takes no precision
+  --> src/main.wolf:8:19
+  |
+8 |     print(f"{name:.1}")
+  |                   ^^ a precision is only for `Float`
+  |
+  = help: remove the precision
+
+error[E0441]: `List<Float>` takes no precision
+  --> src/main.wolf:9:20
+  |
+9 |     print(f"{[1.5]:.1}")
+  |                    ^^ a precision is only for `Float`
+  |
+  = help: remove the precision
+
+error: aborting due to 4 errors

@@ -5,7 +5,7 @@ use wolf_span::{FileId, Span};
 
 use crate::Lexed;
 use crate::cursor::Cursor;
-use crate::token::{Comment, FPart, Token, TokenKind};
+use crate::token::{Align, Comment, FPart, FormatSpec, Token, TokenKind};
 
 /// The largest integer literal: 2^63, valid only directly under a unary minus.
 const INT_LIMIT: u128 = 1 << 63;
@@ -846,15 +846,21 @@ impl<'a> Lexer<'a> {
         }
         let saved = std::mem::take(&mut self.out.tokens);
         self.fstring_depth += 1;
+        // Brackets of every kind: a `:` outside them starts the format specification.
         let mut depth = 0u32;
+        let mut colon = false;
         let closed = loop {
             match self.cursor.peek(0) {
                 None | Some('\n' | '\r') => break false,
                 Some('}') if depth == 0 => break true,
+                Some(':') if depth == 0 => {
+                    colon = true;
+                    break true;
+                }
                 Some(c) => {
                     match c {
-                        '{' => depth += 1,
-                        '}' => depth -= 1,
+                        '{' | '(' | '[' => depth += 1,
+                        '}' | ')' | ']' => depth = depth.saturating_sub(1),
                         _ => {}
                     }
                     self.step(c);
@@ -864,6 +870,36 @@ impl<'a> Lexer<'a> {
         self.fstring_depth -= 1;
         let inner_end = self.cursor.offset();
         let tokens = std::mem::replace(&mut self.out.tokens, saved);
+        let spec = if colon && closed {
+            self.cursor.bump(); // `:`
+            let spec_start = self.cursor.offset();
+            while let Some(c) = self.cursor.peek(0) {
+                if matches!(c, '}' | '\n' | '\r') {
+                    break;
+                }
+                self.cursor.bump();
+            }
+            if self.cursor.peek(0) != Some('}') {
+                let span = self.span(at, at + 1);
+                self.error(
+                    Diagnostic::new(codes::E0114, "unclosed `{` in an interpolated string")
+                        .primary(span, "this `{` is not closed on its line")
+                        .help(
+                            "close the interpolation with `}`, or write `{{` for the character `{`",
+                        ),
+                );
+                return;
+            }
+            let end = self.cursor.offset();
+            let text = self
+                .text
+                .get(spec_start as usize..end as usize)
+                .unwrap_or("")
+                .to_string();
+            self.format_spec(&text, spec_start, end, inner_end)
+        } else {
+            None
+        };
         if !closed {
             let span = self.span(at, at + 1);
             self.error(
@@ -890,7 +926,111 @@ impl<'a> Lexer<'a> {
             kind: TokenKind::Eof,
             span: self.span(inner_end, inner_end),
         });
-        line.parts.push(FPart::Expr(tokens, span));
+        line.parts.push(FPart::Expr(tokens, span, spec));
+    }
+
+    /// Reads the format specification `text` between `start` and `end`; `colon` is the offset
+    /// of its `:`. Reports E0117 for a malformed one.
+    fn format_spec(&mut self, text: &str, start: u32, end: u32, colon: u32) -> Option<FormatSpec> {
+        let chars: Vec<char> = text.chars().collect();
+        let span = self.span(start, end);
+        let align_of = |c: Option<&char>| match c {
+            Some('<') => Some(Align::Left),
+            Some('^') => Some(Align::Center),
+            Some('>') => Some(Align::Right),
+            _ => None,
+        };
+        if chars.is_empty() {
+            let span = self.span(colon, colon + 1);
+            self.error(
+                Diagnostic::new(codes::E0117, "empty format specification")
+                    .primary(span, "nothing follows this `:`")
+                    .help("write a specification such as `>8.2` after the `:`, or remove the `:`"),
+            );
+            return None;
+        }
+        let mut i = 0;
+        let mut fill = None;
+        let mut align = None;
+        if let (Some(&f), Some(a)) = (chars.first(), align_of(chars.get(1))) {
+            if f != '{' {
+                fill = Some(f);
+                align = Some(a);
+                i = 2;
+            }
+        }
+        if align.is_none() {
+            if let Some(a) = align_of(chars.first()) {
+                align = Some(a);
+                i = 1;
+            }
+        }
+        let zero = chars.get(i) == Some(&'0');
+        if zero {
+            i += 1;
+        }
+        let digits = |i: &mut usize| -> Option<u64> {
+            let from = *i;
+            let mut n: u64 = 0;
+            while let Some(d) = chars.get(*i).and_then(|c| c.to_digit(10)) {
+                n = n.saturating_mul(10).saturating_add(u64::from(d));
+                *i += 1;
+            }
+            (*i > from).then_some(n)
+        };
+        let width = digits(&mut i);
+        let mut precision = None;
+        let mut bad_point = false;
+        if chars.get(i) == Some(&'.') {
+            i += 1;
+            precision = digits(&mut i);
+            bad_point = precision.is_none();
+        }
+        let problem = if bad_point {
+            Some((
+                "a `.` without a precision".to_string(),
+                "write the number of digits after the `.`, as in `.2`".to_string(),
+            ))
+        } else if let Some(c) = chars.get(i) {
+            Some((
+                format!("unexpected `{c}` in a format specification"),
+                "a specification is `[[fill] align] [0] [width] [.precision]`, as in `*>8.2`"
+                    .to_string(),
+            ))
+        } else if zero && (fill.is_some() || align.is_some()) {
+            Some((
+                "`0` cannot be combined with a fill or an alignment".to_string(),
+                "pad with zeros by `0` alone (`05`), or with the fill `0` (`0>5`)".to_string(),
+            ))
+        } else if width.is_some_and(|w| w > 1000) {
+            Some((
+                "the width is more than 1000".to_string(),
+                "a width is at most 1000".to_string(),
+            ))
+        } else if precision.is_some_and(|p| p > 100) {
+            Some((
+                "the precision is more than 100".to_string(),
+                "a precision is at most 100".to_string(),
+            ))
+        } else {
+            None
+        };
+        if let Some((message, help)) = problem {
+            self.error(
+                Diagnostic::new(codes::E0117, message)
+                    .primary(span, "in this format specification")
+                    .help(help),
+            );
+            return None;
+        }
+        Some(FormatSpec {
+            fill,
+            align,
+            zero,
+            width: width.and_then(|w| u32::try_from(w).ok()),
+            precision: precision.and_then(|p| u32::try_from(p).ok()),
+            span,
+        })
     }
 
     /// Whether the interpolation that starts after the `{` before the cursor has its matching `}`
@@ -901,9 +1041,18 @@ impl<'a> Lexer<'a> {
         loop {
             match self.cursor.peek(n) {
                 None | Some('\n' | '\r') => return false,
-                Some('{') => depth += 1,
+                Some('{' | '(' | '[') => depth += 1,
                 Some('}') if depth == 0 => return true,
-                Some('}') => depth -= 1,
+                Some('}' | ')' | ']') => depth = depth.saturating_sub(1),
+                // A format specification runs to the `}`; it has no strings.
+                Some(':') if depth == 0 => loop {
+                    n += 1;
+                    match self.cursor.peek(n) {
+                        None | Some('\n' | '\r') => return false,
+                        Some('}') => return true,
+                        Some(_) => {}
+                    }
+                },
                 Some('"') => loop {
                     n += 1;
                     match self.cursor.peek(n) {

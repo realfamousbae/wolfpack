@@ -3417,6 +3417,8 @@ impl<'p> Emitter<'p> {
                 let parts = arg(&mut a);
                 call(member(parts, "join"), a)
             }
+            "string.fixed" => self.rt_call("fixed", a),
+            "string.pad" => self.rt_call("pad", a),
             "list.List.new" => {
                 let t = self.ty(ty);
                 Expr::As(Box::new(Expr::Array(Vec::new())), t)

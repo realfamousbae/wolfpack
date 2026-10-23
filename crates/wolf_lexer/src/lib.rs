@@ -11,7 +11,7 @@ mod token;
 use wolf_diag::{Diagnostic, codes};
 use wolf_span::{FileId, Span};
 
-pub use token::{Comment, FPart, Token, TokenKind};
+pub use token::{Align, Comment, FPart, FormatSpec, Token, TokenKind};
 
 /// The result of lexing one file.
 #[derive(Debug, Default)]
@@ -78,7 +78,12 @@ pub fn dump(text: &str, tokens: &[Token]) -> String {
                     .iter()
                     .map(|part| match part {
                         FPart::Text(text) => format!("{text:?}"),
-                        FPart::Expr(tokens, _) => format!("{{{}}}", tokens.len().saturating_sub(1)),
+                        FPart::Expr(tokens, _, None) => {
+                            format!("{{{}}}", tokens.len().saturating_sub(1))
+                        }
+                        FPart::Expr(tokens, _, Some(_)) => {
+                            format!("{{{}:spec}}", tokens.len().saturating_sub(1))
+                        }
                     })
                     .collect();
                 format!("FStr [{}]", parts.join(", "))

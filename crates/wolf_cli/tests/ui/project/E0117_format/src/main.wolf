@@ -1,0 +1,12 @@
+module main
+
+main {
+    let x = 42
+    print(f"{x:>>>}")
+    print(f"{x:5.}")
+    print(f"{x:}")
+    print(f"{x:<05}")
+    print(f"{x:1001}")
+    print(f"{x:.101}")
+    print(f"{x:>>5} {x:0>5}")
+}

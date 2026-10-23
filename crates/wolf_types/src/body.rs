@@ -79,6 +79,14 @@ pub(crate) enum Deferred {
     },
     /// An operator was applied to a type that was not known yet.
     Operator { op: Op, ty: Ty, span: Span },
+    /// A format specification of an interpolation (chapter 7, section 4.4): a precision needs
+    /// a `Float`, `0` a number.
+    Format {
+        ty: Ty,
+        precision: bool,
+        zero: bool,
+        span: Span,
+    },
 }
 
 /// Which operand types an operator accepts.
@@ -433,6 +441,53 @@ impl<'a> Checker<'a> {
                     self.op_error(op, &ty, span);
                 }
             }
+            Deferred::Format {
+                ty,
+                precision,
+                zero,
+                span,
+            } => {
+                let ty = self.infer.resolve(&ty);
+                if ty.has_error() || self.infer.is_unknown(&ty) {
+                    return;
+                }
+                let shown = self.show(&ty);
+                let float = self.is(&ty, self.b.float);
+                let number = float || self.is(&ty, self.b.int);
+                if precision && !float {
+                    let help = if self.is(&ty, self.b.int) {
+                        "convert the value first: `{n.to_float():.2}`"
+                    } else {
+                        "remove the precision"
+                    };
+                    self.report(
+                        Diagnostic::new(codes::E0441, format!("`{shown}` takes no precision"))
+                            .primary(span, "a precision is only for `Float`")
+                            .help(help),
+                    );
+                } else if zero && !number {
+                    self.report(
+                        Diagnostic::new(
+                            codes::E0441,
+                            format!("`{shown}` cannot be padded with `0`"),
+                        )
+                        .primary(span, "`0` is only for `Int` and `Float`")
+                        .help("pad with the fill character `0` instead: `0>5`"),
+                    );
+                }
+            }
+        }
+    }
+
+    /// Checks a format specification against the type of its value, when the type is known.
+    fn format_spec(&mut self, b: &mut Body, ty: &Ty, spec: &ast::FormatSpec) {
+        if spec.precision.is_some() || spec.zero {
+            b.deferred.push(Deferred::Format {
+                ty: ty.clone(),
+                precision: spec.precision.is_some(),
+                zero: spec.zero,
+                span: spec.span,
+            });
         }
     }
 
@@ -625,9 +680,12 @@ impl<'a> Checker<'a> {
             ExprKind::Str(_) => self.string(),
             ExprKind::FStr(parts) => {
                 for part in parts {
-                    if let ast::FStrPart::Expr(value) = part {
+                    if let ast::FStrPart::Expr(value, spec) = part {
                         let t = self.expr(b, value, None);
                         self.require_display(b, &t, value.span, "an interpolated value");
+                        if let Some(spec) = spec {
+                            self.format_spec(b, &t, spec);
+                        }
                     }
                 }
                 self.string()

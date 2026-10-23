@@ -5069,6 +5069,15 @@ impl<'p> Emitter<'p> {
                 let parts = arg();
                 data(self.std_call("strings", "Join", vec![parts, arg()]))
             }
+            "string.fixed" => {
+                let x = arg();
+                data(self.rt_call("Format", "Fixed", vec![x, arg()]))
+            }
+            "string.pad" => {
+                let text = arg();
+                let rest = vec![text, arg(), arg(), arg(), arg()];
+                data(self.rt_call("Format", "Pad", rest))
+            }
             "list.List.new" => {
                 let t = self.ty(ty)?;
                 data(Expr::Composite(t, Vec::new()))

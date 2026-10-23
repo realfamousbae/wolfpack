@@ -85,6 +85,8 @@ intrinsics! {
     OptionToString = "std.prelude.Option.to_string",
     ResultToString = "std.prelude.Result.to_string",
     Join = "std.string.join",
+    Fixed = "std.string.fixed",
+    Pad = "std.string.pad",
     ListNew = "std.list.List.new",
     ListLen = "std.list.List.len",
     ListIsEmpty = "std.list.List.is_empty",
@@ -497,6 +499,17 @@ impl Intrinsic {
                 }
             }
             I::StrToString => Value::Str(string(arg(0)?)?),
+            I::Fixed => {
+                let digits = usize::try_from(int(arg(1)?)?).unwrap_or(0);
+                Value::str(&text::fixed(float(arg(0)?)?, digits))
+            }
+            I::Pad => {
+                let width = usize::try_from(int(arg(1)?)?).unwrap_or(0);
+                let fill = string(arg(2)?)?.chars().next().unwrap_or(' ');
+                let align = int(arg(3)?)?;
+                let zero = boolean(arg(4)?)?;
+                Value::str(&text::pad(&string(arg(0)?)?, width, fill, align, zero))
+            }
             I::ListToString | I::MapToString | I::OptionToString | I::ResultToString => {
                 Value::str(&vm.show(arg(0)?)?)
             }

@@ -3983,6 +3983,20 @@ impl<'p> Emitter<'p> {
                 let parts = iter_recv(op(self, 0)?);
                 method(parts, "join", vec![read(self, 1)?])
             }
+            "string.fixed" => {
+                let args = vec![own(self, 0)?, own(self, 1)?];
+                self.rt_call("format", "fixed", args)
+            }
+            "string.pad" => {
+                let args = vec![
+                    read(self, 0)?,
+                    op(self, 1)?,
+                    read(self, 2)?,
+                    op(self, 3)?,
+                    op(self, 4)?,
+                ];
+                self.rt_call("format", "pad", args)
+            }
             "list.List.new" => call(path("Vec::new"), Vec::new()),
             "list.List.len" => len(op(self, 0)?),
             "list.List.is_empty" => method(op(self, 0)?, "is_empty", Vec::new()),

@@ -742,7 +742,7 @@ impl Resolver<'_> {
             | ExprKind::Error => {}
             ExprKind::FStr(parts) => {
                 for part in parts {
-                    if let FStrPart::Expr(e) = part {
+                    if let FStrPart::Expr(e, _) = part {
                         self.expr(ctx, e, locals);
                     }
                 }

@@ -454,7 +454,10 @@ fn expr(e: &Expr) -> Tree {
                 .iter()
                 .map(|part| match part {
                     FStrPart::Text(t) => leaf(format!("{t:?}")),
-                    FStrPart::Expr(e) => expr(e),
+                    FStrPart::Expr(e, None) => expr(e),
+                    FStrPart::Expr(e, Some(spec)) => {
+                        node(format!("format {:?}", spec.text()), vec![expr(e)])
+                    }
                 })
                 .collect(),
         ),

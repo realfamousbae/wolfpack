@@ -645,6 +645,80 @@ export function errText(e: unknown): string {
 }"#,
     },
     Piece {
+        name: "fixed",
+        deps: &["floatToString"],
+        code: r#"/**
+ * `x` with `digits` digits after the point, rounded to the nearest with ties to even on its exact
+ * value (spec chapter 7, section 4.4); `toFixed` rounds halves up and has no plain notation from
+ * 1e21 on.
+ */
+export function fixed(x: number, digits: bigint): string {
+  if (!Number.isFinite(x)) {
+    return floatToString(x);
+  }
+  const view = new DataView(new ArrayBuffer(8));
+  view.setFloat64(0, Math.abs(x));
+  const bits = view.getBigUint64(0);
+  const exp = Number((bits >> 52n) & 0x7ffn);
+  let mantissa = bits & ((1n << 52n) - 1n);
+  let e = -1074;
+  if (exp !== 0) {
+    mantissa |= 1n << 52n;
+    e = exp - 1075;
+  }
+  const scaled = mantissa * 10n ** digits;
+  let q: bigint;
+  if (e >= 0) {
+    q = scaled << BigInt(e);
+  } else {
+    const den = 1n << BigInt(-e);
+    q = scaled / den;
+    const twice = (scaled % den) * 2n;
+    if (twice > den || (twice === den && (q & 1n) === 1n)) {
+      q += 1n;
+    }
+  }
+  const p = Number(digits);
+  let s = q.toString();
+  if (p > 0) {
+    s = s.padStart(p + 1, "0");
+    s = s.slice(0, s.length - p) + "." + s.slice(s.length - p);
+  }
+  return (x < 0 || Object.is(x, -0) ? "-" : "") + s;
+}"#,
+    },
+    Piece {
+        name: "pad",
+        deps: &[],
+        code: r#"/**
+ * `text` padded with `fill` to `width` Unicode scalar values: `align` 0 pads on the right, 1 on
+ * both sides with the extra character on the right, 2 on the left. `zero` pads a number with
+ * zeros after its sign, and `NaN` and the infinities with spaces on the left.
+ */
+export function pad(text: string, width: bigint, fill: string, align: bigint, zero: boolean): string {
+  const n = [...text].length;
+  const missing = Number(width) - n;
+  if (missing <= 0) {
+    return text;
+  }
+  if (zero) {
+    if (text === "NaN" || text === "inf" || text === "-inf") {
+      return " ".repeat(missing) + text;
+    }
+    const sign = text.startsWith("-") ? "-" : "";
+    return sign + "0".repeat(missing) + text.slice(sign.length);
+  }
+  if (align === 0n) {
+    return text + fill.repeat(missing);
+  }
+  if (align === 1n) {
+    const left = Math.floor(missing / 2);
+    return fill.repeat(left) + text + fill.repeat(missing - left);
+  }
+  return fill.repeat(missing) + text;
+}"#,
+    },
+    Piece {
         name: "floatToString",
         deps: &[],
         code: r#"/** The canonical format of `Float` (spec chapter 7, section 4.1). */

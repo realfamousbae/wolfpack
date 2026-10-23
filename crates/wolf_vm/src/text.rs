@@ -138,6 +138,50 @@ pub fn bounds(start: i64, end: i64, length: usize) -> Option<(usize, usize)> {
     }
 }
 
+/// `x` with `digits` digits after the point, rounded to the nearest with ties to even on its
+/// exact value; `NaN` and the infinities as without a precision (spec chapter 7, section 4.4).
+pub fn fixed(x: f64, digits: usize) -> String {
+    if x.is_finite() {
+        format!("{x:.digits$}")
+    } else {
+        float_to_string(x)
+    }
+}
+
+/// `text` padded with `fill` to `width` Unicode scalar values: `align` 0 pads on the right, 1 on
+/// both sides with the extra character on the right, 2 on the left. `zero` pads a number with
+/// zeros after its sign, and `NaN` and the infinities with spaces on the left.
+pub fn pad(text: &str, width: usize, fill: char, align: i64, zero: bool) -> String {
+    let n = text.chars().count();
+    if n >= width {
+        return text.to_string();
+    }
+    let missing = width - n;
+    let repeat = |c: char, k: usize| std::iter::repeat_n(c, k).collect::<String>();
+    if zero {
+        if matches!(text, "NaN" | "inf" | "-inf") {
+            return format!("{}{text}", repeat(' ', missing));
+        }
+        let (sign, digits) = match text.strip_prefix('-') {
+            Some(rest) => ("-", rest),
+            None => ("", text),
+        };
+        return format!("{sign}{}{digits}", repeat('0', missing));
+    }
+    match align {
+        0 => format!("{text}{}", repeat(fill, missing)),
+        1 => {
+            let left = missing / 2;
+            format!(
+                "{}{text}{}",
+                repeat(fill, left),
+                repeat(fill, missing - left)
+            )
+        }
+        _ => format!("{}{text}", repeat(fill, missing)),
+    }
+}
+
 /// A `String` inside a collection: in quotes, with `\"`, `\\`, `\n`, `\r`, `\t`, `\0` and the
 /// other control characters as `\u{1b}` (spec chapter 7, section 4.1, rule 1).
 pub fn quote(s: &str) -> String {

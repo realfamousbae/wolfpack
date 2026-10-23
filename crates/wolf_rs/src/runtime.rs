@@ -926,6 +926,48 @@ pub fn quote(s: &str) -> String {
 }"#,
     },
     Piece {
+        name: "format",
+        deps: &["float_to_string"],
+        code: r#"/// `x` with `digits` digits after the point, rounded to the nearest with ties to even on its
+/// exact value (spec chapter 7, section 4.4).
+pub fn fixed(x: f64, digits: i64) -> String {
+    if x.is_finite() {
+        let digits = usize::try_from(digits).unwrap_or(0);
+        format!("{x:.digits$}")
+    } else {
+        float_to_string(x)
+    }
+}
+
+/// `text` padded with `fill` to `width` Unicode scalar values: `align` 0 pads on the right, 1 on
+/// both sides with the extra character on the right, 2 on the left. `zero` pads a number with
+/// zeros after its sign, and `NaN` and the infinities with spaces on the left.
+pub fn pad(text: &str, width: i64, fill: &str, align: i64, zero: bool) -> String {
+    let n = text.chars().count();
+    let missing = usize::try_from(width).unwrap_or(0).saturating_sub(n);
+    if missing == 0 {
+        return text.to_string();
+    }
+    if zero {
+        if matches!(text, "NaN" | "inf" | "-inf") {
+            return format!("{}{text}", " ".repeat(missing));
+        }
+        return match text.strip_prefix('-') {
+            Some(rest) => format!("-{}{rest}", "0".repeat(missing)),
+            None => format!("{}{text}", "0".repeat(missing)),
+        };
+    }
+    match align {
+        0 => format!("{text}{}", fill.repeat(missing)),
+        1 => {
+            let left = missing / 2;
+            format!("{}{text}{}", fill.repeat(left), fill.repeat(missing - left))
+        }
+        _ => format!("{}{text}", fill.repeat(missing)),
+    }
+}"#,
+    },
+    Piece {
         name: "Comparable",
         deps: &["Ordering"],
         code: r#"/// A total order.
