@@ -566,7 +566,8 @@ pub enum Callee {
         /// The receiver.
         recv: Box<Expr>,
     },
-    /// A method of an interface, called on an interface value or on a value of a type parameter.
+    /// A method of an interface, called on an interface value, on a value of a type parameter,
+    /// or on a value of a type that gets the method's default.
     Interface {
         /// The interface.
         interface: DefRef,
@@ -574,6 +575,18 @@ pub enum Callee {
         name: String,
         /// The receiver.
         recv: Box<Expr>,
+    },
+    /// `Named.greeting(x)`: the default of an interface method itself, also for a type that
+    /// replaces it (spec chapter 4, section 8.2, rule 5).
+    Default {
+        /// The interface.
+        interface: DefRef,
+        /// The method name.
+        name: String,
+        /// The receiver, the first argument of the call.
+        recv: Box<Expr>,
+        /// The mode marker written before the receiver (`mut x` for `mut self`).
+        marker: Mode,
     },
     /// A function value: a closure or a function stored in a variable or field.
     Value(Box<Expr>),

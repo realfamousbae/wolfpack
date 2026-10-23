@@ -1,0 +1,23 @@
+error[E0406]: `Self` is not `Copyable`
+   --> src/main.wolf:18:26
+   |
+18 |             let _ = self.copy()
+   |                          ^^^^ `.copy()` needs `Copyable`
+   |
+   = note: in a default, `Self` is any type that implements the interface, and it need not be `Copyable`
+
+error[E0444]: `Named.name` has no default
+   --> src/main.wolf:34:17
+   |
+34 |     print(Named.name(cat))
+   |                 ^^^^ only a method with a default can be called this way
+   |
+   = help: call it on a value: `x.name(...)`
+
+error[E0404]: `Int` does not implement `Named`
+   --> src/main.wolf:35:26
+   |
+35 |     print(Named.greeting(5))
+   |                          ^ required by `Named.greeting`
+
+error: aborting due to 3 errors

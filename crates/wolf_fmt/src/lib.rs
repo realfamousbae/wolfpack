@@ -451,7 +451,15 @@ impl<'a> Fmt<'a> {
                 let elements = i
                     .methods
                     .iter()
-                    .map(|m| Self::element(&m.docs, m.sig.span, move |f| f.sig(&m.sig)))
+                    .map(|m| {
+                        let span = match (&m.decl.overrides, &m.decl.body) {
+                            (Some(o), Some(b)) => o.to(b.span),
+                            (Some(o), None) => o.to(m.decl.sig.span),
+                            (None, Some(b)) => m.decl.sig.span.to(b.span),
+                            (None, None) => m.decl.sig.span,
+                        };
+                        Self::element(&m.docs, span, move |f| f.fn_decl(&m.decl))
+                    })
                     .collect();
                 let inner = self.nested(elements, close);
                 braces(head, inner)
@@ -536,8 +544,13 @@ impl<'a> Fmt<'a> {
 
     fn fn_decl(&mut self, decl: &ast::FnDecl) -> Doc {
         let intrinsic = if decl.intrinsic { "intrinsic " } else { "" };
+        let overrides = if decl.overrides.is_some() {
+            "override "
+        } else {
+            ""
+        };
         let mut parts = vec![
-            text(format!("{}{intrinsic}", vis(decl.public))),
+            text(format!("{}{intrinsic}{overrides}", vis(decl.public))),
             self.sig(&decl.sig),
         ];
         if let Some(b) = &decl.body {

@@ -1,0 +1,90 @@
+module main
+
+types {
+    struct Cat {
+        nick: String
+    }
+
+    struct Dog {
+        title: String
+        greeting: String
+    }
+
+    struct Owl {
+        age: Int
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+
+        fn greeting(self) -> String {
+            "Hello, " + self.name()
+        }
+
+        override fn shout(self) -> String
+    }
+}
+
+impl {
+    Cat: Named {
+        override fn name(self) -> String {
+            self.nick.copy()
+        }
+
+        fn greeting(self) -> String {
+            "Hi"
+        }
+
+        fn shout(self) -> String {
+            "HI"
+        }
+    }
+
+    Cat {
+        override fn purr(self) -> String {
+            "purr"
+        }
+
+        fn greeting(self) -> String {
+            "twice"
+        }
+    }
+
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+
+        fn shout(self) -> String {
+            "WOOF"
+        }
+    }
+
+    Owl {
+        fn greeting(self) -> String {
+            "hoot"
+        }
+    }
+
+    Owl: Named {
+        fn name(self) -> String {
+            "owl"
+        }
+
+        fn shout(self) -> String {
+            "HOOT"
+        }
+    }
+}
+
+main {
+    print(Cat { nick: "Tom" }.name())
+}
+
+functions {
+    override fn helper() -> Int {
+        1
+    }
+}

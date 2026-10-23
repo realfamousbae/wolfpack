@@ -141,6 +141,9 @@ pub struct Method {
     pub public: bool,
     /// The interface, for a function of an interface implementation.
     pub interface: Option<DefId>,
+    /// A default of the interface that the implementation block leaves out: the type has the
+    /// method, and its body is the interface's (chapter 4, section 8.2, rule 4).
+    pub inherited: bool,
 }
 
 /// An implementation of an interface by a type.
@@ -176,6 +179,12 @@ pub(crate) enum BodyRef<'a> {
         module: usize,
         def: DefId,
         entry: &'a ast::ConfigEntry,
+    },
+    /// The default of a method of an interface.
+    Default {
+        module: usize,
+        interface: DefId,
+        decl: &'a ast::FnDecl,
     },
 }
 
@@ -221,6 +230,11 @@ pub(crate) struct Checker<'a> {
     pub(crate) member_method: BTreeMap<DefId, usize>,
     /// The method signatures of each interface.
     pub(crate) interface_methods: BTreeMap<DefId, BTreeMap<String, Sig>>,
+    /// The methods of each interface that have a default (chapter 4, section 8.2, rule 4).
+    pub(crate) interface_defaults: BTreeMap<DefId, BTreeSet<String>>,
+    /// The interface, with its type parameters, whose default is being checked: there `Self`
+    /// implements it.
+    pub(crate) current_interface: Option<(DefId, Vec<Ty>)>,
     /// The interfaces implemented by each type.
     pub(crate) impls: BTreeMap<DefId, Vec<ImplOf>>,
     /// The type of each constant.
@@ -281,6 +295,8 @@ impl<'a> Checker<'a> {
             method_table: BTreeMap::new(),
             member_method: BTreeMap::new(),
             interface_methods: BTreeMap::new(),
+            interface_defaults: BTreeMap::new(),
+            current_interface: None,
             impls: BTreeMap::new(),
             consts: BTreeMap::new(),
             param_names: BTreeMap::new(),
@@ -307,6 +323,7 @@ impl<'a> Checker<'a> {
             fns: self.fns,
             methods: self.methods,
             interface_methods: self.interface_methods,
+            interface_defaults: self.interface_defaults,
             impls: self.impls,
             consts: self.consts,
             param_names: self.param_names,
@@ -902,13 +919,28 @@ impl<'a> Checker<'a> {
                                 self_ty: Some(Ty::Param(ParamId::SelfType)),
                             };
                             let mut sigs = BTreeMap::new();
+                            let mut defaults = BTreeSet::new();
                             for method in &decl.methods {
-                                let sig = self.lower_sig(&method.sig, &iscope);
-                                self.no_where(&method.sig, "a method of an interface");
-                                self.interface_member(&method.sig, &sig);
-                                sigs.entry(method.sig.name.name.clone()).or_insert(sig);
+                                let msig = &method.decl.sig;
+                                let sig = self.lower_sig(msig, &iscope);
+                                self.no_where(msig, "a method of an interface");
+                                self.interface_member(msig, &sig);
+                                if let Some(span) = method.decl.overrides {
+                                    self.misplaced_override(span, "a method of an interface");
+                                }
+                                if method.decl.body.is_some()
+                                    && defaults.insert(msig.name.name.clone())
+                                {
+                                    bodies.push(BodyRef::Default {
+                                        module: m,
+                                        interface: def,
+                                        decl: &method.decl,
+                                    });
+                                }
+                                sigs.entry(msig.name.name.clone()).or_insert(sig);
                             }
                             self.interface_methods.insert(def, sigs);
+                            self.interface_defaults.insert(def, defaults);
                         }
                         ItemKind::Config(entry) => {
                             let Some(def) = self.item_def(&entry.name) else {
@@ -927,6 +959,9 @@ impl<'a> Checker<'a> {
                                 let sig = self.lower_sig(&decl.sig, &scope);
                                 self.no_where(&decl.sig, "a free function");
                                 self.fns.insert(def, sig);
+                            }
+                            if let Some(span) = decl.overrides {
+                                self.misplaced_override(span, "a free function");
                             }
                             if decl.body.is_some() {
                                 bodies.push(BodyRef::Fn {
@@ -1163,18 +1198,26 @@ impl<'a> Checker<'a> {
                 }
             }
         }
-        let mut implemented: Vec<(String, Span, Sig)> = Vec::new();
+        let mut implemented: Vec<(String, Span, Sig, bool)> = Vec::new();
         for method in &block.methods {
             let sig = self.lower_sig(&method.decl.sig, &scope);
             let has_self = sig.self_mode.is_some();
             let name = method.decl.sig.name.clone();
+            if let (Some(span), None) = (method.decl.overrides, interface) {
+                self.misplaced_override(span, "a method of an inherent block");
+            }
             let where_bounds = self.lower_where(
                 &method.decl.sig,
                 &block.generics,
                 interface.is_some(),
                 &scope,
             );
-            implemented.push((name.name.clone(), name.span, sig.clone()));
+            implemented.push((
+                name.name.clone(),
+                name.span,
+                sig.clone(),
+                method.decl.overrides.is_some(),
+            ));
             let index = self.methods.len();
             self.methods.push(Method {
                 name: name.name.clone(),
@@ -1187,6 +1230,7 @@ impl<'a> Checker<'a> {
                 sig,
                 public: public_methods.unwrap_or(method.decl.public),
                 interface,
+                inherited: false,
             });
             let table = self.method_table.entry(owner).or_default();
             match table.get(&name.name).copied() {
@@ -1250,6 +1294,140 @@ impl<'a> Checker<'a> {
         }
         if let Some(iface) = interface {
             self.conformance(iface, &interface_args, &self_ty, block, &implemented);
+            self.inherit_defaults(
+                iface,
+                &interface_args,
+                &self_ty,
+                block,
+                &implemented,
+                Method {
+                    name: String::new(),
+                    span: block.type_name.span,
+                    owner,
+                    module,
+                    impl_generics: impl_generics.clone(),
+                    impl_bounds: generics.iter().map(|g| g.bounds.clone()).collect(),
+                    where_bounds: Vec::new(),
+                    sig: Sig {
+                        generics: Vec::new(),
+                        self_mode: None,
+                        params: Vec::new(),
+                        ret: Ty::Error,
+                    },
+                    public: public_methods.unwrap_or(true),
+                    interface: Some(iface),
+                    inherited: true,
+                },
+            );
+        }
+    }
+
+    /// E0443 for `override` where nothing can be replaced.
+    fn misplaced_override(&mut self, span: Span, what: &str) {
+        self.report(
+            Diagnostic::new(codes::E0443, format!("`override` on {what}"))
+                .primary(span, "nothing to replace here")
+                .help("`override fn` replaces the default of an interface method, in the block that implements the interface"),
+        );
+    }
+
+    /// The defaults that an implementation block leaves out become methods of the type, with
+    /// `Self` replaced (chapter 4, section 8.2, rule 4); their names count for E0415 and E0432 at
+    /// the block (section 8.3, rule 4). `template` holds what the block gives every method.
+    fn inherit_defaults(
+        &mut self,
+        iface: DefId,
+        args: &[Ty],
+        self_ty: &Ty,
+        block: &ast::ImplBlock,
+        implemented: &[(String, Span, Sig, bool)],
+        template: Method,
+    ) {
+        let defaults = self
+            .interface_defaults
+            .get(&iface)
+            .cloned()
+            .unwrap_or_default();
+        let sigs = self
+            .interface_methods
+            .get(&iface)
+            .cloned()
+            .unwrap_or_default();
+        let mut map: BTreeMap<ParamId, Ty> = BTreeMap::new();
+        map.insert(ParamId::SelfType, self_ty.clone());
+        if let Some(g) = self.type_generics.get(&iface) {
+            for (g, a) in g.iter().zip(args) {
+                map.insert(ParamId::Decl(g.span), a.clone());
+            }
+        }
+        let owner = template.owner;
+        let owner_name = self.def_name(owner);
+        let iname = self.def_name(iface);
+        for name in defaults {
+            if implemented.iter().any(|(n, ..)| *n == name) {
+                continue;
+            }
+            let Some(req) = sigs.get(&name) else {
+                continue;
+            };
+            let sig = Sig {
+                generics: Vec::new(),
+                self_mode: req.self_mode,
+                params: req
+                    .params
+                    .iter()
+                    .map(|(m, t)| (*m, t.subst(&map)))
+                    .collect(),
+                ret: req.ret.subst(&map),
+            };
+            let index = self.methods.len();
+            self.methods.push(Method {
+                name: name.clone(),
+                sig,
+                ..template.clone()
+            });
+            let span = block.type_name.span;
+            let table = self.method_table.entry(owner).or_default();
+            match table.get(&name).copied() {
+                Some(first) => {
+                    let first_span = self.methods.get(first).map(|f| f.span);
+                    let mut d = Diagnostic::new(
+                        codes::E0415,
+                        format!("`{owner_name}` has two functions named `{name}`"),
+                    )
+                    .primary(span, format!("gets `{name}` from the default of `{iname}`"))
+                    .note("a type has at most one function with a given name, across its inherent block, all its interface implementations and the defaults they get");
+                    if let Some(s) = first_span {
+                        d = d.secondary(s, "first definition");
+                    }
+                    self.report(d);
+                }
+                None => {
+                    table.insert(name.clone(), index);
+                }
+            }
+            let field = self
+                .fields
+                .get(&owner)
+                .and_then(|fields| fields.iter().find(|f| f.name == name))
+                .map(|f| f.span);
+            if let Some(field_span) = field {
+                self.report(
+                    Diagnostic::new(
+                        codes::E0432,
+                        format!("`{owner_name}` has a field and a method named `{name}`"),
+                    )
+                    .primary(
+                        span,
+                        format!("gets the method `{name}` from the default of `{iname}`"),
+                    )
+                    .secondary(field_span, "field")
+                    .help("rename the field, or the method in the interface")
+                    .note(
+                        "fields and methods of a struct share one namespace in TypeScript and Go",
+                    ),
+                );
+            }
         }
     }
 
@@ -1261,11 +1439,16 @@ impl<'a> Checker<'a> {
         args: &[Ty],
         self_ty: &Ty,
         block: &ast::ImplBlock,
-        implemented: &[(String, Span, Sig)],
+        implemented: &[(String, Span, Sig, bool)],
     ) {
         let Some(required) = self.interface_methods.get(&iface).cloned() else {
             return;
         };
+        let defaults = self
+            .interface_defaults
+            .get(&iface)
+            .cloned()
+            .unwrap_or_default();
         let mut map: BTreeMap<ParamId, Ty> = BTreeMap::new();
         map.insert(ParamId::SelfType, self_ty.clone());
         if let Some(g) = self.type_generics.get(&iface) {
@@ -1277,7 +1460,8 @@ impl<'a> Checker<'a> {
         let owner = block.type_name.name.clone();
         let missing: Vec<String> = required
             .keys()
-            .filter(|n| !implemented.iter().any(|(name, _, _)| name == *n))
+            .filter(|n| !defaults.contains(*n))
+            .filter(|n| !implemented.iter().any(|(name, ..)| name == *n))
             .map(|n| format!("`{n}`"))
             .collect();
         if !missing.is_empty() {
@@ -1297,7 +1481,28 @@ impl<'a> Checker<'a> {
                 ),
             );
         }
-        for (name, span, sig) in implemented {
+        for (name, span, sig, overrides) in implemented {
+            if defaults.contains(name) && !overrides {
+                self.report(
+                    Diagnostic::new(
+                        codes::E0443,
+                        format!("`{name}` replaces the default of `{iname}` without `override`"),
+                    )
+                    .primary(*span, "replaces a default")
+                    .help(format!(
+                        "write `override fn {name}`, or leave the method out to keep the default"
+                    )),
+                );
+            } else if *overrides && required.contains_key(name) && !defaults.contains(name) {
+                self.report(
+                    Diagnostic::new(
+                        codes::E0443,
+                        format!("`{name}` of `{iname}` has no default to replace"),
+                    )
+                    .primary(*span, "`override` replaces nothing")
+                    .help("remove `override`"),
+                );
+            }
             let Some(req) = required.get(name) else {
                 self.report(
                     Diagnostic::new(

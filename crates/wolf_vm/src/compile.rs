@@ -197,6 +197,8 @@ struct Compiler<'p> {
     self_modes: HashMap<DefRef, Mode>,
     /// The mode of `self` of each method of an interface, by interface and name.
     iface_modes: HashMap<(DefRef, String), Mode>,
+    /// The function of each default of an interface, by interface and name.
+    defaults: HashMap<(DefRef, String), u32>,
     /// The value of each constant.
     consts: HashMap<DefRef, Value>,
 }
@@ -278,6 +280,7 @@ impl<'p> Compiler<'p> {
             fields: HashMap::new(),
             self_modes: HashMap::new(),
             iface_modes: HashMap::new(),
+            defaults: HashMap::new(),
             consts: HashMap::new(),
         })
     }
@@ -323,6 +326,10 @@ impl<'p> Compiler<'p> {
                             if let Some(mode) = f.self_mode {
                                 self.iface_modes.insert((i.def, f.name.clone()), mode);
                             }
+                            if f.body.is_some() {
+                                let id = self.new_func();
+                                self.defaults.insert((i.def, f.name.clone()), id);
+                            }
                         }
                     }
                     Item::ExternFn(x) => {
@@ -337,6 +344,30 @@ impl<'p> Compiler<'p> {
                         self.consts.insert(k.def, const_value(&k.value));
                     }
                     Item::ExternType(_) | Item::Test(_) => {}
+                }
+            }
+        }
+        // A type that leaves out a default gets the interface's function for its dispatch.
+        for m in &p.modules {
+            for item in &m.items {
+                let (def, implements) = match item {
+                    Item::Struct(s) => (s.def, &s.implements),
+                    Item::Enum(e) => (e.def, &e.implements),
+                    _ => continue,
+                };
+                for t in implements {
+                    let Type::Named(iface, _) = t else {
+                        continue;
+                    };
+                    let inherited: Vec<(String, u32)> = self
+                        .defaults
+                        .iter()
+                        .filter(|((i, _), _)| i == iface)
+                        .map(|((_, n), id)| (n.clone(), *id))
+                        .collect();
+                    for (name, id) in inherited {
+                        self.dispatch.entry((def.0, name)).or_insert(id);
+                    }
                 }
             }
         }
@@ -370,6 +401,13 @@ impl<'p> Compiler<'p> {
                     Item::Builtin(b) => {
                         for f in &b.methods {
                             self.function(f)?;
+                        }
+                    }
+                    Item::Interface(i) => {
+                        for f in &i.methods {
+                            if let Some(&id) = self.defaults.get(&(i.def, f.name.clone())) {
+                                self.body_of(id, f)?;
+                            }
                         }
                     }
                     Item::Test(t)
@@ -420,6 +458,11 @@ impl<'p> Compiler<'p> {
         let Some(&id) = self.ids.get(&f.def) else {
             return Ok(());
         };
+        self.body_of(id, f)
+    }
+
+    /// The code of the function `f` as the function `id`.
+    fn body_of(&mut self, id: u32, f: &Function) -> Result<(), Error> {
         let info = self.p.def(f.def);
         if let Some(name) = info.and_then(|d| d.intrinsic.clone()) {
             let func = match Intrinsic::from_name(&name) {
@@ -1361,6 +1404,12 @@ impl FnC {
                 interface,
                 name,
                 recv,
+            }
+            | Callee::Default {
+                interface,
+                name,
+                recv,
+                ..
             } => {
                 let mode = c
                     .iface_modes
@@ -1373,11 +1422,18 @@ impl FnC {
                     self.expr(c, recv)?;
                 }
                 self.args(c, args)?;
-                let k = self.constant(Value::str(name));
-                self.emit(Op::CallMethod {
-                    name: k,
-                    argc: count(args.len() + 1)?,
-                });
+                let argc = count(args.len() + 1)?;
+                if let Callee::Default { .. } = callee {
+                    let func = c
+                        .defaults
+                        .get(&(*interface, name.clone()))
+                        .copied()
+                        .ok_or_else(|| format!("the default `{name}` has no code"))?;
+                    self.emit(Op::Call { func, argc });
+                } else {
+                    let k = self.constant(Value::str(name));
+                    self.emit(Op::CallMethod { name: k, argc });
+                }
             }
             Callee::Value(f) => {
                 self.expr(c, f)?;
@@ -1678,7 +1734,9 @@ fn walk_expr(e: &Expr, used: &mut BTreeSet<Var>, bound: &mut BTreeSet<Var>) {
         ExprKind::Call { callee, args } => {
             match callee {
                 Callee::Fn(_) => {}
-                Callee::Method { recv, .. } | Callee::Interface { recv, .. } => go(recv),
+                Callee::Method { recv, .. }
+                | Callee::Interface { recv, .. }
+                | Callee::Default { recv, .. } => go(recv),
                 Callee::Value(f) => go(f),
             }
             for a in args {

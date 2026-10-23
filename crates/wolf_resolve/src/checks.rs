@@ -253,7 +253,7 @@ fn signatures(r: &mut Resolver<'_>, module: ModuleId, input: &ModuleInput<'_>) {
                 }
                 ItemKind::Interface(decl) if decl.public => {
                     for method in &decl.methods {
-                        sig_types(&method.sig, &mut types);
+                        sig_types(&method.decl.sig, &mut types);
                     }
                     "interface"
                 }
@@ -323,7 +323,7 @@ fn public_types<'a>(item: &'a Item, out: &mut Vec<&'a Ty>) {
         ItemKind::Config(entry) => out.push(&entry.ty),
         ItemKind::Interface(decl) => {
             for method in &decl.methods {
-                sig_types(&method.sig, out);
+                sig_types(&method.decl.sig, out);
             }
         }
         _ => {}

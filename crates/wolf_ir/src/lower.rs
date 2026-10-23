@@ -359,6 +359,12 @@ impl<'a> Lowerer<'a> {
         }
         let mut next = u32::try_from(self.resolved.defs.len()).unwrap_or(u32::MAX);
         for (i, m) in self.typed.decls.methods.iter().enumerate() {
+            // A default that a type gets is called through its interface; it has no function of
+            // its own.
+            if m.inherited {
+                self.method_defs.push(DefRef(u32::MAX));
+                continue;
+            }
             self.method_at.insert(m.span, i);
             let def = match self.def_at.get(&m.span) {
                 Some(def) if m.interface.is_none() => Lowerer::dref(*def),
@@ -691,20 +697,26 @@ impl<'a> Lowerer<'a> {
                 let sigs = self.typed.decls.interface_methods.get(&def);
                 let mut list = Vec::new();
                 for m in &decl.methods {
-                    let Some(sig) = sigs.and_then(|s| s.get(&m.sig.name.name)) else {
+                    let Some(sig) = sigs.and_then(|s| s.get(&m.decl.sig.name.name)) else {
                         continue;
+                    };
+                    let ret = self.ty(&sig.ret);
+                    // A default keeps its body (chapter 4, section 8.2, rule 4).
+                    let body = match &m.decl.body {
+                        Some(b) => Some(self.block(ctx, b, matches!(ret, Type::Void))?),
+                        None => None,
                     };
                     list.push(Function {
                         def: Lowerer::dref(def),
-                        name: m.sig.name.name.clone(),
+                        name: m.decl.sig.name.name.clone(),
                         docs: docs(&m.docs),
                         public: decl.public,
                         generics: Vec::new(),
                         impl_bounds: Vec::new(),
                         self_mode: sig.self_mode,
-                        params: self.params(&m.sig, sig),
-                        ret: self.ty(&sig.ret),
-                        body: None,
+                        params: self.params(&m.decl.sig, sig),
+                        ret,
+                        body,
                         interface: Some(Lowerer::dref(def)),
                         in_tests: false,
                     });
@@ -1723,6 +1735,23 @@ impl<'a> Lowerer<'a> {
         callee: &'a ast::Expr,
         args: &'a [ast::Arg],
     ) -> Result<ExprKind, LowerError> {
+        // `Named.greeting(x)`: the default of an interface method (chapter 4, 8.2.5).
+        if let Some((interface, name)) = self.typed.default_calls.get(&(ctx.file, e.id)) {
+            let mut lowered = self.args(ctx, args)?;
+            if lowered.is_empty() {
+                return Err(unsupported("a default called without its receiver"));
+            }
+            let recv = lowered.remove(0);
+            return Ok(ExprKind::Call {
+                callee: Callee::Default {
+                    interface: Lowerer::dref(*interface),
+                    name: name.clone(),
+                    recv: Box::new(recv.value),
+                    marker: recv.mode,
+                },
+                args: lowered,
+            });
+        }
         // A method call: `recv.m(...)` where `recv` is a value.
         if let AstExpr::Field { base, name } = &callee.kind {
             if self.res(ctx, callee.id).is_none() {
@@ -1735,6 +1764,19 @@ impl<'a> Lowerer<'a> {
                             Ok(ExprKind::Call {
                                 callee: Callee::Interface {
                                     interface: Lowerer::dref(call.owner),
+                                    name: call.name.clone(),
+                                    recv,
+                                },
+                                args: lowered,
+                            })
+                        } else if let (None, Some(interface)) = (
+                            self.method_by_name.get(&(call.owner, call.name.clone())),
+                            call.interface,
+                        ) {
+                            // A default that the type gets: through its interface.
+                            Ok(ExprKind::Call {
+                                callee: Callee::Interface {
+                                    interface: Lowerer::dref(interface),
                                     name: call.name.clone(),
                                     recv,
                                 },

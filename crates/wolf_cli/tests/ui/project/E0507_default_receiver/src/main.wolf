@@ -1,0 +1,33 @@
+module main
+
+types {
+    struct Counter {
+        n: Int
+    }
+}
+
+interfaces {
+    interface Step {
+        fn step(mut self)
+
+        fn twice(mut self) {
+            self.step()
+            self.step()
+        }
+    }
+}
+
+impl {
+    Counter: Step {
+        fn step(mut self) {
+            self.n += 1
+        }
+    }
+}
+
+main {
+    var c = Counter { n: 0 }
+    Step.twice(c)
+    Step.twice(mut c)
+    print(c.n.to_string())
+}

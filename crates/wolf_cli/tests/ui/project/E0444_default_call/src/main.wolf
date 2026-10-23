@@ -1,0 +1,37 @@
+module main
+
+types {
+    struct Cat {
+        nick: String
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+
+        fn greeting(self) -> String {
+            "Hello, " + self.name()
+        }
+
+        fn same(self) -> Bool {
+            let _ = self.copy()
+            true
+        }
+    }
+}
+
+impl {
+    Cat: Named {
+        fn name(self) -> String {
+            self.nick.copy()
+        }
+    }
+}
+
+main {
+    let cat = Cat { nick: "Tom" }
+    print(Named.name(cat))
+    print(Named.greeting(5))
+    print(Named.greeting(cat))
+}

@@ -1,0 +1,9 @@
+error[E0507]: missing `mut` at the call site
+   --> src/main.wolf:30:16
+   |
+30 |     Step.twice(c)
+   |                ^ this parameter is `mut`
+   |
+   = help: write `mut` before the argument
+
+error: aborting due to 1 error

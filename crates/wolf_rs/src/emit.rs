@@ -354,6 +354,12 @@ impl Scan<'_> {
                         recv,
                         interface,
                         name,
+                    }
+                    | Callee::Default {
+                        recv,
+                        interface,
+                        name,
+                        ..
                     } => {
                         let key = (*interface, name.clone());
                         if self.mut_iface.is_some_and(|m| m.contains(&key)) {
@@ -2085,8 +2091,36 @@ impl<'p> Emitter<'p> {
                     return Err(e);
                 }
             };
-            func.body = None;
-            methods.push(func);
+            // A default (spec chapter 4, section 8.2, rule 4) is the method `name_default`, which
+            // no implementation replaces, so that `Named.greeting(x)` reaches it; the method
+            // itself calls it unless an implementation replaces it.
+            if func.body.is_some() {
+                let mut default = func.clone();
+                default.name = default_name(&f.name);
+                default.docs = Vec::new();
+                let args: Vec<Expr> = (0..func.params.len())
+                    .map(|i| path(&format!("a{i}")))
+                    .collect();
+                func.params = func
+                    .params
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (_, t))| (Pat::Bind(format!("a{i}"), false), t.clone()))
+                    .collect();
+                func.body = Some(block(
+                    Vec::new(),
+                    Some(Expr::Method(
+                        Box::new(path("self")),
+                        default.name.clone(),
+                        Vec::new(),
+                        args,
+                    )),
+                ));
+                methods.push(func);
+                methods.push(default);
+            } else {
+                methods.push(func);
+            }
         }
         self.in_iface_decl = false;
         let name = self.name_of(i.def);
@@ -2652,7 +2686,9 @@ impl<'p> Emitter<'p> {
                         Callee::Method { method, .. } => {
                             self.mut_methods.contains(method) || !intrinsic(method)
                         }
-                        Callee::Interface { .. } | Callee::Value(_) => true,
+                        Callee::Interface { .. } | Callee::Default { .. } | Callee::Value(_) => {
+                            true
+                        }
                     }
             }
             ExprKind::Coerce { value, .. } => self.has_effect(value),
@@ -3605,7 +3641,9 @@ impl<'p> Emitter<'p> {
         let (def, recv) = match callee {
             Callee::Fn(def) => (Some(*def), None),
             Callee::Method { method, recv } => (Some(*method), Some(recv.as_ref())),
-            Callee::Interface { recv, .. } => (None, Some(recv.as_ref())),
+            Callee::Interface { recv, .. } | Callee::Default { recv, .. } => {
+                (None, Some(recv.as_ref()))
+            }
             Callee::Value(_) => (None, None),
         };
         if let Some(def) = def {
@@ -3617,6 +3655,9 @@ impl<'p> Emitter<'p> {
         let info = match callee {
             Callee::Fn(def) | Callee::Method { method: def, .. } => self.fns.get(def).cloned(),
             Callee::Interface {
+                interface, name, ..
+            }
+            | Callee::Default {
                 interface, name, ..
             } => self.iface_fns.get(&(*interface, name.clone())).cloned(),
             Callee::Value(f) => match &f.ty {
@@ -3687,7 +3728,20 @@ impl<'p> Emitter<'p> {
                 name,
                 recv,
                 ..
+            }
+            | Callee::Default {
+                interface,
+                name,
+                recv,
+                ..
             } => {
+                // `Named.greeting(x)` calls the default itself.
+                let name = if matches!(callee, Callee::Default { .. }) {
+                    default_name(name)
+                } else {
+                    name.clone()
+                };
+                let name = &name;
                 let r = self.receiver(recv, info.self_mode.unwrap_or(Mode::Read))?;
                 let param = matches!(recv.ty, IrType::Param(_));
                 let dyn_value =
@@ -4598,6 +4652,11 @@ fn displayed(e: &IrExpr) -> Option<&IrExpr> {
 fn is_to_string(e: &IrExpr) -> bool {
     matches!(&e.kind, ExprKind::Call { callee: Callee::Method { .. }, args } if args.is_empty())
         && matches!(e.ty, IrType::String)
+}
+
+/// The trait method that holds the default of an interface method: `greeting_default`.
+fn default_name(name: &str) -> String {
+    format!("{name}_default")
 }
 
 /// A loop statement with its label, if it has one.

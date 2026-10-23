@@ -359,7 +359,7 @@ impl<'a> Resolver<'a> {
                         let def = self.new_def(DefKind::Interface, &decl.name, module, decl.public);
                         self.add_item(module, &decl.name, def, false);
                         for method in &decl.methods {
-                            self.style(&method.sig.name, false, "method");
+                            self.style(&method.decl.sig.name, false, "method");
                         }
                     }
                     ItemKind::Fn(decl) => {

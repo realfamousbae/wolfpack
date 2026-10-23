@@ -70,6 +70,8 @@ impl From<ConfigValue> for ConstValue {
     }
 }
 
+use std::collections::BTreeSet;
+
 /// The types of all declarations, for the lowering to IR.
 #[derive(Debug, Default)]
 pub struct Decls {
@@ -87,6 +89,8 @@ pub struct Decls {
     pub methods: Vec<Method>,
     /// The method signatures of each interface.
     pub interface_methods: BTreeMap<DefId, BTreeMap<String, Sig>>,
+    /// The methods of each interface that have a default (chapter 4, section 8.2, rule 4).
+    pub interface_defaults: BTreeMap<DefId, BTreeSet<String>>,
     /// The interfaces implemented by each type.
     pub impls: BTreeMap<DefId, Vec<ImplOf>>,
     /// The type of each constant.
@@ -104,6 +108,9 @@ pub struct Typed {
     pub local_types: BTreeMap<LocalId, Ty>,
     /// The function each method call (the `Call` node) resolved to.
     pub method_calls: BTreeMap<(FileId, NodeId), MethodCall>,
+    /// Calls of a default by the interface's name, `Named.greeting(x)` (the `Call` node): the
+    /// interface and the method.
+    pub default_calls: BTreeMap<(FileId, NodeId), (DefId, String)>,
     /// Expressions whose value is converted to an interface type, and that type: a concrete
     /// value used where an interface is expected (chapter 4, 8.5). Shorthand fields of struct
     /// literals are keyed by their field node.

@@ -27,6 +27,12 @@ pub fn check(program: &Program) -> Vec<Diagnostic> {
                 Item::Struct(s) => s.methods.iter().for_each(|f| c.function(f)),
                 Item::Enum(e) => e.methods.iter().for_each(|f| c.function(f)),
                 Item::Builtin(b) => b.methods.iter().for_each(|f| c.function(f)),
+                // The defaults of an interface (spec chapter 4, section 8.2, rule 4).
+                Item::Interface(i) => i
+                    .methods
+                    .iter()
+                    .filter(|f| f.body.is_some())
+                    .for_each(|f| c.function(f)),
                 Item::Test(t) => c.body(&[], None, &t.body),
                 _ => {}
             }
@@ -1040,6 +1046,12 @@ impl<'p> Checker<'p> {
                 interface,
                 name,
                 recv,
+            }
+            | Callee::Default {
+                interface,
+                name,
+                recv,
+                ..
             } => (
                 Some(recv),
                 self.iface_fns
@@ -1058,7 +1070,14 @@ impl<'p> Checker<'p> {
         let (self_mode, params) = sig.unwrap_or((None, Vec::new()));
         // Places used by the call, for the overlap rule (chapter 5, section 7.2).
         let mut used: Vec<(Place, Access, Span)> = Vec::new();
-        if let Some(r) = recv {
+        if let Callee::Default { marker, recv, .. } = callee {
+            // `Named.greeting(x)`: the receiver is an argument with its marker (chapter 4, 8.2.5).
+            let arg = Arg {
+                mode: *marker,
+                value: (**recv).clone(),
+            };
+            self.argument(&arg, self_mode.unwrap_or(Mode::Read), &recv.ty, &mut used);
+        } else if let Some(r) = recv {
             self.receiver(r, self_mode.unwrap_or(Mode::Read), &mut used);
         }
         for (i, a) in args.iter().enumerate() {
@@ -1344,7 +1363,9 @@ impl Free {
             ExprKind::SelfValue => self.self_used = true,
             ExprKind::Call { callee, args } => {
                 match callee {
-                    Callee::Method { recv, .. } | Callee::Interface { recv, .. } => self.expr(recv),
+                    Callee::Method { recv, .. }
+                    | Callee::Interface { recv, .. }
+                    | Callee::Default { recv, .. } => self.expr(recv),
                     Callee::Value(f) => self.expr(f),
                     Callee::Fn(_) => {}
                 }

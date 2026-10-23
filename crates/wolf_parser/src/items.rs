@@ -16,8 +16,10 @@ pub(crate) enum FnContext {
     Free,
     /// A method in `impl`: `self` may be the first parameter.
     Method,
-    /// A signature in an interface or an extern block: no body.
+    /// A signature in an extern block: no body.
     Signature,
+    /// A method of an interface: `self` may be the first parameter, and a body is its default.
+    Interface,
 }
 
 impl Parser<'_> {
@@ -208,6 +210,7 @@ impl Parser<'_> {
                     intrinsic: false,
                     sig,
                     body,
+                    overrides: None,
                 }),
                 span,
             }],
@@ -742,8 +745,13 @@ impl Parser<'_> {
         let start = self.peek_span();
         let pub_span = self.peek_span();
         let public = self.eat(&TokenKind::Pub);
+        let overrides = self.override_word();
         let kind = match self.peek().clone() {
-            TokenKind::Fn => ItemKind::Fn(self.fn_decl(public, false, FnContext::Free)?),
+            TokenKind::Fn => {
+                let mut decl = self.fn_decl(public, false, FnContext::Free)?;
+                decl.overrides = overrides;
+                ItemKind::Fn(decl)
+            }
             TokenKind::Ident if self.at_word("intrinsic") && self.nth_is(1, &TokenKind::Fn) => {
                 self.bump();
                 ItemKind::Fn(self.fn_decl(public, true, FnContext::Free)?)
@@ -1193,12 +1201,11 @@ impl Parser<'_> {
                 }
                 let before = p.pos;
                 p.line_errors = p.start_line();
+                let overrides = p.override_word();
                 if p.at(&TokenKind::Fn) {
-                    if let Some(decl) = p.fn_decl(false, false, FnContext::Signature) {
-                        methods.push(MethodSig {
-                            docs,
-                            sig: decl.sig,
-                        });
+                    if let Some(mut decl) = p.fn_decl(false, false, FnContext::Interface) {
+                        decl.overrides = overrides;
+                        methods.push(MethodSig { docs, decl });
                     }
                 } else {
                     p.unexpected("`fn`");
@@ -1252,8 +1259,10 @@ impl Parser<'_> {
                 if intrinsic {
                     p.bump();
                 }
+                let overrides = p.override_word();
                 if p.at(&TokenKind::Fn) {
-                    if let Some(decl) = p.fn_decl(public, intrinsic, FnContext::Method) {
+                    if let Some(mut decl) = p.fn_decl(public, intrinsic, FnContext::Method) {
+                        decl.overrides = overrides;
                         methods.push(Method {
                             docs,
                             decl,
@@ -1359,6 +1368,8 @@ impl Parser<'_> {
             None
         } else if self.at(&TokenKind::LBrace) {
             self.block()
+        } else if context == FnContext::Interface {
+            None
         } else {
             self.unexpected("`{` and the function body");
             None
@@ -1368,7 +1379,17 @@ impl Parser<'_> {
             intrinsic,
             sig,
             body,
+            overrides: None,
         })
+    }
+
+    /// The contextual word `override` before `fn`; the checker says where it is allowed.
+    fn override_word(&mut self) -> Option<Span> {
+        if self.at_word("override") && self.nth_is(1, &TokenKind::Fn) {
+            Some(self.bump().span)
+        } else {
+            None
+        }
     }
 
     fn param(&mut self, index: usize, context: FnContext) -> Option<Param> {

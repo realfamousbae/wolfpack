@@ -32,6 +32,11 @@ impl Checker<'_> {
                 implemented && (!self.result_display(def, interface) || self.err_shown(&args))
             }
             Ty::Param(ParamId::Decl(span)) => self.has_bound(span, interface),
+            // `self` in a default implements its interface.
+            Ty::Param(ParamId::SelfType) => self
+                .current_interface
+                .as_ref()
+                .is_some_and(|(d, _)| *d == interface),
             Ty::Error | Ty::Never => true,
             _ => false,
         }
@@ -187,7 +192,11 @@ impl Checker<'_> {
             if let Err(reason) = self.derived(ty, which, &mut BTreeSet::new()) {
                 let d = Diagnostic::new(codes::E0406, format!("`{shown}` is not `{iface}`"))
                     .primary(span, needs.clone());
-                let d = if matches!(self.infer.resolve(ty), Ty::Param(_)) {
+                let d = if matches!(self.infer.resolve(ty), Ty::Param(ParamId::SelfType)) {
+                    d.note(format!(
+                        "in a default, `Self` is any type that implements the interface, and it need not be `{iface}`"
+                    ))
+                } else if matches!(self.infer.resolve(ty), Ty::Param(_)) {
                     d.help(format!(
                         "add the bound where `{shown}` is declared: `{shown}: {iface}`"
                     ))

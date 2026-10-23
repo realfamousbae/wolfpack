@@ -225,8 +225,15 @@ fn item(item: &Item) -> Tree {
             for m in &decl.methods {
                 let mut mk = Vec::new();
                 docs(&m.docs, &mut mk);
-                sig(&m.sig, &mut mk);
-                kids.push(node("sig", mk));
+                flag(m.decl.overrides.is_some(), "override", &mut mk);
+                sig(&m.decl.sig, &mut mk);
+                match &m.decl.body {
+                    Some(body) => {
+                        mk.push(block(body));
+                        kids.push(node("default", mk));
+                    }
+                    None => kids.push(node("sig", mk)),
+                }
             }
             "interface".to_string()
         }
@@ -269,6 +276,7 @@ fn field(f: &Field) -> Tree {
 fn fn_decl(decl: &FnDecl, kids: &mut Vec<Tree>) {
     flag(decl.public, "pub", kids);
     flag(decl.intrinsic, "intrinsic", kids);
+    flag(decl.overrides.is_some(), "override", kids);
     sig(&decl.sig, kids);
     if let Some(body) = &decl.body {
         kids.push(block(body));

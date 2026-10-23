@@ -280,6 +280,10 @@
           "match": "\\bwhere\\b(?=\\s+[A-Za-z_]\\w*\\s*:)"
         },
         {
+          "name": "storage.modifier.wolfpack",
+          "match": "\\boverride\\b(?=\\s+fn\\b)"
+        },
+        {
           "name": "keyword.other.test.wolfpack",
           "match": "\\btest\\b(?=\\s*\\\")"
         },

@@ -143,6 +143,11 @@ impl<'a> Checker<'a> {
                     self.finish_body(b);
                 }
                 BodyRef::Config { module, def, entry } => self.config_body(module, def, entry),
+                BodyRef::Default {
+                    module,
+                    interface,
+                    decl,
+                } => self.default_body(module, interface, decl),
             }
         }
     }
@@ -215,6 +220,30 @@ impl<'a> Checker<'a> {
                 None => self.param_bounds.remove(&span),
             };
         }
+    }
+
+    /// The default of an interface method, checked once over `Self` that implements the
+    /// interface (chapter 4, section 8.2, rule 4).
+    fn default_body(&mut self, module: usize, interface: DefId, decl: &ast::FnDecl) {
+        let Some(body) = &decl.body else {
+            return;
+        };
+        let Some(sig) = self
+            .interface_methods
+            .get(&interface)
+            .and_then(|m| m.get(&decl.sig.name.name))
+            .cloned()
+        else {
+            return;
+        };
+        let args: Vec<Ty> = self
+            .type_generics
+            .get(&interface)
+            .map(|g| g.iter().map(|g| Ty::Param(ParamId::Decl(g.span))).collect())
+            .unwrap_or_default();
+        let outer = self.current_interface.replace((interface, args));
+        self.fn_body_checked(module, decl, Some(Ty::Param(ParamId::SelfType)), &sig, body);
+        self.current_interface = outer;
     }
 
     fn fn_body_checked(
@@ -1672,6 +1701,16 @@ impl<'a> Checker<'a> {
         name: &ast::Ident,
         args: &[ast::Arg],
     ) -> Ty {
+        if self.def_kind(owner) == Some(DefKind::Interface) {
+            if let Some(sig) = self
+                .interface_methods
+                .get(&owner)
+                .and_then(|m| m.get(&name.name))
+                .cloned()
+            {
+                return self.default_call(b, e, owner, name, &sig, args);
+            }
+        }
         let target = if self.def_kind(owner) == Some(DefKind::Alias) {
             self.alias_type(owner)
         } else {
@@ -1714,6 +1753,82 @@ impl<'a> Checker<'a> {
             self.expr(b, &a.value, None);
         }
         Ty::Error
+    }
+
+    /// `Named.greeting(x)`: the default of an interface method, called with the receiver as
+    /// the first argument (chapter 4, section 8.2, rule 5).
+    fn default_call(
+        &mut self,
+        b: &mut Body,
+        e: &ast::Expr,
+        interface: DefId,
+        name: &ast::Ident,
+        sig: &Sig,
+        args: &[ast::Arg],
+    ) -> Ty {
+        let iname = self.def_name(interface);
+        let has_default = self
+            .interface_defaults
+            .get(&interface)
+            .is_some_and(|d| d.contains(&name.name));
+        if !has_default {
+            self.report(
+                Diagnostic::new(
+                    codes::E0444,
+                    format!("`{iname}.{}` has no default", name.name),
+                )
+                .primary(
+                    name.span,
+                    "only a method with a default can be called this way",
+                )
+                .help(format!("call it on a value: `x.{}(...)`", name.name)),
+            );
+        }
+        let recv = self.infer.fresh();
+        let mut map: BTreeMap<ParamId, Ty> = BTreeMap::new();
+        map.insert(ParamId::SelfType, recv.clone());
+        let iargs: Vec<Ty> = self
+            .type_generics
+            .get(&interface)
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .map(|g| {
+                let v = self.infer.fresh();
+                map.insert(ParamId::Decl(g.span), v.clone());
+                v
+            })
+            .collect();
+        let mut params = vec![(sig.self_mode.unwrap_or(Mode::Read), recv.clone())];
+        params.extend(sig.params.iter().map(|(m, t)| (*m, t.subst(&map))));
+        let ret = sig.ret.subst(&map);
+        let what = format!("`{iname}.{}`", name.name);
+        self.args(b, e.span, &params, args, &what);
+        let span = args.first().map_or(e.span, |a| a.value.span);
+        // The receiver must implement the interface; its implementation fixes the interface's
+        // type arguments.
+        let wanted = Ty::Named(interface, iargs);
+        match self.infer.resolve(&recv) {
+            Ty::Named(d, _) if d == interface => {
+                let _ = self.infer.unify(&recv, &wanted);
+            }
+            r @ Ty::Named(..) => {
+                let _ = self.unify_impl_args(&r, &wanted);
+            }
+            _ => {}
+        }
+        b.deferred.push(Deferred::Bound {
+            ty: recv.clone(),
+            interface,
+            span,
+            why: format!("required by {what}"),
+        });
+        if has_default {
+            self.out
+                .default_calls
+                .insert((b.file, e.id), (interface, name.name.clone()));
+        }
+        ret
     }
 
     fn variant_call(
@@ -1787,6 +1902,29 @@ impl<'a> Checker<'a> {
         let recv_s = self.infer.shallow(recv);
         if let Ty::Param(ParamId::Decl(span)) = recv_s {
             return self.bound_method(span, &recv_s, name);
+        }
+        // `self` in a default: the methods of the interface, defaults included.
+        if let Ty::Param(ParamId::SelfType) = recv_s {
+            let (def, _) = self.current_interface.clone()?;
+            let sig = self.interface_methods.get(&def)?.get(name)?.clone();
+            let found = Found {
+                params: sig.params.clone(),
+                ret: sig.ret.clone(),
+                has_self: sig.self_mode.is_some(),
+                public: true,
+                module: None,
+                method: Some(MethodCall {
+                    owner: def,
+                    name: name.to_string(),
+                    interface: Some(def),
+                }),
+                bounds: Vec::new(),
+            };
+            let sig = Sig {
+                generics: Vec::new(),
+                ..sig
+            };
+            return Some((found, sig));
         }
         let Ty::Named(def, args) = recv_s else {
             return None;

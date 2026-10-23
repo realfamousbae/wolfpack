@@ -1,0 +1,75 @@
+error[E0443]: `override` on a method of an interface
+   --> src/main.wolf:26:9
+   |
+26 |         override fn shout(self) -> String
+   |         ^^^^^^^^ nothing to replace here
+   |
+   = help: `override fn` replaces the default of an interface method, in the block that implements the interface
+
+error[E0443]: `name` of `Named` has no default to replace
+   --> src/main.wolf:32:21
+   |
+32 |         override fn name(self) -> String {
+   |                     ^^^^ `override` replaces nothing
+   |
+   = help: remove `override`
+
+error[E0443]: `greeting` replaces the default of `Named` without `override`
+   --> src/main.wolf:36:12
+   |
+36 |         fn greeting(self) -> String {
+   |            ^^^^^^^^ replaces a default
+   |
+   = help: write `override fn greeting`, or leave the method out to keep the default
+
+error[E0443]: `override` on a method of an inherent block
+   --> src/main.wolf:46:9
+   |
+46 |         override fn purr(self) -> String {
+   |         ^^^^^^^^ nothing to replace here
+   |
+   = help: `override fn` replaces the default of an interface method, in the block that implements the interface
+
+error[E0415]: `Cat` has two functions named `greeting`
+   --> src/main.wolf:50:12
+   |
+36 |         fn greeting(self) -> String {
+   |            -------- first definition
+   .
+50 |         fn greeting(self) -> String {
+   |            ^^^^^^^^ second definition
+   |
+   = note: a type has at most one function with a given name, across its inherent block and all its interface implementations
+
+error[E0432]: `Dog` has a field and a method named `greeting`
+   --> src/main.wolf:55:5
+   |
+10 |         greeting: String
+   |         -------- field
+   .
+55 |     Dog: Named {
+   |     ^^^ gets the method `greeting` from the default of `Named`
+   |
+   = help: rename the field, or the method in the interface
+   = note: fields and methods of a struct share one namespace in TypeScript and Go
+
+error[E0415]: `Owl` has two functions named `greeting`
+   --> src/main.wolf:71:5
+   |
+66 |         fn greeting(self) -> String {
+   |            -------- first definition
+   .
+71 |     Owl: Named {
+   |     ^^^ gets `greeting` from the default of `Named`
+   |
+   = note: a type has at most one function with a given name, across its inherent block, all its interface implementations and the defaults they get
+
+error[E0443]: `override` on a free function
+   --> src/main.wolf:87:5
+   |
+87 |     override fn helper() -> Int {
+   |     ^^^^^^^^ nothing to replace here
+   |
+   = help: `override fn` replaces the default of an interface method, in the block that implements the interface
+
+error: aborting due to 8 errors

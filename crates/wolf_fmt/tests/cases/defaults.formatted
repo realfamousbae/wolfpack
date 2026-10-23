@@ -1,0 +1,30 @@
+module main
+
+types {
+    struct Dog {
+        title: String
+    }
+}
+
+interfaces {
+    interface Named {
+        /// The name.
+        fn name(self) -> String
+        /// A greeting; types may replace it.
+        fn greeting(self) -> String { "Hello, " + self.name() }
+    }
+}
+
+impl {
+    Dog: Named {
+        fn name(self) -> String { self.title.copy() }
+        // Builds on the default.
+        override fn greeting(self) -> String {
+            Named.greeting(self) + " Woof!"
+        }
+    }
+}
+
+main {
+    print(Dog { title: "Rex" }.greeting())
+}

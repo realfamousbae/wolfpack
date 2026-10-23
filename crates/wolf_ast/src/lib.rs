@@ -460,17 +460,18 @@ pub struct InterfaceDecl {
     pub name: Ident,
     /// Type parameters.
     pub generics: Vec<GenericParam>,
-    /// The method signatures.
+    /// The methods: signatures, and defaults with a body.
     pub methods: Vec<MethodSig>,
 }
 
-/// A signature inside an interface.
+/// A method of an interface: a signature, or a default with its body (spec chapter 4,
+/// section 8.2, rule 4).
 #[derive(Clone, Debug, PartialEq)]
 pub struct MethodSig {
     /// Doc comments.
     pub docs: Vec<Doc>,
-    /// The signature.
-    pub sig: FnSig,
+    /// The method; its body is the default.
+    pub decl: FnDecl,
 }
 
 /// A block in `impl`: `Stack<T: Comparable>: Container<T> { methods }`.
@@ -508,6 +509,8 @@ pub struct FnDecl {
     pub sig: FnSig,
     /// The body; absent for `intrinsic` functions and on some errors.
     pub body: Option<Block>,
+    /// The word `override` before `fn`, which replaces a default (spec chapter 4, section 8.3).
+    pub overrides: Option<Span>,
 }
 
 /// Name, type parameters, parameters and result.
