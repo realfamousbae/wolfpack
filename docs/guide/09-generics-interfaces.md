@@ -282,8 +282,9 @@ An interface is used in two ways:
   back into its concrete type.
 
 The built-in interface `Display` gives the text of a value: `fn to_string(self) -> String`. `Int`,
-`Float`, `Bool` and `String` implement it, and so can your own types. Interpolated strings
-(chapter 2) and `assert_eq` (chapter 11) take any `Display` value:
+`Float`, `Bool` and `String` implement it, lists, maps, options and results do when their contents
+do (chapter 6), and so can your own types. Interpolated strings (chapter 2) and `assert_eq`
+(chapter 11) take any `Display` value:
 
 ```wolf
 module main

@@ -178,3 +178,33 @@ Cid 40
 
 `insert` and `remove` return an `Option` that is not needed here; such a result may simply be
 dropped. Only a `Result` must always be handled, as chapter 7 explains.
+
+## Printing collections
+
+A list, a map, an `Option` or a `Result` is `Display` when its contents are, so it can stand in an
+interpolated string, be printed with `.to_string()`, and be shown by `assert_eq`. It is written the
+way its literal is written:
+
+```wolf
+module main
+
+main {
+    let names = ["Ann", "Bob"]
+    let ages = ["Ann": 31, "Bob": 25]
+    let maybe: Option<Int> = None
+    print(f"{names} {ages} {Some(2.5)} {maybe}")
+    let parsed = "12x".parse_int()
+    print(f"{[[1, 2], []]} {parsed} {["tab\there"]}")
+}
+```
+
+```output
+["Ann", "Bob"] ["Ann": 31, "Bob": 25] Some(2.5) None
+[[1, 2], []] Err(cannot parse 12x) ["tab\there"]
+```
+
+- A string inside a collection is in quotes, with escapes, so that `["a, b"]` and `["a", "b"]` look
+  different. A string printed by itself has no quotes.
+- An empty map is `[:]`, and the entries of a map are in insertion order.
+- The error in an `Err` is written by its `to_string`, or by its `message()` if its type implements
+  only `Error`.

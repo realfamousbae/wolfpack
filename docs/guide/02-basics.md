@@ -239,8 +239,8 @@ tab	quote" backslash\
 ### Interpolated, raw and multiline strings
 
 An **interpolated string** `f"..."` puts the values of expressions into the text. Anything that
-implements `Display` can stand in the braces: numbers, `Bool`, `String` and your own types
-(chapter 9). `{{` and `}}` write a brace:
+implements `Display` can stand in the braces: numbers, `Bool`, `String`, lists, maps, options and
+results of them (chapter 6), and your own types (chapter 9). `{{` and `}}` write a brace:
 
 ```wolf
 module main
@@ -249,13 +249,13 @@ main {
     let name = "Ann"
     let items = ["tea", "jam"]
     print(f"{name} has {items.len()} items, the first is {items[0]}")
-    print(f"half of 3 is {3.0 / 2.0}, braces: {{}}")
+    print(f"half of 3 is {3.0 / 2.0}, braces: {{}}, all: {items}")
 }
 ```
 
 ```output
 Ann has 2 items, the first is tea
-half of 3 is 1.5, braces: {}
+half of 3 is 1.5, braces: {}, all: ["tea", "jam"]
 ```
 
 A **raw string** `r"..."` has no escapes: `r"\d+"` is the four characters `\d+`. A **multiline
