@@ -80,6 +80,10 @@ intrinsics! {
     StrParseFloat = "std.string.String.parse_float",
     StrCompare = "std.string.String.compare",
     StrToString = "std.string.String.to_string",
+    ListToString = "std.list.List.to_string",
+    MapToString = "std.map.Map.to_string",
+    OptionToString = "std.prelude.Option.to_string",
+    ResultToString = "std.prelude.Result.to_string",
     Join = "std.string.join",
     ListNew = "std.list.List.new",
     ListLen = "std.list.List.len",
@@ -166,6 +170,103 @@ fn merge_sort(
 }
 
 impl Vm<'_> {
+    /// The text of a list, a map, an option or a result (spec chapter 7, section 4.1), without
+    /// recursion, so that deep values do not exhaust the stack.
+    fn show(&mut self, v: &Value) -> Result<String, Stop> {
+        enum Work {
+            Part(Value),
+            Err(Value),
+            Text(&'static str),
+        }
+        let mut out = String::new();
+        let mut work = vec![Work::Part(v.clone())];
+        while let Some(w) = work.pop() {
+            let (v, err) = match w {
+                Work::Text(t) => {
+                    out.push_str(t);
+                    continue;
+                }
+                Work::Part(v) => (self.deref(&v)?, false),
+                Work::Err(v) => (self.deref(&v)?, true),
+            };
+            match &v {
+                Value::Str(s) => out.push_str(&text::quote(s)),
+                Value::Shown(s) => out.push_str(s),
+                Value::Int(i) => out.push_str(&i.to_string()),
+                Value::Float(f) => out.push_str(&text::float_to_string(*f)),
+                Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+                Value::Error(text) => out.push_str(text),
+                Value::List(items) => {
+                    out.push('[');
+                    work.push(Work::Text("]"));
+                    let items = items.borrow();
+                    for (i, x) in items.iter().enumerate().rev() {
+                        work.push(Work::Part(x.clone()));
+                        if i > 0 {
+                            work.push(Work::Text(", "));
+                        }
+                    }
+                }
+                Value::Map(m) => {
+                    let m = m.borrow();
+                    if m.keys.is_empty() {
+                        out.push_str("[:]");
+                        continue;
+                    }
+                    out.push('[');
+                    work.push(Work::Text("]"));
+                    for (i, (k, x)) in m.keys.iter().zip(&m.values).enumerate().rev() {
+                        work.push(Work::Part(x.clone()));
+                        work.push(Work::Text(": "));
+                        work.push(Work::Part(k.clone()));
+                        if i > 0 {
+                            work.push(Work::Text(", "));
+                        }
+                    }
+                }
+                Value::Obj(o) => {
+                    let t = &self.image().tags;
+                    let (some, none, ok, error) = (t.some, t.none, t.ok, t.err);
+                    let inner = o.fields.borrow().first().cloned();
+                    match (o.tag, inner) {
+                        (tag, _) if tag == none => out.push_str("None"),
+                        (tag, Some(x)) if tag == some || tag == ok || tag == error => {
+                            out.push_str(if tag == some {
+                                "Some("
+                            } else if tag == ok {
+                                "Ok("
+                            } else {
+                                "Err("
+                            });
+                            work.push(Work::Text(")"));
+                            work.push(if tag == error {
+                                Work::Err(x)
+                            } else {
+                                Work::Part(x)
+                            });
+                        }
+                        _ => {
+                            // A value of a user type: by `to_string`, or an error that is not
+                            // `Display` by `message()`.
+                            let shown = self.image().parent.get(&o.tag).copied().unwrap_or(o.tag);
+                            let name = if err && !self.image().display.contains(&shown) {
+                                "message"
+                            } else {
+                                "to_string"
+                            };
+                            let s = self.call_method(name, v.clone(), Vec::new())?;
+                            out.push_str(&string(&s)?);
+                        }
+                    }
+                }
+                Value::Unit | Value::Closure(_) | Value::Ref(_) => {
+                    return Err(internal("a value without text"));
+                }
+            }
+        }
+        Ok(out)
+    }
+
     fn some(&self, v: Value) -> Value {
         Value::obj(self.image().tags.some, vec![v])
     }
@@ -395,7 +496,10 @@ impl Intrinsic {
                     None => vm.err(vm.parse_error(&s)),
                 }
             }
-            I::StrToString => arg(0)?.clone(),
+            I::StrToString => Value::Str(string(arg(0)?)?),
+            I::ListToString | I::MapToString | I::OptionToString | I::ResultToString => {
+                Value::str(&vm.show(arg(0)?)?)
+            }
             I::Join => {
                 let parts = vm.snapshot(arg(0)?)?;
                 let sep = string(arg(1)?)?;

@@ -1489,6 +1489,11 @@ impl<'a> Lowerer<'a> {
             Type::Int => self.b.int,
             Type::Float => self.b.float,
             Type::Bool => self.b.bool,
+            // The built-in implementations of chapter 4, section 9, rule 7.
+            Type::List(_) => self.b.list,
+            Type::Map(..) => self.b.map,
+            Type::Option(_) => self.b.option,
+            Type::Result(..) => self.b.result,
             Type::Named(def, _) => {
                 let def = DefId(def.0);
                 match self.resolved.def(def).map(|d| d.kind) {

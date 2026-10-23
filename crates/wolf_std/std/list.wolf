@@ -34,6 +34,11 @@ impl {
         pub intrinsic fn min(self) -> Option<T> where T: Comparable + Copyable
         pub intrinsic fn max(self) -> Option<T> where T: Comparable + Copyable
     }
+
+    List<T: Display>: Display {
+        /// `[1, 2, 3]`: the parts as chapter 7, section 4.1 writes them, strings in quotes.
+        intrinsic fn to_string(self) -> String
+    }
 }
 
 functions {

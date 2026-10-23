@@ -22,6 +22,9 @@ pub enum Value {
     Bool(bool),
     /// A `String`; strings never change in place.
     Str(Rc<str>),
+    /// A `String` that is a value of the interface `Display`: inside a collection it is written
+    /// without quotes, as its `to_string` gives it (spec chapter 7, section 4.1, rule 2).
+    Shown(Rc<str>),
     /// A `List`.
     List(Rc<RefCell<Vec<Value>>>),
     /// A `Map`.

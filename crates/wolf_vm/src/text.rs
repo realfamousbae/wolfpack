@@ -138,6 +138,27 @@ pub fn bounds(start: i64, end: i64, length: usize) -> Option<(usize, usize)> {
     }
 }
 
+/// A `String` inside a collection: in quotes, with `\"`, `\\`, `\n`, `\r`, `\t`, `\0` and the
+/// other control characters as `\u{1b}` (spec chapter 7, section 4.1, rule 1).
+pub fn quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\0' => out.push_str("\\0"),
+            c if c.is_ascii_control() => out.push_str(&format!("\\u{{{:x}}}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

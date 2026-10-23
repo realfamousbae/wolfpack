@@ -1852,6 +1852,42 @@ impl<'p> Emitter<'p> {
                 None => groups.push((f.interface, bounds, vec![f])),
             }
         }
+        // An error that is not `Display` is written by its message: `Error` of the runtime is a
+        // subtrait of `Display` (spec chapter 7, section 4.1).
+        let error_only = groups
+            .iter()
+            .find(|g| g.0.is_some() && g.0 == self.error_iface)
+            .filter(|_| !groups.iter().any(|g| g.0.is_some() && g.0 == self.display))
+            .map(|g| g.1.clone());
+        if let (Some(bounds), Some(display)) = (error_only, self.display) {
+            let gens: Vec<ir::Generic> = type_generics
+                .iter()
+                .zip(bounds.iter().chain(std::iter::repeat(&Vec::new())))
+                .map(|(g, b)| ir::Generic {
+                    name: g.name.clone(),
+                    bounds: b.clone(),
+                })
+                .collect();
+            let generics = self.generics(&gens)?;
+            let trait_ = self.def_path(display);
+            let message = self.rt_call("Error", "Error::message", vec![path("self")]);
+            out.push(Item::Impl {
+                generics,
+                trait_: Some(Type::name(&trait_)),
+                ty: ty.clone(),
+                fns: vec![rs::Fn {
+                    docs: Vec::new(),
+                    attrs: Vec::new(),
+                    vis: String::new(),
+                    name: "to_string".to_string(),
+                    generics: Vec::new(),
+                    self_param: Some("&self".to_string()),
+                    params: Vec::new(),
+                    ret: Some(Type::name("String")),
+                    body: Some(block(Vec::new(), Some(message))),
+                }],
+            });
+        }
         for (iface, bounds, fns) in groups {
             if iface
                 .is_some_and(|i| [self.equatable, self.copyable, self.hashable].contains(&Some(i)))
@@ -3471,6 +3507,15 @@ impl<'p> Emitter<'p> {
             inline(p, &mut flat);
         }
         let parts = flat;
+        // `f"{items}"` is the text itself (Clippy's `useless_format`).
+        if let [only] = parts.as_slice() {
+            if matches!(only.kind, ExprKind::Call { .. })
+                && only.ty == IrType::String
+                && displayed(only).is_none()
+            {
+                return self.expr(only, Want::Own);
+            }
+        }
         let mut fmt = String::new();
         let mut args = Vec::new();
         for p in parts {
@@ -3811,6 +3856,17 @@ impl<'p> Emitter<'p> {
                 call(path("std::mem::replace"), vec![pl, v])
             }
             "prelude.Bool.to_string" | "math.Int.to_string" => to_string(op(self, 0)?),
+            "list.List.to_string"
+            | "map.Map.to_string"
+            | "prelude.Option.to_string"
+            | "prelude.Result.to_string" => {
+                // The literals of a list literal need their type for the trait.
+                let saved = self.f.suffix;
+                self.f.suffix = true;
+                let r = read(self, 0);
+                self.f.suffix = saved;
+                self.display_call(r?)
+            }
             "string.String.to_string" => method(op(self, 0)?, "clone", Vec::new()),
             "math.Int.to_float" => match op(self, 0)? {
                 // `3.to_float()` is the literal `3.0`: clippy calls `3 as f64` an unnecessary cast.

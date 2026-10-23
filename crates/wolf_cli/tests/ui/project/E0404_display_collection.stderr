@@ -1,0 +1,33 @@
+error[E0404]: `List<fn() -> Int>` does not implement `Display`
+   --> src/main.wolf:11:14
+   |
+11 |     print(f"{tasks}")
+   |              ^^^^^ an interpolated value
+   |
+   = note: the implementation of `Display` for `List` needs `T: Display`
+
+error[E0404]: `Point` does not implement `Display`
+   --> src/main.wolf:13:17
+   |
+13 |     print(found.to_string())
+   |                 ^^^^^^^^^ required by `to_string`
+   |
+   = help: implement `Display` for `Point` in an `impl` block
+
+error[E0404]: `Result<Int, Point>` does not implement `Display`
+   --> src/main.wolf:15:14
+   |
+15 |     print(f"{r}")
+   |              ^ an interpolated value
+   |
+   = note: a `Result` is `Display` when its value is `Display` and its error is `Display` or implements `Error`
+
+error[E0401]: expected `Display`, found `Map<String, Point>`
+   --> src/main.wolf:16:26
+   |
+16 |     let shown: Display = ["a": Point { x: 1 }]
+   |                          ^^^^^^^^^^^^^^^^^^^^^ this is `Map<String, Point>`
+   |
+   = note: `Map<String, Point>` does not implement `Display`
+
+error: aborting due to 4 errors

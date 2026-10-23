@@ -65,7 +65,7 @@ pub(crate) fn boolean(v: &Value) -> Result<bool, Stop> {
 /// The `String` of a value.
 pub(crate) fn string(v: &Value) -> Result<Rc<str>, Stop> {
     match v {
-        Value::Str(s) => Ok(s.clone()),
+        Value::Str(s) | Value::Shown(s) => Ok(s.clone()),
         _ => Err(internal("a `String` was expected")),
     }
 }
@@ -300,7 +300,7 @@ impl<'a> Vm<'a> {
             Value::Int(_) => b.int,
             Value::Float(_) => b.float,
             Value::Bool(_) => b.bool,
-            Value::Str(_) => b.string,
+            Value::Str(_) | Value::Shown(_) => b.string,
             Value::List(_) => b.list,
             Value::Map(_) => b.map,
             Value::Obj(o) => self.image.parent.get(&o.tag).copied().unwrap_or(o.tag),
@@ -717,6 +717,10 @@ impl<'a> Vm<'a> {
                 Op::Copy => {
                     let v = self.pop()?;
                     self.push(v.deep_copy());
+                }
+                Op::Shown => {
+                    let v = self.pop()?;
+                    self.push(Value::Shown(string(&v)?));
                 }
                 Op::IsTag(t) => {
                     let v = self.pop()?;

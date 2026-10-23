@@ -22,11 +22,14 @@ impl Checker<'_> {
     pub(crate) fn implements(&self, ty: &Ty, interface: DefId) -> bool {
         match self.infer.resolve(ty) {
             Ty::Named(def, args) => {
-                def == interface
-                    || self.impls.get(&def).is_some_and(|list| {
-                        list.iter()
-                            .any(|i| i.interface == interface && self.head_holds(&i.bounds, &args))
-                    })
+                if def == interface {
+                    return true;
+                }
+                let implemented = self.impls.get(&def).is_some_and(|list| {
+                    list.iter()
+                        .any(|i| i.interface == interface && self.head_holds(&i.bounds, &args))
+                });
+                implemented && (!self.result_display(def, interface) || self.err_shown(&args))
             }
             Ty::Param(ParamId::Decl(span)) => self.has_bound(span, interface),
             Ty::Error | Ty::Never => true,
@@ -63,6 +66,22 @@ impl Checker<'_> {
         ok
     }
 
+    /// The implementation of `Display` for `Result`, whose error may also be only an `Error`.
+    fn result_display(&self, def: DefId, interface: DefId) -> bool {
+        Some(def) == self.b.result && Some(interface) == self.b.display
+    }
+
+    /// Whether the error type of a `Result` can be written: it is `Display` or implements
+    /// `Error` (chapter 4, section 9, rule 7).
+    fn err_shown(&self, args: &[Ty]) -> bool {
+        let Some(e) = args.get(1) else {
+            return true;
+        };
+        matches!(self.infer.resolve(e), Ty::Var(_))
+            || self.b.display.is_some_and(|d| self.satisfies(e, d))
+            || self.b.error.is_some_and(|x| self.satisfies(e, x))
+    }
+
     /// Whether the type arguments of an implementation have the bounds that its head adds;
     /// arguments that are not known yet are not held against it.
     fn head_holds(&self, bounds: &[Vec<Ty>], args: &[Ty]) -> bool {
@@ -86,6 +105,12 @@ impl Checker<'_> {
             .get(&def)?
             .iter()
             .find(|i| i.interface == interface)?;
+        if self.result_display(def, interface) {
+            return Some(
+                "a `Result` is `Display` when its value is `Display` and its error is `Display` or implements `Error`"
+                    .to_string(),
+            );
+        }
         let needs: Vec<String> = imp
             .generics
             .iter()

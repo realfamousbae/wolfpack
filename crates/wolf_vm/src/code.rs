@@ -158,6 +158,8 @@ pub enum Op {
     Concat(u32),
     /// Pops a value and pushes a deep copy.
     Copy,
+    /// Pops a `String` and pushes it as a value of `Display`.
+    Shown,
     /// Pops a value and pushes whether it is this variant.
     IsTag(u32),
     /// Jumps.

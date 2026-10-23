@@ -1,0 +1,18 @@
+module main
+
+types {
+    struct Point {
+        x: Int
+    }
+}
+
+main {
+    let tasks = [|| 1]
+    print(f"{tasks}")
+    let found: Option<Point> = None
+    print(found.to_string())
+    let r: Result<Int, Point> = Ok(1)
+    print(f"{r}")
+    let shown: Display = ["a": Point { x: 1 }]
+    print(shown.to_string())
+}

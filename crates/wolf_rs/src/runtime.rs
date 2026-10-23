@@ -384,9 +384,11 @@ pub fn repeat(text: &str, times: i64) -> String {
     },
     Piece {
         name: "Error",
-        deps: &[],
-        code: r#"/// An error that can be shown to a person.
-pub trait Error {
+        deps: &["Display"],
+        code: r#"/// An error that can be shown to a person. Every error is also `Display`, so that a `Result`
+/// can be written: a type that implements only `Error` is written by its message (spec chapter 7,
+/// section 4.1).
+pub trait Error: Display {
     /// The text of the error.
     fn message(&self) -> String;
 }
@@ -677,6 +679,12 @@ impl Error for ExternError {
     }
 }
 
+impl Display for ExternError {
+    fn to_string(&self) -> String {
+        self.message()
+    }
+}
+
 /// `error(message)`: an `Error` with this message.
 pub fn text_error(message: &str) -> Box<dyn Error> {
     Box::new(ExternError(message.to_string()))
@@ -699,6 +707,12 @@ pub struct ParseError {
 impl Error for ParseError {
     fn message(&self) -> String {
         format!("cannot parse {}", self.input)
+    }
+}
+
+impl Display for ParseError {
+    fn to_string(&self) -> String {
+        self.message()
     }
 }"#,
     },
@@ -799,6 +813,12 @@ fn ordering(o: std::cmp::Ordering) -> Ordering {
 pub trait Display {
     /// The text of the value.
     fn to_string(&self) -> String;
+
+    /// The text of the value as a part of a list, a map, an option or a result: a `String` is
+    /// in quotes (spec chapter 7, section 4.1).
+    fn part(&self) -> String {
+        self.to_string()
+    }
 }
 
 impl Display for i64 {
@@ -823,11 +843,19 @@ impl Display for String {
     fn to_string(&self) -> String {
         self.clone()
     }
+
+    fn part(&self) -> String {
+        quote(self)
+    }
 }
 
 impl<T: Display + ?Sized> Display for &T {
     fn to_string(&self) -> String {
         T::to_string(self)
+    }
+
+    fn part(&self) -> String {
+        T::part(self)
     }
 }
 
@@ -835,6 +863,66 @@ impl<T: Display + ?Sized> Display for Box<T> {
     fn to_string(&self) -> String {
         T::to_string(self)
     }
+}
+
+impl<T: Display> Display for [T] {
+    fn to_string(&self) -> String {
+        let parts: Vec<String> = self.iter().map(T::part).collect();
+        format!("[{}]", parts.join(", "))
+    }
+}
+
+impl<T: Display, const N: usize> Display for [T; N] {
+    fn to_string(&self) -> String {
+        self.as_slice().to_string()
+    }
+}
+
+impl<T: Display> Display for Vec<T> {
+    fn to_string(&self) -> String {
+        self.as_slice().to_string()
+    }
+}
+
+impl<T: Display> Display for Option<T> {
+    fn to_string(&self) -> String {
+        match self {
+            Some(x) => format!("Some({})", x.part()),
+            None => "None".to_string(),
+        }
+    }
+}
+
+/// An error is written by its `to_string`; a type that is only an `Error` has the `to_string`
+/// of its message (see `Error`).
+impl<T: Display, E: Display> Display for Result<T, E> {
+    fn to_string(&self) -> String {
+        match self {
+            Ok(x) => format!("Ok({})", x.part()),
+            Err(e) => format!("Err({})", e.part()),
+        }
+    }
+}
+
+/// A `String` inside a collection: in quotes, with `\"`, `\\`, `\n`, `\r`, `\t`, `\0` and the
+/// other control characters as `\u{1b}`.
+pub fn quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\0' => out.push_str("\\0"),
+            c if c.is_ascii_control() => out.push_str(&format!("\\u{{{:x}}}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }"#,
     },
     Piece {
@@ -945,12 +1033,28 @@ pub struct Entry<K, V> {
     },
     Piece {
         name: "Map",
-        deps: &["Entry", "Panic"],
+        deps: &["Entry", "Panic", "Display"],
         code: r#"/// A map that keeps the order in which keys were first inserted (ADR 0003).
 pub struct Map<K, V> {
     keys: Vec<K>,
     values: Vec<V>,
     index: std::collections::HashMap<K, usize>,
+}
+
+/// `["Ann": 31]` in insertion order, `[:]` when empty.
+impl<K: Display, V: Display> Display for Map<K, V> {
+    fn to_string(&self) -> String {
+        if self.keys.is_empty() {
+            return "[:]".to_string();
+        }
+        let parts: Vec<String> = self
+            .keys
+            .iter()
+            .zip(&self.values)
+            .map(|(k, v)| format!("{}: {}", k.part(), v.part()))
+            .collect();
+        format!("[{}]", parts.join(", "))
+    }
 }
 
 impl<K: std::hash::Hash + Eq + Clone, V> Default for Map<K, V> {
@@ -1143,6 +1247,12 @@ impl Error for FsError {
             FsError::PermissionDenied(path) => format!("permission denied: {path}"),
             FsError::Other(text) => text.clone(),
         }
+    }
+}
+
+impl Display for FsError {
+    fn to_string(&self) -> String {
+        self.message()
     }
 }"#,
     },

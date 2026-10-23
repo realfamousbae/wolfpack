@@ -819,6 +819,116 @@ func (x ShowString) ToString() string {
 }"#,
     },
     Piece {
+        name: "Text",
+        deps: &["Display", "Option", "Result", "Map"],
+        imports: &["strconv", "strings"],
+        code: r#"// Quote is a String inside a collection: in quotes and escaped (spec chapter 7, section 4.1).
+func Quote(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, c := range s {
+		switch {
+		case c == '"':
+			b.WriteString(`\"`)
+		case c == '\\':
+			b.WriteString(`\\`)
+		case c == '\n':
+			b.WriteString(`\n`)
+		case c == '\r':
+			b.WriteString(`\r`)
+		case c == '\t':
+			b.WriteString(`\t`)
+		case c == 0:
+			b.WriteString(`\0`)
+		case c < 0x20 || c == 0x7f:
+			b.WriteString(`\u{` + strconv.FormatInt(int64(c), 16) + `}`)
+		default:
+			b.WriteRune(c)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+// Part is the text of a part of type T in generic code: a String is quoted.
+func Part[T any](show func(T) string) func(T) string {
+	return func(x T) string {
+		if s, ok := any(x).(string); ok {
+			return Quote(s)
+		}
+		return show(x)
+	}
+}
+
+// ErrText is the text of an error whose type is known only to implement Error: its
+// to_string if it is Display, else its message.
+func ErrText[E any](e E) string {
+	if d, ok := any(e).(Display); ok {
+		return d.ToString()
+	}
+	if m, ok := any(e).(interface{ Message() string }); ok {
+		return m.Message()
+	}
+	if m, ok := any(&e).(interface{ Message() string }); ok {
+		return m.Message()
+	}
+	panic("wolfrt: an error without a message")
+}
+
+// ListText is to_string of a List.
+func ListText[T any](items []T, part func(T) string) string {
+	parts := make([]string, len(items))
+	for i, x := range items {
+		parts[i] = part(x)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// MapText is to_string of a Map, in insertion order.
+func MapText[K comparable, V any](m Map[K, V], key func(K) string, value func(V) string) string {
+	if len(m.keys) == 0 {
+		return "[:]"
+	}
+	parts := make([]string, len(m.keys))
+	for i, k := range m.keys {
+		parts[i] = key(k) + ": " + value(m.values[i])
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// OptionText is to_string of an Option.
+func OptionText[T any](o Option[T], part func(T) string) string {
+	if o.Some {
+		return "Some(" + part(o.Value) + ")"
+	}
+	return "None"
+}
+
+// ResultText is to_string of a Result.
+func ResultText[T, E any](r Result[T, E], part func(T) string, err func(E) string) string {
+	if r.Ok {
+		return "Ok(" + part(r.Value) + ")"
+	}
+	return "Err(" + err(r.Err) + ")"
+}
+
+// Shown is a list, a map, an option or a result used as a Display value, with its text.
+type Shown[T any] struct {
+	V T
+	F func(T) string
+}
+
+// NewShown is a Shown value.
+func NewShown[T any](v T, f func(T) string) Shown[T] {
+	return Shown[T]{V: v, F: f}
+}
+
+// ToString shows the value.
+func (x Shown[T]) ToString() string {
+	return x.F(x.V)
+}"#,
+    },
+    Piece {
         name: "FloatString",
         deps: &[],
         imports: &["math", "strconv", "strings"],

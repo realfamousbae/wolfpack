@@ -1804,6 +1804,13 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+        // `Result` is `Display` also when its error only implements `Error` (chapter 4,
+        // section 9, rule 7), which no head can say: the whole type is checked.
+        if Some(def) == self.b.result && m.interface.is_some() && m.interface == self.b.display {
+            if let Some(display) = self.b.display {
+                bounds = vec![(Ty::Named(def, args.clone()), display)];
+            }
+        }
         let map: BTreeMap<ParamId, Ty> = m
             .impl_generics
             .iter()

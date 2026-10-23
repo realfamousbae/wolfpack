@@ -587,10 +587,91 @@ impl<'p> Emitter<'p> {
 
     /// The dictionary for the type `t`, always.
     fn dict(&mut self, d: Dict, t: &IrType) -> Expr {
-        self.dict_for(d, t).unwrap_or_else(|| match d {
-            Dict::Show => self.rt("display"),
-            Dict::Cmp => self.rt("compare"),
-        })
+        match d {
+            Dict::Show => self.show_fn(t),
+            Dict::Cmp => self.dict_for(d, t).unwrap_or_else(|| self.rt("compare")),
+        }
+    }
+
+    /// `to_string` of `Display` for values of type `t`, as a function; for lists, maps, options
+    /// and results it is composed from the text of their parts (spec chapter 7, section 4.1).
+    fn show_fn(&mut self, t: &IrType) -> Expr {
+        let (piece, parts) = match t {
+            IrType::List(e) => ("listText", vec![self.part_fn(e)]),
+            IrType::Map(k, v) => ("mapText", vec![self.part_fn(k), self.part_fn(v)]),
+            IrType::Option(e) => ("optionText", vec![self.part_fn(e)]),
+            IrType::Result(v, e) => ("resultText", vec![self.part_fn(v), self.err_fn(e)]),
+            _ => {
+                return self
+                    .dict_for(Dict::Show, t)
+                    .unwrap_or_else(|| self.rt("display"));
+            }
+        };
+        let ty = self.ty(t);
+        let mut args = vec![ident("x")];
+        args.extend(parts);
+        let body = self.rt_call(piece, args);
+        Expr::Arrow(
+            vec![("x".to_string(), Some(ty))],
+            None,
+            ArrowBody::Expr(Box::new(body)),
+        )
+    }
+
+    /// The text of a part of a collection: a `String` is quoted; in generic code the runtime
+    /// tells a `String` from the dictionary of `T`.
+    fn part_fn(&mut self, t: &IrType) -> Expr {
+        match t {
+            IrType::String => self.rt("quote"),
+            IrType::Param(_) => {
+                let show = self.show_fn(t);
+                self.rt_call("part", vec![show])
+            }
+            _ => self.show_fn(t),
+        }
+    }
+
+    /// The text of the error of a `Result`: by `to_string` if its type is `Display`, else by
+    /// `message()`.
+    fn err_fn(&mut self, t: &IrType) -> Expr {
+        match t {
+            IrType::Param(n) if self.f.dicts.contains_key(&(n.clone(), Dict::Show)) => {
+                self.part_fn(t)
+            }
+            IrType::Param(_) => self.rt("errText"),
+            IrType::Named(def, _) if self.ifaces_of(*def).contains(&self.display) => {
+                self.show_fn(t)
+            }
+            IrType::Named(def, _) => {
+                let message = self.enums.get(def).and_then(|e| {
+                    e.methods
+                        .iter()
+                        .find(|f| f.interface.is_some() && f.name == "message")
+                        .map(|f| f.def)
+                });
+                match message {
+                    Some(m) => ident(&self.def_name_local(m, *def)),
+                    None => self.rt("errText"),
+                }
+            }
+            _ => self.part_fn(t),
+        }
+    }
+
+    /// The interfaces that a struct or an enum implements.
+    fn ifaces_of(&self, def: DefRef) -> Vec<Option<DefRef>> {
+        let list = self
+            .structs
+            .get(&def)
+            .map(|s| &s.implements)
+            .or_else(|| self.enums.get(&def).map(|e| &e.implements));
+        list.into_iter()
+            .flatten()
+            .map(|t| match t {
+                IrType::Named(i, _) => Some(*i),
+                _ => None,
+            })
+            .collect()
     }
 
     fn rt(&mut self, name: &'static str) -> Expr {
@@ -1188,7 +1269,21 @@ impl<'p> Emitter<'p> {
                 generics: gnames.clone(),
                 ty: Type::Union(classes),
             });
-            let implements = self.implements(&e.implements);
+            // The built-in implementations of std (`Display` of `Option`) have no body: their
+            // text is composed where the type is known, and the classes do not carry them.
+            let intrinsic: Vec<DefRef> = e
+                .methods
+                .iter()
+                .filter(|f| f.body.is_none())
+                .filter_map(|f| f.interface)
+                .collect();
+            let declared: Vec<IrType> = e
+                .implements
+                .iter()
+                .filter(|t| !matches!(t, IrType::Named(i, _) if intrinsic.contains(i)))
+                .cloned()
+                .collect();
+            let implements = self.implements(&declared);
             let enum_ty = Type::Ref(type_name(&e.name), gtypes.clone());
             for v in &e.variants {
                 let class = self.names.get(&v.def).cloned().unwrap_or_default();
@@ -1222,7 +1317,7 @@ impl<'p> Emitter<'p> {
                 for f in e
                     .methods
                     .iter()
-                    .filter(|f| f.interface.is_some() && f.self_mode.is_some())
+                    .filter(|f| f.interface.is_some() && f.self_mode.is_some() && f.body.is_some())
                 {
                     let fname = self.names.get(&f.def).cloned().unwrap_or_default();
                     let ps: Vec<(String, Type)> = f
@@ -1233,6 +1328,7 @@ impl<'p> Emitter<'p> {
                     let mut args = vec![Expr::This];
                     args.extend(ps.iter().map(|(n, _)| ident(n)));
                     let ret = self.ret_ty(&f.ret);
+                    let value = call(ident(&fname), args);
                     methods.push(Method {
                         docs: Vec::new(),
                         is_static: false,
@@ -1240,7 +1336,7 @@ impl<'p> Emitter<'p> {
                         generics: Vec::new(),
                         params: ps,
                         ret,
-                        body: vec![Stmt::Return(Some(call(ident(&fname), args)))],
+                        body: vec![Stmt::Return(Some(value))],
                     });
                 }
                 out.push(Item::Class {
@@ -2713,6 +2809,24 @@ impl<'p> Emitter<'p> {
 
     /// A value of a concrete type used as a value of an interface type.
     fn coerce(&mut self, v: Expr, from: &IrType, to: &IrType) -> Result<Expr, Error> {
+        // A `String` or a collection as a value of `Display` keeps the text of its type: a list
+        // of `Display` writes a string without quotes (spec chapter 7, section 4.1).
+        if matches!(
+            from,
+            IrType::String
+                | IrType::List(_)
+                | IrType::Map(..)
+                | IrType::Option(_)
+                | IrType::Result(..)
+        ) {
+            let f = if *from == IrType::String {
+                self.rt("display")
+            } else {
+                self.show_fn(from)
+            };
+            self.rt.insert("Shown");
+            return Ok(Expr::New("$rt.Shown".to_string(), vec![v, f]));
+        }
         if !self.plain_enum(from) {
             return Ok(v);
         }
@@ -3079,6 +3193,24 @@ impl<'p> Emitter<'p> {
                     if let Some(c) = self.dict_for(Dict::Cmp, t) {
                         all.push(c);
                     }
+                }
+            }
+            // The text of a collection is composed from the types of its parts.
+            if short.ends_with(".to_string")
+                && matches!(
+                    recv.map(|r| &r.ty),
+                    Some(
+                        IrType::List(_) | IrType::Map(..) | IrType::Option(_) | IrType::Result(..)
+                    )
+                )
+            {
+                if let Some(r) = recv {
+                    let f = self.show_fn(&r.ty);
+                    let x = all
+                        .drain(..)
+                        .next()
+                        .ok_or("`to_string` without a receiver")?;
+                    return Ok((call(f, vec![x]), Repr::Tagged));
                 }
             }
             let v = self.intrinsic(&name, all, ty)?;

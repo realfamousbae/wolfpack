@@ -76,6 +76,17 @@ impl {
         /// `true` or `false`.
         intrinsic fn to_string(self) -> String
     }
+
+    Option<T: Display>: Display {
+        /// `Some(...)` with the value as a part of a collection, or `None`.
+        intrinsic fn to_string(self) -> String
+    }
+
+    Result<T: Display, E>: Display {
+        /// `Ok(...)` or `Err(...)`: an error by its `to_string`, or by `message()` when its
+        /// type is only an `Error` (chapter 7, section 4.1).
+        intrinsic fn to_string(self) -> String
+    }
 }
 
 functions {

@@ -25,6 +25,11 @@ impl {
         pub intrinsic fn entries(own self) -> List<Entry<K, V>>
         pub intrinsic fn clear(mut self)
     }
+
+    Map<K: Display, V: Display>: Display {
+        /// `["Ann": 31, "Bob": 25]` in insertion order, `[:]` when empty.
+        intrinsic fn to_string(self) -> String
+    }
 }
 
 functions {

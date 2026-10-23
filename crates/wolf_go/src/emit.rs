@@ -1373,6 +1373,15 @@ impl<'p> Emitter<'p> {
     /// A function `func(x T) string` that is `to_string` of `Display` for `t`.
     fn show_fn(&mut self, t: &IrType) -> Result<Expr, Error> {
         match t {
+            IrType::List(_) | IrType::Map(..) | IrType::Option(_) | IrType::Result(..) => {
+                let ty = self.ty(t)?;
+                let text = self.text_expr(id("x"), t)?;
+                Ok(Expr::FuncLit(
+                    vec![("x".to_string(), ty)],
+                    vec![Type::name("string")],
+                    vec![Stmt::Return(vec![text])],
+                ))
+            }
             IrType::Int => Ok(self.rt("Display", "IntString")),
             IrType::Float => Ok(self.rt("FloatString", "FloatString")),
             IrType::Bool => Ok(Expr::Qual("strconv".to_string(), "FormatBool".to_string()))
@@ -1401,6 +1410,77 @@ impl<'p> Emitter<'p> {
                     )])],
                 ))
             }
+        }
+    }
+
+    /// The text of a list, a map, an option or a result `x` of type `t`, composed from the text
+    /// of its parts (spec chapter 7, section 4.1).
+    fn text_expr(&mut self, x: Expr, t: &IrType) -> Result<Expr, Error> {
+        let (name, parts) = match t {
+            IrType::List(e) => ("ListText", vec![self.part_fn(e)?]),
+            IrType::Map(k, v) => ("MapText", vec![self.part_fn(k)?, self.part_fn(v)?]),
+            IrType::Option(e) => ("OptionText", vec![self.part_fn(e)?]),
+            IrType::Result(v, e) => ("ResultText", vec![self.part_fn(v)?, self.err_fn(e)?]),
+            other => return Err(format!("the text of {other:?} in Go")),
+        };
+        let mut args = vec![x];
+        args.extend(parts);
+        Ok(self.rt_call("Text", name, args))
+    }
+
+    /// The text of a part of a collection: a `String` in quotes; in generic code the runtime
+    /// tells a `String` from other types.
+    fn part_fn(&mut self, t: &IrType) -> Result<Expr, Error> {
+        match t {
+            IrType::String => Ok(self.rt("Text", "Quote")),
+            IrType::Param(_) => {
+                let show = self.show_fn(t)?;
+                Ok(self.rt_call("Text", "Part", vec![show]))
+            }
+            _ => self.show_fn(t),
+        }
+    }
+
+    /// The text of the error of a `Result`: by `to_string` if its type is `Display`, else by
+    /// `message()`.
+    fn err_fn(&mut self, t: &IrType) -> Result<Expr, Error> {
+        match t {
+            IrType::Param(n) if self.f.dicts.contains_key(&(n.clone(), Dict::Show)) => {
+                self.part_fn(t)
+            }
+            IrType::Param(_) => {
+                let ty = self.ty(t)?;
+                let f = self.rt("Text", "ErrText");
+                Ok(Expr::Inst(Box::new(f), vec![ty]))
+            }
+            IrType::Named(def, _) if !self.is_display(*def) => {
+                let ty = self.ty(t)?;
+                Ok(Expr::FuncLit(
+                    vec![("e".to_string(), ty)],
+                    vec![Type::name("string")],
+                    vec![Stmt::Return(vec![call(
+                        sel(id("e"), "Message"),
+                        Vec::new(),
+                    )])],
+                ))
+            }
+            _ => self.part_fn(t),
+        }
+    }
+
+    /// Whether a struct or an enum implements `Display`; an interface value is `Display` only
+    /// if it is that interface.
+    fn is_display(&self, def: DefRef) -> bool {
+        let list = self
+            .structs
+            .get(&def)
+            .map(|s| &s.implements)
+            .or_else(|| self.enums.get(&def).map(|e| &e.implements));
+        match list {
+            Some(l) => l
+                .iter()
+                .any(|t| matches!(t, IrType::Named(i, _) if Some(*i) == self.display)),
+            None => Some(def) == self.display,
         }
     }
 
@@ -4213,6 +4293,13 @@ impl<'p> Emitter<'p> {
                         let t = self.rt_type("Display", w, Vec::new());
                         return data(call(Expr::Type(t), vec![v]));
                     }
+                    if matches!(
+                        value.ty,
+                        IrType::List(_) | IrType::Map(..) | IrType::Option(_) | IrType::Result(..)
+                    ) {
+                        let f = self.show_fn(&value.ty)?;
+                        return data(self.rt_call("Text", "NewShown", vec![v, f]));
+                    }
                 }
                 if let IrType::Named(d, _) = &value.ty {
                     if self.ptr_recv.contains(d) && self.structs.contains_key(d) {
@@ -4866,6 +4953,13 @@ impl<'p> Emitter<'p> {
         let pair = |e: Expr| Ok((e, Form::OptPair));
         match short {
             "io.print" => data(self.std_call("fmt", "Println", vec![arg()])),
+            "list.List.to_string"
+            | "map.Map.to_string"
+            | "prelude.Option.to_string"
+            | "prelude.Result.to_string" => {
+                let x = arg();
+                data(self.text_expr(x, &first_ty)?)
+            }
             "io.write" => data(self.std_call("fmt", "Print", vec![arg()])),
             "io.eprint" => data(self.rt_call("print", "Eprint", vec![arg()])),
             "io.read_line" => pair(self.rt_call("ReadLine", "ReadLine", Vec::new())),

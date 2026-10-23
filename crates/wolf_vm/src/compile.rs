@@ -86,6 +86,8 @@ pub struct Image {
     pub funcs: Vec<Func>,
     /// The methods of each type by name, for calls of interface methods.
     pub dispatch: HashMap<(u32, String), u32>,
+    /// The types that implement `Display`: an error of such a type is written by `to_string`.
+    pub display: HashSet<u32>,
     /// The enum of each variant.
     pub parent: HashMap<u32, u32>,
     /// Tags of std.
@@ -148,6 +150,7 @@ pub fn compile(p: &Program) -> Result<Image, Error> {
             .map(|f| f.unwrap_or(Func::Missing("an unknown function".to_string())))
             .collect(),
         dispatch: c.dispatch,
+        display: c.display,
         parent: c.parent,
         tags: c.tags,
         builtins: c.builtins,
@@ -180,6 +183,9 @@ struct Compiler<'p> {
     funcs: Vec<Option<Func>>,
     ids: HashMap<DefRef, u32>,
     dispatch: HashMap<(u32, String), u32>,
+    /// The interface `Display`, and the types that implement it.
+    display_iface: Option<u32>,
+    display: HashSet<u32>,
     parent: HashMap<u32, u32>,
     tags: Tags,
     builtins: Builtins,
@@ -262,6 +268,8 @@ impl<'p> Compiler<'p> {
             funcs: Vec::new(),
             ids: HashMap::new(),
             dispatch: HashMap::new(),
+            display_iface: find(p, "std.prelude", "Display", |d| d == DefKind::Interface),
+            display: HashSet::new(),
             parent,
             tags,
             builtins,
@@ -402,6 +410,9 @@ impl<'p> Compiler<'p> {
         }
         if let Some(owner) = owner {
             self.dispatch.insert((owner.0, f.name.clone()), id);
+            if f.interface.is_some_and(|i| Some(i.0) == self.display_iface) {
+                self.display.insert(owner.0);
+            }
         }
     }
 
@@ -512,7 +523,7 @@ fn effect(op: &Op, depth: u32) -> u32 {
         Op::RefSlot(_) => d + 1,
         Op::Store(_) | Op::StoreRef(_) | Op::Pop => d - 1,
         Op::PopTo(k) => n(*k),
-        Op::RefField(_) | Op::Field(_) | Op::Copy | Op::Unary(_) | Op::IsTag(_) => d,
+        Op::RefField(_) | Op::Field(_) | Op::Copy | Op::Shown | Op::Unary(_) | Op::IsTag(_) => d,
         Op::RefIndex | Op::RefKey | Op::Index | Op::IndexKey | Op::Binary(_) => d - 1,
         Op::SetField(_) => d - 2,
         Op::SetIndex | Op::SetKey => d - 3,
@@ -1199,7 +1210,12 @@ impl FnC {
                 self.emit(Op::Load(t));
                 self.emit(Op::Field(0));
             }
-            ExprKind::Coerce { value, .. } => self.expr(c, value)?,
+            ExprKind::Coerce { value, .. } => {
+                self.expr(c, value)?;
+                if value.ty == Type::String {
+                    self.emit(Op::Shown);
+                }
+            }
             ExprKind::Copy(v) => {
                 self.expr(c, v)?;
                 self.emit(Op::Copy);

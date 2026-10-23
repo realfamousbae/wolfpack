@@ -522,6 +522,129 @@ export function display(x: unknown): string {
 }"#,
     },
     Piece {
+        name: "quote",
+        deps: &[],
+        code: r#"/** A `String` inside a collection: in quotes and escaped (spec chapter 7, section 4.1). */
+export function quote(s: string): string {
+  let out = '"';
+  for (const c of s) {
+    const n = c.codePointAt(0) ?? 0;
+    if (c === '"') {
+      out += '\\"';
+    } else if (c === "\\") {
+      out += "\\\\";
+    } else if (c === "\n") {
+      out += "\\n";
+    } else if (c === "\r") {
+      out += "\\r";
+    } else if (c === "\t") {
+      out += "\\t";
+    } else if (n === 0) {
+      out += "\\0";
+    } else if (n < 0x20 || n === 0x7f) {
+      out += "\\u{" + n.toString(16) + "}";
+    } else {
+      out += c;
+    }
+  }
+  return out + '"';
+}"#,
+    },
+    Piece {
+        name: "Shown",
+        deps: &[],
+        code: r#"/**
+ * A value of the interface `Display` whose text needs its type: a `String`, which a collection
+ * writes without quotes, or a list, a map, an option or a result.
+ */
+export class Shown<T> {
+  v: T;
+  f: (x: T) => string;
+
+  constructor(v: T, f: (x: T) => string) {
+    this.v = v;
+    this.f = f;
+  }
+
+  toString(): string {
+    return this.f(this.v);
+  }
+}"#,
+    },
+    Piece {
+        name: "part",
+        deps: &["display", "quote"],
+        code: r#"/** The text of a part of type `T`, from the dictionary of `T`: a `String` is quoted. */
+export function part<T>(show: (x: T) => string): (x: T) => string {
+  if (show !== (display as unknown)) {
+    return show;
+  }
+  return (x: T) => (typeof x === "string" ? quote(x) : display(x));
+}"#,
+    },
+    Piece {
+        name: "listText",
+        deps: &[],
+        code: r#"/** `[1, 2, 3]` */
+export function listText<T>(items: T[], part: (x: T) => string): string {
+  return "[" + items.map(part).join(", ") + "]";
+}"#,
+    },
+    Piece {
+        name: "mapText",
+        deps: &[],
+        code: r#"/** `["Ann": 31]`, `[:]` when empty. */
+export function mapText<K, V>(
+  m: Map<K, V>,
+  key: (x: K) => string,
+  value: (x: V) => string,
+): string {
+  if (m.size === 0) {
+    return "[:]";
+  }
+  const parts: string[] = [];
+  for (const [k, v] of m) {
+    parts.push(key(k) + ": " + value(v));
+  }
+  return "[" + parts.join(", ") + "]";
+}"#,
+    },
+    Piece {
+        name: "optionText",
+        deps: &["Option"],
+        code: r#"/** `Some(...)` or `None`. */
+export function optionText<T>(o: Option<T>, part: (x: T) => string): string {
+  return o.some ? "Some(" + part(o.value) + ")" : "None";
+}"#,
+    },
+    Piece {
+        name: "resultText",
+        deps: &["Result"],
+        code: r#"/** `Ok(...)` or `Err(...)`. */
+export function resultText<T, E>(
+  r: Result<T, E>,
+  part: (x: T) => string,
+  err: (e: E) => string,
+): string {
+  return r.ok ? "Ok(" + part(r.value) + ")" : "Err(" + err(r.error) + ")";
+}"#,
+    },
+    Piece {
+        name: "errText",
+        deps: &[],
+        code: r#"/**
+ * The text of an error whose type is known only to implement `Error`: its `to_string` if its
+ * class has one (`Display`), else its message.
+ */
+export function errText(e: unknown): string {
+  const o = e as { toString(): string; message(): string };
+  if (typeof e === "object" && e !== null && o.toString !== Object.prototype.toString) {
+    return o.toString();
+  }
+  return o.message();
+}"#,
+    },
+    Piece {
         name: "floatToString",
         deps: &[],
         code: r#"/** The canonical format of `Float` (spec chapter 7, section 4.1). */
