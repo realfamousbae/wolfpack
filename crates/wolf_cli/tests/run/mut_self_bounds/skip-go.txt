@@ -1,0 +1,2 @@
+Go: a type parameter bounded by an interface with a `mut self` method is not supported yet
+(the methods with pointer receivers are not in the method set of the type).

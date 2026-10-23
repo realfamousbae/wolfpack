@@ -1,0 +1,166 @@
+//! A type parameter bounded by an interface with `mut self` methods: the change of such a method
+//! reaches the place, also for a payload-less enum, through a generic type that holds one, and
+//! for an element of a list.
+
+module main
+
+types {
+    enum Light {
+        Red
+        Green
+        Blue
+    }
+
+    enum Shape {
+        Dot
+        Line(Int)
+    }
+
+    struct Counter {
+        n: Int
+    }
+
+    struct Holder<T: Step> {
+        item: T
+        moves: Int
+    }
+}
+
+interfaces {
+    interface Step {
+        fn step(mut self)
+        fn label(self) -> String
+
+        fn twice(mut self) {
+            self.step()
+            self.step()
+        }
+    }
+}
+
+impl {
+    Light: Step {
+        fn step(mut self) {
+            self = match self {
+                Light.Red => Light.Green
+                Light.Green => Light.Blue
+                Light.Blue => Light.Red
+            }
+        }
+
+        fn label(self) -> String {
+            match self {
+                Light.Red => "red"
+                Light.Green => "green"
+                Light.Blue => "blue"
+            }
+        }
+    }
+
+    Shape: Step {
+        fn step(mut self) {
+            self = match self {
+                Shape.Dot => Shape.Line(1)
+                Shape.Line(n) => Shape.Line(n + 1)
+            }
+        }
+
+        fn label(self) -> String {
+            match self {
+                Shape.Dot => "dot"
+                Shape.Line(n) => f"line{n}"
+            }
+        }
+    }
+
+    Counter: Step {
+        fn step(mut self) {
+            self.n += 1
+        }
+
+        fn label(self) -> String {
+            f"#{self.n}"
+        }
+    }
+
+    Holder<T>: Step {
+        fn step(mut self) {
+            self.item.step()
+            self.moves += 1
+        }
+
+        fn label(self) -> String {
+            f"{self.item.label()}@{self.moves}"
+        }
+    }
+
+    Holder<T> {
+        fn bump(mut self) {
+            self.item.twice()
+            Step.twice(mut self.item)
+        }
+    }
+}
+
+main {
+    var h = Holder { item: Light.Red, moves: 0 }
+    h.step()
+    print(h.label())
+    h.twice()
+    print(h.label())
+    h.bump()
+    print(h.label())
+    var s = Shape.Dot
+    forward(mut s)
+    print(s.label())
+    var l = Light.Blue
+    forward(mut l)
+    print(l.label())
+    var v: Step = Light.Green
+    v.step()
+    advance_value(mut v)
+    print(v.label())
+    var hs = [Holder { item: Shape.Dot, moves: 0 }]
+    forward(mut hs[0])
+    print(hs[0].label())
+    var nested = Holder { item: Holder { item: Light.Red, moves: 0 }, moves: 0 }
+    forward(mut nested)
+    print(nested.label())
+    var c = Counter { n: 0 }
+    forward(mut c)
+    print(c.label())
+    var ls = [Light.Red, Light.Blue]
+    for x in ls {
+        print(peek(x))
+    }
+    print(all(mut ls))
+}
+
+functions {
+    fn advance<T: Step>(mut x: T) {
+        x.step()
+        x.twice()
+    }
+
+    fn forward<T: Step>(mut x: T) {
+        advance(mut x)
+        Step.twice(mut x)
+    }
+
+    fn peek<T: Step>(x: T) -> String {
+        x.label()
+    }
+
+    fn all<T: Step>(mut xs: List<T>) -> String {
+        var out = ""
+        for i in 0..xs.len() {
+            xs[i].step()
+            out += xs[i].label() + ";"
+        }
+        out
+    }
+
+    fn advance_value(mut s: Step) {
+        s.twice()
+    }
+}

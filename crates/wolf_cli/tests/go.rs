@@ -103,7 +103,8 @@ fn every_example_runs_on_go() {
 }
 
 /// The programs of `tests/run/` give on Go the standard output, standard error and exit code
-/// they give on TypeScript.
+/// they give on TypeScript. A program with a `skip-go.txt` uses what the Go backend does not
+/// support yet; the file says what.
 #[test]
 fn run_programs_match_expected_output_on_go() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run");
@@ -116,7 +117,10 @@ fn run_programs_match_expected_output_on_go() {
     dirs.sort();
     for dir in dirs {
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
-        if name.starts_with("E07") || name.starts_with("E08") || name.starts_with("default_target")
+        if name.starts_with("E07")
+            || name.starts_with("E08")
+            || name.starts_with("default_target")
+            || dir.join("skip-go.txt").is_file()
         {
             continue;
         }
