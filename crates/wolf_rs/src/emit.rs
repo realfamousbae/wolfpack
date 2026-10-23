@@ -1908,7 +1908,7 @@ impl<'p> Emitter<'p> {
                     bounds: b.clone(),
                 })
                 .collect();
-            let generics = self.generics(&gens)?;
+            let mut generics = self.generics(&gens)?;
             let mut items = Vec::new();
             for f in fns {
                 let mut func = self.function(f, self.name_of(f.def), Some(self_ty))?;
@@ -1924,6 +1924,15 @@ impl<'p> Emitter<'p> {
                 Some(i) => {
                     let p = self.def_path(i);
                     if self.dyn_ifaces.contains(&i) && self.clone.contains(&def) {
+                        // `copy_dyn` boxes a clone of the value, which needs its type parameters
+                        // cloned and owned.
+                        for (_, bounds) in &mut generics {
+                            for b in ["Clone", "'static"] {
+                                if !bounds.iter().any(|x| x == b) {
+                                    bounds.push(b.to_string());
+                                }
+                            }
+                        }
                         let r =
                             Type::Path("Box".to_string(), vec![Type::Dyn(p.clone(), Vec::new())]);
                         items.push(rs::Fn {
@@ -2141,6 +2150,7 @@ impl<'p> Emitter<'p> {
                 body: None,
             });
         }
+        let forwards = methods.clone();
         out.push(Item::Trait {
             docs: i.docs.clone(),
             vis: self.vis(i.public),
@@ -2153,7 +2163,66 @@ impl<'p> Emitter<'p> {
                 "impl Clone for Box<dyn {name}> {{\n    fn clone(&self) -> Self {{\n        self.copy_dyn()\n    }}\n}}"
             )));
         }
+        // An interface value is a value of the interface, also for a type parameter bounded by
+        // it: `Box<dyn Named>` implements `Named` by calling the value it holds.
+        if self.dyn_ifaces.contains(&i.def) {
+            out.push(self.boxed_impl(i, &name, &forwards, copyable)?);
+        }
         Ok(())
+    }
+
+    /// `impl Named for Box<dyn Named>`: each method of the trait calls the one of the value in
+    /// the box, so that an interface value meets a bound by its interface.
+    fn boxed_impl(
+        &mut self,
+        i: &'p ir::Interface,
+        name: &str,
+        methods: &[rs::Fn],
+        copyable: bool,
+    ) -> Result<Item, Error> {
+        let _ = copyable;
+        let generics = self.generics(&i.generics)?;
+        let targs: Vec<Type> = i.generics.iter().map(|g| Type::name(&g.name)).collect();
+        let mut fns = Vec::new();
+        for m in methods {
+            let inner = Expr::Unary("*", Box::new(Expr::Unary("*", Box::new(path("self")))));
+            let recv = match m.self_param.as_deref() {
+                Some("&self") => Expr::Unary("&", Box::new(inner)),
+                Some("&mut self") => Expr::Unary("&mut ", Box::new(inner)),
+                Some("self: Box<Self>") => Expr::Unary("*", Box::new(path("self"))),
+                _ => {
+                    return Err(format!(
+                        "the method `{}` of a boxed interface value",
+                        m.name
+                    ));
+                }
+            };
+            let mut args = vec![recv];
+            args.extend((0..m.params.len()).map(|k| path(&format!("a{k}"))));
+            let f = path(&format!("{name}::{}", m.name));
+            fns.push(rs::Fn {
+                docs: Vec::new(),
+                attrs: Vec::new(),
+                vis: String::new(),
+                name: m.name.clone(),
+                generics: m.generics.clone(),
+                self_param: m.self_param.clone(),
+                params: m
+                    .params
+                    .iter()
+                    .enumerate()
+                    .map(|(k, (_, t))| (Pat::Bind(format!("a{k}"), false), t.clone()))
+                    .collect(),
+                ret: m.ret.clone(),
+                body: Some(block(Vec::new(), Some(call(f, args)))),
+            });
+        }
+        Ok(Item::Impl {
+            generics,
+            trait_: Some(Type::Path(name.to_string(), targs.clone())),
+            ty: Type::Path("Box".to_string(), vec![Type::Dyn(name.to_string(), targs)]),
+            fns,
+        })
     }
 
     fn implementors_clone(&self, iface: DefRef) -> bool {
@@ -3386,6 +3455,18 @@ impl<'p> Emitter<'p> {
             }
             _ => self.def_path(def),
         };
+        // The function itself, when its parameters take what the function type passes; a read
+        // parameter of a copy type takes a value, and `&String` becomes `&str` only in a call
+        // (Clippy's `redundant_closure`).
+        let direct = info.params.iter().all(|(m, t)| {
+            *m != Mode::Read
+                || !(self.copy(t)
+                    || matches!(t, IrType::String | IrType::List(_) | IrType::Fn(..))
+                    || matches!(t, IrType::Named(d, _) if self.ifaces.contains_key(d)))
+        });
+        if direct {
+            return Ok(path(&f));
+        }
         let mut params = Vec::new();
         let mut args = Vec::new();
         for (i, (m, t)) in info.params.iter().enumerate() {
