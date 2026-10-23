@@ -1,27 +1,21 @@
 //! The wolfpack compiler for the browser playground (`playground/`), compiled to WebAssembly.
 //!
-//! The playground edits one file, `src/main.wolf` of a `cli` project. Every function takes the
-//! source and returns a JSON object as a string, so the JavaScript side needs no bindings for Rust
-//! types. The same functions are plain Rust and are tested natively.
+//! The playground edits one file, `src/main.wolf` of a `cli` project (`wolf_driver::single`).
+//! Every function takes the source and returns a JSON object as a string, so the JavaScript side
+//! needs no bindings for Rust types. The same functions are plain Rust and are tested natively.
 
 use wasm_bindgen::prelude::wasm_bindgen;
 use wolf_diag::Diagnostic;
-use wolf_project::{Manifest, Target};
+use wolf_project::Target;
 use wolf_span::SourceMap;
-
-/// The manifest of the playground project.
-const MANIFEST: &str = "[package]\nname = \"playground\"\nversion = \"0.1.0\"\nkind = \"cli\"\n";
-
-/// The name of the edited file in diagnostics.
-const FILE: &str = "src/main.wolf";
 
 /// Checks the source. Returns `{"errors": n, "text": "...", "diagnostics": [...]}`: the number
 /// of errors, the diagnostics as `wolf check` prints them, and as `--message-format json`
 /// objects.
 #[wasm_bindgen]
 pub fn check(source: &str) -> String {
-    let (map, diagnostics, _) = analyze(source);
-    report(&map, &diagnostics, None)
+    let single = wolf_driver::single::check(source);
+    report(&single.map, &single.diagnostics, None)
 }
 
 /// Checks the source and generates the project of `target` (`ts`, `go` or `rust`). Returns the
@@ -35,32 +29,9 @@ pub fn build(source: &str, target: &str) -> String {
             quote(&format!("unknown target `{target}`"))
         );
     };
-    let (map, mut diagnostics, project) = analyze(source);
-    let mut files = Vec::new();
-    if let (true, Some((manifest, analysis))) = (diagnostics.is_empty(), project) {
-        let inputs = analysis.inputs();
-        diagnostics.extend(wolf_resolve::check_target(&inputs, target.name(), |role| {
-            role != wolf_resolve::Role::Test
-        }));
-        if diagnostics.is_empty() {
-            let meta = wolf_driver::meta(&manifest, true);
-            let generated =
-                wolf_ir::lower(&inputs, &analysis.resolved, &analysis.typed, &map, &meta)
-                    .map_err(|e| e.message)
-                    .and_then(|program| {
-                        wolf_driver::generate(target, &program, env!("CARGO_PKG_VERSION"))
-                    });
-            match generated {
-                Ok(f) => files = f,
-                Err(message) => diagnostics.push(
-                    Diagnostic::new(wolf_diag::codes::E0003, "internal compiler error")
-                        .note(format!("the backend does not support this yet: {message}"))
-                        .help("this is a bug or a gap in wolf; please report it"),
-                ),
-            }
-        }
-    }
-    report(&map, &diagnostics, Some(&files))
+    let mut single = wolf_driver::single::check(source);
+    let files = single.build(target);
+    report(&single.map, &single.diagnostics, Some(&files))
 }
 
 /// Formats the source as `wolf fmt` does. Returns `{"ok": true, "text": "..."}`, or
@@ -68,7 +39,7 @@ pub fn build(source: &str, target: &str) -> String {
 #[wasm_bindgen]
 pub fn format(source: &str) -> String {
     let mut map = SourceMap::new();
-    let id = map.add(FILE, source.to_string());
+    let id = map.add(wolf_driver::single::FILE, source.to_string());
     match wolf_fmt::format(id, source) {
         Ok(text) => format!("{{\"ok\":true,\"text\":{}}}", quote(&text)),
         Err(wolf_fmt::FmtError::Syntax(diagnostics)) => format!(
@@ -98,47 +69,6 @@ pub fn explain(code: &str) -> String {
 #[wasm_bindgen]
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
-}
-
-/// Parses and checks the source as the only module of the playground project.
-fn analyze(
-    source: &str,
-) -> (
-    SourceMap,
-    Vec<Diagnostic>,
-    Option<(Manifest, wolf_driver::Analysis)>,
-) {
-    let mut map = SourceMap::new();
-    let mut diagnostics = Vec::new();
-    let manifest_id = map.add("wolfpack.toml", MANIFEST.to_string());
-    let (manifest, found) = wolf_project::parse_manifest(manifest_id, MANIFEST);
-    diagnostics.extend(found);
-    let Some(manifest) = manifest else {
-        return (map, diagnostics, None);
-    };
-    let mut parsed = wolf_driver::std_modules(&mut map, &mut diagnostics);
-    let id = map.add(FILE, source.to_string());
-    let tree = wolf_driver::parse(&map, id, &mut diagnostics);
-    parsed.push((
-        vec!["main".to_string()],
-        wolf_resolve::Role::Entry,
-        id,
-        tree,
-    ));
-    // The playground has no native modules.
-    let analysis = wolf_driver::analyze(
-        &map,
-        &manifest,
-        parsed,
-        &wolf_resolve::NativeNames::new(),
-        &mut diagnostics,
-    );
-    // The playground has no `native/` (spec chapter 8, section 8a).
-    diagnostics.extend(wolf_driver::check_native(
-        &wolf_driver::Native::none(),
-        &analysis.parsed,
-    ));
-    (map, diagnostics, Some((manifest, analysis)))
 }
 
 /// The JSON result of [`check`] and [`build`].

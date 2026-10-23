@@ -1569,9 +1569,8 @@ dependencies = [
  "wolfpack-diag",
  "wolfpack-driver",
  "wolfpack-fmt",
- "wolfpack-ir",
+ "wolfpack-lexer",
  "wolfpack-project",
- "wolfpack-resolve",
  "wolfpack-span",
 ]
 

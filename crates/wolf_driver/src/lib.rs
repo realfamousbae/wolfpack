@@ -2,11 +2,12 @@
 //! a project whose files are already in memory.
 //!
 //! `wolf_cli` reads the project from disk and runs these steps; the playground (`wolf_wasm`) runs
-//! them on the source in the browser.
+//! them on the source in the browser, through [`single`].
 
 use std::collections::BTreeMap;
 
 mod native;
+pub mod single;
 
 pub use native::{NATIVE_PREFIX, Native, check_native, copied_to, go_package_dir, native_target};
 
