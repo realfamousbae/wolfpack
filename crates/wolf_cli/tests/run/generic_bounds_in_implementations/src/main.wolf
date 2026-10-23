@@ -1,0 +1,163 @@
+//! The bounds of a generic type inside its implementations of interfaces, and the bounds of an
+//! interface's type parameters inside its defaults, with a payload-less enum for the type
+//! parameter: the methods of the bound are those of the enum.
+
+module main
+
+types {
+    enum Color {
+        Red
+        Green
+    }
+
+    struct Dog {
+        title: String
+    }
+
+    struct Labeled<T: Named> {
+        item: T
+        tag: String
+    }
+
+    struct Shown<T: Display> {
+        item: T
+    }
+
+    enum Tree<T: Named> {
+        Leaf(T)
+        Pair(T, T)
+        Empty
+    }
+
+    struct Bin {
+        c: Color
+    }
+
+    struct Wrap<T: Named + Copyable> {
+        inner: T
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Holder<T: Named> {
+        fn held(self) -> T
+
+        fn describe(self) -> String {
+            "holds " + self.held().name()
+        }
+    }
+
+    interface Grow {
+        fn grow(mut self)
+    }
+}
+
+impl {
+    Color: Named {
+        fn name(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+
+    Color: Display {
+        fn to_string(self) -> String {
+            match self {
+                Color.Red => "RED"
+                Color.Green => "GREEN"
+            }
+        }
+    }
+
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+    }
+
+    Labeled<T>: Named {
+        fn name(self) -> String {
+            self.tag + ":" + self.item.name()
+        }
+    }
+
+    Labeled<T: Copyable>: Grow {
+        fn grow(mut self) {
+            self = Labeled { item: self.item.copy(), tag: self.tag + "+" }
+        }
+    }
+
+    Shown<T>: Display {
+        fn to_string(self) -> String {
+            f"<{self.item}>"
+        }
+    }
+
+    Tree<T>: Named {
+        fn name(self) -> String {
+            match self {
+                Tree.Leaf(x) => x.name()
+                Tree.Pair(a, b) => a.name() + "&" + b.name()
+                Tree.Empty => "-"
+            }
+        }
+    }
+
+    Bin: Holder<Color> {
+        fn held(self) -> Color {
+            self.c
+        }
+    }
+
+    Wrap<T>: Holder<T> {
+        fn held(self) -> T {
+            self.inner.copy()
+        }
+    }
+}
+
+main {
+    var a = Labeled { item: Color.Red, tag: "t" }
+    print(a.name())
+    let n: Named = Labeled { item: Color.Green, tag: "u" }
+    print(n.name())
+    print(wrap(Color.Green).name())
+    let b = Labeled { item: Color.Red, tag: "t" }
+    print(f"{a == b}")
+    let c = a.copy()
+    print(c.name())
+    let d = Labeled { tag: "d", ..c }
+    print(d.name())
+    a.grow()
+    print(a.name())
+    print(f"{a == b}")
+    print(Shown { item: Color.Red }.to_string())
+    let trees: List<Tree<Color>> = [Tree.Leaf(Color.Red), Tree.Pair(Color.Green, Color.Red), Tree.Empty]
+    for t in trees {
+        print(t.name())
+    }
+    let bin = Bin { c: Color.Green }
+    print(bin.describe())
+    let h: Holder<Color> = Bin { c: Color.Red }
+    print(h.describe())
+    print(Holder.describe(bin))
+    print(Wrap { inner: Color.Red }.describe())
+    print(Wrap { inner: Dog { title: "Rex" } }.describe())
+    print(show(Wrap { inner: Color.Green }))
+}
+
+functions {
+    fn wrap<T: Named>(own x: T) -> Labeled<T> {
+        Labeled { item: x, tag: "w" }
+    }
+
+    fn show<H: Holder<Color>>(h: H) -> String {
+        h.describe()
+    }
+}

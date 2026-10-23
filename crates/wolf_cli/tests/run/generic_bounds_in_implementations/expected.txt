@@ -1,0 +1,18 @@
+t:red
+u:green
+w:green
+true
+t:red
+d:red
+t+:red
+false
+<RED>
+red
+green&red
+-
+holds green
+holds red
+holds green
+holds red
+holds Rex
+holds green
