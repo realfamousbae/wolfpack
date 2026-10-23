@@ -3058,9 +3058,18 @@ impl<'p> Emitter<'p> {
                     _ => IrType::Void,
                 };
                 let iface = matches!(&elem, IrType::Named(d, _) if self.ifaces.contains_key(d));
+                let func = matches!(elem, IrType::Fn(..));
                 for i in items {
-                    let mut x = self.expr(i, Want::Own)?;
-                    if iface && matches!(i.kind, ExprKind::Coerce { .. }) {
+                    // Each closure has its own type: `Box::new(|| 1i64) as Box<dyn Fn() -> i64>`.
+                    // The cast does not type the literals of its body, so they get a suffix.
+                    let cast_fn =
+                        func && items.len() > 1 && matches!(i.kind, ExprKind::Closure { .. });
+                    let saved = self.f.suffix;
+                    self.f.suffix |= cast_fn;
+                    let x = self.expr(i, Want::Own);
+                    self.f.suffix = saved;
+                    let mut x = x?;
+                    if cast_fn || (iface && matches!(i.kind, ExprKind::Coerce { .. })) {
                         let et = self.ty(&elem)?;
                         x = Expr::Cast(Box::new(x), et);
                     }
