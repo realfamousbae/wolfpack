@@ -1,0 +1,5 @@
+Hello, red/red
+Hello, Rex/Rex
+Hello, t:Kit/t:Kit
+Hello, green/green
+Hello, d:Max/d:Max

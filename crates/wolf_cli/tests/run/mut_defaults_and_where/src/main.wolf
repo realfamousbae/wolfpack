@@ -1,0 +1,86 @@
+// A `mut self` default on a payload-less enum changes the variable itself, and a `where` bound
+// by a user interface on a method of a generic type.
+module main
+
+types {
+    enum Light {
+        Red
+        Green
+        Blue
+    }
+
+    struct Dog {
+        title: String
+    }
+
+    struct Shelf<T> {
+        items: List<T>
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Step {
+        fn step(mut self)
+
+        fn twice(mut self) {
+            self.step()
+            self.step()
+        }
+    }
+}
+
+impl {
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+    }
+
+    Light: Step {
+        fn step(mut self) {
+            self = match self {
+                Light.Red => Light.Green
+                Light.Green => Light.Blue
+                Light.Blue => Light.Red
+            }
+        }
+    }
+
+    Light: Named {
+        fn name(self) -> String {
+            match self {
+                Light.Red => "red"
+                Light.Green => "green"
+                Light.Blue => "blue"
+            }
+        }
+    }
+
+    Shelf<T> {
+        fn names(self) -> String where T: Named {
+            var out = ""
+            for x in self.items {
+                out += x.name() + ";"
+            }
+            out
+        }
+    }
+}
+
+main {
+    var l = Light.Red
+    l.step()
+    print(l.name())
+    l.twice()
+    print(l.name())
+    Step.twice(mut l)
+    print(l.name())
+    let dogs = Shelf { items: [Dog { title: "Rex" }, Dog { title: "Max" }] }
+    print(dogs.names())
+    let lights = Shelf { items: [Light.Red, Light.Blue] }
+    print(lights.names())
+}

@@ -1,0 +1,72 @@
+// Interface values for a type parameter bounded by their interface, a generic type that
+// implements an interface, and a generic function as a function value.
+module main
+
+types {
+    enum Color {
+        Red
+        Green
+    }
+
+    struct Dog {
+        title: String
+    }
+
+    struct Labeled<T: Named> {
+        item: T
+        tag: String
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+
+        fn greeting(self) -> String {
+            "Hello, " + self.name()
+        }
+    }
+}
+
+impl {
+    Color: Named {
+        fn name(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+    }
+
+    Labeled<T>: Named {
+        fn name(self) -> String {
+            self.tag + ":" + self.item.name()
+        }
+    }
+}
+
+main {
+    let all: List<Named> = [
+        Color.Red,
+        Dog { title: "Rex" },
+        Labeled { item: Dog { title: "Kit" }, tag: "t" },
+    ]
+    for x in all {
+        print(hello(x))
+    }
+    let show: fn(Color) -> String = hello
+    print(show(Color.Green))
+    print(hello(Labeled { item: Dog { title: "Max" }, tag: "d" }))
+}
+
+functions {
+    fn hello<T: Named>(x: T) -> String {
+        x.greeting() + "/" + x.name()
+    }
+}
