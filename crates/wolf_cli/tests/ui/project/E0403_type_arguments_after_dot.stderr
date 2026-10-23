@@ -1,0 +1,25 @@
+error[E0403]: `List` takes 1 type argument, but 2 were given
+   --> src/main.wolf:13:30
+   |
+13 |     let numbers: List<Int> = List.<Int, Int>.new()
+   |                              ^^^^^^^^^^^^^^^ expected 1 type argument
+
+error[E0403]: `Tree` takes 1 type argument, but 2 were given
+   --> src/main.wolf:14:27
+   |
+14 |     let leaf: Tree<Int> = Tree.<Int, Int>.Leaf
+   |                           ^^^^^^^^^^^^^^^ expected 1 type argument
+
+error[E0403]: `Tree` takes 1 type argument, but 2 were given
+   --> src/main.wolf:15:27
+   |
+15 |     let node: Tree<Int> = Tree.<String, Int>.Node(1)
+   |                           ^^^^^^^^^^^^^^^^^^ expected 1 type argument
+
+error[E0403]: `Ints` takes no type arguments, but 1 was given
+   --> src/main.wolf:16:16
+   |
+16 |     let more = Ints.<Int>.new()
+   |                ^^^^^^^^^^ remove the type arguments
+
+error: aborting due to 4 errors

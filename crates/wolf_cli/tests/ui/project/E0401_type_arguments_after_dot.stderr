@@ -1,0 +1,7 @@
+error[E0401]: expected `List<String>`, found `List<Int>`
+  --> src/main.wolf:4:31
+  |
+4 |     let names: List<String> = List.<Int>.new()
+  |                               ^^^^^^^^^^^^^^^^ this is `List<Int>`
+
+error: aborting due to 1 error

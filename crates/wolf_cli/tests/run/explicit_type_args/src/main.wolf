@@ -1,0 +1,61 @@
+//! Type arguments written after a type and a dot (spec chapter 3, section 5, rule 2) are the
+//! type's arguments, also when nothing else in the body tells the compiler the type.
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+
+    enum Tree<T> {
+        Leaf
+        Node(T)
+    }
+}
+
+impl {
+    Stack<T> {
+        fn new() -> Stack<T> {
+            Stack { items: [] }
+        }
+
+        fn size(self) -> Int {
+            self.items.len()
+        }
+    }
+}
+
+main {
+    let numbers = List.<Int>.new()
+    print(numbers.len().to_string())
+    let ages = Map.<String, Int>.new()
+    print(f"{ages.len()} {ages.is_empty()}")
+    let stack = Stack.<Int>.new()
+    print(stack.size().to_string())
+    let empty = nothing.<Float>()
+    print(empty.len().to_string())
+    let leaf = Tree.<Int>.Leaf
+    match leaf {
+        Tree.Leaf => print("leaf")
+        Tree.Node(_) => print("node")
+    }
+    print(describe(Tree.<Int>.Node(7)))
+    let none = Option.<String>.None
+    match none {
+        Some(text) => print(text)
+        None => print("none")
+    }
+}
+
+functions {
+    fn nothing<T>() -> List<T> {
+        []
+    }
+
+    fn describe(tree: Tree<Int>) -> String {
+        match tree {
+            Tree.Leaf => "leaf"
+            Tree.Node(n) => f"node {n}"
+        }
+    }
+}

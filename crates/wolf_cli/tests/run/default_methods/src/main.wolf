@@ -135,6 +135,7 @@ main {
     print(c.n.to_string())
     let p = Pair { a: 7, b: 8 }
     print(p.first_or_same(9).to_string())
+    print(Holder.<Int>.first_or_same(p, 9).to_string())
 }
 
 functions {
