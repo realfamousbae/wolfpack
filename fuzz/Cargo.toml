@@ -1,5 +1,10 @@
-# Fuzz targets (spec chapter 9, section 5): the lexer and parser must never panic on any input.
-# Run with `cargo +nightly fuzz run lexer` (needs `cargo install cargo-fuzz`).
+# Fuzz targets (spec chapter 9, section 5): the compiler must never panic on any input.
+# `lexer` lexes and parses; `pipeline` checks, builds for every target and formats, as the
+# playground does. Run with `cargo +nightly fuzz run pipeline -- -dict=fuzz/wolf.dict`, after
+# copying the programs of the repository into the corpus:
+# `mkdir -p fuzz/corpus/pipeline && find examples crates -name '*.wolf' -exec cp {} fuzz/corpus/pipeline/ \;`
+# (needs `cargo install cargo-fuzz`). The test `crates/wolf_wasm/tests/mutations.rs` does the same
+# on stable Rust with programs near those of the repository.
 # This is a separate workspace, so `cargo test` at the root does not build it.
 
 [package]
@@ -18,10 +23,20 @@ wolf_diag = { package = "wolfpack-diag", path = "../crates/wolf_diag" }
 wolf_lexer = { package = "wolfpack-lexer", path = "../crates/wolf_lexer" }
 wolf_parser = { package = "wolfpack-parser", path = "../crates/wolf_parser" }
 wolf_ast = { package = "wolfpack-ast", path = "../crates/wolf_ast" }
+wolf_driver = { package = "wolfpack-driver", path = "../crates/wolf_driver" }
+wolf_fmt = { package = "wolfpack-fmt", path = "../crates/wolf_fmt" }
+wolf_project = { package = "wolfpack-project", path = "../crates/wolf_project" }
 
 [[bin]]
 name = "lexer"
 path = "fuzz_targets/lexer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pipeline"
+path = "fuzz_targets/pipeline.rs"
 test = false
 doc = false
 bench = false
