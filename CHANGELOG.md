@@ -2,6 +2,21 @@
 
 All notable changes are recorded here at the end of each milestone.
 
+## Unreleased
+
+- `==`, `.copy()` and dropping work on values at least 1,000,000 levels deep on every target and in
+  the VM (spec chapter 4, section 7.4, rule 3; ADR 0016). Before, a chain of 100,000 links built by
+  a loop could not be copied on TypeScript, aborted on Rust, and 3,000,000 links made the VM abort
+  and lose its buffered output. The VM and the TypeScript runtime no longer recurse over values;
+  the Go and Rust runtimes give the program a stack of 2 GiB. The new test `tests/run/deep_data`
+  runs on the three targets and in the VM.
+- Fixed in the Go backend: a private type and a private function whose names differ only in the
+  case of the first letter (`Chain` and `chain`) were both `chain`; the later one is now `chain_`
+  (spec chapter 8, section 3, rule 4).
+- Fixed in the Rust backend: `let _ = f()` where `f` returns a function value is `let _ = f();`,
+  without rustc's warning about an unused closure; a single tuple, call or struct literal in an
+  array is laid out as rustfmt lays it out (`[(` ... `)]`).
+
 ## 0.3.0 (2026-10-22)
 
 - `wolf run --vm` and `wolf test --vm` run a program and its tests in a virtual machine inside
