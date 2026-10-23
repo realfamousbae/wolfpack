@@ -17,8 +17,13 @@ wasm-bindgen = "0.2"
 wolf_diag = { workspace = true }
 wolf_driver = { workspace = true }
 wolf_fmt = { workspace = true }
+wolf_ir = { workspace = true }
 wolf_project = { workspace = true }
 wolf_span = { workspace = true }
+wolf_vm = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
 
 [dev-dependencies]
 wolf_lexer = { workspace = true }

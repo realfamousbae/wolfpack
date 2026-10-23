@@ -58,3 +58,38 @@ fn format_and_explain() {
     assert!(wolf_wasm::explain("e0501").starts_with("# E0501: "));
     assert_eq!(wolf_wasm::explain("E9999"), "");
 }
+
+#[test]
+fn run_prints_the_output_of_the_vm() {
+    let result = wolf_wasm::run(HELLO, "");
+    assert!(result.starts_with("{\"errors\":0,"), "{result}");
+    assert!(
+        result.ends_with("\"stdout\":\"hi\\n\",\"stderr\":\"\",\"code\":0}"),
+        "{result}"
+    );
+}
+
+#[test]
+fn run_reads_the_input_and_reports_panics() {
+    let source = "module main\n\nimports {\n    std.io\n}\n\nmain {\n    match io.read_line() {\n        Some(line) => print(\"got \" + line)\n        None => print(\"nothing\")\n    }\n    let items = [1]\n    print(items[3].to_string())\n}\n";
+    let result = wolf_wasm::run(source, "abc\ndef\n");
+    assert!(result.contains("\"stdout\":\"got abc\\n\""), "{result}");
+    assert!(
+        result.contains("\"stderr\":\"panic: index 3 out of range for length 1\\n\""),
+        "{result}"
+    );
+    assert!(result.ends_with("\"code\":101}"), "{result}");
+}
+
+#[test]
+fn run_does_not_run_a_program_with_errors_or_files() {
+    let result = wolf_wasm::run("module main\n", "");
+    assert!(result.contains("E0614"), "{result}");
+    assert!(result.ends_with("\"code\":null}"), "{result}");
+    let files = "module main\n\nimports {\n    std.fs\n}\n\nmain {\n    match fs.read_text(\"a.txt\") {\n        Ok(text) => print(text)\n        Err(e) => print(e.message())\n    }\n}\n";
+    let result = wolf_wasm::run(files, "");
+    assert!(
+        result.contains("files are not available in the playground"),
+        "{result}"
+    );
+}

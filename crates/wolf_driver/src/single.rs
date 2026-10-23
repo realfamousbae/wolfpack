@@ -63,6 +63,41 @@ pub fn check(source: &str) -> Single {
 }
 
 impl Single {
+    /// The program for the VM (spec chapter 10); nothing when it has errors. Code of a target
+    /// cannot run in the VM (E0807).
+    pub fn program_for_vm(&mut self) -> Option<wolf_ir::Program> {
+        let (manifest, analysis) = self.project.as_ref()?;
+        if !self.diagnostics.is_empty() {
+            return None;
+        }
+        let inputs = analysis.inputs();
+        self.diagnostics.extend(wolf_resolve::check_vm(
+            &inputs,
+            |m| m.role == wolf_resolve::Role::Entry,
+            "the playground runs programs in the VM; build it for a target with `wolf build`",
+        ));
+        if !self.diagnostics.is_empty() {
+            return None;
+        }
+        match wolf_ir::lower(
+            &inputs,
+            &analysis.resolved,
+            &analysis.typed,
+            &self.map,
+            &meta(manifest, false),
+        ) {
+            Ok(program) => Some(program),
+            Err(e) => {
+                self.diagnostics.push(
+                    Diagnostic::new(codes::E0003, "internal compiler error")
+                        .note(format!("the program cannot be lowered: {}", e.message))
+                        .help("this is a bug in wolf; please report it"),
+                );
+                None
+            }
+        }
+    }
+
     /// Generates the project of `target`; nothing when the program has errors. Errors of the
     /// target (a module bound to another target) and gaps of a backend become diagnostics.
     pub fn build(&mut self, target: Target) -> Vec<OutFile> {
