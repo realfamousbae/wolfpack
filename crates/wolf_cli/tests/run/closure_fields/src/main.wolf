@@ -1,0 +1,32 @@
+// Closures in the fields of a generic struct: on Rust each closure has its own type, so the
+// fields of one type parameter get the boxed function type.
+module main
+
+types {
+    struct Pair<T> {
+        first: T
+        second: T
+    }
+}
+
+impl {
+    Pair<T> {
+        fn swap(own self) -> Pair<T> {
+            match own self {
+                Pair { first, second } => Pair { first: second, second: first }
+            }
+        }
+    }
+}
+
+main {
+    let tasks = Pair { first: || 1, second: || 2 }
+    let swapped = tasks.swap()
+    print(f"{(swapped.first)()} {(swapped.second)()}")
+    let steps = Pair { first: |x: Int| x + 1, second: |x: Int| x * 10 }
+    print(((steps.second)((steps.first)(4))).to_string())
+    let words = Pair { first: |s: String| s.len(), second: |s: String| s.len() * 2 }
+    print(f"{(words.first)("wolf")} {(words.second)("pack")}")
+    let sizes = [|s: String| s.len(), |s: String| s.len() + 100]
+    print(f"{(sizes[0])("ab")} {(sizes[1])("ab")}")
+}

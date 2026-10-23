@@ -83,6 +83,9 @@ struct FnState {
     unsized_params: BTreeSet<LocalRef>,
     /// Literals reach a type parameter: integers get a suffix, strings become `&String`.
     suffix: bool,
+    /// The next closure is cast to a boxed function type, which does not type its parameters:
+    /// they are written with their types (`|s: &String| ...`).
+    typed_closure: bool,
     /// The body of `compare` of an implementation of `Comparable`: the trait is in scope there,
     /// and an import used only there would be unused.
     in_comparable: bool,
@@ -2984,14 +2987,35 @@ impl<'p> Emitter<'p> {
             }
             ExprKind::Struct { def, fields, base } => {
                 let mut list = Vec::new();
-                let positions: Vec<String> = self
+                let declared: Vec<(String, IrType)> = self
                     .structs
                     .get(def)
-                    .map(|st| st.fields.iter().map(|f| f.name.clone()).collect())
+                    .map(|st| {
+                        st.fields
+                            .iter()
+                            .map(|f| (f.name.clone(), f.ty.clone()))
+                            .collect()
+                    })
                     .unwrap_or_default();
                 for (n, v) in fields {
-                    let mut x = self.expr(v, Want::Own)?;
-                    let i = positions.iter().position(|f| f == n).unwrap_or(usize::MAX);
+                    let i = declared
+                        .iter()
+                        .position(|f| &f.0 == n)
+                        .unwrap_or(usize::MAX);
+                    // A closure for a field of a type parameter gets the boxed function type, as
+                    // in a list literal, so that two closures make one instantiation.
+                    let cast_fn = matches!(v.kind, ExprKind::Closure { .. })
+                        && matches!(declared.get(i), Some((_, IrType::Param(_))));
+                    let saved = self.f.suffix;
+                    self.f.suffix |= cast_fn;
+                    self.f.typed_closure = cast_fn;
+                    let x = self.expr(v, Want::Own);
+                    self.f.suffix = saved;
+                    let mut x = x?;
+                    if cast_fn {
+                        let ft = self.ty(&v.ty)?;
+                        x = Expr::Cast(Box::new(x), ft);
+                    }
                     if self.boxed.contains(&(*def, i)) {
                         x = call(path("Box::new"), vec![x]);
                     }
@@ -3066,6 +3090,7 @@ impl<'p> Emitter<'p> {
                         func && items.len() > 1 && matches!(i.kind, ExprKind::Closure { .. });
                     let saved = self.f.suffix;
                     self.f.suffix |= cast_fn;
+                    self.f.typed_closure = cast_fn;
                     let x = self.expr(i, Want::Own);
                     self.f.suffix = saved;
                     let mut x = x?;
@@ -3286,6 +3311,7 @@ impl<'p> Emitter<'p> {
         ty: &IrType,
     ) -> Result<Expr, Error> {
         let _ = ty;
+        let typed = std::mem::take(&mut self.f.typed_closure);
         let mut ps = Vec::new();
         for p in params {
             let n = self.local_name(p.local);
@@ -3302,7 +3328,17 @@ impl<'p> Emitter<'p> {
                 ),
             };
             self.f.locals.insert(p.local, local);
-            ps.push((pat, None));
+            let annotation = if typed {
+                let inner = self.ty(&p.ty)?;
+                Some(match p.mode {
+                    Mode::Read => Type::Ref(Box::new(inner)),
+                    Mode::Mut => Type::RefMut(Box::new(inner)),
+                    Mode::Own => inner,
+                })
+            } else {
+                None
+            };
+            ps.push((pat, annotation));
         }
         let mut scan = Scan::default();
         scan.block(body);
