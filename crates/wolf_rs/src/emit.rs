@@ -1395,9 +1395,12 @@ impl<'p> Emitter<'p> {
             .flat_map(|d| d.lines().map(str::to_string).collect::<Vec<_>>())
             .collect();
         // Overflow and division by zero are panics at run time, also when Rust can see them in
-        // constants (chapter 7, section 3). A `match` with one arm that does something, the
-        // closures of `any` and loops that look for an element stay as they were written;
-        // `manual_contains` is newer than Rust 1.85.
+        // constants (chapter 7, section 3). A `match` with one arm that does something or with
+        // one arm only, the closures of `any` and loops that look for an element stay as they
+        // were written;
+        // `manual_contains` is newer than Rust 1.85. Clippy's judgements of what the program
+        // itself computes are allowed too: `0.0 / 0.0` and `x == x` are how a wolfpack program
+        // writes NaN and tests for it.
         let attrs = if matches!(
             m.role,
             ModuleRole::Entry | ModuleRole::Example | ModuleRole::Test
@@ -1406,7 +1409,9 @@ impl<'p> Emitter<'p> {
                 "#![allow(arithmetic_overflow, unconditional_panic, unknown_lints)]".to_string(),
                 "#![allow(clippy::type_complexity, clippy::single_match, clippy::manual_contains)]"
                     .to_string(),
-                "#![allow(clippy::manual_find)]".to_string(),
+                "#![allow(clippy::match_single_binding)]".to_string(),
+                "#![allow(clippy::manual_find, clippy::eq_op, clippy::zero_divided_by_zero)]"
+                    .to_string(),
             ]
         } else {
             Vec::new()
@@ -2556,8 +2561,15 @@ impl<'p> Emitter<'p> {
             }
             IrStmt::Expr(e) => {
                 let v = self.expr(e, Want::Own)?;
-                // Rust wants a `Result` or a closure to be used; `let _ =` drops it on purpose.
-                if matches!(e.ty, IrType::Result(..) | IrType::Fn(..)) {
+                // Rust wants a `Result`, a closure and the values of the `#[must_use]` methods of
+                // its standard library to be used, and clippy an expression to do something:
+                // `let _ =` drops such a value on purpose.
+                let dropped = match e.ty {
+                    IrType::Void | IrType::Never => false,
+                    IrType::Result(..) | IrType::Fn(..) => true,
+                    _ => !self.has_effect(e),
+                };
+                if dropped {
                     out.push(Stmt::Let(Pat::Wild, None, Some(v)));
                 } else if !matches!(v, Expr::Tuple(ref t) if t.is_empty()) {
                     out.push(Stmt::Expr(v));
@@ -2565,6 +2577,37 @@ impl<'p> Emitter<'p> {
             }
         }
         Ok(())
+    }
+
+    /// Whether an expression whose value is not used is written for what it does: a call of a
+    /// function of the program, of a method that changes its receiver or with a `mut` argument,
+    /// or a construct whose parts may do things (`if`, `match`, blocks, jumps, `?`).
+    fn has_effect(&self, e: &IrExpr) -> bool {
+        let intrinsic = |def: &DefRef| self.p.def(*def).is_some_and(|d| d.intrinsic.is_some());
+        match &e.kind {
+            ExprKind::Call { callee, args } => {
+                args.iter().any(|a| a.mode == Mode::Mut)
+                    || match callee {
+                        Callee::Fn(def) => !intrinsic(def),
+                        Callee::Method { method, .. } => {
+                            self.mut_methods.contains(method) || !intrinsic(method)
+                        }
+                        Callee::Interface { .. } | Callee::Value(_) => true,
+                    }
+            }
+            ExprKind::Coerce { value, .. } => self.has_effect(value),
+            ExprKind::If { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Block(_)
+            | ExprKind::Loop { .. }
+            | ExprKind::Return(_)
+            | ExprKind::Break { .. }
+            | ExprKind::Continue { .. }
+            | ExprKind::Try { .. }
+            | ExprKind::Panic { .. }
+            | ExprKind::Assert { .. } => true,
+            _ => false,
+        }
     }
 
     /// `while true { match e { p => body, _ => break } }` as `while let p = e { body }`.
@@ -3724,7 +3767,17 @@ impl<'p> Emitter<'p> {
             }
             "prelude.Bool.to_string" | "math.Int.to_string" => to_string(op(self, 0)?),
             "string.String.to_string" => method(op(self, 0)?, "clone", Vec::new()),
-            "math.Int.to_float" => Expr::Cast(Box::new(op(self, 0)?), Type::name("f64")),
+            "math.Int.to_float" => match op(self, 0)? {
+                // `3.to_float()` is the literal `3.0`: clippy calls `3 as f64` an unnecessary cast.
+                Expr::Lit(t)
+                    if t.trim_start_matches('-')
+                        .bytes()
+                        .all(|b| b.is_ascii_digit()) =>
+                {
+                    lit(&format!("{t}.0"))
+                }
+                v => Expr::Cast(Box::new(v), Type::name("f64")),
+            },
             "math.Int.abs" | "math.Float.abs" => method(op(self, 0)?, "abs", Vec::new()),
             "math.Int.pow" => {
                 let a = op(self, 0)?;

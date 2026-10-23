@@ -1,0 +1,19 @@
+//! Values computed and dropped, and arithmetic that clippy has opinions about: the generated Rust
+//! is warning-free under `cargo clippy` (spec chapter 8, section 1, rule 2).
+
+module main
+
+main {
+    let s = " a "
+    s.trim()
+    s.to_upper_ascii()
+    let items = [3, 1, 2]
+    items.len()
+    var ages = ["Ann": 31]
+    ages.insert("Bob", 25)
+    let nan = 0.0 / 0.0
+    let same = nan == nan
+    let y = 3.to_float()
+    let z = (-4).to_float()
+    print(f"{nan} {same} {y} {z} {ages.len()}")
+}

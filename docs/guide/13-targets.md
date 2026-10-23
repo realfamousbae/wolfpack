@@ -187,7 +187,8 @@ func main() {
 
 #![allow(arithmetic_overflow, unconditional_panic, unknown_lints)]
 #![allow(clippy::type_complexity, clippy::single_match, clippy::manual_contains)]
-#![allow(clippy::manual_find)]
+#![allow(clippy::match_single_binding)]
+#![allow(clippy::manual_find, clippy::eq_op, clippy::zero_divided_by_zero)]
 
 mod wolf_rt;
 
@@ -227,6 +228,8 @@ fn main() {
   parameter `&mut T`, and an `own` parameter takes `T` by value.
 - `Option`, `Result` and `?` are Rust's own; recursive types are boxed where needed.
 - Integer overflow panics through `overflow-checks = true` in `Cargo.toml`.
+- The `#![allow(...)]` lines keep `cargo clippy` quiet about shapes that come from the program as
+  it was written, such as a `match` with one arm or `0.0 / 0.0` for NaN.
 
 ## Building the output yourself
 
