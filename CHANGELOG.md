@@ -15,6 +15,10 @@ All notable changes are recorded here at the end of each milestone.
   gets it, and the VM dispatches to it.
 - Fixed in the Rust backend: an implementation of a generic interface, `Pair: Holder<Int>`, was
   written without the interface's type arguments.
+- Fixed: a list, a map, an option or a result inside a generic implementation of `Display`
+  (`Box<T: Display>: Display` holding `[1, 2]`) was written `<1,2>` by TypeScript and stopped
+  the Go program, because such a method has no static type for its value; both now write it as
+  everywhere else, `<[1, 2]>`, finding the type at run time.
 - Format specifications in interpolations (spec chapter 1, section 5.3a; chapter 7, section 4.4;
   D4.18): `f"{price:>8.2}"`, `f"{n:05}"`, `f"{name:*^10}"`. A width counts Unicode scalar values,
   numbers align to the right and other values to the left, a precision rounds a `Float` to the
