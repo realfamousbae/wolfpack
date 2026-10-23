@@ -180,7 +180,10 @@ Methods of `List<T>`, available without import:
 | `any(self, f: fn(T) -> Bool) -> Bool`, `all(...)`, `count(self, f: fn(T) -> Bool) -> Int` | |
 
 Operations that need a bound on `T` are **free functions** in `std.list`, because methods cannot add
-bounds to the type parameters of their `impl` block (chapter 3, D3.2) **[PROPOSAL]** (see D7.4):
+bounds to the type parameters of their `impl` block (chapter 3, D3.2) **[PROPOSAL]** (see D7.4).
+**[DRAFT]** (2026-10-23, D4.16): with chapter 4, section 8.6, the first six of them are also
+methods of `List<T>` with `where` bounds: `items.contains(x)`, `items.index_of(x)`, `items.get(i)`,
+`items.sort()`, `items.min()`, `items.max()`; the free functions stay.
 
 | Function | |
 | --- | --- |

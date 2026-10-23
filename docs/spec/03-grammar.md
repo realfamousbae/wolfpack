@@ -31,7 +31,8 @@ generics     = "<" sep(generic_param, ",") ">"
 generic_param = IDENT ( ":" bounds )?
 bounds       = type_path ( "+" type_path )*
 
-fn_decl      = visibility "intrinsic"? "fn" IDENT generics? "(" params? ")" ( "->" type )? block?
+fn_decl      = visibility "intrinsic"? "fn" IDENT generics? "(" params? ")" ( "->" type )? where_clause? block?
+where_clause = "where" sep(IDENT ":" bounds, ",")    // [DRAFT] methods of generic impl blocks only, chapter 4, section 8.6
 params       = sep(param, ",")
 param        = self_param | mode? IDENT ":" type
 self_param   = mode? "self"
