@@ -4,6 +4,11 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- The playground runs programs in the VM of the compiler, in a worker, instead of transpiling the
+  generated TypeScript with a TypeScript compiler loaded from the network: runs start at once,
+  the output appears as it is written, a program that runs too long is stopped after 5 seconds
+  with its output kept, and the new box *Input* gives the lines that `io.read_line()` reads
+  (ADR 0012). `wolf_wasm::run` and `run_live` are the new functions of the compiler for it.
 - `==`, `.copy()` and dropping work on values at least 1,000,000 levels deep on every target and in
   the VM (spec chapter 4, section 7.4, rule 3; ADR 0016). Before, a chain of 100,000 links built by
   a loop could not be copied on TypeScript, aborted on Rust, and 3,000,000 links made the VM abort
