@@ -88,6 +88,8 @@ struct FnInfo {
     dicts: Vec<(String, Dict)>,
     /// For a method: the type and its type parameters.
     owner: Option<(DefRef, Vec<String>)>,
+    /// The mode of `self`, for a method.
+    self_mode: Option<Mode>,
 }
 
 /// Facts about the function being emitted.
@@ -408,6 +410,7 @@ impl<'p> Emitter<'p> {
             ret: f.ret.clone(),
             dicts: Vec::new(),
             owner: None,
+            self_mode: f.self_mode,
         };
         let mut type_names: BTreeSet<String> = BTreeSet::new();
         for m in &p.modules {
@@ -504,6 +507,7 @@ impl<'p> Emitter<'p> {
                                 ret: x.ret.clone(),
                                 dicts: Vec::new(),
                                 owner: None,
+                                self_mode: None,
                             },
                         );
                         self.names.insert(x.def, camel(&x.name));
@@ -3133,6 +3137,21 @@ impl<'p> Emitter<'p> {
         Ok(Expr::New(self.wrapper_name(*e, *iface), vec![v]))
     }
 
+    /// The wrapper of a payload-less enum whose value is the place `r` (a `Ref`), for a `mut self`
+    /// method of an interface: the change reaches the place.
+    fn plain_view(&mut self, r: Expr, from: &IrType, to: &IrType) -> Expr {
+        let (IrType::Named(e, _), IrType::Named(iface, _)) = (from, to) else {
+            return r;
+        };
+        self.wrappers
+            .entry((*e, *iface))
+            .or_insert_with(|| (from.clone(), to.clone()));
+        let class = self.wrapper_name(*e, *iface);
+        let proto = member(ident(&class), "prototype");
+        let view = self.rt_call("viewOf", vec![proto, r]);
+        Expr::As(Box::new(view), Type::name(&class))
+    }
+
     /// The class that holds a payload-less enum used as a value of an interface: `Color$Animal`.
     fn wrapper_name(&self, e: DefRef, iface: DefRef) -> String {
         let name = |d: DefRef| self.p.def(d).map(|d| d.name.clone()).unwrap_or_default();
@@ -3419,6 +3438,7 @@ impl<'p> Emitter<'p> {
                         ret: (**ret).clone(),
                         dicts: Vec::new(),
                         owner: None,
+                        self_mode: None,
                     }),
                     _ => None,
                 };
@@ -3444,8 +3464,15 @@ impl<'p> Emitter<'p> {
         let mut pre_all = Vec::new();
         // References to places are built without evaluating the place.
         let mut plain_items = Vec::new();
-        let recv_ref =
-            matches!(callee, Callee::Method { method, .. } if self.plain_mut_self(*method));
+        // A payload-less enum is a string: a `mut self` method takes the place, also through an
+        // interface (its wrapper then holds the place, see `plain_view`).
+        let iface_mut = matches!(callee, Callee::Interface { .. } | Callee::Default { .. })
+            && info
+                .as_ref()
+                .is_some_and(|f| f.self_mode == Some(Mode::Mut))
+            && recv.is_some_and(|r| self.plain_enum(&r.ty));
+        let recv_ref = iface_mut
+            || matches!(callee, Callee::Method { method, .. } if self.plain_mut_self(*method));
         for (i, (e, r)) in items.iter().enumerate() {
             let is_ref = recv.is_some() && i == 0 && recv_ref
                 || recv.is_some() && i > 0 && refs.get(i - 1).copied().unwrap_or(false)
@@ -3621,7 +3648,11 @@ impl<'p> Emitter<'p> {
                     // A payload-less enum that gets a default is a string: its wrapper has the
                     // method. A value of a type parameter gets it from its dictionary.
                     let to = IrType::Named(*interface, self.iface_args(*interface, &recv.ty));
-                    let r = self.coerce(r, &recv.ty, &to)?;
+                    let r = if iface_mut {
+                        self.plain_view(r, &recv.ty, &to)
+                    } else {
+                        self.coerce(r, &recv.ty, &to)?
+                    };
                     call(member(r, &camel(name)), all)
                 }
             }
@@ -3637,7 +3668,11 @@ impl<'p> Emitter<'p> {
                     all.remove(0)
                 };
                 let to = IrType::Named(*interface, self.iface_args(*interface, &recv.ty));
-                let r = self.coerce(r, &recv.ty, &to)?;
+                let r = if iface_mut {
+                    self.plain_view(r, &recv.ty, &to)
+                } else {
+                    self.coerce(r, &recv.ty, &to)?
+                };
                 let mut a = vec![r];
                 a.extend(all);
                 call(self.default_fn(*interface, name), a)

@@ -97,6 +97,25 @@ export type Test = { name: string; run: () => void };"#,
 export type Ref<T> = { v: T };"#,
     },
     Piece {
+        name: "viewOf",
+        deps: &["Ref"],
+        code: r#"/**
+ * The wrapper class of a payload-less enum, at `proto`, whose value is the place `ref`: a
+ * `mut self` method of an interface changes the place itself.
+ */
+export function viewOf<C>(proto: object, ref: Ref<unknown>): C {
+  return Object.create(proto, {
+    v: {
+      get: () => ref.v,
+      set: (x: unknown) => {
+        ref.v = x;
+      },
+      enumerable: true,
+    },
+  }) as C;
+}"#,
+    },
+    Piece {
         name: "become",
         deps: &[],
         code: r#"/**
