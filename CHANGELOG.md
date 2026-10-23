@@ -20,6 +20,9 @@ All notable changes are recorded here at the end of each milestone.
 
 ## 0.2.0 (2026-10-21)
 
+- The entry point is a `main` section between `impl` and `functions`: `main { ... }`, or
+  `main(args)` and `main -> Result<Void, Error>` when the program needs them (spec chapter 2,
+  section 3.7; ADR 0013). `fn main` in `functions` is now an error (E0214); E0213 is retired.
 - Interpolated strings `f"{name} has {items.len()} items"`, raw strings `r"\d+"` and multiline
   strings `"""` whose indentation is that of the closing quotes (spec chapter 1, section 5.3a).
 - The built-in interface `Display` (`to_string`), implemented by `Int`, `Float`, `Bool`, `String`

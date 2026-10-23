@@ -4,9 +4,8 @@
 >
 > Wolfpack is under active development and is going to change a lot, including the language
 > itself. Syntax, the standard library and the command line may change from one version to the
-> next without a deprecation period. The first big change is already on its way: the entry point is
-> no longer `fn main` but a `main` section above `functions` (see `docs/spec/`). Do not build
-> anything you cannot rewrite.
+> next without a deprecation period: 0.2, for example, replaced `fn main` with a `main` section
+> above `functions`. Do not build anything you cannot rewrite.
 
 [![CI](https://github.com/realfamousbae/wolfpack/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/realfamousbae/wolfpack/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/realfamousbae/wolfpack)](https://github.com/realfamousbae/wolfpack/releases/latest)
@@ -403,12 +402,15 @@ wolfpack signature and its path in the target, and call it like any other functi
 | The standard library of a target (`strings.ToUpper`, `Math.max`, `std::cmp::max`) | yes |
 | Packages from npm, Go modules and crates.io, listed in `wolfpack.toml` | yes |
 | Values at the boundary: `Int`, `Float`, `Bool`, `String`, `List`, `Option`, `Result`, opaque types | yes |
-| Your own `.ts`, `.go` and `.rs` files inside the project | planned |
-| `Map`, callbacks and records at the boundary | planned |
-| Declarations generated from the target code (`wolf bind`) | planned |
+| `Map`, callbacks and records at the boundary | yes |
+| Your own `.ts`, `.go` and `.rs` files inside the project, named by `native:` paths | yes |
+| Native modules: your own target code imported like a module, with no `extern` lines (`imports { native.text.slug }`) | yes |
+| Declarations read from packages of npm, Go and crates.io, without `extern` lines | later |
 
-[Chapter 12 of the guide](docs/guide/12-extern.md) shows how to use `extern`, and the
-[`fuzzy`](examples/fuzzy/) example uses a package of each target. The plan for the rest is in
+[Chapter 12 of the guide](docs/guide/12-extern.md) shows how to use `extern` and native modules.
+The [`fuzzy`](examples/fuzzy/) example uses a package of each target, and
+[`native-slug`](examples/native-slug/) imports code written in each target language as a native
+module; `wolf check --native` prints what the compiler read from that code. The design is in
 [docs/plans/native-code.md](docs/plans/native-code.md).
 
 ## Learn more

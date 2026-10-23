@@ -35,21 +35,23 @@ Do not implement anything listed here without an approved spec change.
 
 ## Target code (from 2026-10-17)
 
-The full plan is in `docs/plans/native-code.md`.
+The full plan is in `docs/plans/native-code.md`. Native sources, `Map`, callbacks and records at
+the boundary, and native modules (declarations read from the project's own target code) are done
+in 0.2.
 
-- Native sources: `.ts`, `.go` and `.rs` files of the project in `native/<target>/`, called through
-  `extern` with a `native:` path.
-- `Map`, callbacks and records at the `extern` boundary.
-- `wolf bind`: `extern` declarations generated from `.d.ts` files, Go packages and Rust sources;
-  `wolf check --extern` compares existing declarations with the target code.
+- Packages of npm, Go and crates.io read like native modules, without `extern` lines (section 4.9
+  of the plan): the readers need the fetched packages (`node_modules/**/*.d.ts`, the Go module
+  cache, rustdoc JSON).
+- `wolf check --extern`: compare written `extern` declarations with the target code.
 
 ## Distribution (from 2026-10-17)
 
-The full plan is in `docs/plans/distribution.md`.
+The full plan is in `docs/plans/distribution.md`. `wolf self update` is done in 0.2.
 
 - Package managers: a Homebrew tap, winget, Scoop, and later Debian/RPM packages and the AUR.
 - Signed installers: a notarized macOS package and a signed Windows installer.
-- `wolf self update`, which replaces the running `wolf` with the latest release.
+- `wolf self uninstall`, which removes `wolf`, its `PATH` lines and, after a question,
+  `~/.wolfpack`.
 
 ## The virtual machine (from 2026-10-22, chapter 10, D10.5 and D10.7)
 
