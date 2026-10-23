@@ -1,0 +1,36 @@
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+
+    struct Plain {
+        n: Int
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+}
+
+impl {
+    Stack<T: Named + Equatable> {
+        fn first_name(self) -> String {
+            if self.items.is_empty() {
+                ""
+            } else {
+                self.items[0].name()
+            }
+        }
+    }
+}
+
+main {
+    let plain = Stack { items: [Plain { n: 1 }] }
+    print(plain.first_name())
+    let fns = Stack { items: [|| 1] }
+    print(fns.first_name())
+}

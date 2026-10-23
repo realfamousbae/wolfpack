@@ -1,0 +1,23 @@
+error[E0404]: `Plain` does not implement `Named`
+   --> src/main.wolf:33:17
+   |
+33 |     print(plain.first_name())
+   |                 ^^^^^^^^^^ required by `first_name`
+   |
+   = help: implement `Named` for `Plain` in an `impl` block
+
+error[E0404]: `fn() -> Int` does not implement `Named`
+   --> src/main.wolf:35:15
+   |
+35 |     print(fns.first_name())
+   |               ^^^^^^^^^^ required by `first_name`
+
+error[E0406]: `fn() -> Int` is not `Equatable`
+   --> src/main.wolf:35:15
+   |
+35 |     print(fns.first_name())
+   |               ^^^^^^^^^^ required by `first_name`
+   |
+   = note: `fn() -> Int` is not `Equatable` because functions cannot be compared
+
+error: aborting due to 3 errors

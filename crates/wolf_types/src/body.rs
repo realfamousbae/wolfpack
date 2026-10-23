@@ -102,6 +102,10 @@ struct Found {
     public: bool,
     module: Option<ModuleId>,
     method: Option<MethodCall>,
+    /// What the head of the method's `impl` block requires of the type arguments of the
+    /// receiver: each argument with an interface it must implement (chapter 3, section 2,
+    /// rule 6).
+    bounds: Vec<(Ty, DefId)>,
 }
 
 impl Op {
@@ -323,6 +327,7 @@ impl<'a> Checker<'a> {
             self.infer.poison(&m.ty);
             return;
         };
+        self.require_block_bounds(b, &found, &m.name);
         if !found.public && found.module.is_some_and(|md| md != b.module) {
             self.report(
                 Diagnostic::new(
@@ -1713,6 +1718,7 @@ impl<'a> Checker<'a> {
                     name: name.to_string(),
                     interface: Some(def),
                 }),
+                bounds: Vec::new(),
             };
             let sig = Sig {
                 generics: Vec::new(),
@@ -1724,6 +1730,35 @@ impl<'a> Checker<'a> {
         }
         let index = *self.method_table.get(&def)?.get(name)?;
         let m = self.methods.get(index)?.clone();
+        // Only what the head adds: the bounds of the type's own declaration are checked where
+        // the type is used.
+        let own: Vec<Vec<DefId>> = self
+            .type_generics
+            .get(&def)
+            .map(|g| {
+                g.iter()
+                    .map(|g| {
+                        g.bounds
+                            .iter()
+                            .filter_map(|b| match b {
+                                Ty::Named(i, _) => Some(*i),
+                                _ => None,
+                            })
+                            .collect()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut bounds: Vec<(Ty, DefId)> = Vec::new();
+        for (i, (head, arg)) in m.impl_bounds.iter().zip(&args).enumerate() {
+            for bound in head {
+                if let Ty::Named(interface, _) = bound {
+                    if !own.get(i).is_some_and(|o| o.contains(interface)) {
+                        bounds.push((arg.clone(), *interface));
+                    }
+                }
+            }
+        }
         let map: BTreeMap<ParamId, Ty> = m
             .impl_generics
             .iter()
@@ -1746,6 +1781,7 @@ impl<'a> Checker<'a> {
                 name: m.name.clone(),
                 interface: m.interface,
             }),
+            bounds,
         };
         // Method type parameters are substituted by the caller.
         let sig = Sig {
@@ -1796,6 +1832,7 @@ impl<'a> Checker<'a> {
                     name: name.to_string(),
                     interface: Some(iface),
                 }),
+                bounds: Vec::new(),
             };
             let sig = Sig {
                 generics: Vec::new(),
@@ -1806,6 +1843,19 @@ impl<'a> Checker<'a> {
             return Some((found, sig));
         }
         None
+    }
+
+    /// The bounds that the head of the `impl` block of a called method adds (chapter 3,
+    /// section 2, rule 6), checked for the type arguments of the receiver (E0404, E0406).
+    fn require_block_bounds(&mut self, b: &mut Body, found: &Found, name: &ast::Ident) {
+        for (ty, interface) in &found.bounds {
+            b.deferred.push(Deferred::Bound {
+                ty: ty.clone(),
+                interface: *interface,
+                span: name.span,
+                why: format!("required by `{}`", name.name),
+            });
+        }
     }
 
     fn method_call(
@@ -1923,6 +1973,7 @@ impl<'a> Checker<'a> {
             check_args(self, b);
             return Ty::Error;
         };
+        self.require_block_bounds(b, &found, name);
         if !found.has_self {
             let owner = self.show(&recv);
             self.report(

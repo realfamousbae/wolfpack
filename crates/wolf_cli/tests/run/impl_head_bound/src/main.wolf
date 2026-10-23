@@ -1,0 +1,41 @@
+//! The head of an `impl` block may add bounds to the parameters of its type (spec chapter 3,
+//! section 2, rule 6); every call of a method of the block checks them (chapter 4, section 8.6).
+
+module main
+
+types {
+    struct Bag<T> {
+        items: List<T>
+    }
+
+    struct Point {
+        x: Int
+        y: Int
+    }
+}
+
+impl {
+    Bag<T: Equatable> {
+        fn size(self) -> Int {
+            self.items.len()
+        }
+
+        fn has(self, item: T) -> Bool {
+            for x in self.items {
+                if x == item {
+                    return true
+                }
+            }
+            false
+        }
+    }
+}
+
+main {
+    let numbers = Bag { items: [1, 2, 3] }
+    let words = Bag { items: ["a", "b"] }
+    let points = Bag { items: [Point { x: 1, y: 2 }] }
+    print(f"{numbers.size()} {numbers.has(2)} {numbers.has(9)}")
+    print(f"{words.size()} {words.has("b")}")
+    print(f"{points.has(Point { x: 1, y: 2 })} {points.has(Point { x: 2, y: 1 })}")
+}

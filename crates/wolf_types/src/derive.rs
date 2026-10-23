@@ -77,13 +77,19 @@ impl Checker<'_> {
     pub(crate) fn require(&mut self, ty: &Ty, interface: DefId, span: Span, why: &str) {
         let shown = self.show(ty);
         let iface = self.def_name(interface);
+        // "required by `f`" already says why; "`==`" needs the interface after it.
+        let needs = if why.starts_with("required by") {
+            why.to_string()
+        } else {
+            format!("{why} needs `{iface}`")
+        };
         if self.opaque(ty) {
             self.report(
                 Diagnostic::new(
                     codes::E0707,
                     format!("`{shown}` is an extern type and is not `{iface}`"),
                 )
-                .primary(span, format!("{why} needs `{iface}`"))
+                .primary(span, needs.clone())
                 .note(
                     "an extern type is used only through extern functions (chapter 7, section 8.3)",
                 ),
@@ -98,7 +104,7 @@ impl Checker<'_> {
             };
             if let Err(reason) = self.derived(ty, which, &mut BTreeSet::new()) {
                 let d = Diagnostic::new(codes::E0406, format!("`{shown}` is not `{iface}`"))
-                    .primary(span, format!("{why} needs `{iface}`"));
+                    .primary(span, needs.clone());
                 let d = if matches!(self.infer.resolve(ty), Ty::Param(_)) {
                     d.help(format!(
                         "add the bound where `{shown}` is declared: `{shown}: {iface}`"
