@@ -2419,8 +2419,12 @@ impl<'p> Emitter<'p> {
                 continue;
             }
             let fname = self.name_of(f.def);
-            let method = f.self_mode.is_some() && f.generics.is_empty();
+            let method =
+                f.self_mode.is_some() && f.generics.is_empty() && !self.adds_iface_bounds(f.def);
             let func = if method {
+                // Only a `mut self` method takes a pointer: the value of the type keeps the
+                // other methods, so that it meets the bound of an interface without them.
+                let ptr = ptr && f.self_mode == Some(Mode::Mut);
                 let ty = if ptr {
                     Type::Ptr(Box::new(recv_ty.clone()))
                 } else {
@@ -2444,7 +2448,12 @@ impl<'p> Emitter<'p> {
             recv_ty.clone()
         };
         for (iface, args, f) in self.inherited(&s.implements, &s.methods) {
-            let func = self.delegate((recv.clone(), rty.clone()), &self_ty, iface, &args, f)?;
+            let t = if f.self_mode == Some(Mode::Mut) {
+                rty.clone()
+            } else {
+                recv_ty.clone()
+            };
+            let func = self.delegate((recv.clone(), t), &self_ty, iface, &args, f)?;
             out.push(Decl::Func(func));
         }
         if self.error_types.contains(&s.def) {
@@ -2759,7 +2768,7 @@ impl<'p> Emitter<'p> {
                 }
                 let fname = self.name_of(f.def);
                 let func = if f.self_mode.is_some() && f.generics.is_empty() {
-                    let (ty, local) = if ptr {
+                    let (ty, local) = if ptr && f.self_mode == Some(Mode::Mut) {
                         (
                             Type::Ptr(Box::new(enum_ty.clone())),
                             Local::Ptr(recv.clone()),
@@ -2779,7 +2788,12 @@ impl<'p> Emitter<'p> {
                 enum_ty.clone()
             };
             for (iface, args, f) in self.inherited(&e.implements, &e.methods) {
-                let func = self.delegate((recv.clone(), rty.clone()), &self_ty, iface, &args, f)?;
+                let t = if f.self_mode == Some(Mode::Mut) {
+                    rty.clone()
+                } else {
+                    enum_ty.clone()
+                };
+                let func = self.delegate((recv.clone(), t), &self_ty, iface, &args, f)?;
                 out.push(Decl::Func(func));
             }
             self.iface_copies(e.def, &e.methods, false, &enum_ty, true, out)?;
@@ -5237,7 +5251,15 @@ impl<'p> Emitter<'p> {
                 ..
             } => {
                 let r = recv_expr.ok_or("a default without a receiver")?;
-                let r = self.as_iface(r, &recv.ty);
+                // A `mut self` default changes the place itself, not a copy of it.
+                let in_place = info.self_mode == Some(Mode::Mut)
+                    && matches!(&recv.ty, IrType::Named(d, _)
+                        if self.ptr_recv.contains(d) && !self.ifaces.contains_key(d));
+                let r = if in_place {
+                    self.ptr_to(r)
+                } else {
+                    self.as_iface(r, &recv.ty)
+                };
                 let targs = self.iface_targs(*interface, &recv.ty)?;
                 let fname = self.default_fn_name(*interface, name);
                 let callee = match self.qualifier(*interface) {
@@ -5341,6 +5363,38 @@ impl<'p> Emitter<'p> {
         Ok(out)
     }
 
+    /// Whether a method adds a bound by a user interface to the type's parameters (a `where`
+    /// or the head of its block): a Go method cannot constrain them, so it is a function of the
+    /// package (spec chapter 4, section 8.6).
+    fn adds_iface_bounds(&self, method: DefRef) -> bool {
+        let Some(info) = self.fns.get(&method) else {
+            return false;
+        };
+        let Some(owner) = info.owner else {
+            return false;
+        };
+        let declared = self
+            .structs
+            .get(&owner)
+            .map(|s| &s.generics)
+            .or_else(|| self.enums.get(&owner).map(|e| &e.generics));
+        let builtin = [
+            self.equatable,
+            self.copyable,
+            self.comparable,
+            self.display,
+            self.hashable,
+        ];
+        info.owner_generics.iter().enumerate().any(|(i, g)| {
+            g.bounds.iter().any(|b| {
+                matches!(b, IrType::Named(d, _) if !builtin.contains(&Some(*d)))
+                    && !declared
+                        .and_then(|d| d.get(i))
+                        .is_some_and(|d| d.bounds.contains(b))
+            })
+        })
+    }
+
     /// Whether a method is a Go method (and not a function of the package).
     fn is_go_method(&self, method: DefRef) -> bool {
         let Some(info) = self.fns.get(&method) else {
@@ -5350,6 +5404,9 @@ impl<'p> Emitter<'p> {
             return false;
         };
         if info.self_mode.is_none() || !info.generics.is_empty() {
+            return false;
+        }
+        if self.adds_iface_bounds(method) {
             return false;
         }
         self.structs.contains_key(&owner)
