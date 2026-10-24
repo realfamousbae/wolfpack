@@ -1,0 +1,9 @@
+line2
+line2
+<holder of line2>
+dot
+line7
+holder of line2
+dot
+dot
+line4

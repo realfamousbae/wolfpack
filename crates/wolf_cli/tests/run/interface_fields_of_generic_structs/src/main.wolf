@@ -1,0 +1,85 @@
+//! A field of a generic struct whose type argument is an interface, filled with a concrete value
+//! in a struct literal bound by `let` or `var`: the value is coerced to the interface, also inside
+//! a generic enum and another struct literal, and a generic struct that implements the interface
+//! takes the coerced value.
+
+module main
+
+types {
+    enum Shape {
+        Dot
+        Line(Int)
+    }
+
+    enum Slot<T> {
+        Empty
+        Full(T)
+    }
+
+    struct Holder<T: Step> {
+        item: T
+    }
+
+    struct Cell<T> {
+        value: T
+    }
+}
+
+interfaces {
+    interface Step {
+        fn label(self) -> String
+    }
+}
+
+impl {
+    Shape: Step {
+        fn label(self) -> String {
+            match self {
+                Shape.Dot => "dot"
+                Shape.Line(n) => f"line{n}"
+            }
+        }
+    }
+
+    Holder<T>: Step {
+        fn label(self) -> String {
+            f"holder of {self.item.label()}"
+        }
+    }
+}
+
+main {
+    let h: Holder<Step> = Holder { item: Shape.Line(2) }
+    print(h.item.label())
+    print(show(h))
+    print(describe(h))
+    var v: Holder<Step> = Holder { item: Shape.Dot }
+    print(show(v))
+    v = Holder { item: Shape.Line(7) }
+    print(show(v))
+    let steps: List<Step> = [h, Shape.Dot]
+    for s in steps {
+        print(s.label())
+    }
+    let s: Cell<Slot<Step>> = Cell { value: Slot.Full(Shape.Dot) }
+    print(slot(s))
+    let n: Cell<Holder<Step>> = Cell { value: Holder { item: Shape.Line(4) } }
+    print(show(n.value))
+}
+
+functions {
+    fn show(h: Holder<Step>) -> String {
+        h.item.label()
+    }
+
+    fn describe(x: Step) -> String {
+        f"<{x.label()}>"
+    }
+
+    fn slot(c: Cell<Slot<Step>>) -> String {
+        match c.value {
+            Slot.Full(x) => x.label()
+            Slot.Empty => "empty"
+        }
+    }
+}
