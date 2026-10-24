@@ -2,6 +2,14 @@
 
 All notable changes are recorded here at the end of each milestone.
 
+## Unreleased
+
+- Fixed in the Rust backend: a struct literal of a generic struct bound by `let` or `var` lost
+  the written type, so a field value coerced to an interface (`let h: Holder<Step> = Holder {
+  item: Shape.Line(2) }`, also inside a generic enum or another struct literal) made a
+  `Holder<Box<Shape>>`, and rustc rejected it where a `Holder<Box<dyn Step>>` was expected. The
+  `let` now writes the type, as for a generic variant or call.
+
 ## 0.4.0 (2026-10-24)
 
 - Fixed in the Rust backend: an interface value passed for a type parameter bounded by its
