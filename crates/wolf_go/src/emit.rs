@@ -185,6 +185,14 @@ pub(crate) struct Emitter<'p> {
     pkgs: Vec<Option<Pkg>>,
     /// Types whose methods take a pointer receiver.
     ptr_recv: BTreeSet<DefRef>,
+    /// Interfaces with a `mut self` method, defaults included: the change of such a method must
+    /// reach the place, which the method set of a Go type does not promise for an enum with
+    /// payloads (a variant cannot replace itself) or a type parameter.
+    place_ifaces: BTreeSet<DefRef>,
+    /// Enums with payloads that implement one of `place_ifaces`: the Go name of the type that
+    /// holds a pointer to a variable of the enum and has the methods of those interfaces
+    /// (`shapeRef`).
+    refs: BTreeMap<DefRef, String>,
     /// Fields that make a struct recursive through `Option` or `Result` (`next: Option<Node>`):
     /// they hold a pointer, `*wolfrt.Option[Node]` (struct, field index).
     boxed: BTreeSet<(DefRef, usize)>,
@@ -754,6 +762,8 @@ impl<'p> Emitter<'p> {
             reexported: BTreeMap::new(),
             pkgs: Vec::new(),
             ptr_recv: BTreeSet::new(),
+            place_ifaces: BTreeSet::new(),
+            refs: BTreeMap::new(),
             boxed: BTreeSet::new(),
             error_types: BTreeSet::new(),
             error_iface: None,
@@ -1019,6 +1029,27 @@ impl<'p> Emitter<'p> {
             }
         }
         self.recursion();
+        self.place_ifaces = self
+            .ifaces
+            .values()
+            .filter(|i| i.methods.iter().any(|f| f.self_mode == Some(Mode::Mut)))
+            .map(|i| i.def)
+            .collect();
+        // A type that gets a `mut self` default takes pointer receivers too: the default's
+        // methods count as its own (spec chapter 4, section 8.3, rule 4).
+        let mut ptr = Vec::new();
+        for s in self.structs.values() {
+            if self.gets_mut_default(&s.implements, &s.methods) {
+                ptr.push(s.def);
+            }
+        }
+        for e in self.enums.values() {
+            let plain = e.variants.iter().all(|v| v.payload.is_empty());
+            if plain && self.gets_mut_default(&e.implements, &e.methods) {
+                ptr.push(e.def);
+            }
+        }
+        self.ptr_recv.extend(ptr);
         // The runtime's `Equal` and `Copy` call the generated methods of the type arguments.
         let owners = self
             .structs
@@ -1047,6 +1078,25 @@ impl<'p> Emitter<'p> {
             }
             set.insert(n.clone());
             self.names.insert(def, n);
+        }
+        let with_refs: Vec<(DefRef, usize, String)> = self
+            .enums
+            .values()
+            .filter(|e| !self.place_impls(&e.implements).is_empty())
+            .filter(|e| !e.variants.iter().all(|v| v.payload.is_empty()))
+            .filter_map(|e| {
+                let index = self.def_module(e.def)?;
+                Some((e.def, index, case(&format!("{}Ref", e.name), e.public)))
+            })
+            .collect();
+        for (def, index, name) in with_refs {
+            let set = taken.entry(index).or_default();
+            let mut n = name;
+            while set.contains(&n) {
+                n.push('_');
+            }
+            set.insert(n.clone());
+            self.refs.insert(def, n);
         }
         // Types that implement `Error`.
         if let Some(err) = self.error_iface {
@@ -2666,6 +2716,24 @@ impl<'p> Emitter<'p> {
         out
     }
 
+    /// Whether a type gets a `mut self` default from one of the interfaces in `implements`.
+    fn gets_mut_default(&self, implements: &[IrType], own: &[ir::Function]) -> bool {
+        self.inherited(implements, own)
+            .iter()
+            .any(|(_, _, f)| f.self_mode == Some(Mode::Mut))
+    }
+
+    /// The interfaces in `implements` that have a `mut self` method, with their type arguments.
+    fn place_impls(&self, implements: &[IrType]) -> Vec<(DefRef, Vec<IrType>)> {
+        implements
+            .iter()
+            .filter_map(|t| match t {
+                IrType::Named(i, args) if self.place_ifaces.contains(i) => Some((*i, args.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// A method `recv` of type `recv_ty` that calls the default `f` of the interface `iface`
     /// with the type arguments `args`.
     fn delegate(
@@ -2817,10 +2885,17 @@ impl<'p> Emitter<'p> {
             Vec::new(),
             Vec::new(),
         )];
+        // The methods of interfaces with `mut self` methods are those of the ref type instead: a
+        // variant cannot replace itself.
+        let places: Vec<DefRef> = self
+            .place_impls(&e.implements)
+            .into_iter()
+            .map(|(i, _)| i)
+            .collect();
         let iface_methods: Vec<&ir::Function> = e
             .methods
             .iter()
-            .filter(|f| f.interface.is_some() && f.self_mode.is_some())
+            .filter(|f| f.interface.is_some_and(|i| !places.contains(&i)) && f.self_mode.is_some())
             .collect();
         let mut sigs = Vec::new();
         for f in &iface_methods {
@@ -2838,7 +2913,10 @@ impl<'p> Emitter<'p> {
             ));
             sigs.push((f.def, mname, params, results));
         }
-        let inherited = self.inherited(&e.implements, &e.methods);
+        let (place_inherited, inherited): (Vec<_>, Vec<_>) = self
+            .inherited(&e.implements, &e.methods)
+            .into_iter()
+            .partition(|(i, _, _)| places.contains(i));
         for (iface, args, f) in &inherited {
             let d = self.delegate(
                 ("x".to_string(), enum_ty.clone()),
@@ -3001,7 +3079,152 @@ impl<'p> Emitter<'p> {
             let func = self.function(f, fname, None, &e.generics, Some(&self_ty))?;
             out.push(Decl::Func(func));
         }
+        if let Some(rname) = self.refs.get(&e.def).cloned() {
+            self.ref_item(e, &rname, &places, &place_inherited, out)?;
+        }
         Ok(())
+    }
+
+    /// The ref type of an enum with payloads (see `refs`): a pointer to a variable of the enum,
+    /// with the methods of the interfaces with `mut self` methods that the enum implements. A
+    /// value of such an interface, and the view of a type parameter bounded by one, is a ref.
+    fn ref_item(
+        &mut self,
+        e: &'p ir::Enum,
+        rname: &str,
+        places: &[DefRef],
+        inherited: &[(DefRef, Vec<IrType>, &'p ir::Function)],
+        out: &mut Vec<Decl>,
+    ) -> Result<(), Error> {
+        let tparams = self.tparams(&e.generics)?;
+        let targs: Vec<Type> = e.generics.iter().map(|g| Type::name(&g.name)).collect();
+        let args: Vec<IrType> = e
+            .generics
+            .iter()
+            .map(|g| IrType::Param(g.name.clone()))
+            .collect();
+        let self_ty = IrType::Named(e.def, args);
+        let enum_ty = self.ty(&self_ty)?;
+        let field = case("p", e.public);
+        let names: Vec<String> = places
+            .iter()
+            .filter_map(|i| self.p.def(*i).map(|d| format!("`{}`", d.name)))
+            .collect();
+        out.push(Decl::Struct {
+            docs: vec![format!(
+                "{rname} points to a variable of `{}`: the variable as a value of {}.",
+                e.name,
+                names.join(" and ")
+            )],
+            name: rname.to_string(),
+            tparams,
+            fields: vec![Field {
+                docs: Vec::new(),
+                name: field.clone(),
+                ty: Type::Ptr(Box::new(enum_ty)),
+            }],
+        });
+        let methods: Vec<&ir::Function> = e
+            .methods
+            .iter()
+            .filter(|f| f.interface.is_some_and(|i| places.contains(&i)) && f.self_mode.is_some())
+            .collect();
+        // The receiver must not be the name of a parameter.
+        let taken = methods
+            .iter()
+            .copied()
+            .chain(inherited.iter().map(|(_, _, f)| *f))
+            .any(|f| f.params.iter().any(|p| local_name_of(&p.name) == "r"));
+        let recv = if taken { "self" } else { "r" };
+        let rty = Type::Name(None, rname.to_string(), targs.clone());
+        for f in methods {
+            let mut params = Vec::new();
+            for p in &f.params {
+                params.push((local_name_of(&p.name), self.param_ty(p.mode, &p.ty)?));
+            }
+            let results = self.results(&f.ret)?;
+            let place = sel(id(recv), &field);
+            let this = if f.self_mode == Some(Mode::Mut) {
+                place
+            } else {
+                star(place)
+            };
+            let mut all = vec![this];
+            all.extend(params.iter().map(|(n, _)| id(n)));
+            let fname = self.name_of(f.def);
+            let c = callt(id(&fname), targs.clone(), all);
+            let body = if results.is_empty() {
+                vec![Stmt::Expr(c)]
+            } else {
+                vec![Stmt::Return(vec![c])]
+            };
+            out.push(Decl::Func(Func {
+                docs: Vec::new(),
+                recv: Some((recv.to_string(), rty.clone())),
+                name: self.name_of_method(f),
+                tparams: Vec::new(),
+                params,
+                results,
+                body,
+            }));
+        }
+        for (iface, args, f) in inherited {
+            let d = self.delegate((recv.to_string(), rty.clone()), &self_ty, *iface, args, f)?;
+            out.push(Decl::Func(d));
+        }
+        Ok(())
+    }
+
+    /// The ref of the variable `ptr` points to, for an enum with payloads of type `t` (see
+    /// `refs`).
+    fn enum_ref(&mut self, ptr: Expr, t: &IrType) -> Result<Expr, Error> {
+        let IrType::Named(def, args) = t else {
+            return Err("a ref of a type that is not an enum".to_string());
+        };
+        let name = self
+            .refs
+            .get(def)
+            .cloned()
+            .ok_or("an enum without a ref type")?;
+        let mut targs = Vec::new();
+        for a in args {
+            targs.push(self.ty(a)?);
+        }
+        // The ref lives in the package of the enum, also where the enum is re-exported.
+        let path = self
+            .def_module(*def)
+            .and_then(|m| self.pkg_path(m))
+            .filter(|p| *p != self.current_path());
+        if let Some(p) = &path {
+            self.file.imports.insert(p.clone());
+        }
+        let public = self.enums.get(def).is_some_and(|e| e.public);
+        let ty = Type::Name(path, name, targs);
+        Ok(Expr::Composite(ty, vec![(Some(case("p", public)), ptr)]))
+    }
+
+    /// Whether a value of type `t` reaches the methods of `iface` through its ref: `t` is an
+    /// enum with payloads and `iface` has a `mut self` method.
+    fn has_ref(&self, t: &IrType, iface: DefRef) -> bool {
+        self.payload_enum(t) && self.place_ifaces.contains(&iface)
+    }
+
+    /// A pointer to the receiver `r` of an enum with payloads of type `t`: a `mut self` receiver
+    /// already is one; the address of a local is taken as it is, since the method only reads it.
+    fn recv_ptr(&mut self, r: Expr, mode: Option<Mode>, t: &IrType) -> Result<Expr, Error> {
+        Ok(match (mode, r) {
+            (Some(Mode::Mut), r) => r,
+            (_, Expr::Ident(n)) => addr(id(&n)),
+            (_, r) => self.enum_ptr(r, t)?,
+        })
+    }
+
+    /// A pointer to a new variable that holds the value `v` of the enum type `t`. The type is
+    /// written, since a variant has the type of its struct.
+    fn enum_ptr(&mut self, v: Expr, t: &IrType) -> Result<Expr, Error> {
+        let ty = self.ty(t)?;
+        let f = self.rt("Option", "Ptr");
+        Ok(callt(f, vec![ty], vec![v]))
     }
 
     /// The Go name of a method: interface methods are always exported.
@@ -4692,7 +4915,12 @@ impl<'p> Emitter<'p> {
                         return data(self.rt_call("Text", "NewShown", vec![v, f]));
                     }
                 }
-                if let IrType::Named(d, _) = &value.ty {
+                if let (IrType::Named(d, _), IrType::Named(i, _)) = (&value.ty, to) {
+                    // A new variable: the interface value is a value of its own.
+                    if self.has_ref(&value.ty, *i) {
+                        let ptr = self.enum_ptr(v, &value.ty)?;
+                        return data(self.enum_ref(ptr, &value.ty)?);
+                    }
                     if self.ptr_recv.contains(d) && self.structs.contains_key(d) {
                         return data(self.ptr_to(v));
                     }
@@ -5255,8 +5483,11 @@ impl<'p> Emitter<'p> {
                 let in_place = info.self_mode == Some(Mode::Mut)
                     && matches!(&recv.ty, IrType::Named(d, _)
                         if self.ptr_recv.contains(d) && !self.ifaces.contains_key(d));
-                let r = if in_place {
-                    self.ptr_to(r)
+                let r = if self.has_ref(&recv.ty, *interface) {
+                    let ptr = self.recv_ptr(r, info.self_mode, &recv.ty)?;
+                    self.enum_ref(ptr, &recv.ty)?
+                } else if in_place {
+                    addr(r)
                 } else {
                     self.as_iface(r, &recv.ty)
                 };
@@ -5279,10 +5510,16 @@ impl<'p> Emitter<'p> {
                 if is_go_method {
                     let name = self.name_of(*method);
                     call(sel(unstar(r), &name), all)
-                } else if info.interface.is_some() && self.p.def(*method).is_some() && {
-                    let owner = info.owner;
-                    owner.is_some_and(|o| self.enums.contains_key(&o))
-                } {
+                } else if info.interface.is_some()
+                    && !info
+                        .interface
+                        .is_some_and(|i| self.place_ifaces.contains(&i))
+                    && self.p.def(*method).is_some()
+                    && {
+                        let owner = info.owner;
+                        owner.is_some_and(|o| self.enums.contains_key(&o))
+                    }
+                {
                     // An interface method of an enum with payloads: call the interface method.
                     let d = self.p.def(*method).ok_or("method")?;
                     let name = value_name(&d.name, true);
@@ -5294,8 +5531,16 @@ impl<'p> Emitter<'p> {
                     callt(f, targs, a)
                 }
             }
-            Callee::Interface { name, .. } => {
-                let r = recv_expr.ok_or("a method without a receiver")?;
+            Callee::Interface {
+                interface,
+                name,
+                recv,
+            } => {
+                let mut r = recv_expr.ok_or("a method without a receiver")?;
+                if self.has_ref(&recv.ty, *interface) {
+                    let ptr = self.recv_ptr(r, info.self_mode, &recv.ty)?;
+                    r = self.enum_ref(ptr, &recv.ty)?;
+                }
                 call(sel(r, &value_name(name, true)), all)
             }
             Callee::Value(f) => {
