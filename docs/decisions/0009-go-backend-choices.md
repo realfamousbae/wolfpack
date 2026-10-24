@@ -1,7 +1,8 @@
 # 0009: Choices of the Go backend
 
 Status: accepted (author, 2026-10-13). Items 1 and 2 changed the text of chapter 8; the other
-items are [INTERNAL] choices recorded so that the author can object.
+items are [INTERNAL] choices recorded so that the author can object. Item 10 was added on
+2026-10-24, also [INTERNAL].
 
 ## Decision
 
@@ -28,6 +29,18 @@ items are [INTERNAL] choices recorded so that the author can object.
    the panic message on a marked line. Tests are ordered by the order of the source, not by Go.
 9. **`wolf run` builds with `go build -o out/go/bin/<name>`** and runs the binary, with
    `GOTOOLCHAIN=local` and `GOWORK=off`.
+10. **A bound by an interface with a `mut self` method is a dictionary of views**, not a
+    constraint: `T: Step` is a parameter `asStepT func(*T) step` that gives the place of a value
+    as a value of the interface, whose methods change the place. It is
+    `func(p *light) step { return p }` for a struct or a payload-less enum, the ref of an enum
+    with payloads, and `*p` for an interface value. An interface implementation, which keeps the
+    signature of the interface, finds it at run time instead (`wolfrt.As[step, T]`). An enum with
+    payloads that implements such an interface has a **ref type**, `shapeRef{p *shape}`, with the
+    methods of those interfaces; the enum's own Go interface does not have them, and a value of
+    the interface is a ref to a new variable. An interface that mentions `Self` beyond the
+    receiver takes the implementing type as its last type parameter (`cycle[Self]`): a bound by
+    it is the constraint `T weigh[int64, T]`, or the dictionary `func(*T) cycle[T]` when it has
+    a `mut self` method, and its defaults are generic over `Self`.
 
 ## Reasons
 
@@ -51,6 +64,12 @@ items are [INTERNAL] choices recorded so that the author can object.
 8. `go vet` compiles every package with its tests; a failure is a compiler bug (E0802). The JSON
    events give the result of each test without parsing the human output of `go test`.
 9. `go run` replaces the exit code of the program by its own.
+10. Only the pointer of a type has its `mut self` methods, so no constraint on `T` holds them.
+    Go's `[T any, PT interface{ *T; step }]` covers structs and payload-less enums, but an enum
+    with payloads is a Go interface: a pointer to an interface has no methods, and a variant
+    cannot replace itself in the variable. A dictionary covers every type, as chapter 8, section
+    5.3 has it for Go bounds; the ref is the one type an enum with payloads needs, both for its
+    values of the interface and for its dictionaries.
 
 ## Consequences
 
