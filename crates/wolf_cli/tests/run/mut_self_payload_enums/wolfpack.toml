@@ -1,0 +1,4 @@
+[package]
+name = "mut-self-payload-enums"
+version = "0.1.0"
+kind = "cli"

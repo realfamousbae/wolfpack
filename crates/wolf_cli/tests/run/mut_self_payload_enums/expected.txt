@@ -1,0 +1,14 @@
+line1
+box2x1
+box2x3
+box2x8
+box12x9
+box2x1
+box2x1 box2x1
+line2 box2x2
+box2x4 green 2
+red blue
+full
+empty
+full
+empty

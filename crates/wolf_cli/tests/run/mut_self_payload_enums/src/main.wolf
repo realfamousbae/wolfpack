@@ -1,0 +1,174 @@
+//! An enum with payloads that implements an interface with `mut self` methods: the methods and
+//! the default replace the value, called on the enum, by the interface's name, from its own
+//! methods, on interface values, on elements of lists, on a field, and for a generic enum. The
+//! default called by the interface's name changes a field, an element and a `mut` parameter of
+//! a payload-less enum too.
+
+module main
+
+types {
+    enum Shape {
+        Dot
+        Line(Int)
+        Box { w: Int, h: Int }
+    }
+
+    enum Slot<T> {
+        Empty
+        Full(T)
+    }
+
+    enum Light {
+        Red
+        Green
+        Blue
+    }
+
+    struct Canvas {
+        shape: Shape
+        light: Light
+        moves: Int
+    }
+}
+
+interfaces {
+    interface Step {
+        fn step(mut self)
+        fn label(self) -> String
+
+        fn twice(mut self) {
+            self.step()
+            self.step()
+        }
+    }
+}
+
+impl {
+    Shape: Step {
+        fn step(mut self) {
+            self = match self {
+                Shape.Dot => Shape.Line(1)
+                Shape.Line(n) => if n < 2 { Shape.Line(n + 1) } else { Shape.Box { w: n, h: 1 } }
+                Shape.Box { w, h } => Shape.Box { w: w, h: h + 1 }
+            }
+        }
+
+        fn label(self) -> String {
+            match self {
+                Shape.Dot => "dot"
+                Shape.Line(n) => f"line{n}"
+                Shape.Box { w, h } => f"box{w}x{h}"
+            }
+        }
+    }
+
+    Shape {
+        fn grow(mut self) {
+            self.step()
+            self.twice()
+            Step.twice(mut self)
+        }
+
+        fn widen(mut self) {
+            match mut self {
+                Shape.Box { w, .. } => {
+                    w += 10
+                }
+                _ => {}
+            }
+            self.step()
+        }
+    }
+
+    Light: Step {
+        fn step(mut self) {
+            self = match self {
+                Light.Red => Light.Green
+                Light.Green => Light.Blue
+                Light.Blue => Light.Red
+            }
+        }
+
+        fn label(self) -> String {
+            match self {
+                Light.Red => "red"
+                Light.Green => "green"
+                Light.Blue => "blue"
+            }
+        }
+    }
+
+    Slot<T>: Step {
+        fn step(mut self) {
+            self = Slot.Empty
+        }
+
+        fn label(self) -> String {
+            match self {
+                Slot.Empty => "empty"
+                Slot.Full(_) => "full"
+            }
+        }
+    }
+
+    Canvas {
+        fn paint(mut self) {
+            self.shape.step()
+            self.shape.twice()
+            Step.twice(mut self.light)
+            self.moves += 1
+        }
+    }
+}
+
+main {
+    var s = Shape.Dot
+    s.step()
+    print(s.label())
+    s.twice()
+    print(s.label())
+    Step.twice(mut s)
+    print(s.label())
+    s.grow()
+    print(s.label())
+    s.widen()
+    print(s.label())
+    var v: Step = Shape.Dot
+    v.step()
+    v.twice()
+    print(v.label())
+    var steps: List<Step> = [Shape.Line(2), Shape.Dot]
+    for x in mut steps {
+        x.step()
+    }
+    steps[1].twice()
+    print(f"{steps[0].label()} {steps[1].label()}")
+    var shapes = [Shape.Dot, Shape.Line(1)]
+    shapes[0].twice()
+    shapes[1].step()
+    Step.twice(mut shapes[1])
+    print(f"{shapes[0].label()} {shapes[1].label()}")
+    var c = Canvas { shape: Shape.Dot, light: Light.Red, moves: 0 }
+    c.paint()
+    c.paint()
+    print(f"{c.shape.label()} {c.light.label()} {c.moves}")
+    var lights = [Light.Red, Light.Green]
+    Step.twice(mut lights[1])
+    var light = Light.Red
+    twice_light(mut light)
+    print(f"{lights[1].label()} {light.label()}")
+    var slot = Slot.Full(3)
+    print(slot.label())
+    slot.step()
+    print(slot.label())
+    var held: Step = Slot.Full("x")
+    print(held.label())
+    held.twice()
+    print(held.label())
+}
+
+functions {
+    fn twice_light(mut l: Light) {
+        Step.twice(mut l)
+    }
+}
