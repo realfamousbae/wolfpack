@@ -1,8 +1,8 @@
 # 0009: Choices of the Go backend
 
 Status: accepted (author, 2026-10-13). Items 1 and 2 changed the text of chapter 8; the other
-items are [INTERNAL] choices recorded so that the author can object. Item 10 was added on
-2026-10-24, also [INTERNAL].
+items are [INTERNAL] choices recorded so that the author can object. Items 10 and 11 were added
+on 2026-10-24, also [INTERNAL].
 
 ## Decision
 
@@ -41,6 +41,12 @@ items are [INTERNAL] choices recorded so that the author can object. Item 10 was
     receiver takes the implementing type as its last type parameter (`cycle[Self]`): a bound by
     it is the constraint `T weigh[int64, T]`, or the dictionary `func(*T) cycle[T]` when it has
     a `mut self` method, and its defaults are generic over `Self`.
+11. **Bounds that Go cannot state are found at run time.** A bound by an interface of the
+    program that only the head of an implementation adds (`Bag<T: Named>: Named` with
+    `struct Bag<T>`) leaves the method a Go method, which the interface needs, and finds the
+    value as a value of the interface with `wolfrt.As[named, T]`. The type parameters of an
+    interface have no constraints by interfaces of the program (`type holds[T any] interface`),
+    and its defaults find those bounds the same way.
 
 ## Reasons
 
@@ -70,6 +76,9 @@ items are [INTERNAL] choices recorded so that the author can object. Item 10 was
     cannot replace itself in the variable. A dictionary covers every type, as chapter 8, section
     5.3 has it for Go bounds; the ref is the one type an enum with payloads needs, both for its
     values of the interface and for its dictionaries.
+11. A Go method cannot constrain the type parameters of its receiver, and `bag[T any]` cannot
+    name `holds[T]` when `holds` requires `T named`. The program's type checker has already
+    checked the bounds, so the assertion of `wolfrt.As` cannot fail.
 
 ## Consequences
 
