@@ -1927,6 +1927,25 @@ func (r Result[T, E]) Copy(copyT func(T) T, copyE func(E) E) Result[T, E] {
 }"#,
     },
     Piece {
+        name: "As",
+        deps: &[],
+        imports: &[],
+        code: r#"// As is the variable p as a value of the interface I with `mut self` methods that its type
+// implements: the dictionary of a type parameter bounded by I in an interface implementation
+// (see Show), whose methods change the variable. A pointer to a struct or to an enum without
+// payloads has the methods of I, an enum with payloads gives its ref, and an interface value is
+// a value of I itself.
+func As[I, T any](p *T) I {
+	if v, ok := any(p).(I); ok {
+		return v
+	}
+	if e, ok := any(*p).(interface{ Ref(p any) any }); ok {
+		return e.Ref(p).(I)
+	}
+	return any(*p).(I)
+}"#,
+    },
+    Piece {
         name: "FsError",
         deps: &[],
         imports: &[],

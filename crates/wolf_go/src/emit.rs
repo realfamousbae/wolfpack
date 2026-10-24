@@ -75,6 +75,9 @@ enum Dict {
     Cmp,
     /// `Display`: `func(T) string`.
     Show,
+    /// An interface with `mut self` methods (`place_ifaces`): `func(*T) I`, the view of a place
+    /// as a value of the interface, whose methods change the place.
+    View(DefRef),
 }
 
 /// Where the dictionary of a bound of a type parameter comes from.
@@ -127,6 +130,9 @@ struct FnState {
     self_local: Option<Local>,
     /// Dictionaries in scope: type parameter and bound to where the dictionary comes from.
     dicts: BTreeMap<(String, Dict), DictFrom>,
+    /// The bounds of the `Dict::View` dictionaries in scope, by type parameter and interface,
+    /// with their type arguments.
+    bounds: BTreeMap<(String, DefRef), IrType>,
     loops: Vec<Loop>,
     switches: usize,
 }
@@ -193,6 +199,10 @@ pub(crate) struct Emitter<'p> {
     /// holds a pointer to a variable of the enum and has the methods of those interfaces
     /// (`shapeRef`).
     refs: BTreeMap<DefRef, String>,
+    /// Whether an interface implementation finds the dictionary of a bound by one of
+    /// `place_ifaces` at run time (`wolfrt.As`): the variants of enums with refs then give
+    /// them.
+    uses_as: bool,
     /// Fields that make a struct recursive through `Option` or `Result` (`next: Option<Node>`):
     /// they hold a pointer, `*wolfrt.Option[Node]` (struct, field index).
     boxed: BTreeSet<(DefRef, usize)>,
@@ -764,6 +774,7 @@ impl<'p> Emitter<'p> {
             ptr_recv: BTreeSet::new(),
             place_ifaces: BTreeSet::new(),
             refs: BTreeMap::new(),
+            uses_as: false,
             boxed: BTreeSet::new(),
             error_types: BTreeSet::new(),
             error_iface: None,
@@ -1050,6 +1061,14 @@ impl<'p> Emitter<'p> {
             }
         }
         self.ptr_recv.extend(ptr);
+        self.uses_as = self
+            .structs
+            .values()
+            .flat_map(|s| &s.methods)
+            .chain(self.enums.values().flat_map(|e| &e.methods))
+            .filter(|f| f.interface.is_some())
+            .flat_map(|f| f.impl_bounds.iter().flatten())
+            .any(|b| matches!(b, IrType::Named(i, _) if self.place_ifaces.contains(i)));
         // The runtime's `Equal` and `Copy` call the generated methods of the type arguments.
         let owners = self
             .structs
@@ -1444,7 +1463,10 @@ impl<'p> Emitter<'p> {
                     parts.push(Type::name("comparable"));
                 } else if [self.equatable, self.copyable, self.comparable, self.display]
                     .contains(&Some(*def))
+                    || self.place_ifaces.contains(def)
                 {
+                    // Dictionaries: Go has no constraint for them (a pointer of the type
+                    // argument has the `mut self` methods).
                     continue;
                 } else {
                     parts.push(self.ty(b)?);
@@ -1464,19 +1486,18 @@ impl<'p> Emitter<'p> {
     fn dict_params(&mut self, generics: &[ir::Generic]) -> Result<Vec<(String, Type)>, Error> {
         let mut out = Vec::new();
         for g in generics {
+            self.note_bounds(g);
             for d in self.dicts_of(&g.bounds) {
                 let t = IrType::Param(g.name.clone());
                 let ty = self.dict_ty(d, &t)?;
-                let name = self.fresh(&format!(
-                    "{}{}",
-                    match d {
-                        Dict::Eq => "eq",
-                        Dict::Copy => "copy",
-                        Dict::Cmp => "cmp",
-                        Dict::Show => "show",
-                    },
-                    g.name
-                ));
+                let prefix = match d {
+                    Dict::Eq => "eq".to_string(),
+                    Dict::Copy => "copy".to_string(),
+                    Dict::Cmp => "cmp".to_string(),
+                    Dict::Show => "show".to_string(),
+                    Dict::View(i) => format!("as{}", self.iface_name(i)),
+                };
+                let name = self.fresh(&format!("{prefix}{}", g.name));
                 self.f
                     .dicts
                     .insert((g.name.clone(), d), DictFrom::Param(name.clone()));
@@ -1490,10 +1511,32 @@ impl<'p> Emitter<'p> {
     /// are found at run time from the type argument.
     fn runtime_dicts(&mut self, generics: &[ir::Generic]) {
         for g in generics {
+            self.note_bounds(g);
             for d in self.dicts_of(&g.bounds) {
                 self.f.dicts.insert((g.name.clone(), d), DictFrom::Runtime);
             }
         }
+    }
+
+    /// Notes the bounds of `g` that get a `Dict::View`, for the types of their dictionaries.
+    fn note_bounds(&mut self, g: &ir::Generic) {
+        for b in &g.bounds {
+            if let IrType::Named(i, _) = b {
+                if self.place_ifaces.contains(i) {
+                    self.f.bounds.insert((g.name.clone(), *i), b.clone());
+                }
+            }
+        }
+    }
+
+    /// The name of an interface in the names of dictionaries: `Step` in `asStepT`.
+    fn iface_name(&self, iface: DefRef) -> String {
+        let name = self
+            .p
+            .def(iface)
+            .map(|d| d.name.clone())
+            .unwrap_or_default();
+        case(&camel(&name), true)
     }
 
     /// The dictionary of a bound of the type parameter `n`, if it is in scope.
@@ -1506,10 +1549,72 @@ impl<'p> Emitter<'p> {
                     Dict::Copy => ("Copy", "Copy"),
                     Dict::Cmp => ("Compare", "Compare"),
                     Dict::Show => ("Show", "Show"),
+                    Dict::View(i) => {
+                        let t = IrType::Param(n.to_string());
+                        let bound = self.view_bound(i, &t);
+                        let view = self.view_ty(&bound, &t).ok()?;
+                        let f = self.rt("As", "As");
+                        return Some(Expr::Inst(Box::new(f), vec![view, Type::name(n)]));
+                    }
                 };
                 let f = self.rt(piece, name);
                 Some(Expr::Inst(Box::new(f), vec![Type::name(n)]))
             }
+        }
+    }
+
+    /// The bound by the interface `iface` with `mut self` methods that a value of type `t` meets:
+    /// that of the type parameter, or the interface with the type arguments of the
+    /// implementation of `t`.
+    fn view_bound(&self, iface: DefRef, t: &IrType) -> IrType {
+        if let IrType::Param(n) = t {
+            if let Some(b) = self.f.bounds.get(&(n.clone(), iface)) {
+                return b.clone();
+            }
+        }
+        IrType::Named(iface, self.iface_args(iface, t))
+    }
+
+    /// The Go type of the view of a place of type `of` as a value of the interface `bound`.
+    fn view_ty(&mut self, bound: &IrType, _of: &IrType) -> Result<Type, Error> {
+        self.ty(bound)
+    }
+
+    /// The dictionary of the interface `iface` with `mut self` methods for the type `t`: that of
+    /// a type parameter, or `func(p *T) I` that gives the place `p` as a value of the interface.
+    /// A pointer to a struct or to an enum without payloads has the methods; an enum with
+    /// payloads has its ref; an interface value is a value of the interface itself.
+    fn view_fn(&mut self, iface: DefRef, t: &IrType) -> Result<Expr, Error> {
+        if let IrType::Param(n) = t {
+            return self
+                .param_dict(n, Dict::View(iface))
+                .ok_or_else(|| format!("no dictionary of `{n}` in scope"));
+        }
+        let bound = self.view_bound(iface, t);
+        let view = self.view_ty(&bound, t)?;
+        let ty = self.ty(t)?;
+        let p = id("p");
+        let body = match t {
+            IrType::Named(d, _) if self.ifaces.contains_key(d) => star(p),
+            _ if self.payload_enum(t) => self.enum_ref(p, t)?,
+            _ => p,
+        };
+        Ok(Expr::FuncLit(
+            vec![("p".to_string(), Type::Ptr(Box::new(ty)))],
+            vec![view],
+            vec![Stmt::Return(vec![body])],
+        ))
+    }
+
+    /// The dictionary that gives the view of a receiver of type `t` for a method of `iface`: a
+    /// type parameter bounded by an interface with `mut self` methods.
+    fn recv_view(&mut self, iface: DefRef, t: &IrType) -> Option<Expr> {
+        if !self.place_ifaces.contains(&iface) {
+            return None;
+        }
+        match t {
+            IrType::Param(n) => self.param_dict(n, Dict::View(iface)),
+            _ => None,
         }
     }
 
@@ -1635,6 +1740,8 @@ impl<'p> Emitter<'p> {
                 out.push(Dict::Cmp);
             } else if Some(*def) == self.display {
                 out.push(Dict::Show);
+            } else if self.place_ifaces.contains(def) {
+                out.push(Dict::View(*def));
             }
         }
         out
@@ -1650,6 +1757,11 @@ impl<'p> Emitter<'p> {
                 Type::Func(vec![g.clone(), g], vec![o])
             }
             Dict::Show => Type::Func(vec![g], vec![Type::name("string")]),
+            Dict::View(i) => {
+                let bound = self.view_bound(i, t);
+                let view = self.view_ty(&bound, t)?;
+                Type::Func(vec![Type::Ptr(Box::new(g))], vec![view])
+            }
         })
     }
 
@@ -1660,6 +1772,7 @@ impl<'p> Emitter<'p> {
             Dict::Copy => self.copy_fn(t),
             Dict::Cmp => self.cmp_fn(t),
             Dict::Show => self.show_fn(t),
+            Dict::View(i) => self.view_fn(i, t),
         }
     }
 
@@ -2995,6 +3108,20 @@ impl<'p> Emitter<'p> {
                 results: Vec::new(),
                 body: Vec::new(),
             }));
+            if self.uses_as && self.refs.contains_key(&e.def) {
+                // `wolfrt.As` finds the ref of a variable of the enum through the value it holds.
+                let target = Expr::Assert(Box::new(id("p")), Type::Ptr(Box::new(enum_ty.clone())));
+                let r = self.enum_ref(target, &self_ty)?;
+                out.push(Decl::Func(Func {
+                    docs: Vec::new(),
+                    recv: Some((String::new(), vty.clone())),
+                    name: "Ref".to_string(),
+                    tparams: Vec::new(),
+                    params: vec![("p".to_string(), Type::name("any"))],
+                    results: vec![Type::name("any")],
+                    body: vec![Stmt::Return(vec![r])],
+                }));
+            }
             for (def, mname, params, results) in &sigs {
                 let fname = self.name_of(*def);
                 let mut args = vec![id("x")];
@@ -5370,12 +5497,25 @@ impl<'p> Emitter<'p> {
                 return Ok((call(f, vs), Form::Data));
             }
         }
-        // The receiver.
+        // The receiver. A type parameter bounded by an interface with `mut self` methods is
+        // reached through the view of its place.
+        let view = match callee {
+            Callee::Interface {
+                interface, recv, ..
+            }
+            | Callee::Default {
+                interface, recv, ..
+            } => self.recv_view(*interface, &recv.ty),
+            _ => None,
+        };
         let recv_expr = match (callee, recv) {
             (_, Some(r)) => {
                 let mode = info.self_mode.unwrap_or(Mode::Read);
                 let payload = self.payload_enum(&r.ty);
-                if mode == Mode::Mut && payload {
+                if let Some(v) = &view {
+                    let ptr = self.mut_arg(r, out)?;
+                    Some(call(v.clone(), vec![ptr]))
+                } else if mode == Mode::Mut && payload {
                     Some(self.mut_arg(r, out)?)
                 } else if mode == Mode::Mut
                     || matches!(&r.ty, IrType::Named(d, _) if self.ptr_recv.contains(d))
@@ -5483,7 +5623,9 @@ impl<'p> Emitter<'p> {
                 let in_place = info.self_mode == Some(Mode::Mut)
                     && matches!(&recv.ty, IrType::Named(d, _)
                         if self.ptr_recv.contains(d) && !self.ifaces.contains_key(d));
-                let r = if self.has_ref(&recv.ty, *interface) {
+                let r = if view.is_some() {
+                    r
+                } else if self.has_ref(&recv.ty, *interface) {
                     let ptr = self.recv_ptr(r, info.self_mode, &recv.ty)?;
                     self.enum_ref(ptr, &recv.ty)?
                 } else if in_place {
@@ -5567,13 +5709,23 @@ impl<'p> Emitter<'p> {
     /// The type arguments of the interface `iface` for a value of type `t`: those of its
     /// implementation, of the interface value, or of the bound.
     fn iface_targs(&mut self, iface: DefRef, t: &IrType) -> Result<Vec<Type>, Error> {
-        let args: Vec<IrType> = match t {
+        let args = self.iface_args(iface, t);
+        let mut out = Vec::new();
+        for a in &args {
+            out.push(self.ty(a)?);
+        }
+        Ok(out)
+    }
+
+    /// The type arguments of the interface `iface` for a value of type `t`, as in `iface_targs`.
+    fn iface_args(&self, iface: DefRef, t: &IrType) -> Vec<IrType> {
+        match t {
             IrType::Named(d, args) if *d == iface => args.clone(),
             IrType::Named(d, targs) => {
                 let (generics, implements) = match (self.structs.get(d), self.enums.get(d)) {
                     (Some(s), _) => (&s.generics, &s.implements),
                     (_, Some(e)) => (&e.generics, &e.implements),
-                    _ => return Ok(Vec::new()),
+                    _ => return Vec::new(),
                 };
                 let mut map = BTreeMap::new();
                 for (g, a) in generics.iter().zip(targs) {
@@ -5600,12 +5752,7 @@ impl<'p> Emitter<'p> {
                 })
                 .unwrap_or_default(),
             _ => Vec::new(),
-        };
-        let mut out = Vec::new();
-        for a in &args {
-            out.push(self.ty(a)?);
         }
-        Ok(out)
     }
 
     /// Whether a method adds a bound by a user interface to the type's parameters (a `where`
