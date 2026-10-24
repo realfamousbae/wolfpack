@@ -1,1 +1,0 @@
-Go: an interface that mentions `Self` beyond the receiver is not supported yet.
