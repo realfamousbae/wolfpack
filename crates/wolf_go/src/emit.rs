@@ -15,9 +15,11 @@
 //!   payload in place.
 //! - Bounds `Equatable`, `Copyable` and `Comparable` are passed as functions (dictionary
 //!   passing, spec chapter 8, section 5.4); `Hashable` is `comparable`, interfaces of the program
-//!   are constraints. An interface implementation keeps the signature of the interface, so the
-//!   bounds of the type's parameters are found at run time from the type argument instead
-//!   (`wolfrt.Show[T]`, `Compare`, `Equal` and `Copy`).
+//!   are constraints, except those with `mut self` methods (dictionaries of views) and those of
+//!   the type parameters of interfaces. An interface implementation keeps the signature of the
+//!   interface, so the bounds of the type's parameters are found at run time from the type
+//!   argument instead (`wolfrt.Show[T]`, `Compare`, `Equal`, `Copy` and `As`), also those that
+//!   only the head of the implementation adds (ADR 0009, items 10 and 11).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -212,6 +214,11 @@ pub(crate) struct Emitter<'p> {
     /// of `place_ifaces` at run time (`wolfrt.As`): the variants of enums with refs then give
     /// them.
     uses_as: bool,
+    /// The type parameters of the interface being declared or whose default is being emitted:
+    /// their bounds by interfaces of the program are no Go constraints (a type that implements
+    /// the interface need not have them where Go can see it), and a default finds them at run
+    /// time (`wolfrt.As`).
+    loose: Vec<String>,
     /// Fields that make a struct recursive through `Option` or `Result` (`next: Option<Node>`):
     /// they hold a pointer, `*wolfrt.Option[Node]` (struct, field index).
     boxed: BTreeSet<(DefRef, usize)>,
@@ -800,6 +807,7 @@ impl<'p> Emitter<'p> {
             refs: BTreeMap::new(),
             self_typed: BTreeSet::new(),
             uses_as: false,
+            loose: Vec::new(),
             boxed: BTreeSet::new(),
             error_types: BTreeSet::new(),
             error_iface: None,
@@ -1512,6 +1520,7 @@ impl<'p> Emitter<'p> {
                 } else if [self.equatable, self.copyable, self.comparable, self.display]
                     .contains(&Some(*def))
                     || self.place_ifaces.contains(def)
+                    || self.loose.contains(&g.name) && self.ifaces.contains_key(def)
                 {
                     // Dictionaries: Go has no constraint for them (a pointer of the type
                     // argument has the `mut self` methods).
@@ -1682,11 +1691,13 @@ impl<'p> Emitter<'p> {
     /// The dictionary that gives the view of a receiver of type `t` for a method of `iface`: a
     /// type parameter bounded by an interface with `mut self` methods.
     fn recv_view(&mut self, iface: DefRef, t: &IrType) -> Option<Expr> {
-        if !self.place_ifaces.contains(&iface) {
-            return None;
-        }
         match self.norm(t) {
-            IrType::Param(n) => self.param_dict(&n, Dict::View(iface)),
+            IrType::Param(n)
+                if self.place_ifaces.contains(&iface)
+                    || self.f.dicts.contains_key(&(n.clone(), Dict::View(iface))) =>
+            {
+                self.param_dict(&n, Dict::View(iface))
+            }
             _ => None,
         }
     }
@@ -2824,7 +2835,11 @@ impl<'p> Emitter<'p> {
             return Ok(());
         }
         let self_typed = self.self_typed.contains(&i.def);
-        let mut tparams = self.tparams(&i.generics)?;
+        let loose: Vec<String> = i.generics.iter().map(|g| g.name.clone()).collect();
+        let outer_loose = std::mem::replace(&mut self.loose, loose);
+        let tparams = self.tparams(&i.generics);
+        self.loose = outer_loose;
+        let mut tparams = tparams?;
         if self_typed {
             tparams.push(("Self".to_string(), Type::name("any")));
         }
@@ -2883,7 +2898,10 @@ impl<'p> Emitter<'p> {
             let name = self.default_fn_name(i.def, &f.name);
             let outer = std::mem::replace(&mut self.self_iface, self_iface.clone());
             let outer_param = std::mem::replace(&mut self.self_param, self_typed);
+            let loose: Vec<String> = i.generics.iter().map(|g| g.name.clone()).collect();
+            let outer_loose = std::mem::replace(&mut self.loose, loose);
             let func = self.function(f, name, None, &generics, Some(&self_ty));
+            self.loose = outer_loose;
             self.self_iface = outer;
             self.self_param = outer_param;
             let mut func = func?;
@@ -4045,6 +4063,23 @@ impl<'p> Emitter<'p> {
                 .into_iter()
                 .partition(|g| self.self_param && g.name == "Self");
             self.runtime_dicts(&found);
+            // A bound by an interface of the program that the head of an implementation adds
+            // (`Bag<T: Named>: Named` with `struct Bag<T>`), or that a parameter of an interface
+            // has in its default: Go cannot constrain the parameter there, so the value is found
+            // as a value of the interface at run time (`wolfrt.As`).
+            for (k, g) in found.iter().enumerate() {
+                for b in &g.bounds {
+                    let IrType::Named(i, _) = b else { continue };
+                    let declared = owner.get(k).is_some_and(|o| o.bounds.contains(b));
+                    let runtime = self.loose.contains(&g.name) || !declared;
+                    if runtime && self.ifaces.contains_key(i) && !self.place_ifaces.contains(i) {
+                        self.f
+                            .dicts
+                            .insert((g.name.clone(), Dict::View(*i)), DictFrom::Runtime);
+                        self.f.bounds.insert((g.name.clone(), *i), b.clone());
+                    }
+                }
+            }
             params.extend(self.dict_params(&own)?);
         } else {
             params.extend(self.dict_params(&owner_dicts)?);
@@ -5952,6 +5987,11 @@ impl<'p> Emitter<'p> {
         let Some(owner) = info.owner else {
             return false;
         };
+        // An implementation of an interface stays a method, which the interface needs; it finds
+        // the bounds of its head at run time.
+        if info.interface.is_some() {
+            return false;
+        }
         let declared = self
             .structs
             .get(&owner)
