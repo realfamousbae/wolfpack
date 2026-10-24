@@ -1,0 +1,4 @@
+[package]
+name = "interface-fields-of-generic-structs"
+version = "0.1.0"
+kind = "cli"
