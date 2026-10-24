@@ -3325,10 +3325,29 @@ impl<'p> Emitter<'p> {
                 }
             }
             ExprKind::Map(entries) => {
+                let value = match t {
+                    IrType::Map(_, v) => (**v).clone(),
+                    _ => IrType::Void,
+                };
+                let iface = matches!(&value, IrType::Named(d, _) if self.ifaces.contains_key(d));
+                let func = matches!(value, IrType::Fn(..));
                 let mut pairs = Vec::new();
                 for (k, v) in entries {
                     let a = self.expr(k, Want::Own)?;
-                    let b = self.expr(v, Want::Own)?;
+                    // As in a list: `Map::from` takes the type of the first value, so values
+                    // coerced to an interface and closures are cast to the value type.
+                    let cast_fn =
+                        func && entries.len() > 1 && matches!(v.kind, ExprKind::Closure { .. });
+                    let saved = self.f.suffix;
+                    self.f.suffix |= cast_fn;
+                    self.f.typed_closure = cast_fn;
+                    let b = self.expr(v, Want::Own);
+                    self.f.suffix = saved;
+                    let mut b = b?;
+                    if cast_fn || (iface && matches!(v.kind, ExprKind::Coerce { .. })) {
+                        let vt = self.ty(&value)?;
+                        b = Expr::Cast(Box::new(b), vt);
+                    }
                     pairs.push(Expr::Tuple(vec![a, b]));
                 }
                 let r = self.rt("Map");
