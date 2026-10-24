@@ -2646,8 +2646,9 @@ impl<'p> Emitter<'p> {
                     | ExprKind::Coerce { .. }
                     | ExprKind::Closure { .. }
                     | ExprKind::FnValue(_) => true,
-                    // `Tree::Leaf` says nothing about `T` either.
-                    ExprKind::Call { .. } | ExprKind::Variant { .. } => {
+                    // `Tree::Leaf` says nothing about `T` either, and `Holder { item: x }`
+                    // with `x` coerced to an interface would be a `Holder<Box<Shape>>`.
+                    ExprKind::Call { .. } | ExprKind::Variant { .. } | ExprKind::Struct { .. } => {
                         mentions_param_result(value)
                     }
                     _ => false,
