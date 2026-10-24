@@ -90,6 +90,8 @@ struct FnInfo {
     owner: Option<(DefRef, Vec<String>)>,
     /// The mode of `self`, for a method.
     self_mode: Option<Mode>,
+    /// The bounds of its own type parameters, by type parameter.
+    bounds: Vec<(String, IrType)>,
 }
 
 /// Facts about the function being emitted.
@@ -454,6 +456,11 @@ impl<'p> Emitter<'p> {
             dicts: Vec::new(),
             owner: None,
             self_mode: f.self_mode,
+            bounds: f
+                .generics
+                .iter()
+                .flat_map(|g| g.bounds.iter().map(|b| (g.name.clone(), b.clone())))
+                .collect(),
         };
         let mut type_names: BTreeSet<String> = BTreeSet::new();
         for m in &p.modules {
@@ -554,6 +561,7 @@ impl<'p> Emitter<'p> {
                                 dicts: Vec::new(),
                                 owner: None,
                                 self_mode: None,
+                                bounds: Vec::new(),
                             },
                         );
                         self.names.insert(x.def, camel(&x.name));
@@ -1667,10 +1675,34 @@ impl<'p> Emitter<'p> {
         out
     }
 
+    /// Binds a type parameter that only a bound of another one names, `T` in
+    /// `fn show<T: Named, H: Holder<T>>(h: H)`, from the interface's arguments of the other.
+    fn unify_bounds(&self, bounds: &[(String, IrType)], map: &mut BTreeMap<String, IrType>) {
+        for _ in 0..bounds.len() {
+            let before = map.len();
+            for (g, b) in bounds {
+                let (Some(actual), IrType::Named(i, bargs)) = (map.get(g).cloned(), b) else {
+                    continue;
+                };
+                for (p, a) in bargs.iter().zip(self.iface_args(*i, &actual)) {
+                    unify(p, &a, map);
+                }
+            }
+            if map.len() == before {
+                break;
+            }
+        }
+    }
+
     /// The type arguments of the interface `iface` for a value of type `t`.
     fn iface_args(&self, iface: DefRef, t: &IrType) -> Vec<IrType> {
         match t {
             IrType::Named(d, args) if *d == iface => args.clone(),
+            // A type parameter: the arguments of its bound.
+            IrType::Param(n) => match self.f.bounds.get(&(n.clone(), iface)) {
+                Some(IrType::Named(_, args)) => args.clone(),
+                _ => Vec::new(),
+            },
             // `self` in a default of the interface.
             IrType::SelfType => match &self.self_iface {
                 Some(IrType::Named(d, args)) if *d == iface => args.clone(),
@@ -3076,6 +3108,7 @@ impl<'p> Emitter<'p> {
                                     }
                                     unify(&info.ret, r, &mut map);
                                 }
+                                self.unify_bounds(&info.bounds, &mut map);
                                 let params: Vec<(String, Option<Type>)> = info
                                     .params
                                     .iter()
@@ -3820,6 +3853,7 @@ impl<'p> Emitter<'p> {
                         dicts: Vec::new(),
                         owner: None,
                         self_mode: None,
+                        bounds: Vec::new(),
                     }),
                     _ => None,
                 };
@@ -3918,6 +3952,7 @@ impl<'p> Emitter<'p> {
                 unify(p, &a.value.ty, &mut map);
             }
             unify(&f.ret, ty, &mut map);
+            self.unify_bounds(&f.bounds, &mut map);
             let mut ds = Vec::new();
             for (g, d) in &f.dicts {
                 let t = map.get(g).cloned().unwrap_or(IrType::Void);

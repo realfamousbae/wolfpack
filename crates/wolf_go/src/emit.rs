@@ -133,6 +133,8 @@ struct FnState {
     /// The bounds of the `Dict::View` dictionaries in scope, by type parameter and interface,
     /// with their type arguments.
     bounds: BTreeMap<(String, DefRef), IrType>,
+    /// Every bound by an interface of the type parameters in scope, with its type arguments.
+    iface_bounds: BTreeMap<(String, DefRef), IrType>,
     loops: Vec<Loop>,
     switches: usize,
 }
@@ -1572,6 +1574,7 @@ impl<'p> Emitter<'p> {
                 if self.place_ifaces.contains(i) {
                     self.f.bounds.insert((g.name.clone(), *i), b.clone());
                 }
+                self.f.iface_bounds.insert((g.name.clone(), *i), b.clone());
             }
         }
     }
@@ -5237,6 +5240,7 @@ impl<'p> Emitter<'p> {
             let mut map = BTreeMap::new();
             let pattern = IrType::Fn(info.params.clone(), Box::new(info.ret.clone()));
             unify(&pattern, ty, &mut map);
+            self.unify_bounds(info.generics.iter(), &mut map);
             let mut targs = Vec::new();
             for g in &info.generics {
                 let t = map.get(&g.name).cloned().unwrap_or(IrType::Void);
@@ -5565,7 +5569,34 @@ impl<'p> Emitter<'p> {
             unify(p, &a.value.ty, &mut map);
         }
         unify(&info.ret, ret, &mut map);
+        self.unify_bounds(info.generics.iter().chain(&info.owner_generics), &mut map);
         map
+    }
+
+    /// Binds a type parameter that only a bound of another one names, `T` in
+    /// `fn show<T: Named, H: Holder<T>>(h: H)`, from the interface's arguments of the other.
+    fn unify_bounds<'g>(
+        &self,
+        generics: impl Iterator<Item = &'g ir::Generic>,
+        map: &mut BTreeMap<String, IrType>,
+    ) {
+        let bounds: Vec<(String, IrType)> = generics
+            .flat_map(|g| g.bounds.iter().map(|b| (g.name.clone(), b.clone())))
+            .collect();
+        for _ in 0..bounds.len() {
+            let before = map.len();
+            for (g, b) in &bounds {
+                let (Some(actual), IrType::Named(i, bargs)) = (map.get(g).cloned(), b) else {
+                    continue;
+                };
+                for (p, a) in bargs.iter().zip(self.iface_args(*i, &actual)) {
+                    unify(p, &a, map);
+                }
+            }
+            if map.len() == before {
+                break;
+            }
+        }
     }
 
     fn call(
@@ -5872,6 +5903,11 @@ impl<'p> Emitter<'p> {
     fn iface_args(&self, iface: DefRef, t: &IrType) -> Vec<IrType> {
         match t {
             IrType::Named(d, args) if *d == iface => args.clone(),
+            // A type parameter: the arguments of its bound.
+            IrType::Param(n) => match self.f.iface_bounds.get(&(n.clone(), iface)) {
+                Some(IrType::Named(_, args)) => args.clone(),
+                _ => Vec::new(),
+            },
             IrType::Named(d, targs) => {
                 let (generics, implements) = match (self.structs.get(d), self.enums.get(d)) {
                     (Some(s), _) => (&s.generics, &s.implements),
