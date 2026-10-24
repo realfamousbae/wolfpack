@@ -206,8 +206,8 @@ pub(crate) struct Emitter<'p> {
     /// 8.2, rule 3). They are bounds only (section 8.5, rule 1); the Go interface takes the
     /// implementing type as its last type parameter `Self` (`cycle[light]`).
     self_typed: BTreeSet<DefRef>,
-    /// Whether an interface implementation finds the dictionary of a bound by one of
-    /// `place_ifaces` at run time (`wolfrt.As`): the variants of enums with refs then give
+    /// Whether an interface implementation or a default finds the dictionary of a bound by one
+    /// of `place_ifaces` at run time (`wolfrt.As`): the variants of enums with refs then give
     /// them.
     uses_as: bool,
     /// Fields that make a struct recursive through `Option` or `Result` (`next: Option<Node>`):
@@ -1099,6 +1099,7 @@ impl<'p> Emitter<'p> {
             }
         }
         self.ptr_recv.extend(ptr);
+        // Implementations by generic types and defaults of generic interfaces.
         self.uses_as = self
             .structs
             .values()
@@ -1106,6 +1107,12 @@ impl<'p> Emitter<'p> {
             .chain(self.enums.values().flat_map(|e| &e.methods))
             .filter(|f| f.interface.is_some())
             .flat_map(|f| f.impl_bounds.iter().flatten())
+            .chain(
+                self.ifaces
+                    .values()
+                    .flat_map(|i| &i.generics)
+                    .flat_map(|g| &g.bounds),
+            )
             .any(|b| matches!(b, IrType::Named(i, _) if self.place_ifaces.contains(i)));
         // The runtime's `Equal` and `Copy` call the generated methods of the type arguments.
         let owners = self
