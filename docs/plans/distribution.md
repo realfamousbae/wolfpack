@@ -57,8 +57,8 @@ Answers of the author (2026-10-23): separate repositories for the tap and the bu
 acceptable, and winget is wanted with its pull request for every release.
 
 The first winget pull request is opened by the author, because Microsoft asks its author to sign
-the contributor license agreement: `release/winget/manifests.sh 0.3.0 SHA256SUMS.txt out`, then
-`release/winget/submit.sh 0.3.0 out new`, with `gh` signed in. The later ones are opened by
+the contributor license agreement: `release/winget/manifests.sh 0.4.0 SHA256SUMS.txt out`, then
+`release/winget/submit.sh 0.4.0 out new`, with `gh` signed in. The later ones are opened by
 `packages.yml`.
 
 The tokens are fine-grained personal access tokens of the owner, added under **Settings, Secrets

@@ -2,7 +2,7 @@
   "name": "wolfpack",
   "displayName": "Wolfpack",
   "description": "The wolfpack language: highlighting, and diagnostics, hover, go to definition and formatting from `wolf lsp`.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "realfamousbae",
   "license": "MIT OR Apache-2.0",
   "repository": {

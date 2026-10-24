@@ -2,7 +2,7 @@
 
 All notable changes are recorded here at the end of each milestone.
 
-## Unreleased
+## 0.4.0 (2026-10-24)
 
 - Fixed in the Rust backend: an interface value passed for a type parameter bounded by its
   interface (`fn hello<T: Named>(x: T)` called with a `Named`) was rejected, because

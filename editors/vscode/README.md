@@ -19,9 +19,9 @@ npx @vscode/vsce package
 ```
 
 ```bash
-code --install-extension wolfpack-0.3.0.vsix
+code --install-extension wolfpack-0.4.0.vsix
 ```
 
-The server is the `wolf` command itself, so a `wolf` that has `wolf lsp` (newer than 0.3.0)
+The server is the `wolf` command itself, so a `wolf` that has `wolf lsp` (0.4.0 or newer)
 must be on `PATH`, or `wolfpack.server.path` must name it. Any other editor with a client for the Language Server
 Protocol can use `wolf lsp` the same way: it speaks the protocol on standard input and output.

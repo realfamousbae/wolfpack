@@ -211,7 +211,7 @@ can double-click. They do the same as the scripts, including `wolf setup`.
 `wolfpack-macos-universal.tar.gz`, `wolfpack-linux-x64.tar.gz`, `wolfpack-linux-arm64.tar.gz` and
 `wolfpack-windows-x64.zip` contain only the `wolf` binary. Unpack it into any directory on your
 `PATH` and run `wolf setup`. `wolfpack-linux-x64-musl.tar.gz` and `wolfpack-linux-arm64-musl.tar.gz`
-(from the release after 0.3.0) are static builds that need no glibc: they run on Alpine and on
+(from 0.4.0 on) are static builds that need no glibc: they run on Alpine and on
 older distributions, and `install.sh` picks them there.
 
 ### Package managers
@@ -226,7 +226,7 @@ older distributions, and `install.sh` picks them there.
 
 Package managers do not run `wolf setup`: run it yourself for the tools of the targets, or run
 programs with `wolf run --vm`, which needs no tools. The `.deb` and `.rpm` files (`-x64` and
-`-arm64`) are attached to the releases after 0.3.0 and hold the static build, so they work on every
+`-arm64`) are attached to the releases from 0.4.0 on and hold the static build, so they work on every
 distribution. winget offers the package once Microsoft has accepted it into its catalog.
 
 #### Build from source
@@ -252,7 +252,7 @@ tools of the targets you use: `wolf setup --target go` installs just Go.
 
 ```text
 $ wolf --version
-wolf 0.3.0
+wolf 0.4.0
 $ wolf setup --check
 ```
 
@@ -341,8 +341,8 @@ with `shasum -a 256` (macOS), `sha256sum` (Linux) or `Get-FileHash` (Windows).
 <summary><code>this Linux uses musl</code> or <code>wolf needs glibc 2.35 or newer</code></summary>
 
 The installers of 0.3.0 and older say this on Alpine and on distributions older than Ubuntu 22.04.
-From the next release on, `install.sh` installs the static build there instead. Until then,
-[build wolf from source](#build-from-source); it takes a few minutes.
+From 0.4.0 on, `install.sh` installs the static build there instead, so the current installer
+works. For 0.3.0 or older, [build wolf from source](#build-from-source); it takes a few minutes.
 </details>
 
 <details>
