@@ -1,0 +1,90 @@
+//! Values coerced to an interface inside `Some`, `Ok`, a list and a map literal: an enum with
+//! payloads, a struct and a payload-less enum in one collection.
+
+module main
+
+types {
+    enum Shape {
+        Dot
+        Line(Int)
+    }
+
+    enum Light {
+        Red
+        Green
+    }
+
+    struct Dog {
+        title: String
+    }
+
+    struct Cell<T> {
+        value: T
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+}
+
+impl {
+    Shape: Named {
+        fn name(self) -> String {
+            match self {
+                Shape.Dot => "dot"
+                Shape.Line(n) => f"line{n}"
+            }
+        }
+    }
+
+    Light: Named {
+        fn name(self) -> String {
+            match self {
+                Light.Red => "red"
+                Light.Green => "green"
+            }
+        }
+    }
+
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+    }
+}
+
+main {
+    let o: Option<Named> = Some(Shape.Line(4))
+    print(show(o))
+    let p: Option<Named> = Some(Dog { title: "Rex" })
+    print(show(p))
+    let q: Option<Named> = Some(Light.Green)
+    print(show(q))
+    let c: Cell<Option<Named>> = Cell { value: Some(Shape.Line(3)) }
+    print(show(c.value))
+    print(show(Some(Shape.Dot)))
+    let r: Result<Named, String> = Ok(Shape.Line(5))
+    match r {
+        Ok(x) => print(x.name())
+        Err(e) => print(e)
+    }
+    let all: List<Option<Named>> = [Some(Light.Red), None, Some(Shape.Dot)]
+    for x in all {
+        print(show(x))
+    }
+    let m: Map<String, Named> = ["a": Shape.Dot, "b": Dog { title: "Max" }]
+    for k in m.keys() {
+        print(k + "=" + m[k].name())
+    }
+}
+
+functions {
+    fn show(o: Option<Named>) -> String {
+        match o {
+            Some(x) => x.name()
+            None => "-"
+        }
+    }
+}

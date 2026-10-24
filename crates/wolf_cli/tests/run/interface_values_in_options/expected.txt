@@ -1,0 +1,11 @@
+line4
+Rex
+green
+line3
+dot
+line5
+red
+-
+dot
+a=dot
+b=Max

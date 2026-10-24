@@ -1,0 +1,64 @@
+//! A type parameter that only the bound of another one names (`fn show<T: Named, H: Holds<T>>(h:
+//! H)`): its dictionary comes from the interface arguments of the other, also through a type
+//! parameter and a function value.
+
+module main
+
+types {
+    enum Color {
+        Red
+        Green
+    }
+
+    struct Holder<H: Named + Copyable> {
+        held: H
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Holds<T: Named> {
+        fn get(self) -> T
+
+        fn describe(self) -> String {
+            "holds " + self.get().name()
+        }
+    }
+}
+
+impl {
+    Color: Named {
+        fn name(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+
+    Holder<H>: Holds<H> {
+        fn get(self) -> H {
+            self.held.copy()
+        }
+    }
+}
+
+main {
+    print(show(Holder { held: Color.Green }))
+    print(first(Holder { held: Color.Red }))
+    let f: fn(Holder<Color>) -> String = show
+    print(f(Holder { held: Color.Red }))
+}
+
+functions {
+    fn show<T: Named, H: Holds<T>>(h: H) -> String {
+        h.describe() + " " + h.get().name()
+    }
+
+    fn first<T: Named, H: Holds<T>>(h: H) -> String {
+        show(h)
+    }
+}
