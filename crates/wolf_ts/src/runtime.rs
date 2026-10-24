@@ -116,6 +116,18 @@ export function viewOf<C>(proto: object, ref: Ref<unknown>): C {
 }"#,
     },
     Piece {
+        name: "withDicts",
+        deps: &[],
+        code: r#"/**
+ * `value` with the dictionaries that an implementation of an interface takes from the head of its
+ * block (`Bag<T: Named>: Named`), set where the type of the value is known. A dictionary of a
+ * type is the same for every value, so setting it again changes nothing; `==` skips them.
+ */
+export function withDicts<T extends object>(value: T, dicts: object): T {
+  return Object.assign(value, dicts);
+}"#,
+    },
+    Piece {
         name: "become",
         deps: &[],
         code: r#"/**
@@ -424,17 +436,16 @@ export function eq(a: unknown, b: unknown): boolean {
       if (Object.getPrototypeOf(x) !== Object.getPrototypeOf(y)) {
         return false;
       }
-      const keys = Object.keys(x);
-      if (keys.length !== Object.keys(y).length) {
+      // The dictionaries of a generic type (`$asNamedT`) are not part of its value.
+      const own = (o: object) => Object.keys(o).filter((k) => !k.startsWith("$"));
+      const keys = own(x);
+      if (keys.length !== own(y).length) {
         return false;
       }
       const rx = x as Record<string, unknown>;
       const ry = y as Record<string, unknown>;
       for (const k of keys) {
-        // The dictionaries of a generic type (`$asNamedT`) are not part of its value.
-        if (!k.startsWith("$")) {
-          pending.push(rx[k], ry[k]);
-        }
+        pending.push(rx[k], ry[k]);
       }
     }
   }

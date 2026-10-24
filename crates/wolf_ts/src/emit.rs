@@ -696,6 +696,109 @@ impl<'p> Emitter<'p> {
         out
     }
 
+    /// The dictionaries that the implementation of `iface` by the type `def` takes from the head
+    /// of its block beyond those of the type's declaration (`Bag<T: Named>: Named` with
+    /// `struct Bag<T>`): not every value of the type has them, so a value gets them where its
+    /// type is known, as a value of the interface ([`Self::with_head_dicts`]).
+    fn head_dicts(&self, def: DefRef, iface: DefRef) -> Vec<(String, Dict)> {
+        let (generics, methods) = match (self.structs.get(&def), self.enums.get(&def)) {
+            (Some(s), _) => (&s.generics, &s.methods),
+            (_, Some(e)) if !e.variants.iter().all(|v| v.payload.is_empty()) => {
+                (&e.generics, &e.methods)
+            }
+            _ => return Vec::new(),
+        };
+        let Some(m) = methods.iter().find(|f| f.interface == Some(iface)) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for (g, bounds) in generics.iter().zip(&m.impl_bounds) {
+            let added: Vec<IrType> = bounds
+                .iter()
+                .filter(|b| !g.bounds.contains(b))
+                .cloned()
+                .collect();
+            for d in self.dicts_of(&added) {
+                if !out.contains(&(g.name.clone(), d)) {
+                    out.push((g.name.clone(), d));
+                }
+            }
+        }
+        out
+    }
+
+    /// The fields of [`Self::head_dicts`] of every interface the type implements, with their
+    /// types: `declare`d, since they are set from outside the class.
+    fn head_dict_fields(
+        &mut self,
+        def: DefRef,
+        generics: &[ir::Generic],
+        methods: &[ir::Function],
+        implements: &[IrType],
+    ) -> Vec<(String, Type)> {
+        let mut dicts = Vec::new();
+        for t in implements {
+            if let IrType::Named(i, _) = t {
+                for d in self.head_dicts(def, *i) {
+                    if !dicts.contains(&d) {
+                        dicts.push(d);
+                    }
+                }
+            }
+        }
+        if dicts.is_empty() {
+            return Vec::new();
+        }
+        // The bounds of the heads, for the types of the dictionaries of generic interfaces.
+        for f in methods.iter().filter(|f| f.interface.is_some()) {
+            for (g, bounds) in generics.iter().zip(&f.impl_bounds) {
+                for b in bounds {
+                    if let IrType::Named(i, _) = b {
+                        if self.view_iface(*i) {
+                            self.f.bounds.insert((g.name.clone(), *i), b.clone());
+                        }
+                    }
+                }
+            }
+        }
+        let declared = self.type_dicts(def);
+        let mut out = Vec::new();
+        for (g, d) in dicts.into_iter().filter(|x| !declared.contains(x)) {
+            let ty = self.dict_ty(d, &IrType::Param(g.clone()));
+            out.push((format!("declare {}", self.dict_name(&g, d)), ty));
+        }
+        self.f.bounds.clear();
+        out
+    }
+
+    /// `v`, a value of type `t`, with the dictionaries of [`Self::head_dicts`] of its
+    /// implementation of `iface`.
+    fn with_head_dicts(&mut self, v: Expr, t: &IrType, iface: DefRef) -> Result<Expr, Error> {
+        let IrType::Named(def, targs) = t else {
+            return Ok(v);
+        };
+        let dicts = self.head_dicts(*def, iface);
+        if dicts.is_empty() {
+            return Ok(v);
+        }
+        let names: Vec<String> = match (self.structs.get(def), self.enums.get(def)) {
+            (Some(s), _) => s.generics.iter().map(|g| g.name.clone()).collect(),
+            (_, Some(e)) => e.generics.iter().map(|g| g.name.clone()).collect(),
+            _ => Vec::new(),
+        };
+        let mut entries = Vec::new();
+        for (g, d) in dicts {
+            let a = names
+                .iter()
+                .position(|n| *n == g)
+                .and_then(|i| targs.get(i))
+                .cloned()
+                .unwrap_or(IrType::Void);
+            entries.push((self.dict_name(&g, d), self.dict(d, &a)?));
+        }
+        Ok(self.rt_call("withDicts", vec![v, Expr::Object(entries)]))
+    }
+
     /// The fields of [`Self::type_dicts`] with their types, and the bounds of the type's
     /// parameters set in `self.f.bounds` for the types of the dictionaries.
     fn type_dict_fields(&mut self, def: DefRef, generics: &[ir::Generic]) -> Vec<(String, Type)> {
@@ -855,12 +958,32 @@ impl<'p> Emitter<'p> {
         match t {
             IrType::Param(n) => self.f.dicts.get(&(n.clone(), d)).cloned(),
             IrType::Named(def, _) => {
-                let e = self.enums.get(def)?;
                 let iface = match d {
                     Dict::Show => self.display,
                     Dict::Cmp => self.comparable,
                     Dict::View(_) => return None,
                 };
+                // The implementation takes dictionaries from the head of its block: the value
+                // gets them first.
+                if let Some(i) = iface.filter(|i| !self.head_dicts(*def, *i).is_empty()) {
+                    let ty = self.ty(t);
+                    let x = self.with_head_dicts(ident("x"), t, i).ok()?;
+                    let (params, body) = match d {
+                        Dict::Show => (
+                            vec![("x".to_string(), Some(ty))],
+                            self.rt_call("display", vec![x]),
+                        ),
+                        _ => (
+                            vec![
+                                ("x".to_string(), Some(ty.clone())),
+                                ("y".to_string(), Some(ty)),
+                            ],
+                            self.rt_call("compare", vec![x, ident("y")]),
+                        ),
+                    };
+                    return Some(Expr::Arrow(params, None, ArrowBody::Expr(Box::new(body))));
+                }
+                let e = self.enums.get(def)?;
                 let method = e
                     .methods
                     .iter()
@@ -1606,6 +1729,9 @@ impl<'p> Emitter<'p> {
             fields.push((n.clone(), t.clone(), None));
             ctor.push((n, t));
         }
+        for (n, t) in self.head_dict_fields(s.def, &s.generics, &s.methods, &s.implements) {
+            fields.push((n, t, None));
+        }
         let mut methods = Vec::new();
         for f in &s.methods {
             if f.body.is_none() {
@@ -1787,7 +1913,9 @@ impl<'p> Emitter<'p> {
             .collect();
         // The dictionaries of the type's bounds are fields of the receiver.
         let saved = std::mem::take(&mut self.f.dicts);
-        for (g, d) in self.type_dicts(owner) {
+        let mut own = self.type_dicts(owner);
+        own.extend(self.head_dicts(owner, iface));
+        for (g, d) in own {
             let name = self.dict_name(&g, d);
             self.f.dicts.insert((g, d), member(recv.clone(), &name));
         }
@@ -1958,6 +2086,9 @@ impl<'p> Emitter<'p> {
                     body.push(Stmt::Assign(member(Expr::This, &n), ident(&n)));
                     fields.push((n.clone(), t.clone(), None));
                     params.push((n, t));
+                }
+                for (n, t) in self.head_dict_fields(e.def, &e.generics, &e.methods, &e.implements) {
+                    fields.push((n, t, None));
                 }
                 // Interface methods delegate to the enum's functions.
                 let mut methods = Vec::new();
@@ -2540,8 +2671,10 @@ impl<'p> Emitter<'p> {
         // An implementation of an interface keeps the interface's signature: the dictionaries of
         // the type's bounds are fields of `self`.
         if let (Some(owner), Some(this)) = (owner, self.f.self_expr.clone()) {
-            if f.interface.is_some() {
-                for (g, d) in self.type_dicts(owner) {
+            if let Some(iface) = f.interface {
+                let mut dicts = self.type_dicts(owner);
+                dicts.extend(self.head_dicts(owner, iface));
+                for (g, d) in dicts {
                     let name = self.dict_name(&g, d);
                     self.f
                         .dicts
@@ -3537,6 +3670,11 @@ impl<'p> Emitter<'p> {
                 None => v,
             });
         }
+        if let (IrType::Named(_, _), IrType::Named(iface, _)) = (from, to) {
+            if !self.plain_enum(from) {
+                return self.with_head_dicts(v, from, *iface);
+            }
+        }
         if !self.plain_enum(from) {
             return Ok(v);
         }
@@ -4027,12 +4165,30 @@ impl<'p> Emitter<'p> {
                     }
                 }
             }
-            Callee::Method { method, .. } => {
+            Callee::Method { method, recv } => {
                 let d = self.p.def(*method).ok_or("unknown method")?.clone();
                 let r = if all.is_empty() {
                     Expr::Undefined
                 } else {
                     all.remove(0)
+                };
+                // A method of an implementation that takes dictionaries from the head of its
+                // block: the receiver gets them first.
+                let iface = match d.kind {
+                    DefKind::Method { owner, .. } => self
+                        .structs
+                        .get(&owner)
+                        .map(|s| &s.methods)
+                        .or_else(|| self.enums.get(&owner).map(|e| &e.methods))
+                        .and_then(|ms| ms.iter().find(|f| f.def == *method))
+                        .and_then(|f| f.interface),
+                    _ => None,
+                };
+                let r = match iface {
+                    Some(i) if !matches!(recv.ty, IrType::Param(_)) => {
+                        self.with_head_dicts(r, &recv.ty, i)?
+                    }
+                    _ => r,
                 };
                 match d.kind {
                     DefKind::Method { owner, .. } if self.structs.contains_key(&owner) => {
@@ -4063,6 +4219,10 @@ impl<'p> Emitter<'p> {
                         let f = self.dict(Dict::Show, &recv.ty)?;
                         call(f, vec![r])
                     } else {
+                        let r = match self.display {
+                            Some(i) => self.with_head_dicts(r, &recv.ty, i)?,
+                            None => r,
+                        };
                         self.rt_call("display", vec![r])
                     }
                 } else if param && Some(*interface) == self.comparable && name == "compare" {
