@@ -12,3 +12,4 @@ full
 empty
 full
 empty
+box2x4@3 box2x6@3 empty@3 box2x1

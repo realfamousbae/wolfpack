@@ -2,7 +2,8 @@
 //! the default replace the value, called on the enum, by the interface's name, from its own
 //! methods, on interface values, on elements of lists, on a field, and for a generic enum. The
 //! default called by the interface's name changes a field, an element and a `mut` parameter of
-//! a payload-less enum too.
+//! a payload-less enum too. Through a type parameter bounded by the interface, the enums and
+//! interface values change in place, also inside a generic type that implements it.
 
 module main
 
@@ -22,6 +23,11 @@ types {
         Red
         Green
         Blue
+    }
+
+    struct Holder<T: Step> {
+        item: T
+        moves: Int
     }
 
     struct Canvas {
@@ -111,6 +117,17 @@ impl {
         }
     }
 
+    Holder<T>: Step {
+        fn step(mut self) {
+            self.item.twice()
+            self.moves += 1
+        }
+
+        fn label(self) -> String {
+            f"{self.item.label()}@{self.moves}"
+        }
+    }
+
     Canvas {
         fn paint(mut self) {
             self.shape.step()
@@ -165,10 +182,25 @@ main {
     print(held.label())
     held.twice()
     print(held.label())
+    var hs = Holder { item: Shape.Dot, moves: 0 }
+    forward(mut hs)
+    let line: Step = Shape.Line(2)
+    var hv = Holder { item: line, moves: 0 }
+    forward(mut hv)
+    var hl = Holder { item: Slot.Full(1), moves: 0 }
+    forward(mut hl)
+    var sv: Step = Shape.Dot
+    forward(mut sv)
+    print(f"{hs.label()} {hv.label()} {hl.label()} {sv.label()}")
 }
 
 functions {
     fn twice_light(mut l: Light) {
         Step.twice(mut l)
+    }
+
+    fn forward<T: Step>(mut x: T) {
+        x.step()
+        Step.twice(mut x)
     }
 }
