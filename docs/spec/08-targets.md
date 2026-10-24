@@ -278,9 +278,10 @@ message of chapter 7, for example Rust's `attempt to add with overflow` becomes
 - **TS** (author, ADR 0005): a `class` with the fields as public properties, a constructor taking one
   object with all fields (`new User({ id: 1n, name: "Ann" })`), inherent methods as methods,
   associated functions as `static` methods, interface implementations as `implements`.
-- **Go**: a `struct`; methods with a pointer receiver if any method of the type takes `mut self`,
-  else a value receiver. Read parameters of struct type are passed by value, `mut` parameters by
-  pointer **[PLAN]**.
+- **Go**: a `struct`; `mut self` methods, also those that call a `mut self` default the type gets,
+  have a pointer receiver and the other methods a value receiver, so that a value meets a bound
+  by an interface of its other methods. Read parameters of struct type are passed by value, `mut`
+  parameters by pointer **[PLAN]**.
 - **Rust**: a `struct`; recursive fields are wrapped in `Box` **[PLAN]**.
 
 ### 5.2 Enums
@@ -292,15 +293,21 @@ message of chapter 7, for example Rust's `attempt to add with overflow` becomes
 
 Positional payloads are named `_0`, `_1` in TS, `F0`, `F1` in Go. Methods of an enum with payloads
 are generated once as a function and called from each variant class (TS) or from the interface
-method (Go). **[INTERNAL]**
+method (Go). In Go, the methods of an interface with a `mut self` method are not those of the
+enum's interface but of a ref type, `shapeRef{p *shape}`, that points to the variable, since a
+variant cannot replace itself; a value of such an interface is a ref to a new variable. In TS a
+payload-less enum used as a value of an interface, or through a bound by one, is an object of a
+small class, `Color$Named`, that holds the value, or its place for a `mut self` method.
+**[INTERNAL]**
 
 ### 5.3 Interfaces
 
 | | TS | Go | Rust |
 | --- | --- | --- | --- |
 | interface | `interface` | `interface` | `trait` |
-| as a bound | generic constraint; a dictionary parameter for `Display` and `Comparable` (5.4) | dictionary parameter (5.4) | trait bound |
+| as a bound | a dictionary parameter (5.4) | a constraint, or a dictionary parameter (5.4) | trait bound |
 | as a value type | the interface type | the interface type | `Box<dyn Trait>` |
+| mentioning `Self` beyond the receiver (a bound only) | `interface Same<Self>`: the implementing type is the last type argument | `same[Self]`: likewise | `trait Same: Sized` |
 
 `.copy()` on an interface value (author, 13b) calls a hidden copy method that every implementation
 gets (`Box<dyn Trait>` gets a `Clone` impl through it). **[INTERNAL]**
@@ -311,13 +318,28 @@ gets (`Box<dyn Trait>` gets a `Clone` impl through it). **[INTERNAL]**
    `Copyable` to `Clone`, `Hashable` to `Hash + Eq`, `Comparable` to a runtime trait implemented for
    `i64` and `String`.
 2. **Go** (register item 14): a single Go constraint cannot be satisfied both by `int64` and by a
-   struct with a method. The Go backend therefore uses **dictionary passing**: every bound of a type
-   parameter becomes an extra parameter holding the needed operations
-   (`func Max[T any](ord wolfrt.Ord[T], a T, b T) T`), and each call site passes the right one.
-   **[INTERNAL]** This keeps one generated function per generic function and works for every type.
-3. **TS** also passes dictionaries, for the bounds `Display` and `Comparable` only: a payload-less
-   enum is a string at run time, so only the call site knows which `to_string` and `compare` to
-   use. **[INTERNAL]**
+   struct with a method. The Go backend therefore uses **dictionary passing**: a bound by
+   `Equatable`, `Copyable`, `Comparable` or `Display` becomes an extra parameter holding the needed
+   operations (`func Max[T any](ord wolfrt.Ord[T], a T, b T) T`), and each call site passes the
+   right one. `Hashable` is the constraint `comparable`, and an interface of the program is a
+   constraint, except one with a `mut self` method: only the pointer of a type has those methods,
+   so such a bound is a dictionary that gives the place of a value as a value of the interface
+   (`asStepT func(*T) step`). An interface implementation keeps the signature of the interface, so
+   it finds the operations of the bounds of the type's parameters from the type argument at run
+   time (`wolfrt.Show[T]`, `wolfrt.As[step, T]`). **[INTERNAL]** This keeps one generated function
+   per generic function and works for every type (ADR 0009).
+3. **TS** also passes dictionaries, for `Display`, `Comparable` and the interfaces of the program:
+   a payload-less enum is a string at run time, so only the call site knows which `to_string` and
+   `compare` to use, and which class gives the string the methods of an interface. The
+   dictionary of an interface of the program gives a value as a value of the interface (the
+   object itself, or the class that holds a payload-less enum); for an interface with a `mut self`
+   method it takes the place of the value (`$rt.Ref`), so that the change reaches the place. Such
+   bounds are no constraints of the TypeScript type parameters. An implementation of an interface
+   by a generic type keeps the interface's signature: an instance carries the dictionaries of the
+   bounds of the type's declaration as fields whose names start with `$`, which `==` skips, and a
+   default of an interface takes those of the bounds of the interface's parameters after the
+   receiver. A bound that only the head of an interface implementation adds is a cast instead.
+   **[INTERNAL]**
 4. Generic inherent methods (chapter 4) are emitted in Go as free generic functions
    (`StackMap[T, U](s Stack[T], f func(T) U) Stack[U]`). When Go generic methods become available
    (Go accepted them in 2026), the backend may switch. **[INTERNAL]**
