@@ -1,0 +1,12 @@
+bag of red
+bag of green
+hi bag of red
+[RED]
+[RED]
+[GREEN]
+bag of Rex
+bag of green
+greater
+green
+holds red
+holds green

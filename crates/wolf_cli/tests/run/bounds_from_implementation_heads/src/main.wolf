@@ -1,0 +1,140 @@
+//! Bounds that only the head of an interface implementation adds (`Bag<T: Named>: Named` with
+//! `struct Bag<T>`), for `Named`, `Display` and `Comparable`, with a payload-less enum, through
+//! interface values, bounds, sorting and a generic interface whose parameter is bounded.
+
+module main
+
+types {
+    enum Color {
+        Red
+        Green
+    }
+
+    struct Dog {
+        title: String
+    }
+
+    struct Bag<T> {
+        item: T
+    }
+
+    struct Pair<T> {
+        a: T
+        b: T
+    }
+
+    struct Holder<H> {
+        held: H
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Holds<T: Named> {
+        fn get(self) -> T
+
+        fn describe(self) -> String {
+            "holds " + self.get().name()
+        }
+    }
+}
+
+impl {
+    Color: Named {
+        fn name(self) -> String {
+            match self {
+                Color.Red => "red"
+                Color.Green => "green"
+            }
+        }
+    }
+
+    Color: Display {
+        fn to_string(self) -> String {
+            match self {
+                Color.Red => "RED"
+                Color.Green => "GREEN"
+            }
+        }
+    }
+
+    Color: Comparable {
+        fn compare(self, other: Color) -> Ordering {
+            self.name().compare(other.name())
+        }
+    }
+
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+    }
+
+    Bag<T: Named>: Named {
+        fn name(self) -> String {
+            "bag of " + self.item.name()
+        }
+    }
+
+    Bag<T: Display>: Display {
+        fn to_string(self) -> String {
+            f"[{self.item}]"
+        }
+    }
+
+    Pair<T: Comparable>: Comparable {
+        fn compare(self, other: Pair<T>) -> Ordering {
+            self.a.compare(other.a)
+        }
+    }
+
+    Holder<H: Named + Copyable>: Holds<H> {
+        fn get(self) -> H {
+            self.held.copy()
+        }
+    }
+}
+
+main {
+    let b = Bag { item: Color.Red }
+    print(b.name())
+    let n: Named = Bag { item: Color.Green }
+    print(n.name())
+    print(greet(Bag { item: Color.Red }))
+    print(b.to_string())
+    print(f"{b}")
+    let d: Display = Bag { item: Color.Green }
+    print(d.to_string())
+    print(Bag { item: Dog { title: "Rex" } }.name())
+    let made = make(Color.Green)
+    print(made.name())
+    let p = Pair { a: Color.Red, b: Color.Green }
+    let q = Pair { a: Color.Green, b: Color.Red }
+    match p.compare(q) {
+        Ordering.Less => print("less")
+        Ordering.Equal => print("equal")
+        Ordering.Greater => print("greater")
+    }
+    var ps = [q, p]
+    ps.sort()
+    print(ps[0].a.name())
+    print(Holder { held: Color.Red }.describe())
+    print(show(Holder { held: Color.Green }))
+}
+
+functions {
+    fn greet<T: Named>(x: T) -> String {
+        "hi " + x.name()
+    }
+
+    fn make<T>(own x: T) -> Bag<T> {
+        Bag { item: x }
+    }
+
+    fn show<T: Named, H: Holds<T>>(h: H) -> String {
+        h.describe()
+    }
+}
