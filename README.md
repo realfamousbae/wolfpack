@@ -252,7 +252,7 @@ tools of the targets you use: `wolf setup --target go` installs just Go.
 
 ```text
 $ wolf --version
-wolf 0.4.0
+wolf 0.4.1
 $ wolf setup --check
 ```
 

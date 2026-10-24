@@ -2,7 +2,7 @@
 
 All notable changes are recorded here at the end of each milestone.
 
-## Unreleased
+## 0.4.1 (2026-10-24)
 
 - Fixed in the Go backend, which now runs what the other targets and the VM ran in 0.4.0 (the
   `skip-go.txt` files are gone): a type parameter bounded by an interface with a `mut self`
