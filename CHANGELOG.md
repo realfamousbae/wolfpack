@@ -19,6 +19,27 @@ All notable changes are recorded here at the end of each milestone.
   item: Shape.Line(2) }`, also inside a generic enum or another struct literal) made a
   `Holder<Box<Shape>>`, and rustc rejected it where a `Holder<Box<dyn Step>>` was expected. The
   `let` now writes the type, as for a generic variant or call.
+- Fixed: a bound that only the head of an interface implementation adds (`Bag<T: Named>: Named`
+  with `struct Bag<T>`, also for `Display` and `Comparable`). Go made such a method a function of
+  the package, so the type did not implement the interface; it is a method again and finds the
+  value as a value of the interface at run time (`wolfrt.As`), and the type parameters of an
+  interface have no Go constraints by interfaces of the program, so that `holder[H any]` can
+  implement `holds[H]` (ADR 0009, item 11). TypeScript cast the value, which a payload-less enum
+  failed at run time, and wrote its `Display` without its own `to_string`; the value now gets
+  the dictionaries of the head where its type is known (`$rt.withDicts`).
+- Fixed on TypeScript and Go: a type parameter that only the bound of another one names
+  (`fn show<T: Named, H: Holds<T>>(h: H)`) got no dictionary on TypeScript and `struct{}` on Go;
+  it is now found from the interface arguments of the other one, also when that one is a type
+  parameter itself and when the function is a value.
+- Fixed in the Go backend: `Some` of a value coerced to an interface (`let o: Option<Named> =
+  Some(Shape.Line(4))`) made an option of the value's own type, which Go rejected where an
+  option of the interface was expected.
+- Fixed in the Rust backend: a map literal whose values are coerced to an interface (`["a":
+  Shape.Dot, "b": Dog { title: "Max" }]` as `Map<String, Named>`) took the type of its first
+  value; such values, and closures, are now cast to the value type, as in a list.
+- Spec chapter 8, sections 5.1 to 5.4, describe the mapping of interfaces and bounds as it is
+  built: the receivers of Go methods, the ref types of enums with payloads, interfaces that
+  mention `Self`, and the dictionaries of Go and TypeScript.
 
 ## 0.4.0 (2026-10-24)
 
