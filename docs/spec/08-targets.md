@@ -326,8 +326,11 @@ gets (`Box<dyn Trait>` gets a `Clone` impl through it). **[INTERNAL]**
    so such a bound is a dictionary that gives the place of a value as a value of the interface
    (`asStepT func(*T) step`). An interface implementation keeps the signature of the interface, so
    it finds the operations of the bounds of the type's parameters from the type argument at run
-   time (`wolfrt.Show[T]`, `wolfrt.As[step, T]`). **[INTERNAL]** This keeps one generated function
-   per generic function and works for every type (ADR 0009).
+   time (`wolfrt.Show[T]`, `wolfrt.As[step, T]`), also those that only the head of the
+   implementation adds; the type parameters of an interface have no constraints by interfaces of
+   the program (`type holds[T any] interface`), and its defaults find those bounds at run time
+   too. **[INTERNAL]** This keeps one generated function per generic function and works for every
+   type (ADR 0009).
 3. **TS** also passes dictionaries, for `Display`, `Comparable` and the interfaces of the program:
    a payload-less enum is a string at run time, so only the call site knows which `to_string` and
    `compare` to use, and which class gives the string the methods of an interface. The
@@ -338,8 +341,9 @@ gets (`Box<dyn Trait>` gets a `Clone` impl through it). **[INTERNAL]**
    by a generic type keeps the interface's signature: an instance carries the dictionaries of the
    bounds of the type's declaration as fields whose names start with `$`, which `==` skips, and a
    default of an interface takes those of the bounds of the interface's parameters after the
-   receiver. A bound that only the head of an interface implementation adds is a cast instead.
-   **[INTERNAL]**
+   receiver. A bound that only the head of an interface implementation adds (`Bag<T: Named>:
+   Named` with `struct Bag<T>`) is such a field too, which a value gets where its type is known
+   as the interface's type (`$rt.withDicts`). **[INTERNAL]**
 4. Generic inherent methods (chapter 4) are emitted in Go as free generic functions
    (`StackMap[T, U](s Stack[T], f func(T) U) Stack[U]`). When Go generic methods become available
    (Go accepted them in 2026), the backend may switch. **[INTERNAL]**
