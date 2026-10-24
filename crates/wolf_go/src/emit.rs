@@ -5000,7 +5000,12 @@ impl<'p> Emitter<'p> {
             ExprKind::Some(v) => {
                 let x = self.expr(v, out)?;
                 let f = self.rt("Option", "Some");
-                if untyped_int(&x) || self.holds_variant(v) {
+                // Go infers the type argument from the value: a value coerced to an interface
+                // would make an option of its own type.
+                if untyped_int(&x)
+                    || self.holds_variant(v)
+                    || matches!(v.kind, ExprKind::Coerce { .. })
+                {
                     let IrType::Option(inner) = &e.ty else {
                         return Err("Some".to_string());
                     };
