@@ -2,6 +2,19 @@
 
 All notable changes are recorded here at the end of each milestone.
 
+## Unreleased
+
+- Fixed in the Go backend, which now runs what the other targets and the VM ran in 0.4.0 (the
+  `skip-go.txt` files are gone): a type parameter bounded by an interface with a `mut self`
+  method (Go rejected it: the methods with pointer receivers are not in the method set of the
+  type), an interface that mentions `Self` beyond the receiver (an internal error), and a `mut
+  self` method of an interface implemented by an enum with payloads (a variant cannot replace
+  itself). Such a bound is now a dictionary, `asStepT func(*T) step`, that gives the place as a
+  value of the interface; an enum with payloads gets a ref type, `shapeRef`, which points to its
+  variable and has the methods of those interfaces; an interface with `Self` is generic over it,
+  `cycle[Self]` (ADR 0009, item 10). A `mut self` default called by the interface's name on a
+  field, an element or a `mut` parameter (`Step.twice(mut self.light)`) changed a copy.
+
 ## 0.4.0 (2026-10-24)
 
 - Fixed in the Rust backend: an interface value passed for a type parameter bounded by its
