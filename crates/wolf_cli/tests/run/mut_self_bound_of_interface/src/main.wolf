@@ -1,0 +1,62 @@
+//! A generic interface whose type parameter is bounded by an interface with a `mut self` method:
+//! its default reaches the methods of an enum with payloads, which no generic type of the program
+//! holds.
+
+module main
+
+types {
+    enum Shape {
+        Dot
+        Line(Int)
+    }
+
+    struct Card {
+        shape: Shape
+    }
+}
+
+interfaces {
+    interface Step {
+        fn step(mut self)
+        fn label(self) -> String
+    }
+
+    interface Holder<T: Step> {
+        fn held(self) -> T
+
+        fn describe(self) -> String {
+            "holds " + self.held().label()
+        }
+    }
+}
+
+impl {
+    Shape: Step {
+        fn step(mut self) {
+            self = match self {
+                Shape.Dot => Shape.Line(1)
+                Shape.Line(n) => Shape.Line(n + 1)
+            }
+        }
+
+        fn label(self) -> String {
+            match self {
+                Shape.Dot => "dot"
+                Shape.Line(n) => f"line{n}"
+            }
+        }
+    }
+
+    Card: Holder<Shape> {
+        fn held(self) -> Shape {
+            self.shape.copy()
+        }
+    }
+}
+
+main {
+    var c = Card { shape: Shape.Dot }
+    print(c.describe())
+    c.shape.step()
+    print(c.describe())
+}

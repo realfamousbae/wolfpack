@@ -1,0 +1,4 @@
+[package]
+name = "mut-self-bound-of-interface"
+version = "0.1.0"
+kind = "cli"
