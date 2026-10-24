@@ -179,6 +179,9 @@ pub(crate) struct Emitter<'p> {
     iface_fns: BTreeMap<(DefRef, String), FnInfo>,
     /// The interface whose default is being emitted: there `Self` is that interface.
     self_iface: Option<IrType>,
+    /// Whether `Self` is the type parameter `Self`: in an interface that mentions `Self` beyond
+    /// the receiver and in its defaults.
+    self_param: bool,
     enums: BTreeMap<DefRef, &'p ir::Enum>,
     structs: BTreeMap<DefRef, &'p ir::Struct>,
     ifaces: BTreeMap<DefRef, &'p ir::Interface>,
@@ -199,6 +202,10 @@ pub(crate) struct Emitter<'p> {
     /// holds a pointer to a variable of the enum and has the methods of those interfaces
     /// (`shapeRef`).
     refs: BTreeMap<DefRef, String>,
+    /// Interfaces of the program that mention `Self` beyond the receiver (spec chapter 4, section
+    /// 8.2, rule 3). They are bounds only (section 8.5, rule 1); the Go interface takes the
+    /// implementing type as its last type parameter `Self` (`cycle[light]`).
+    self_typed: BTreeSet<DefRef>,
     /// Whether an interface implementation finds the dictionary of a bound by one of
     /// `place_ifaces` at run time (`wolfrt.As`): the variants of enums with refs then give
     /// them.
@@ -458,6 +465,20 @@ fn mentions(t: &IrType, name: &str) -> bool {
         IrType::Map(a, b) | IrType::Result(a, b) => mentions(a, name) || mentions(b, name),
         IrType::Named(_, args) => args.iter().any(|a| mentions(a, name)),
         IrType::Fn(ps, r) => ps.iter().any(|(_, t)| mentions(t, name)) || mentions(r, name),
+        _ => false,
+    }
+}
+
+/// Whether `t` mentions `Self`.
+fn mentions_self(t: &IrType) -> bool {
+    match t {
+        IrType::SelfType => true,
+        IrType::List(x) | IrType::Option(x) => mentions_self(x),
+        IrType::Map(a, b) | IrType::Result(a, b) => mentions_self(a) || mentions_self(b),
+        IrType::Named(_, args) => args.iter().any(mentions_self),
+        IrType::Fn(params, ret) => {
+            params.iter().any(|(_, p)| mentions_self(p)) || mentions_self(ret)
+        }
         _ => false,
     }
 }
@@ -764,6 +785,7 @@ impl<'p> Emitter<'p> {
             fns: BTreeMap::new(),
             iface_fns: BTreeMap::new(),
             self_iface: None,
+            self_param: false,
             enums: BTreeMap::new(),
             structs: BTreeMap::new(),
             ifaces: BTreeMap::new(),
@@ -774,6 +796,7 @@ impl<'p> Emitter<'p> {
             ptr_recv: BTreeSet::new(),
             place_ifaces: BTreeSet::new(),
             refs: BTreeMap::new(),
+            self_typed: BTreeSet::new(),
             uses_as: false,
             boxed: BTreeSet::new(),
             error_types: BTreeSet::new(),
@@ -1044,6 +1067,21 @@ impl<'p> Emitter<'p> {
             .ifaces
             .values()
             .filter(|i| i.methods.iter().any(|f| f.self_mode == Some(Mode::Mut)))
+            .map(|i| i.def)
+            .collect();
+        self.self_typed = self
+            .ifaces
+            .values()
+            .filter(|i| {
+                self.def_module(i.def)
+                    .and_then(|m| p.modules.get(m))
+                    .is_some_and(|m| m.role != ModuleRole::Std)
+            })
+            .filter(|i| {
+                i.methods
+                    .iter()
+                    .any(|f| f.params.iter().any(|x| mentions_self(&x.ty)) || mentions_self(&f.ret))
+            })
             .map(|i| i.def)
             .collect();
         // A type that gets a `mut self` default takes pointer receivers too: the default's
@@ -1390,6 +1428,7 @@ impl<'p> Emitter<'p> {
                 Type::Func(ps, rs)
             }
             IrType::Param(n) => Type::name(n),
+            IrType::SelfType if self.self_param => Type::name("Self"),
             IrType::SelfType => match self.self_iface.clone() {
                 // In a default, `Self` is the interface.
                 Some(t) => return self.ty(&t),
@@ -1469,7 +1508,8 @@ impl<'p> Emitter<'p> {
                     // argument has the `mut self` methods).
                     continue;
                 } else {
-                    parts.push(self.ty(b)?);
+                    let of = IrType::Param(g.name.clone());
+                    parts.push(self.bound_ty(b, &of)?);
                 }
             }
             let c = match parts.len() {
@@ -1576,8 +1616,30 @@ impl<'p> Emitter<'p> {
     }
 
     /// The Go type of the view of a place of type `of` as a value of the interface `bound`.
-    fn view_ty(&mut self, bound: &IrType, _of: &IrType) -> Result<Type, Error> {
-        self.ty(bound)
+    fn view_ty(&mut self, bound: &IrType, of: &IrType) -> Result<Type, Error> {
+        self.bound_ty(bound, of)
+    }
+
+    /// The Go type of the interface `bound` met by the type `of`: an interface that mentions
+    /// `Self` takes `of` as its last type argument (`cycle[T]`).
+    fn bound_ty(&mut self, bound: &IrType, of: &IrType) -> Result<Type, Error> {
+        let ty = self.ty(bound)?;
+        Ok(match (bound, ty) {
+            (IrType::Named(d, _), Type::Name(q, n, mut args)) if self.self_typed.contains(d) => {
+                args.push(self.ty(of)?);
+                Type::Name(q, n, args)
+            }
+            (_, ty) => ty,
+        })
+    }
+
+    /// `t` with `Self` as the type parameter `Self` where it is one (see `self_param`).
+    fn norm(&self, t: &IrType) -> IrType {
+        if self.self_param && *t == IrType::SelfType {
+            IrType::Param("Self".to_string())
+        } else {
+            t.clone()
+        }
     }
 
     /// The dictionary of the interface `iface` with `mut self` methods for the type `t`: that of
@@ -1585,6 +1647,7 @@ impl<'p> Emitter<'p> {
     /// A pointer to a struct or to an enum without payloads has the methods; an enum with
     /// payloads has its ref; an interface value is a value of the interface itself.
     fn view_fn(&mut self, iface: DefRef, t: &IrType) -> Result<Expr, Error> {
+        let t = &self.norm(t);
         if let IrType::Param(n) = t {
             return self
                 .param_dict(n, Dict::View(iface))
@@ -1612,8 +1675,8 @@ impl<'p> Emitter<'p> {
         if !self.place_ifaces.contains(&iface) {
             return None;
         }
-        match t {
-            IrType::Param(n) => self.param_dict(n, Dict::View(iface)),
+        match self.norm(t) {
+            IrType::Param(n) => self.param_dict(&n, Dict::View(iface)),
             _ => None,
         }
     }
@@ -2616,7 +2679,7 @@ impl<'p> Emitter<'p> {
             } else {
                 recv_ty.clone()
             };
-            let func = self.delegate((recv.clone(), t), &self_ty, iface, &args, f)?;
+            let func = self.delegate((recv.clone(), t), &self_ty, iface, &args, f, None)?;
             out.push(Decl::Func(func));
         }
         if self.error_types.contains(&s.def) {
@@ -2750,7 +2813,12 @@ impl<'p> Emitter<'p> {
         {
             return Ok(());
         }
-        let tparams = self.tparams(&i.generics)?;
+        let self_typed = self.self_typed.contains(&i.def);
+        let mut tparams = self.tparams(&i.generics)?;
+        if self_typed {
+            tparams.push(("Self".to_string(), Type::name("any")));
+        }
+        let outer = std::mem::replace(&mut self.self_param, self_typed);
         let mut elems = Vec::new();
         for f in &i.methods {
             let mut params = Vec::new();
@@ -2765,6 +2833,7 @@ impl<'p> Emitter<'p> {
                 results,
             ));
         }
+        self.self_param = outer;
         if self.need_copy_iface.contains(&i.def) {
             let ity = self.ty(&IrType::Named(i.def, Vec::new()))?;
             elems.push(IfaceElem::Method(
@@ -2788,11 +2857,25 @@ impl<'p> Emitter<'p> {
             .map(|g| IrType::Param(g.name.clone()))
             .collect();
         let self_ty = IrType::Named(i.def, args);
+        // In an interface that mentions `Self`, a default is generic over `Self`, bounded by the
+        // interface: it takes the value itself (a pointer to the place for `mut self`).
+        let mut generics = i.generics.clone();
+        let (self_ty, self_iface) = if self_typed {
+            generics.push(ir::Generic {
+                name: "Self".to_string(),
+                bounds: vec![self_ty],
+            });
+            (IrType::Param("Self".to_string()), None)
+        } else {
+            (self_ty.clone(), Some(self_ty))
+        };
         for f in i.methods.iter().filter(|f| f.body.is_some()) {
             let name = self.default_fn_name(i.def, &f.name);
-            let outer = self.self_iface.replace(self_ty.clone());
-            let func = self.function(f, name, None, &i.generics, Some(&self_ty));
+            let outer = std::mem::replace(&mut self.self_iface, self_iface.clone());
+            let outer_param = std::mem::replace(&mut self.self_param, self_typed);
+            let func = self.function(f, name, None, &generics, Some(&self_ty));
             self.self_iface = outer;
+            self.self_param = outer_param;
             let mut func = func?;
             func.docs = f.docs.clone();
             out.push(Decl::Func(func));
@@ -2856,6 +2939,7 @@ impl<'p> Emitter<'p> {
         iface: DefRef,
         args: &[IrType],
         f: &ir::Function,
+        place: Option<Expr>,
     ) -> Result<Func, Error> {
         let names: Vec<String> = self
             .ifaces
@@ -2886,6 +2970,21 @@ impl<'p> Emitter<'p> {
             None => id(&name),
         };
         let mut all = vec![id(&recv.0)];
+        if self.self_typed.contains(&iface) {
+            // The default takes the value, or a pointer to the place for `mut self`, and the
+            // dictionary of `Self`. A ref gives the variable it points to.
+            if let Some(place) = place {
+                all = vec![if f.self_mode == Some(Mode::Mut) {
+                    place
+                } else {
+                    star(place)
+                }];
+            }
+            targs.push(self.ty(self_ty)?);
+            if self.place_ifaces.contains(&iface) {
+                all.push(self.view_fn(iface, self_ty)?);
+            }
+        }
         all.extend(params.iter().map(|(n, _)| id(n)));
         let c = callt(callee, targs, all);
         let body = if results.is_empty() {
@@ -2974,7 +3073,7 @@ impl<'p> Emitter<'p> {
                 } else {
                     enum_ty.clone()
                 };
-                let func = self.delegate((recv.clone(), t), &self_ty, iface, &args, f)?;
+                let func = self.delegate((recv.clone(), t), &self_ty, iface, &args, f, None)?;
                 out.push(Decl::Func(func));
             }
             self.iface_copies(e.def, &e.methods, false, &enum_ty, true, out)?;
@@ -3037,6 +3136,7 @@ impl<'p> Emitter<'p> {
                 *iface,
                 args,
                 f,
+                None,
             )?;
             elems.push(IfaceElem::Method(Vec::new(), d.name, d.params, d.results));
         }
@@ -3144,7 +3244,14 @@ impl<'p> Emitter<'p> {
                 }));
             }
             for (iface, args, f) in &inherited {
-                let d = self.delegate(("x".to_string(), vty.clone()), &self_ty, *iface, args, f)?;
+                let d = self.delegate(
+                    ("x".to_string(), vty.clone()),
+                    &self_ty,
+                    *iface,
+                    args,
+                    f,
+                    None,
+                )?;
                 out.push(Decl::Func(d));
             }
             if is_error {
@@ -3296,7 +3403,15 @@ impl<'p> Emitter<'p> {
             }));
         }
         for (iface, args, f) in inherited {
-            let d = self.delegate((recv.to_string(), rty.clone()), &self_ty, *iface, args, f)?;
+            let place = Some(sel(id(recv), &field));
+            let d = self.delegate(
+                (recv.to_string(), rty.clone()),
+                &self_ty,
+                *iface,
+                args,
+                f,
+                place,
+            )?;
             out.push(Decl::Func(d));
         }
         Ok(())
@@ -3915,7 +4030,12 @@ impl<'p> Emitter<'p> {
             owner_generics
         };
         if f.interface.is_some() {
-            self.runtime_dicts(&owner_dicts);
+            // A default of an interface that mentions `Self` takes the dictionary of `Self`.
+            let (own, found): (Vec<ir::Generic>, Vec<ir::Generic>) = owner_dicts
+                .into_iter()
+                .partition(|g| self.self_param && g.name == "Self");
+            self.runtime_dicts(&found);
+            params.extend(self.dict_params(&own)?);
         } else {
             params.extend(self.dict_params(&owner_dicts)?);
         }
@@ -5505,6 +5625,9 @@ impl<'p> Emitter<'p> {
             }
             | Callee::Default {
                 interface, recv, ..
+            } if !self.self_typed.contains(interface) => self.recv_view(*interface, &recv.ty),
+            Callee::Interface {
+                interface, recv, ..
             } => self.recv_view(*interface, &recv.ty),
             _ => None,
         };
@@ -5623,8 +5746,17 @@ impl<'p> Emitter<'p> {
                 let in_place = info.self_mode == Some(Mode::Mut)
                     && matches!(&recv.ty, IrType::Named(d, _)
                         if self.ptr_recv.contains(d) && !self.ifaces.contains_key(d));
+                let self_typed = self.self_typed.contains(interface);
                 let r = if view.is_some() {
                     r
+                } else if self_typed {
+                    // The default of an interface that mentions `Self` takes the value, or a
+                    // pointer to the place for `mut self`, and the dictionary of `Self`.
+                    if info.self_mode == Some(Mode::Mut) && !self.payload_enum(&recv.ty) {
+                        addr(r)
+                    } else {
+                        r
+                    }
                 } else if self.has_ref(&recv.ty, *interface) {
                     let ptr = self.recv_ptr(r, info.self_mode, &recv.ty)?;
                     self.enum_ref(ptr, &recv.ty)?
@@ -5633,13 +5765,20 @@ impl<'p> Emitter<'p> {
                 } else {
                     self.as_iface(r, &recv.ty)
                 };
-                let targs = self.iface_targs(*interface, &recv.ty)?;
+                let mut targs = self.iface_targs(*interface, &recv.ty)?;
                 let fname = self.default_fn_name(*interface, name);
                 let callee = match self.qualifier(*interface) {
                     Some(path) => Expr::Qual(path, fname),
                     None => id(&fname),
                 };
                 let mut a = vec![r];
+                if self_typed {
+                    let t = self.norm(&recv.ty);
+                    targs.push(self.ty(&t)?);
+                    if self.place_ifaces.contains(interface) {
+                        a.push(self.dict(Dict::View(*interface), &t)?);
+                    }
+                }
                 a.extend(all);
                 callt(callee, targs, a)
             }
