@@ -255,3 +255,28 @@ The VM runs only wolfpack code and std. A program that calls code of the targets
 `extern` section or a native module, cannot run in it: `wolf run --vm` reports E0807 and names the
 module and the chain of imports that reaches it. [Chapter 10 of the
 specification](../spec/10-vm.md) has the rules.
+
+`wolf check --bytecode` shows the bytecode that the VM runs, to see how a program works inside:
+every function of `src/`, or only the one named, as `area`, `Shape.area` or `shapes.area`. Each
+instruction works on a stack of values; `Load` and `Store` read and write the numbered slots of
+the function's variables, and the jumps go to the numbered instructions.
+
+```text
+$ wolf check --bytecode half
+fn main.half (params 1, captures 0, slots 1)
+   0  Load(0)
+   1  Int(2)
+   2  Binary(Rem)
+   3  Int(0)
+   4  Binary(Eq)
+   5  JumpUnless(11)
+   6  Load(0)
+   7  Int(2)
+   8  Binary(Div)
+   9  Make Option.Some 1
+  10  Jump(12)
+  11  Make Option.None 0
+  12  Return
+```
+
+The listing is for reading: its form follows the bytecode, which may change in any release.

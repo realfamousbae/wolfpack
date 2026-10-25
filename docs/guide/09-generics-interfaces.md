@@ -399,4 +399,69 @@ A few more rules keep interfaces translatable to Go and Rust:
 - A type implements an interface at most once, in the module that declares the type.
 - A type cannot have two methods with the same name, even from two different interfaces, and a
   method of a struct cannot have the name of one of its fields.
-- Interfaces do not extend each other.
+
+### Super-interfaces
+
+An interface may name other interfaces after `:`, its **super-interfaces**. A type that
+implements it must implement them too, each in its own block, and wherever a type is known to
+implement the interface, it has their methods as well: in a default, through a bound, and on a
+value of the interface.
+
+```wolf
+module main
+
+types {
+    struct Dog {
+        title: String
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Greeter: Named + Display {
+        fn greeting(self) -> String {
+            f"Hello, {self.name()}, {self}!"
+        }
+    }
+}
+
+impl {
+    Dog: Named {
+        fn name(self) -> String {
+            self.title.copy()
+        }
+    }
+
+    Dog: Display {
+        fn to_string(self) -> String {
+            "a good dog"
+        }
+    }
+
+    Dog: Greeter {}
+}
+
+main {
+    print(welcome(Dog { title: "Rex" }))
+}
+
+functions {
+    fn welcome<T: Greeter>(guest: T) -> String {
+        guest.greeting() + " Come in, " + guest.name() + "."
+    }
+}
+```
+
+```output
+Hello, Rex, a good dog! Come in, Rex.
+```
+
+- A super-interface is an interface of the program, `Error`, `Comparable` or `Display`.
+  `Equatable`, `Copyable` and `Hashable` cannot be one (E0445): no block implements them.
+- `Dog: Greeter` without `Dog: Named` is an error (E0446), and so is a method of `Greeter` with
+  the name of a method of `Named` (E0447).
+- An interface with `Comparable` among its super-interfaces is a bound only, like `Comparable`
+  itself. A value of type `Greeter` is not converted to a value of type `Named`.

@@ -282,6 +282,15 @@ graphical installer.
 
 ### Uninstall
 
+```bash
+wolf self uninstall
+```
+
+It removes `wolf` and the lines that the installer added to put it on `PATH`, and asks before it
+removes `~/.wolfpack` with the tools of the targets (`--yes` removes it without asking). For a
+`wolf` of a package manager it prints the command of that manager instead, and for the Windows
+setup program it starts its uninstaller. To do the same by hand:
+
 **macOS and Linux** (installed with the script):
 
 ```bash
@@ -405,7 +414,7 @@ hello/
 | Command | What it does |
 | --- | --- |
 | `wolf new <name>` | create a project (`--kind lib` for a library) |
-| `wolf check` | check the project without generating code |
+| `wolf check` | check the project without generating code; `--bytecode` prints what the VM runs |
 | `wolf build` | generate the target project in `out/<target>/` |
 | `wolf run` | build and run the program (`--target ts\|go\|rust`, `--example <name>`); `--vm` runs it in the VM of `wolf` |
 | `wolf test` | run the tests of the project (`--vm` in the VM) |
