@@ -67,6 +67,42 @@ took 2
 took 1
 ```
 
+`if let` and `while let` can be joined with other conditions by `&&`. The items are tried from
+left to right; the first that fails ends the test, and a name that a `let` binds can be used by
+the items after it and by the block:
+
+```wolf
+module main
+
+main {
+    print(first_word("wolf pack"))
+    print(first_word(" pack"))
+    var stack = [1, 2, 30, 4]
+    while let Some(top) = stack.pop() && top < 10 {
+        print(f"took {top}")
+    }
+}
+
+functions {
+    fn first_word(text: String) -> String {
+        if let Some(at) = text.find(" ") && at > 0 {
+            text[..at]
+        } else {
+            text.copy()
+        }
+    }
+}
+```
+
+```output
+wolf
+ pack
+took 4
+```
+
+An `||` in such a condition must be in parentheses, `if let Some(at) = found && (at > 0 || all)`,
+because otherwise it would be unclear what it joins (error E0317).
+
 ## `Result`: a value or an error
 
 `Result<T, E>` is either `Ok(value)` or `Err(error)`. `"42".parse_int()`, for example, returns a
