@@ -4,32 +4,32 @@ members = ["crates/*"]
 exclude = ["fuzz"]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/realfamousbae/wolfpack"
 
 [workspace.dependencies]
-wolf_span = { package = "wolfpack-span", path = "crates/wolf_span", version = "0.5.0" }
-wolf_diag = { package = "wolfpack-diag", path = "crates/wolf_diag", version = "0.5.0" }
-wolf_lexer = { package = "wolfpack-lexer", path = "crates/wolf_lexer", version = "0.5.0" }
-wolf_ast = { package = "wolfpack-ast", path = "crates/wolf_ast", version = "0.5.0" }
-wolf_parser = { package = "wolfpack-parser", path = "crates/wolf_parser", version = "0.5.0" }
-wolf_std = { package = "wolfpack-std", path = "crates/wolf_std", version = "0.5.0" }
-wolf_project = { package = "wolfpack-project", path = "crates/wolf_project", version = "0.5.0" }
-wolf_resolve = { package = "wolfpack-resolve", path = "crates/wolf_resolve", version = "0.5.0" }
-wolf_types = { package = "wolfpack-types", path = "crates/wolf_types", version = "0.5.0" }
-wolf_ir = { package = "wolfpack-ir", path = "crates/wolf_ir", version = "0.5.0" }
-wolf_own = { package = "wolfpack-own", path = "crates/wolf_own", version = "0.5.0" }
-wolf_ts = { package = "wolfpack-ts", path = "crates/wolf_ts", version = "0.5.0" }
-wolf_go = { package = "wolfpack-go", path = "crates/wolf_go", version = "0.5.0" }
-wolf_rs = { package = "wolfpack-rs", path = "crates/wolf_rs", version = "0.5.0" }
-wolf_fmt = { package = "wolfpack-fmt", path = "crates/wolf_fmt", version = "0.5.0" }
-wolf_driver = { package = "wolfpack-driver", path = "crates/wolf_driver", version = "0.5.0" }
-wolf_native = { package = "wolfpack-native", path = "crates/wolf_native", version = "0.5.0" }
-wolf_vm = { package = "wolfpack-vm", path = "crates/wolf_vm", version = "0.5.0" }
-wolf_lsp = { package = "wolfpack-lsp", path = "crates/wolf_lsp", version = "0.5.0" }
+wolf_span = { package = "wolfpack-span", path = "crates/wolf_span", version = "0.5.1" }
+wolf_diag = { package = "wolfpack-diag", path = "crates/wolf_diag", version = "0.5.1" }
+wolf_lexer = { package = "wolfpack-lexer", path = "crates/wolf_lexer", version = "0.5.1" }
+wolf_ast = { package = "wolfpack-ast", path = "crates/wolf_ast", version = "0.5.1" }
+wolf_parser = { package = "wolfpack-parser", path = "crates/wolf_parser", version = "0.5.1" }
+wolf_std = { package = "wolfpack-std", path = "crates/wolf_std", version = "0.5.1" }
+wolf_project = { package = "wolfpack-project", path = "crates/wolf_project", version = "0.5.1" }
+wolf_resolve = { package = "wolfpack-resolve", path = "crates/wolf_resolve", version = "0.5.1" }
+wolf_types = { package = "wolfpack-types", path = "crates/wolf_types", version = "0.5.1" }
+wolf_ir = { package = "wolfpack-ir", path = "crates/wolf_ir", version = "0.5.1" }
+wolf_own = { package = "wolfpack-own", path = "crates/wolf_own", version = "0.5.1" }
+wolf_ts = { package = "wolfpack-ts", path = "crates/wolf_ts", version = "0.5.1" }
+wolf_go = { package = "wolfpack-go", path = "crates/wolf_go", version = "0.5.1" }
+wolf_rs = { package = "wolfpack-rs", path = "crates/wolf_rs", version = "0.5.1" }
+wolf_fmt = { package = "wolfpack-fmt", path = "crates/wolf_fmt", version = "0.5.1" }
+wolf_driver = { package = "wolfpack-driver", path = "crates/wolf_driver", version = "0.5.1" }
+wolf_native = { package = "wolfpack-native", path = "crates/wolf_native", version = "0.5.1" }
+wolf_vm = { package = "wolfpack-vm", path = "crates/wolf_vm", version = "0.5.1" }
+wolf_lsp = { package = "wolfpack-lsp", path = "crates/wolf_lsp", version = "0.5.1" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -2,13 +2,13 @@
 
 All notable changes are recorded here at the end of each milestone.
 
-## Unreleased
+## 0.5.1 (2026-10-26)
 
 - E0608 also covers the super-interfaces of a `pub` interface (spec chapter 6, section 4, rule 5):
   a `pub` interface cannot extend a private one, and the message names the interface as an
   interface.
 - `wolf self uninstall` on Windows removes `wolf.exe` and the directories of the installer
-  script again: the command that removes them after `wolf` exits was quoted for a program, not
+  script: the command that removes them after `wolf` exits was quoted for a program, not
   for `cmd`, which rejected it. CI now runs the tests of `wolf self uninstall` on Windows and
   macOS too, the Windows one with the user's `Path` in the registry.
 

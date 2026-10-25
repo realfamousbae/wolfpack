@@ -19,7 +19,7 @@ npx @vscode/vsce package
 ```
 
 ```bash
-code --install-extension wolfpack-0.5.0.vsix
+code --install-extension wolfpack-0.5.1.vsix
 ```
 
 The server is the `wolf` command itself, so a `wolf` that has `wolf lsp` (0.4.0 or newer)
