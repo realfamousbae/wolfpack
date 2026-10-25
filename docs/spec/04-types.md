@@ -294,6 +294,39 @@ the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`).
    The receiver is the first argument, passed in the mode of the method's `self` (`mut x` for
    `mut self`), and its type must implement the interface (E0404). Only a method with a default
    can be called this way (E0444).
+6. **[DRAFT]** (2026-10-25, D4.20) **Super-interfaces.** An interface may name other interfaces
+   after `:`, its super-interfaces, written as bounds are (chapter 3, section 2):
+   ```
+   interface Named {
+       fn name(self) -> String
+   }
+
+   interface Greeter: Named + Display {
+       fn greeting(self) -> String {
+           "Hello, " + self.name() + "!"
+       }
+   }
+   ```
+   - A type that implements `Greeter` must implement `Named` and `Display` too, each in its own
+     block (section 8.3, rule 7). The block of `Greeter` defines only the methods of `Greeter`.
+   - Wherever a type is known to implement `Greeter`, it is known to implement the
+     super-interfaces, and theirs in turn: generic code with `T: Greeter` may call `name` and
+     `to_string` on a `T`, and a default of `Greeter` may call them on `self`.
+   - A super-interface is an interface of the program, `Error` (chapter 7, section 2), or one of
+     the built-in interfaces that a user implements by hand, `Comparable` and `Display`
+     (section 9). `Equatable`, `Copyable` and `Hashable` cannot be super-interfaces (E0445): they
+     are derived or closed, so no block implements them.
+   - A super-interface may have type arguments, from the parameters of the interface:
+     `interface Sorted<T>: Container<T>`.
+   - An interface that is its own super-interface, directly or through others
+     (`interface A: B` and `interface B: A`), and a super-interface named twice in one list are
+     errors (E0445). Two super-interfaces may share one of their own (`interface C: A + B` with
+     `A: Base` and `B: Base`): a type implements `Base` once.
+   - A method of an interface cannot have the name of a method of one of its super-interfaces,
+     since a type that implements both would have two methods with one name (section 8.3,
+     rule 4): E0447, reported at the interface.
+   - A default of a super-interface is replaced in the block of that super-interface, never in the
+     block of the interface that names it. `Named.m(x)` (rule 5) calls a default of `Named` only.
 
 ### 8.3 Implementations
 
@@ -321,6 +354,13 @@ the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`).
    fields (E0432). TypeScript classes and Go structs keep fields and methods in one namespace.
    Associated functions without `self` and the fields of enum variants are not affected. (Author,
    2026-10-16.)
+7. **[DRAFT]** (D4.20) **Super-interfaces.** A block `Type: Greeter { ... }` needs `Type` to
+   implement every super-interface of `Greeter` (section 8.2, rule 6), with the same type
+   arguments: `Type: Named { ... }` in the same module (rule 2), or a built-in implementation
+   (`Display` of `Int`). For a generic type, the bounds of the head of the `Greeter` block must
+   give what the head of each super-interface's block needs: with `Bag<T: Named>: Named`,
+   `Bag<T>: Greeter` is E0446 and `Bag<T: Named>: Greeter` is fine. A missing implementation is
+   E0446 at the block of `Greeter`, naming the super-interface.
 
 ### 8.4 Method calls
 
@@ -334,7 +374,12 @@ bounds. Associated functions are called as `Type.f(args)`.
    object-safe**: no method mentions `Self` except as the receiver, and (by 8.2) no method is
    generic and every member takes `self`. Using a non-object-safe interface as a type is an error
    that names the offending method. Such interfaces (for example `Comparable`) are still usable as
-   bounds. **[PROPOSAL]**
+   bounds. **[PROPOSAL]** **[DRAFT]** (D4.20): an interface with super-interfaces is object-safe
+   only if each of them is, so `interface Ordered: Comparable` is a bound only. A value of type
+   `Greeter` has the methods of `Greeter` and of its super-interfaces (`g.name()`), but it is not
+   converted to a value of a super-interface: `let n: Named = g` is E0401, as there is no
+   coercion between interface types. The reason: a value of a Rust trait object becomes one of
+   its super-trait only from Rust 1.86, and the generated Rust builds with 1.85 (chapter 8).
 2. **Coercion.** Where an expression of interface type `I` is expected (an annotated `let`, an
    argument, a field, a list element with a known element type, a result), a value of a concrete
    type that implements `I` is accepted and becomes a value of type `I`. **[PROPOSAL]** (see D4.6)
@@ -492,6 +537,9 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0442 | A `where` that is not allowed there: on a free function, in an interface or an interface implementation, or naming a type parameter that is not one of the block (section 8.6, rule 3) |
 | E0443 | A default method replaced without `override`, or `override` on a method that replaces no default (section 8.3, rule 1; D4.19) |
 | E0444 | `Interface.method(x)` for a method without a default (section 8.2, rule 5; D4.19) |
+| E0445 | **[DRAFT]** A super-interface that is not allowed: not an interface, `Equatable`, `Copyable` or `Hashable`, the interface itself directly or through others, or one named twice (section 8.2, rule 6; D4.20) |
+| E0446 | **[DRAFT]** An interface implementation for a type that does not implement a super-interface of the interface (section 8.3, rule 7; D4.20) |
+| E0447 | **[DRAFT]** A method of an interface with the name of a method of one of its super-interfaces (section 8.2, rule 6; D4.20) |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
@@ -523,5 +571,6 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.17 | `Display` of `List`, `Option`, `Map` and `Result` (section 9, rule 7; chapter 7, section 4.1): written as the literal would be, strings in quotes with the escapes of chapter 7, a map as a map literal in insertion order; `Result` also when its error implements `Error`, through `message()` | **answered** (author, 2026-10-23): strings in quotes, `Result` with `Error` too, maps as `["Ann": 31]`; in generic code the type argument decides (chapter 7, section 4.1, rule 4) |
 | D4.18 | Format specifications in interpolations (chapter 1, section 5.3a; chapter 7, section 4.4): `[[fill] align] ["0"] [width] ["." precision]`; numbers align to the right by default, other values to the left; width counts Unicode scalar values; precision only for `Float`, rounded to the nearest with ties to even; `0` only for numbers and never with a fill or an alignment; width at most 1000, precision at most 100; codes E0117 and E0441 | **answered** (author, 2026-10-23): ties to even; `0` with an alignment forbidden; limits 1000 and 100 |
 | D4.19 | Default methods in interfaces (section 8.2, rules 4 and 5; section 8.3, rules 1 and 4): a body after the signature is the default, checked once over `Self: I`; a replacement is written `override fn` (E0443); `I.m(x)` calls the default also when it is replaced (E0444 for a method without one); inherited defaults count for E0415 and E0432. Targets: the default is a function of its own that the implementing types and `I.m(x)` call (in Rust too, which cannot call a replaced trait default) | **answered** (author, 2026-10-23): replacements marked with `override`; `Named.greeting(self)` calls the default |
+| D4.20 | **[DRAFT]** Super-interfaces (section 8.2, rule 6; section 8.3, rule 7; section 8.5, rule 1; chapter 8, section 5.3): `interface Greeter: Named + Display`; a type implements each super-interface in its own block (E0446 otherwise); a bound by `Greeter` gives the methods of the super-interfaces, also to its defaults; super-interfaces are interfaces of the program, `Error`, `Comparable` and `Display`, not `Equatable`, `Copyable` or `Hashable`; cycles and repeats are E0445, a method name taken from a super-interface E0447; no coercion of a `Greeter` value to a `Named` value (Rust 1.85). Reverses "no super-interfaces" of D3.3. Targets: Rust super-traits, TS `extends`, Go embedded interfaces; the dictionaries of TS and Go bounds carry those of the super-interfaces | **proposed** (2026-10-25), waiting for the author |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |
