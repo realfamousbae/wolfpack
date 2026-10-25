@@ -1,0 +1,133 @@
+module main
+
+types {
+    struct User {
+        name: String
+        active: Bool
+        mail: Option<String>
+    }
+
+    enum Shape {
+        Circle(Float)
+        Square(Float)
+        Dot
+    }
+}
+
+main {
+    let users = [
+        User { name: "Ann", active: true, mail: Some("ann@example.org") },
+        User { name: "Bob", active: false, mail: Some("bob@example.org") },
+        User { name: "Cid", active: true, mail: None },
+    ]
+    for u in users {
+        print(contact(u))
+    }
+
+    // A `Bool` before the `let`, between two `let`s and after them.
+    print(describe(Some(4), true))
+    print(describe(Some(4), false))
+    print(describe(Some(-1), true))
+    print(describe(None, true))
+
+    // The chain as a value, `else if` with chains, an `if` without `else`.
+    print(size(Shape.Circle(2.0)).to_string())
+    print(size(Shape.Square(3.0)).to_string())
+    print(size(Shape.Dot).to_string())
+    print(size(Shape.Square(-1.0)).to_string())
+    if let Some(n) = first_even([1, 3, 6, 8]) && n > 5 {
+        print(f"first even {n}")
+    }
+
+    // `while` with a chain: stops at the first item that fails.
+    var stack = [1, 2, 3, 40, 5]
+    var taken = 0
+    while let Some(top) = stack.pop() && top < 10 {
+        taken += top
+    }
+    print(f"taken {taken}, left {stack}")
+
+    // `mut` and `own` items.
+    var slot: Option<Int> = Some(1)
+    if let Some(v) = mut slot && v < 10 {
+        v += 100
+    }
+    print(f"slot {slot}")
+    let owned: Option<String> = Some("kept")
+    if let Some(text) = own owned && text.len() > 2 {
+        print(f"took {text}")
+    } else {
+        print("no")
+    }
+
+    // `break` and `continue` inside a chain leave the loop around it.
+    var found = 0
+    for x in [1, 2, 3, 4, 5, 6] {
+        if let Some(h) = half(x) && h == 1 {
+            continue
+        } else if let Some(h) = half(x) && h > 1 {
+            found = h
+            break
+        }
+    }
+    print(f"found {found}")
+    print(labelled([[1, 2], [3, 30, 4], [5]]).to_string())
+}
+
+functions {
+    fn contact(u: User) -> String {
+        if u.active && let Some(m) = u.mail && m.contains("@") {
+            f"{u.name}: {m}"
+        } else {
+            f"{u.name}: none"
+        }
+    }
+
+    fn describe(o: Option<Int>, check: Bool) -> String {
+        if check && let Some(n) = o && n > 0 && let Some(h) = half(n) {
+            return f"half {h}"
+        }
+        "nothing"
+    }
+
+    fn half(n: Int) -> Option<Int> {
+        if n % 2 == 0 {
+            Some(n / 2)
+        } else {
+            None
+        }
+    }
+
+    fn size(s: Shape) -> Float {
+        let area = if let Shape.Circle(r) = s && r > 0.0 {
+            3.0 * r * r
+        } else if let Shape.Square(w) = s && w > 0.0 {
+            w * w
+        } else {
+            0.0
+        }
+        area
+    }
+
+    fn first_even(items: List<Int>) -> Option<Int> {
+        for x in items {
+            if x % 2 == 0 {
+                return Some(x)
+            }
+        }
+        None
+    }
+
+    fn labelled(rows: List<List<Int>>) -> Int {
+        var sum = 0
+        outer: for row in rows {
+            for x in row {
+                if let Some(h) = half(x) && h > 10 {
+                    break outer
+                }
+                sum += x
+            }
+        }
+        sum
+    }
+}

@@ -1,0 +1,17 @@
+Ann: ann@example.org
+Bob: none
+Cid: none
+half 2
+nothing
+nothing
+nothing
+12.0
+9.0
+0.0
+0.0
+first even 6
+taken 5, left [1, 2, 3]
+slot Some(101)
+took kept
+found 2
+6
