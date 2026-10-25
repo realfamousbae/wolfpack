@@ -2,7 +2,7 @@
 
 Status: accepted (author, 2026-10-14). The author chose items 1 to 3 as written; the other items
 are [INTERNAL] choices recorded so that the author can object. Items 12 to 15 change backends of earlier
-milestones; ADR 0009 stays as accepted.
+milestones; ADR 0009 stays as accepted. Item 16 was added on 2026-10-25, also [INTERNAL].
 
 ## Decision
 
@@ -51,6 +51,12 @@ milestones; ADR 0009 stays as accepted.
     TypeScript can narrow it; the object is the same, so changes of its payload stay in the list.
     **Driver: `--out` is resolved against the current directory**, because the tools run in the
     output directory.
+16. **A chain of conditions** (`if let ... && ...`) is a labelled block, `'chain_: { if let ... {
+    if ... { break 'chain_ value; } } otherwise }`; a loop whose `break` or `continue` leaves
+    such a block gets a label, `'loop_`. Labels end with `_`, which the names of a program cannot.
+    **Super-interfaces are super-traits**, and an interface whose values are boxed gets
+    `impl Named for Box<dyn Greeter>` for each of them. A bound leaves out the super-traits that
+    another bound implies, and a block that defines no method is an empty `impl`.
 
 ## Reasons
 
@@ -78,6 +84,9 @@ milestones; ADR 0009 stays as accepted.
     address; a copy keeps the value semantics of copy types.
 15. `(items[$i] as Status)` is not narrowed by TypeScript. A relative `--out` gave the binary
     path and `CARGO_TARGET_DIR` relative to the wrong directory.
+16. Let chains need Rust 1.88, and the generated code builds with 1.85; a labelled block with a
+    value needs 1.65. Rust wants a label on a jump out of a labelled block (E0695), and the impl
+    of a trait for `Box<dyn Greeter>` needs the impls of its super-traits.
 
 ## Consequences
 

@@ -2,7 +2,7 @@
 
 Status: accepted (author, 2026-10-13). Items 1 and 2 changed the text of chapter 8; the other
 items are [INTERNAL] choices recorded so that the author can object. Items 10 and 11 were added
-on 2026-10-24, also [INTERNAL].
+on 2026-10-24, item 12 on 2026-10-25, also [INTERNAL].
 
 ## Decision
 
@@ -47,6 +47,12 @@ on 2026-10-24, also [INTERNAL].
     value as a value of the interface with `wolfrt.As[named, T]`. The type parameters of an
     interface have no constraints by interfaces of the program (`type holds[T any] interface`),
     and its defaults find those bounds the same way.
+12. **A chain of conditions** (`if let ... && ...`) is an `if` per item around the rest; a `let`
+    on an idiomatic result is `if x, ok := f(); ok`. When the first block can end without
+    leaving, it sets a flag, `matched := false ... matched = true`, and the `else` branch runs in
+    `if !matched`. **Super-interfaces are embedded** in the Go interface; a constraint leaves out
+    the bounds that an embedding implies, and a constraint of several interfaces is written one
+    per line, as gofmt does.
 
 ## Reasons
 
@@ -79,6 +85,8 @@ on 2026-10-24, also [INTERNAL].
 11. A Go method cannot constrain the type parameters of its receiver, and `bag[T any]` cannot
     name `holds[T]` when `holds` requires `T named`. The program's type checker has already
     checked the bounds, so the assertion of `wolfrt.As` cannot fail.
+12. Go has no block that a `break` leaves without leaving a loop around it, and `goto` cannot jump
+    over the declarations of the bindings; a flag keeps the `else` branch written once.
 
 ## Consequences
 

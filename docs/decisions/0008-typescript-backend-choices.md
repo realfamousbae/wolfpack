@@ -15,6 +15,11 @@ of chapter 8, section 4.1.
    of a generated function per type.
 4. Function values (closures, functions stored or passed) return `Option` in the data form; a
    declared function used as a value is wrapped.
+5. (2026-10-25, [INTERNAL]) **A chain of conditions** (`if let ... && ...`) is a labelled block:
+   an `if` per item around the rest, the first block followed by `break $chain`, and the `else`
+   branch after the `if`s. Without an `else`, or when the first block always leaves, there is no
+   label. **Super-interfaces** are `extends`; the class that holds a payload-less enum as a value
+   of an interface also has the methods of its super-interfaces.
 
 ## Reasons
 
@@ -25,3 +30,5 @@ of chapter 8, section 4.1.
    classes and compares maps independently of order.
 4. What a function value returns is usually stored (`list.map(|x| halve(x))`); the data form is
    needed there anyway, and a single form for function types keeps them consistent.
+5. The `else` branch is written once, also in a chain of `else if`s; a labelled block does not
+   catch the `break` and `continue` of a loop around it.
