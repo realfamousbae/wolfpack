@@ -147,7 +147,8 @@ Decisions already taken by the author for this chapter (2026-10-07):
 
 ## 6. Control flow typing
 
-1. Conditions of `if` and `while` have type `Bool`.
+1. Conditions of `if` and `while` have type `Bool`. **[DRAFT]** (D3.10): in a chain (chapter 3,
+   section 5, rule 14a), every item that is not a `let` has type `Bool`.
 2. An `if` with `else` has the type of its branches, which must agree (Never agrees with
    everything). An `if` without `else` has type `Void`, and its block must have type `Void`.
 3. All arms of a `match` have the same type.
@@ -190,6 +191,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
    **irrefutable**: a name, `_`, or a struct pattern (not a variant) whose sub-patterns are
    irrefutable (E0433 otherwise). `if let` and `while let` accept any pattern; their bindings have
    the types they would have in a `match` arm. Exhaustiveness (E0410) does not apply to them.
+   **[DRAFT]** (D3.10): the same holds for every `let` item of a chain.
 10. `break` and `continue` are allowed only inside a loop body. The body of a closure is not
     inside the loop around the closure (E0430). Labels are resolved as in chapter 3, section 4,
     rule 5 (E0436, E0437, E0438).

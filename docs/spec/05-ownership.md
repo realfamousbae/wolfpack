@@ -181,6 +181,15 @@ Two places **overlap** if one is a prefix of the other: `user` and `user.name` o
    exclusively, and `if let P = own place` or a temporary moves the value and the bindings own the
    parts. In `while let` the value is evaluated again before every iteration, so
    `while let Some(x) = stack.pop()` moves each element out of the temporary result.
+   **[DRAFT]** (2026-10-25, D3.10) **Chains** (chapter 3, section 5, rule 14a). Each `let` item of
+   a chain follows these rules from its own place to the end of the first block: the borrow it
+   takes lasts through the items after it and the first block, so a later item that changes or
+   moves an overlapping place, or borrows it in another mode, is an error (E0509), as inside the
+   arm of a `match`: `if let Some(a) = mut x && let Some(b) = x` is E0509. A place that a `let`
+   item moves (`own place`) is moved in the `else` branch and after the `if`, like a move in one
+   branch of an `if`: when the item is the first one it is moved (E0501 for a later use), and
+   when it is a later one it may have been moved (E0502), since a later item runs only when the
+   earlier ones succeed.
 6. **A destructuring `let`** (0.2) is an owning position: `let Point { x, y } = p` moves `p` (if
    `Point` is a move type) and the bindings own the parts, as in `match own p`. The value must
    therefore be a whole variable or a temporary (section 3, rule 3).
@@ -263,3 +272,4 @@ Each rule of this chapter gets a pair of tests: correct code and code with the e
 | D5.6 | Closures capture whole variables, not individual fields | **answered**: yes |
 | D5.7 | Rest: moves only of whole variables, flow-sensitive move check and loop rule, mutable place rule, `match` borrows the place in each arm, diagnostics | **answered**: yes |
 | D5.8 | 0.2: `if let` / `while let` as one-arm `match`, destructuring `let` and the base of `..base` are owning positions (sections 3 and 7.4) | **answered** (author, 2026-10-18): yes |
+| D5.9 | **[DRAFT]** Chains in conditions (section 7.4, rule 5; chapter 3, D3.10): every `let` item keeps its borrow through the later items and the first block (E0509); a move by the first item is a move in `else` and after the `if` (E0501), a move by a later item a possible move (E0502) | **proposed** (2026-10-25), waiting for the author |
