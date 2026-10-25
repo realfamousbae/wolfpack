@@ -193,7 +193,7 @@ and after a question at start.
 
 ## 2c. Removing `wolf`
 
-**[DRAFT]** (2026-10-25, D8.15) `wolf self uninstall` undoes what the installers of section 2a,
+(author, 2026-10-25, D8.15) `wolf self uninstall` undoes what the installers of section 2a,
 rule 5 did, so that no command has to be looked up.
 
 1. **What it removes.** The running `wolf` (`wolf.exe` on Windows), and the lines that the
@@ -564,7 +564,7 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16) |
 | E0805 | `wolf self update` could not download, check or install a release (section 2b); the URL or the file and the reason are shown (0.2) |
 | E0806 | A tool of the target rejected a project that has code in `native/<target>/` (section 8a); the output of the tool is shown. The error is usually in a native file or in an `extern` declaration that does not match it, so unlike E0802 it is reported for every rejection of such a project (author, 2026-10-19) (0.2) |
-| E0808 | **[DRAFT]** `wolf self uninstall` could not remove a file or a directory (section 2c), or the directory of `wolf` cannot be written; the file and the reason, or the commands that remove it, are shown (D8.15) |
+| E0808 | `wolf self uninstall` could not remove a file or a directory (section 2c), or the directory of `wolf` cannot be written; the file and the reason, or the commands that remove it, are shown (D8.15) |
 
 ## 10. Decisions for the author
 
@@ -584,4 +584,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.12 | 0.2: the target forms of `Option` parameters of extern functions (section 8, rule 2): `T \| undefined` in TS, `*T` in Go, `Option<&T>` in Rust; no `Option<Option<T>>` parameter | **answered** (author, 2026-10-21): yes |
 | D8.13 | 0.2: `wolf check --native [module]` prints what the compiler read from the native code as pasteable wolfpack source, with the items left out and why (section 8b); code E0716 | **answered** (author, 2026-10-21): yes |
 | D8.14 | Homebrew, Scoop, winget, `.deb` and `.rpm` packages and static Linux builds (section 2a, rule 5), and the package managers that `wolf self update` leaves alone (section 2b, rule 4) | **answered** (author, 2026-10-23): yes, all of them; the exact list of rule 4 is proposed |
-| D8.15 | **[DRAFT]** `wolf self uninstall [--yes]` (section 2c): removes `wolf`, the `PATH` lines that the terminal scripts marked with their comment (never other lines) and the `Path` entry on Windows; asks `[y/N]` before removing the wolfpack home, which `--yes` removes without asking and a script keeps; prints the command of a package manager instead of removing a `wolf` it installed; starts `unins000.exe` of the Windows setup program; E0808 for a step that fails or a directory that cannot be written (`/usr/local/bin` of the macOS package); on Windows the renamed `wolf.old.exe` is removed by a hidden command after `wolf` exits | **proposed** (2026-10-25), waiting for the author |
+| D8.15 | `wolf self uninstall [--yes]` (section 2c): removes `wolf`, the `PATH` lines that the terminal scripts marked with their comment (never other lines) and the `Path` entry on Windows; asks `[y/N]` before removing the wolfpack home, which `--yes` removes without asking and a script keeps; prints the command of a package manager instead of removing a `wolf` it installed; starts `unins000.exe` of the Windows setup program; E0808 for a step that fails or a directory that cannot be written (`/usr/local/bin` of the macOS package); on Windows the renamed `wolf.old.exe` is removed by a hidden command after `wolf` exits | **answered** (author, 2026-10-25): yes |
