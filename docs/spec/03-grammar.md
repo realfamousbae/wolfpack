@@ -169,8 +169,8 @@ range      = expr ( ".." | "..=" ) expr
      `continue` a name is always a label (E0436 if no enclosing loop has it; E0436 also for a
      `break name` where `name` is neither a label nor a variable).
    - `while let pattern = expr { ... }` repeats while the value matches the pattern; the bindings
-     are visible in the body: `while let Some(task) = queue.pop() { ... }`. **[DRAFT]** (D3.10):
-     joined with other conditions by `&&`, section 5, rule 14a.
+     are visible in the body: `while let Some(task) = queue.pop() { ... }`. It may be joined
+     with other conditions by `&&`: section 5, rule 14a (D3.10).
 6. `for x in collection` iterates a collection **[PLAN]**; `for i in 0..n` and `for i in 1..=n`
    iterate integers (author). The loop variable is a plain name. **[PROPOSAL]** The collection may
    be marked `mut` or `own` (`for u in mut users`, `for u in own users`); the meaning is in
@@ -215,7 +215,7 @@ field_init = IDENT ( ":" expr )?
 if_expr    = "if" condition block ( "else" ( if_expr | block ) )?
 condition  = expr_no_struct
            | cond_item ( "&&" cond_item )*               // a `let` among the items: rules 14, 14a
-cond_item  = "let" pattern "=" mode? operand | operand   // [DRAFT] chains with `&&`: rule 14a
+cond_item  = "let" pattern "=" mode? operand | operand   // chains with `&&`: rule 14a
 operand    = expr_no_struct of level 9 or higher (section 6): no `&&`, `||` or closure outside
              parentheses
 match_expr = "match" mode? expr_no_struct "{" NL* arm ( NL+ arm )* NL* "}"
@@ -266,9 +266,9 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
 14. **`if let`** (added in 0.2, author, 2026-10-18): `if let Some(user) = find(id) { ... } else
     { ... }` runs the first block with the bindings of the pattern when the value matches, and the
     `else` branch otherwise. The value may be marked `mut` or `own` as the scrutinee of `match`
-    (chapter 5, section 7.4). `if let` is an expression with the typing of `if`. **[DRAFT]**
-    (D3.10): `if let` and `while let` may be joined with other conditions, rule 14a.
-14a. **[DRAFT]** (2026-10-25, D3.10) **Chains in conditions.** The condition of an `if` or a
+    (chapter 5, section 7.4). `if let` is an expression with the typing of `if`. `if let` and `while let` may be
+    joined with other conditions, rule 14a (D3.10).
+14a. (author, 2026-10-25, D3.10) **Chains in conditions.** The condition of an `if` or a
     `while` may join `let` items and `Bool` expressions with `&&`:
     ```
     if let Some(user) = find(id) && user.active && let Some(mail) = user.mail {
@@ -415,7 +415,7 @@ that would change and changes nothing. A file with syntax errors is not formatte
      line of the call: `items.map(|x| {`;
    - a chain of two or more method calls puts each `.call()` on its own line, indented once;
    - a binary expression breaks after its operators, the continuation indented once;
-   - **[DRAFT]** (D3.10) a chain in a condition (section 5, rule 14a) breaks the same way, after
+   - a chain in a condition (section 5, rule 14a; D3.10) breaks the same way, after
      each `&&` and so one item per line, the items after the first indented once;
    - the value of `let`, `var` or an assignment moves to the next line after `=`, indented once, if
      that makes it fit.
@@ -450,7 +450,7 @@ parser may add specific codes for frequent mistakes.
 | E0314 | Nesting too deep (more than 256 levels of expressions, blocks, types or patterns). Protects the compiler from stack overflow; added in M2 |
 | E0315 | A label that is not followed by `while`, `for` or `loop` (added in 0.2) |
 | E0316 | `..base` that is not the last item of a struct literal, or appears twice (added in 0.2) |
-| E0317 | **[DRAFT]** `\|\|` outside parentheses in a condition with a `let` (section 5, rule 14a; D3.10) |
+| E0317 | `\|\|` outside parentheses in a condition with a `let` (section 5, rule 14a; D3.10) |
 
 Recovery **[PLAN]** (section 9): on an error the parser skips to the next `NL` at the current nesting
 level, or to the closing delimiter, and continues.
@@ -468,4 +468,4 @@ level, or to the closing delimiter, and continues.
 | D3.7 | Rest: separators (section 1), associated functions `Type.name()`, `pub` fields, function types `fn(A) -> B`, assignment as a statement, no `loop`/labels/free blocks, field shorthand in struct literals, struct literal restriction in conditions, precedence table, diagnostic list | **answered**: yes |
 | D3.8 | 0.2: destructuring `let`, `if let`, `while let`, `loop` with `break value`, labels `outer: while`, update syntax `..base` (reverses D3.4 and part of D3.7) | **answered** (author, 2026-10-18): yes; labels without `'` |
 | D3.9 | 0.2: the details of section 4 rules 2 and 5 and section 5 rules 6 and 14 (no `break label value`, the name after `break` resolved as a label first, no `if let` chains, `..base` for structs only), codes E0315, E0316 | **answered** (author, 2026-10-18): yes |
-| D3.10 | **[DRAFT]** Chains in conditions (section 5, rule 14a; chapter 4, section 6; chapter 5, section 7.4): `let` items and `Bool` items joined by `&&` in `if` and `while`, tried left to right with short-circuit, bindings visible to the later items and the first block; `\|\|` outside parentheses in a condition with a `let` is E0317; `if let P = a && b` becomes a chain and `if let P = a \|\| b` an error (no program is affected). Reverses "no `if let` chains" of D3.9. **[INTERNAL]** expected: the IR lowers a chain into the `match`, `loop` and `break` it already has, so the targets and the VM need no new construct | **proposed** (2026-10-25), waiting for the author |
+| D3.10 | Chains in conditions (section 5, rule 14a; chapter 4, section 6; chapter 5, section 7.4): `let` items and `Bool` items joined by `&&` in `if` and `while`, tried left to right with short-circuit, bindings visible to the later items and the first block; `\|\|` outside parentheses in a condition with a `let` is E0317; `if let P = a && b` becomes a chain and `if let P = a \|\| b` an error (no program is affected). Reverses "no `if let` chains" of D3.9. **[INTERNAL]** expected: the IR lowers a chain into the `match`, `loop` and `break` it already has, so the targets and the VM need no new construct | **answered** (author, 2026-10-25): yes |
