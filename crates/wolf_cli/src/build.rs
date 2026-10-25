@@ -61,6 +61,7 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
         color: Color::Never,
         emit: None,
         native: None,
+        bytecode: None,
     };
     let mut result = check::load(start, &args);
     if !result.diagnostics.is_empty() {

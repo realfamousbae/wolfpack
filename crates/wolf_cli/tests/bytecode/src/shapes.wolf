@@ -1,0 +1,26 @@
+module shapes
+
+types {
+    pub enum Shape {
+        Circle(Float)
+        Square(Float)
+    }
+}
+
+impl {
+    Shape {
+        pub fn area(self) -> Float {
+            match self {
+                Shape.Circle(r) => 3.0 * r * r
+                Shape.Square(w) => w * w
+            }
+        }
+    }
+}
+
+functions {
+    pub fn area(s: Shape) -> Float {
+        let twice = |x: Float| x * 2.0
+        twice(s.area()) / 2.0
+    }
+}

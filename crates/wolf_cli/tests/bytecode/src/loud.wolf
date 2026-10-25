@@ -1,0 +1,11 @@
+module loud
+
+imports {
+    text.shout
+}
+
+functions {
+    pub fn loud(s: String) -> String {
+        shout.shout(s) + "!"
+    }
+}

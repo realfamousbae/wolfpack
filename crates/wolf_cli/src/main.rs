@@ -225,6 +225,11 @@ pub(crate) struct CheckArgs {
     /// of one native module such as `native.text.slug`.
     #[arg(long, value_name = "MODULE", num_args = 0..=1, default_missing_value = "")]
     pub(crate) native: Option<String>,
+
+    /// Print the bytecode that the VM runs for the functions of `src/`, or for one function
+    /// such as `area`, `Shape.area` or `shapes.area`.
+    #[arg(long, value_name = "FUNCTION", num_args = 0..=1, default_missing_value = "")]
+    pub(crate) bytecode: Option<String>,
 }
 
 /// How diagnostics are printed.
@@ -368,8 +373,8 @@ fn run() -> ExitCode {
         Command::Setup(args) => setup(&args),
         Command::Check(args) => {
             let result = check::run(&args);
-            // The listings of `--native` go to stdout, the diagnostics to stderr (spec chapter 8,
-            // section 8b).
+            // The listings of `--native` and `--bytecode` go to stdout, the diagnostics to stderr
+            // (spec chapter 8, section 8b; chapter 10, section 1a).
             for (i, listing) in result.listings.iter().enumerate() {
                 if i > 0 {
                     println!();
@@ -441,6 +446,7 @@ fn finish(outcome: build::Outcome) -> ExitCode {
                 color: Color::Auto,
                 emit: None,
                 native: None,
+                bytecode: None,
             };
             report(&mut map, &diagnostics, &args);
             ExitCode::from(code)

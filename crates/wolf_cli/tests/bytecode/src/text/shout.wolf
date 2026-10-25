@@ -1,0 +1,13 @@
+module text.shout
+
+extern {
+    go {
+        fn to_upper(s: String) -> String from "strings.ToUpper"
+    }
+}
+
+functions {
+    pub fn shout(s: String) -> String {
+        to_upper(s)
+    }
+}

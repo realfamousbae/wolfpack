@@ -100,6 +100,10 @@ pub struct Image {
     pub tests: Vec<TestFn>,
     /// The names of structs and variants, for listings.
     pub names: HashMap<u32, String>,
+    /// The functions of the program with bytecode: the module index, the function and its
+    /// declaration. The closures of a function follow it, without a declaration (`wolf check
+    /// --bytecode`, spec chapter 10, section 1a).
+    pub listed: Vec<(usize, u32, Option<DefRef>)>,
 }
 
 impl Image {
@@ -157,6 +161,7 @@ pub fn compile(p: &Program) -> Result<Image, Error> {
         names: names(p),
         mains: c.mains,
         tests: c.tests,
+        listed: c.listed,
     })
 }
 
@@ -201,6 +206,13 @@ struct Compiler<'p> {
     defaults: HashMap<(DefRef, String), u32>,
     /// The value of each constant.
     consts: HashMap<DefRef, Value>,
+    /// See [`Image::listed`].
+    listed: Vec<(usize, u32, Option<DefRef>)>,
+    /// The module whose functions are compiled.
+    module: usize,
+    /// The name of the function being compiled, and how many closures it has so far: a closure
+    /// is `main.sum closure 1`.
+    top: (String, u32),
 }
 
 fn find(p: &Program, module: &str, name: &str, kind: impl Fn(DefKind) -> bool) -> Option<u32> {
@@ -282,6 +294,9 @@ impl<'p> Compiler<'p> {
             iface_modes: HashMap::new(),
             defaults: HashMap::new(),
             consts: HashMap::new(),
+            listed: Vec::new(),
+            module: 0,
+            top: (String::new(), 0),
         })
     }
 
@@ -374,10 +389,17 @@ impl<'p> Compiler<'p> {
         // Bodies.
         let mut tests: Vec<(String, TestFn)> = Vec::new();
         for (mi, m) in p.modules.iter().enumerate() {
+            self.module = mi;
+            // Full names, for listings: `shapes.area`, `shapes.Shape.area`.
+            let module = m.path.join(".");
+            let named = |owner: Option<&str>, f: &Function| match owner {
+                Some(o) => format!("{module}.{o}.{}", f.name),
+                None => format!("{module}.{}", f.name),
+            };
             for item in &m.items {
                 match item {
                     Item::Fn(f) => {
-                        self.function(f)?;
+                        self.function(f, named(None, f))?;
                         if f.name == "main"
                             && f.self_mode.is_none()
                             && matches!(m.role, ModuleRole::Entry | ModuleRole::Example)
@@ -390,23 +412,23 @@ impl<'p> Compiler<'p> {
                     }
                     Item::Struct(s) => {
                         for f in &s.methods {
-                            self.function(f)?;
+                            self.function(f, named(Some(&s.name), f))?;
                         }
                     }
                     Item::Enum(e) => {
                         for f in &e.methods {
-                            self.function(f)?;
+                            self.function(f, named(Some(&e.name), f))?;
                         }
                     }
                     Item::Builtin(b) => {
                         for f in &b.methods {
-                            self.function(f)?;
+                            self.function(f, named(Some(&b.name), f))?;
                         }
                     }
                     Item::Interface(i) => {
                         for f in &i.methods {
                             if let Some(&id) = self.defaults.get(&(i.def, f.name.clone())) {
-                                self.body_of(id, f)?;
+                                self.body_of(id, f, named(Some(&i.name), f))?;
                             }
                         }
                     }
@@ -454,15 +476,15 @@ impl<'p> Compiler<'p> {
         }
     }
 
-    fn function(&mut self, f: &Function) -> Result<(), Error> {
+    fn function(&mut self, f: &Function, name: String) -> Result<(), Error> {
         let Some(&id) = self.ids.get(&f.def) else {
             return Ok(());
         };
-        self.body_of(id, f)
+        self.body_of(id, f, name)
     }
 
-    /// The code of the function `f` as the function `id`.
-    fn body_of(&mut self, id: u32, f: &Function) -> Result<(), Error> {
+    /// The code of the function `f`, named `name`, as the function `id`.
+    fn body_of(&mut self, id: u32, f: &Function, name: String) -> Result<(), Error> {
         let info = self.p.def(f.def);
         if let Some(name) = info.and_then(|d| d.intrinsic.clone()) {
             let func = match Intrinsic::from_name(&name) {
@@ -479,7 +501,9 @@ impl<'p> Compiler<'p> {
             );
             return Ok(());
         };
-        let mut fc = FnC::new(f.name.clone());
+        self.listed.push((self.module, id, Some(f.def)));
+        self.top = (name.clone(), 0);
+        let mut fc = FnC::new(name);
         let mut params = 0;
         if let Some(mode) = f.self_mode {
             let s = fc.slot(Var::SelfValue);
@@ -1511,7 +1535,9 @@ impl FnC {
         walk_block(body, &mut used, &mut bound);
         let captures: Vec<Var> = used.difference(&bound).copied().collect();
         let id = c.new_func();
-        let mut fc = FnC::new(format!("{} closure", self.name));
+        c.listed.push((c.module, id, None));
+        c.top.1 += 1;
+        let mut fc = FnC::new(format!("{} closure {}", c.top.0, c.top.1));
         for p in params {
             let s = fc.slot(Var::Local(p.local));
             if p.mode == Mode::Mut {

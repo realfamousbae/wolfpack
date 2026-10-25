@@ -261,4 +261,4 @@ pub fn resolve(modules: &[ModuleInput<'_>], project: &ProjectInfo<'_>) -> Resolv
 }
 
 pub use names::{is_pascal_case, is_snake_case, suggest};
-pub use targets::{check_target, check_vm};
+pub use targets::{check_target, check_vm, vm_unavailable};

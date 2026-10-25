@@ -151,6 +151,152 @@ fn project(start: &Path, args: &CheckArgs, overlay: &Overlay, result: &mut Check
         resolved: analysis.resolved,
         typed: analysis.typed,
     });
+    if let Some(name) = &args.bytecode {
+        if result.diagnostics.is_empty() {
+            bytecode(result, name);
+        }
+    }
+}
+
+/// What `wolf check --bytecode` prints (spec chapter 10, section 1a): the bytecode of the
+/// functions of the modules of `src/`, or of those named `name` (`area`, `Shape.area`,
+/// `shapes.area`, `main`), each with its closures; a module that cannot run in the VM is a
+/// comment.
+fn bytecode(result: &mut CheckResult, name: &str) {
+    let Some(project) = &result.project else {
+        return;
+    };
+    let inputs = project.inputs();
+    let unavailable = wolf_resolve::vm_unavailable(&inputs);
+    let meta = wolf_driver::meta(&project.manifest, false);
+    let lowered = wolf_ir::lower(
+        &inputs,
+        &project.resolved,
+        &project.typed,
+        &result.map,
+        &meta,
+    );
+    let compiled = lowered
+        .map_err(|e| e.message)
+        .and_then(|p| wolf_vm::compile(&p).map(|image| (p, image)));
+    let (program, image) = match compiled {
+        Ok(x) => x,
+        Err(e) => {
+            result.diagnostics.push(
+                Diagnostic::new(codes::E0003, "internal compiler error")
+                    .note(format!("the program cannot be compiled to bytecode: {e}"))
+                    .help("this is a bug in wolf; please report it with the input that caused it"),
+            );
+            return;
+        }
+    };
+    let query: Option<Vec<&str>> = (!name.is_empty()).then(|| name.split('.').collect());
+    let mut modules: Vec<(String, usize)> = program
+        .modules
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| {
+            matches!(
+                m.role,
+                wolf_ir::ModuleRole::Entry | wolf_ir::ModuleRole::Src
+            )
+        })
+        .map(|(i, m)| (m.path.join("."), i))
+        .collect();
+    modules.sort();
+    let mut listings = Vec::new();
+    for (path, index) in modules {
+        let prefix = format!("{path}.");
+        // The functions in the order of the source, each followed by its closures.
+        let mut groups: Vec<(u32, Vec<u32>)> = Vec::new();
+        for &(_, func, def) in image.listed.iter().filter(|(m, _, _)| *m == index) {
+            match def {
+                Some(d) => groups.push((source_start(project, &program, d), vec![func])),
+                None => {
+                    if let Some(g) = groups.last_mut() {
+                        g.1.push(func);
+                    }
+                }
+            }
+        }
+        groups.sort_by_key(|g| g.0);
+        // Each function by the name after its module, closures by the function they are in.
+        let mut found = false;
+        for func in groups.into_iter().flat_map(|g| g.1) {
+            let Some(wolf_vm::Func::Code(chunk)) = image.funcs.get(func as usize) else {
+                continue;
+            };
+            let rest = chunk.name.strip_prefix(&prefix).unwrap_or(&chunk.name);
+            let owner = rest.split(" closure ").next().unwrap_or(rest);
+            let wanted = match &query {
+                None => true,
+                Some(q) => named(q, &path, owner),
+            };
+            if !wanted {
+                continue;
+            }
+            found = true;
+            if unavailable.contains_key(&path) {
+                continue;
+            }
+            if let Some(text) = image.listing(func) {
+                listings.push(text);
+            }
+        }
+        if let Some(reason) = unavailable.get(&path) {
+            if query.is_none() || found {
+                listings.push(format!("// module {path} cannot run in the VM: {reason}\n"));
+            }
+        }
+    }
+    if query.is_some() && listings.is_empty() {
+        result.diagnostics.push(
+            Diagnostic::new(
+                codes::E0002,
+                format!("no function `{name}` in the modules of `src/`"),
+            )
+            .help("name a function as `area`, a method as `Shape.area`, either with its module as `shapes.area`, or the `main` block as `main`"),
+        );
+        return;
+    }
+    result.listings.extend(listings);
+}
+
+/// Where a function of the IR is declared in its file: by its declaration, or, for a method of
+/// an interface implementation, which the IR numbers itself, by the method of its type.
+fn source_start(project: &Project, program: &wolf_ir::Program, def: wolf_ir::DefRef) -> u32 {
+    let info = program.def(def);
+    if let Some(d) = project.resolved.def(wolf_resolve::DefId(def.0)) {
+        if info.is_some_and(|i| i.name == d.name) {
+            return d.span.start;
+        }
+    }
+    let Some(wolf_ir::DefInfo {
+        name,
+        kind: wolf_ir::DefKind::Method { owner, .. },
+        ..
+    }) = info
+    else {
+        return u32::MAX;
+    };
+    project
+        .typed
+        .decls
+        .methods
+        .iter()
+        .find(|m| m.owner.0 == owner.0 && &m.name == name)
+        .map_or(u32::MAX, |m| m.span.start)
+}
+
+/// Whether the function `rest` (`area`, `Shape.area`) of the module `module` has the name
+/// `query`: the same, or with the module before it.
+fn named(query: &[&str], module: &str, rest: &str) -> bool {
+    let parts: Vec<&str> = rest.split('.').collect();
+    if query == parts.as_slice() {
+        return true;
+    }
+    let full: Vec<&str> = module.split('.').chain(parts).collect();
+    query == full.as_slice()
 }
 
 /// Loads and checks the project around `start` (used by `wolf build` and `wolf run`).

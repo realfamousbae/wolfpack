@@ -186,6 +186,41 @@ pub fn check_vm(
     out
 }
 
+/// The modules that cannot run in the VM (spec chapter 10, section 3), by module path, and
+/// why: `it has an extern section`, `it is a native module` or `it imports text.native_part`,
+/// the first module it imports that cannot run there either.
+pub fn vm_unavailable(modules: &[ModuleInput<'_>]) -> BTreeMap<String, String> {
+    let g = graph(modules);
+    let path = |i: usize| modules.get(i).map(|m| m.path.join(".")).unwrap_or_default();
+    let mut why: BTreeMap<usize, String> = BTreeMap::new();
+    for &i in g.externs.keys() {
+        let native = modules.get(i).is_some_and(|m| m.role == Role::Native);
+        let reason = if native {
+            "it is a native module"
+        } else {
+            "it has an extern section"
+        };
+        why.insert(i, reason.to_string());
+    }
+    // A module that imports one that cannot run cannot run either, until nothing changes.
+    loop {
+        let mut changed = false;
+        for (i, list) in g.imports.iter().enumerate() {
+            if why.contains_key(&i) {
+                continue;
+            }
+            if let Some(&j) = list.iter().find(|j| why.contains_key(j)) {
+                why.insert(i, format!("it imports {}", path(j)));
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    why.into_iter().map(|(i, r)| (path(i), r)).collect()
+}
+
 /// E0704 for every module of a build for `target` that is not available for it. `built` says
 /// which modules the build contains; std modules are always available.
 pub fn check_target(

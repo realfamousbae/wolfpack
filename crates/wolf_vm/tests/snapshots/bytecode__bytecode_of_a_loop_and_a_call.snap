@@ -1,8 +1,8 @@
 ---
 source: crates/wolf_vm/tests/bytecode.rs
-expression: "listing(source, \"sum\")"
+expression: "listing(source, \"main.sum\")"
 ---
-fn sum (params 1, captures 0, slots 5)
+fn main.sum (params 1, captures 0, slots 5)
    0  Int(0)
    1  Store(1)
    2  Int(0)

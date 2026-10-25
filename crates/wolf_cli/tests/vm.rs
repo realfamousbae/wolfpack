@@ -219,3 +219,52 @@ fn a_library_runs_examples_and_tests_in_the_vm() {
         "test src/lib.wolf: doubles ... ok\n\ntest result: ok. 1 passed; 0 failed\n"
     );
 }
+
+/// `wolf check --bytecode` prints the bytecode of the functions of `src/`, in the order of the
+/// source and closures after their function, with a comment for a module that cannot run in the
+/// VM; `--bytecode <name>` only the named ones (spec chapter 10, section 1a). The whole listing
+/// is `tests/bytecode/bytecode.txt`; run with `WOLF_BLESS=1` to write it from the output.
+#[test]
+fn check_bytecode_lists_the_functions() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/bytecode");
+    let all = wolf(&dir, &["check", "--bytecode"], "");
+    let text = String::from_utf8_lossy(&all.stdout).into_owned();
+    assert!(
+        all.status.success(),
+        "{}",
+        String::from_utf8_lossy(&all.stderr)
+    );
+    let file = dir.join("bytecode.txt");
+    if std::env::var_os("WOLF_BLESS").is_some() {
+        fs::write(&file, &text).unwrap();
+    }
+    assert_eq!(text, fs::read_to_string(&file).unwrap());
+    let heads = |name: &str| -> Vec<String> {
+        let out = wolf(&dir, &["check", "--bytecode", name], "");
+        assert!(out.status.success(), "{name}");
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| l.starts_with("fn ") || l.starts_with("//"))
+            .map(|l| l.split(" (").next().unwrap_or(l).to_string())
+            .collect()
+    };
+    assert_eq!(
+        heads("area"),
+        ["fn shapes.area", "fn shapes.area closure 1"]
+    );
+    assert_eq!(
+        heads("shapes.area"),
+        ["fn shapes.area", "fn shapes.area closure 1"]
+    );
+    assert_eq!(heads("Shape.area"), ["fn shapes.Shape.area"]);
+    assert_eq!(heads("shapes.Shape.area"), ["fn shapes.Shape.area"]);
+    assert_eq!(heads("main"), ["fn main.main"]);
+    assert_eq!(
+        heads("loud"),
+        ["// module loud cannot run in the VM: it imports text.shout"]
+    );
+    let unknown = wolf(&dir, &["check", "--bytecode", "shapes.perimeter"], "");
+    assert_eq!(unknown.status.code(), Some(1));
+    assert!(unknown.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("error[E0002]"));
+}

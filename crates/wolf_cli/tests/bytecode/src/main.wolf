@@ -1,0 +1,12 @@
+//! The functions that `wolf check --bytecode` prints (spec chapter 10, section 1a).
+
+module main
+
+imports {
+    shapes
+}
+
+main {
+    let s = shapes.Shape.Square(2.0)
+    print(shapes.area(s).to_string())
+}

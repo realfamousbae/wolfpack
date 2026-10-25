@@ -122,7 +122,7 @@ functions {
     }
 }
 "#;
-    insta::assert_snapshot!(listing(source, "sum"));
+    insta::assert_snapshot!(listing(source, "main.sum"));
 }
 
 #[test]
@@ -152,7 +152,7 @@ functions {
     }
 }
 "#;
-    insta::assert_snapshot!(listing(source, "grow"));
+    insta::assert_snapshot!(listing(source, "main.grow"));
 }
 
 #[test]

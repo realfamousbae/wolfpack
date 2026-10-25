@@ -1,8 +1,8 @@
 ---
 source: crates/wolf_vm/tests/bytecode.rs
-expression: "listing(source, \"grow\")"
+expression: "listing(source, \"main.grow\")"
 ---
-fn grow (params 1, captures 0, slots 3)
+fn main.grow (params 1, captures 0, slots 3)
    0  RefSlot(0)
    1  Store(1)
    2  LoadRef(1)

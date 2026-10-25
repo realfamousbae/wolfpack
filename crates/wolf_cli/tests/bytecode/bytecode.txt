@@ -1,0 +1,60 @@
+// module loud cannot run in the VM: it imports text.shout
+
+fn main.main (params 0, captures 0, slots 1)
+   0  Const 2.0
+   1  Make Shape.Square 1
+   2  Store(0)
+   3  Load(0)
+   4  Call shapes.area 1
+   5  Call FloatToString 1
+   6  Call Print 1
+   7  Pop
+   8  Unit
+   9  Return
+
+fn shapes.Shape.area (params 1, captures 0, slots 4)
+   0  Load(0)
+   1  Store(1)
+   2  Load(1)
+   3  IsTag Shape.Circle
+   4  JumpUnless(14)
+   5  Load(1)
+   6  Field(0)
+   7  Store(2)
+   8  Const 3.0
+   9  Load(2)
+  10  Binary(FMul)
+  11  Load(2)
+  12  Binary(FMul)
+  13  Jump(25)
+  14  Load(1)
+  15  IsTag Shape.Square
+  16  JumpUnless(24)
+  17  Load(1)
+  18  Field(0)
+  19  Store(3)
+  20  Load(3)
+  21  Load(3)
+  22  Binary(FMul)
+  23  Jump(25)
+  24  Unreachable
+  25  Return
+
+fn shapes.area (params 1, captures 0, slots 2)
+   0  Closure shapes.area closure 1 0
+   1  Store(1)
+   2  Load(1)
+   3  Load(0)
+   4  Call shapes.Shape.area 1
+   5  CallValue(1)
+   6  Const 2.0
+   7  Binary(FDiv)
+   8  Return
+
+fn shapes.area closure 1 (params 1, captures 0, slots 1)
+   0  Load(0)
+   1  Const 2.0
+   2  Binary(FMul)
+   3  Return
+
+// module text.shout cannot run in the VM: it has an extern section

@@ -14,6 +14,7 @@ pub(crate) fn run() -> u8 {
         color: Color::Never,
         emit: None,
         native: None,
+        bytecode: None,
     };
     let check = |dir: &Path, overlay: &Overlay| -> wolf_lsp::Checked {
         let root = wolf_project::find_root(dir);
