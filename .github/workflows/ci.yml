@@ -49,3 +49,19 @@ jobs:
             (cd "$project" && "$GITHUB_WORKSPACE/target/debug/wolf" build --target rust --out "$out")
             cargo +1.85.0 build --quiet --all-targets --manifest-path "$out/Cargo.toml"
           done
+
+  # `wolf self uninstall` works differently on Windows (the user's Path in the registry, a running
+  # wolf.exe that cannot be removed) and on macOS: run its tests there too.
+  uninstall:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      WOLFPACK_TEST_WINDOWS_PATH: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p wolfpack-lang --test uninstall -- --nocapture

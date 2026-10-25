@@ -131,3 +131,58 @@ fn e0808_wolf_cannot_be_removed() {
         "alias ll='ls -l'\n"
     );
 }
+
+/// Windows, as `install.ps1` installs: `wolf.exe` in `Programs\wolfpack\bin` under the local
+/// application data and that directory in the user's `Path`. The test changes the registry of the
+/// user, so it runs only where `WOLFPACK_TEST_WINDOWS_PATH` is set (CI).
+#[test]
+#[cfg(windows)]
+fn windows_the_path_entry_and_the_directory_are_removed() {
+    use std::time::{Duration, Instant};
+    if std::env::var_os("WOLFPACK_TEST_WINDOWS_PATH").is_none() {
+        eprintln!("skipped: set WOLFPACK_TEST_WINDOWS_PATH to change the user's Path");
+        return;
+    }
+    // The installer writes the directory without the `\\?\` of a canonical path.
+    let home = PathBuf::from(tmp("windows").to_string_lossy().trim_start_matches(r"\\?\"));
+    let programs = home.join("AppData").join("Local").join("Programs");
+    let bin = programs.join("wolfpack").join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    let wolf = bin.join("wolf.exe");
+    fs::copy(env!("CARGO_BIN_EXE_wolf"), &wolf).unwrap();
+    let tools = home.join(".wolfpack").join("toolchains").join("node");
+    fs::create_dir_all(&tools).unwrap();
+    fs::write(tools.join("node.exe"), "not really node").unwrap();
+    let entry = bin.display().to_string();
+    let path = |script: &str| {
+        let out = Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", script])
+            .env("WOLFPACK_TEST_DIR", &entry)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    let read = "[Environment]::GetEnvironmentVariable('Path', 'User')";
+    path(&format!(
+        "[Environment]::SetEnvironmentVariable('Path', ({read}) + ';' + $env:WOLFPACK_TEST_DIR, 'User')"
+    ));
+    assert!(path(read).split(';').any(|e| e.trim() == entry));
+
+    let out = uninstall(&home, &wolf, &["--yes"]);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{err}");
+    assert!(err.contains("from the user's Path"), "{err}");
+    assert!(!path(read).split(';').any(|e| e.trim() == entry), "{err}");
+    assert!(!home.join(".wolfpack").exists(), "{err}");
+    // `wolf.exe` is removed a moment after it exits, then its two directories.
+    let start = Instant::now();
+    while programs.join("wolfpack").exists() && start.elapsed() < Duration::from_secs(20) {
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    assert!(!programs.join("wolfpack").exists(), "{err}");
+}
