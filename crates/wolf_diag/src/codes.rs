@@ -359,6 +359,8 @@ pub const E0805: Code = Code::new("E0805", "wolf could not be updated");
 pub const E0806: Code = Code::new("E0806", "target tool rejected the native code");
 /// A module with code of the targets cannot run in the VM.
 pub const E0807: Code = Code::new("E0807", "module cannot run in the VM");
+/// `wolf self uninstall` could not remove a file, a directory or a `PATH` entry.
+pub const E0808: Code = Code::new("E0808", "wolf could not be uninstalled");
 
 /// Every code in use, in order.
 pub const ALL: &[Code] = &[
@@ -373,7 +375,7 @@ pub const ALL: &[Code] = &[
     E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608, E0609,
     E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620, E0701, E0702,
     E0703, E0704, E0705, E0706, E0707, E0708, E0709, E0710, E0711, E0712, E0713, E0714, E0715,
-    E0716, E0801, E0802, E0803, E0804, E0805, E0806, E0807,
+    E0716, E0801, E0802, E0803, E0804, E0805, E0806, E0807, E0808,
 ];
 
 /// Codes that were used once and must never be used again.

@@ -11,6 +11,7 @@ mod lsp;
 mod native_modules;
 mod setup;
 mod tools;
+mod uninstall;
 mod update;
 
 use std::io::{self, IsTerminal, Write};
@@ -66,6 +67,17 @@ enum Command {
 enum SelfCommand {
     /// Replace `wolf` with the latest release, or with `--version`.
     Update(UpdateArgs),
+    /// Remove `wolf`, the `PATH` lines its installer added and, after a question, the tools of
+    /// the targets in the wolfpack home.
+    Uninstall(UninstallArgs),
+}
+
+/// Options of `wolf self uninstall`.
+#[derive(clap::Args)]
+struct UninstallArgs {
+    /// Remove the wolfpack home too, without asking.
+    #[arg(long)]
+    yes: bool,
 }
 
 /// Options of `wolf self update`.
@@ -310,6 +322,13 @@ fn run() -> ExitCode {
     }
     match cli.command {
         Command::SelfCmd(SelfCommand::Update(args)) => self_update(&args),
+        Command::SelfCmd(SelfCommand::Uninstall(args)) => match uninstall::uninstall(args.yes) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(d) => {
+                render_plain(&[*d]);
+                ExitCode::from(EXIT_ERRORS)
+            }
+        },
         Command::New(args) => new_project(&args),
         Command::Build(args) => {
             let target = match target(args.target, true, false) {

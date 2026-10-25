@@ -150,6 +150,9 @@ fn every_code_has_a_ui_test() {
     // `wolf setup` has no project: E0804 is tested by `e0804_setup_cannot_download` there.
     names.push("E0804_setup_cannot_download".to_string());
     names.push("E0805_update_cannot_download".to_string());
+    // `wolf self uninstall` has no project: E0808 is `e0808_wolf_cannot_be_removed` of
+    // `tests/uninstall.rs`.
+    names.push("E0808_uninstall_cannot_remove".to_string());
     // `wolf check --native <module>`: E0716 is tested by `check_native_prints_what_was_read`.
     names.push("E0716_check_native".to_string());
     for code in wolf_diag::codes::ALL {
