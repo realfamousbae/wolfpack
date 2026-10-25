@@ -1,0 +1,17 @@
+Hello, Rex (dog Rex)
+#Rex
+Rex says Hello, Rex (dog Rex) / dog Rex
+Fido says Hello, Fido (dog Fido) / dog Fido and bows: woof
+Tom says Hello, Tom (cat Tom with 9 lives) Meow. / cat Tom with 9 lives
+red says Hello, red (light red) / light red
+#Max: Hello, Max (dog Max) / dog Max
+tagged #Max
+@Kit: Hello, Kit (cat Kit with 3 lives) Meow. / cat Kit with 3 lives
+tagged @Kit
+#green: Hello, green (light green) / light green
+tagged #green
+crate of Spot says Hello, crate of Spot (a crate) / a crate
+the wheel is broken (7)
+error 7: the door is broken
+[Some(3), Some(9)]
+Bob with rank 7

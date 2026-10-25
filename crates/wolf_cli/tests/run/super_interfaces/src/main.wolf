@@ -1,0 +1,217 @@
+module main
+
+types {
+    struct Dog {
+        title: String
+    }
+
+    struct Cat {
+        nick: String
+        lives: Int
+    }
+
+    enum Light {
+        Red
+        Green
+    }
+
+    struct Bag<T> {
+        items: List<T>
+    }
+
+    struct Score {
+        points: Int
+        player: String
+    }
+
+    struct Crate<T> {
+        item: T
+    }
+
+    struct Broken {
+        part: String
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+        fn tag(self) -> String {
+            "#" + self.name()
+        }
+    }
+
+    interface Greeter: Named + Display {
+        fn greeting(self) -> String {
+            f"Hello, {self.name()} ({self.to_string()})"
+        }
+    }
+
+    interface Polite: Greeter {
+        fn bow(self) -> String
+    }
+
+    interface Container<T> {
+        fn first(self) -> Option<T>
+    }
+
+    interface Sorted<T>: Container<T> {
+        fn largest(self) -> Option<T>
+    }
+
+    interface Ranked: Comparable {
+        fn rank(self) -> Int
+    }
+
+    interface Problem: Error {
+        fn code(self) -> Int
+    }
+}
+
+impl {
+    Dog: Named {
+        fn name(self) -> String { self.title.copy() }
+    }
+
+    Dog: Display {
+        fn to_string(self) -> String { f"dog {self.title}" }
+    }
+
+    Dog: Greeter {}
+
+    Dog: Polite {
+        fn bow(self) -> String { "woof" }
+    }
+
+    Cat: Named {
+        fn name(self) -> String { self.nick.copy() }
+        override fn tag(self) -> String { "@" + self.nick }
+    }
+
+    Cat: Display {
+        fn to_string(self) -> String { f"cat {self.nick} with {self.lives} lives" }
+    }
+
+    Cat: Greeter {
+        override fn greeting(self) -> String {
+            Greeter.greeting(self) + " Meow."
+        }
+    }
+
+    Light: Named {
+        fn name(self) -> String {
+            match self {
+                Light.Red => "red"
+                Light.Green => "green"
+            }
+        }
+    }
+
+    Light: Display {
+        fn to_string(self) -> String { "light " + self.name() }
+    }
+
+    Light: Greeter {}
+
+    Bag<T: Copyable>: Container<T> {
+        fn first(self) -> Option<T> { self.items.get(0) }
+    }
+
+    Bag<T: Copyable + Comparable>: Sorted<T> {
+        fn largest(self) -> Option<T> { self.items.max() }
+    }
+
+    Score: Comparable {
+        fn compare(self, other: Self) -> Ordering { self.points.compare(other.points) }
+    }
+
+    Score: Ranked {
+        fn rank(self) -> Int { self.points / 10 }
+    }
+
+    Crate<T: Named>: Named {
+        fn name(self) -> String { "crate of " + self.item.name() }
+    }
+
+    Crate<T: Named>: Display {
+        fn to_string(self) -> String { "a crate" }
+    }
+
+    Crate<T: Named>: Greeter {}
+
+    Broken: Error {
+        fn message(self) -> String { f"the {self.part} is broken" }
+    }
+
+    Broken: Problem {
+        fn code(self) -> Int { 7 }
+    }
+}
+
+main {
+    let d = Dog { title: "Rex" }
+    print(d.greeting())
+    print(d.tag())
+    print(introduce(d))
+    print(polite(Dog { title: "Fido" }))
+    print(introduce(Cat { nick: "Tom", lives: 9 }))
+    print(introduce(Light.Red))
+
+    // Values of an interface have the methods of its super-interfaces.
+    let all: List<Greeter> = [Dog { title: "Max" }, Cat { nick: "Kit", lives: 3 }, Light.Green]
+    for g in all {
+        print(f"{g.tag()}: {g.greeting()} / {g}")
+        print(tagged(g))
+    }
+    print(introduce(Crate { item: Dog { title: "Spot" } }))
+
+    // `Error` as a super-interface, on a value and through a bound.
+    let p: Problem = Broken { part: "wheel" }
+    print(f"{p.message()} ({p.code()})")
+    print(report(Broken { part: "door" }))
+
+    // A generic super-interface.
+    let b = Bag { items: [3, 9, 4] }
+    print(f"{ends(b)}")
+
+    // `Comparable` as a super-interface.
+    let scores = [
+        Score { points: 40, player: "Ann" },
+        Score { points: 75, player: "Bob" },
+        Score { points: 55, player: "Cid" },
+    ]
+    let top = best(scores)
+    print(f"{top.player} with rank {top.rank()}")
+}
+
+functions {
+    fn introduce<T: Greeter>(x: T) -> String {
+        f"{x.name()} says {x.greeting()} / {x}"
+    }
+
+    fn tagged<T: Named>(x: T) -> String {
+        "tagged " + x.tag()
+    }
+
+    fn report<P: Problem>(p: P) -> String {
+        f"error {p.code()}: {p.message()}"
+    }
+
+    fn polite<T: Polite>(x: T) -> String {
+        introduce(x) + " and bows: " + x.bow()
+    }
+
+    fn ends<B: Sorted<Int>>(b: B) -> List<Option<Int>> {
+        [b.first(), b.largest()]
+    }
+
+    fn best<R: Ranked + Copyable>(items: List<R>) -> R {
+        var top = items[0].copy()
+        for x in items {
+            if x.compare(top) == Ordering.Greater {
+                top = x.copy()
+            }
+        }
+        top
+    }
+}

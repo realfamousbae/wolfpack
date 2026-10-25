@@ -1,0 +1,4 @@
+[package]
+name = "super-interfaces"
+version = "0.1.0"
+kind = "cli"
