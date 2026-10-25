@@ -222,6 +222,9 @@ fn item(item: &Item) -> Tree {
             flag(decl.public, "pub", &mut kids);
             kids.push(leaf(decl.name.name.clone()));
             generics(&decl.generics, &mut kids);
+            if !decl.supers.is_empty() {
+                kids.push(node(":", decl.supers.iter().map(ty).collect()));
+            }
             for m in &decl.methods {
                 let mut mk = Vec::new();
                 docs(&m.docs, &mut mk);

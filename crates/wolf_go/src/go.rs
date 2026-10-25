@@ -122,6 +122,8 @@ pub struct Field {
 /// An element of an interface: a method or an embedded type.
 #[derive(Clone, Debug, PartialEq)]
 pub enum IfaceElem {
+    /// An embedded interface, whose methods the interface has too.
+    Embed(Type),
     /// A method: docs, name, parameters, results.
     Method(Vec<String>, String, Vec<(String, Type)>, Vec<Type>),
 }
@@ -430,9 +432,14 @@ impl Printer<'_> {
                 format!("func({}){}", self.types(params), self.results(results))
             }
             Type::EmptyStruct => "struct{}".to_string(),
+            // A constraint of type parameters, which are declared at the top level: one element
+            // per line, as gofmt writes it.
             Type::Union(parts) => {
-                let parts: Vec<String> = parts.iter().map(|p| self.ty(p)).collect();
-                format!("interface {{ {} }}", parts.join("; "))
+                let parts: Vec<String> = parts
+                    .iter()
+                    .map(|p| format!("\t{}\n", self.ty(p)))
+                    .collect();
+                format!("interface {{\n{}}}", parts.concat())
             }
         }
     }
@@ -794,6 +801,7 @@ impl Printer<'_> {
                 out.push_str(&format!("{head} {{\n"));
                 for e in elems {
                     match e {
+                        IfaceElem::Embed(t) => out.push_str(&format!("\t{}\n", self.ty(t))),
                         IfaceElem::Method(docs, n, params, results) => {
                             self.docs(out, docs, 1);
                             out.push_str(&format!(

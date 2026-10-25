@@ -217,6 +217,16 @@ pub const E0444: Code = Code::new(
     "E0444",
     "a method without a default called by its interface",
 );
+/// A super-interface that is not an interface, a derived or closed built-in interface, the
+/// interface itself or one named twice.
+pub const E0445: Code = Code::new("E0445", "a super-interface that is not allowed");
+/// An implementation of an interface for a type that does not implement its super-interface.
+pub const E0446: Code = Code::new(
+    "E0446",
+    "a super-interface that the type does not implement",
+);
+/// A method of an interface with the name of a method of one of its super-interfaces.
+pub const E0447: Code = Code::new("E0447", "a method that a super-interface has too");
 /// A format specification that the type of the interpolation cannot take.
 pub const E0441: Code = Code::new("E0441", "a format specification that the type cannot take");
 /// A struct literal or struct pattern whose name is not a struct or a variant with named fields.
@@ -359,11 +369,11 @@ pub const ALL: &[Code] = &[
     E0402, E0403, E0404, E0405, E0406, E0407, E0408, E0409, E0410, E0411, E0412, E0413, E0414,
     E0415, E0416, E0417, E0418, E0419, E0420, E0421, E0422, E0423, E0424, E0425, E0426, E0427,
     E0428, E0429, E0430, E0431, E0432, E0433, E0434, E0435, E0436, E0437, E0438, E0439, E0441,
-    E0442, E0443, E0444, E0501, E0502, E0503, E0504, E0505, E0506, E0507, E0508, E0509, E0510,
-    E0511, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608, E0609, E0610, E0611, E0612,
-    E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620, E0701, E0702, E0703, E0704, E0705,
-    E0706, E0707, E0708, E0709, E0710, E0711, E0712, E0713, E0714, E0715, E0716, E0801, E0802,
-    E0803, E0804, E0805, E0806, E0807,
+    E0442, E0443, E0444, E0445, E0446, E0447, E0501, E0502, E0503, E0504, E0505, E0506, E0507,
+    E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608, E0609,
+    E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620, E0701, E0702,
+    E0703, E0704, E0705, E0706, E0707, E0708, E0709, E0710, E0711, E0712, E0713, E0714, E0715,
+    E0716, E0801, E0802, E0803, E0804, E0805, E0806, E0807,
 ];
 
 /// Codes that were used once and must never be used again.

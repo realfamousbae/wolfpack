@@ -232,6 +232,12 @@ pub(crate) struct Checker<'a> {
     pub(crate) interface_methods: BTreeMap<DefId, BTreeMap<String, Sig>>,
     /// The methods of each interface that have a default (chapter 4, section 8.2, rule 4).
     pub(crate) interface_defaults: BTreeMap<DefId, BTreeSet<String>>,
+    /// The super-interfaces of each interface, in terms of its type parameters, with the spans
+    /// where they are written (chapter 4, section 8.2, rule 6).
+    pub(crate) interface_supers: BTreeMap<DefId, Vec<(Ty, Span)>>,
+    /// Implementations of interfaces, checked for their super-interfaces once every block is
+    /// known: the type, the interface and the span of the interface in the block.
+    pub(crate) super_checks: Vec<(DefId, DefId, Span)>,
     /// The interface, with its type parameters, whose default is being checked: there `Self`
     /// implements it.
     pub(crate) current_interface: Option<(DefId, Vec<Ty>)>,
@@ -258,7 +264,7 @@ pub(crate) struct Checker<'a> {
     pub(crate) param_bounds: BTreeMap<Span, Vec<Ty>>,
     /// Set while a bound or the interface of an implementation is lowered: there an interface
     /// is not used as a value type.
-    in_bound: bool,
+    pub(crate) in_bound: bool,
     /// Interfaces used as value types, checked for object safety after collection.
     pending_object: Vec<(DefId, Span)>,
 }
@@ -296,6 +302,8 @@ impl<'a> Checker<'a> {
             member_method: BTreeMap::new(),
             interface_methods: BTreeMap::new(),
             interface_defaults: BTreeMap::new(),
+            interface_supers: BTreeMap::new(),
+            super_checks: Vec::new(),
             current_interface: None,
             impls: BTreeMap::new(),
             consts: BTreeMap::new(),
@@ -324,6 +332,11 @@ impl<'a> Checker<'a> {
             methods: self.methods,
             interface_methods: self.interface_methods,
             interface_defaults: self.interface_defaults,
+            interface_supers: self
+                .interface_supers
+                .into_iter()
+                .map(|(d, list)| (d, list.into_iter().map(|(t, _)| t).collect()))
+                .collect(),
             impls: self.impls,
             consts: self.consts,
             param_names: self.param_names,
@@ -798,7 +811,10 @@ impl<'a> Checker<'a> {
     pub(crate) fn collect(&mut self) -> Vec<BodyRef<'a>> {
         self.collect_generics();
         self.collect_aliases();
+        self.collect_supers();
         let bodies = self.collect_items();
+        self.check_super_methods();
+        self.check_super_impls();
         self.infinite_structs();
         self.check_pending_bounds();
         bodies
@@ -1182,6 +1198,13 @@ impl<'a> Checker<'a> {
                         generics: impl_generics.clone(),
                         bounds: head_bounds,
                     });
+                    if self
+                        .interface_supers
+                        .get(&def)
+                        .is_some_and(|s| !s.is_empty())
+                    {
+                        self.super_checks.push((owner, def, iface.span));
+                    }
                 }
                 Ty::Error => return,
                 other => {
@@ -1596,13 +1619,24 @@ impl<'a> Checker<'a> {
 
     /// The first method of an interface that mentions `Self` outside its receiver.
     fn not_object_safe(&self, iface: DefId) -> Option<String> {
-        self.interface_methods
-            .get(&iface)?
-            .iter()
-            .find_map(|(name, sig)| {
-                let mentions = sig.params.iter().any(|(_, t)| has_self(t)) || has_self(&sig.ret);
-                mentions.then(|| name.clone())
-            })
+        let own = |def: DefId| {
+            self.interface_methods
+                .get(&def)?
+                .iter()
+                .find_map(|(name, sig)| {
+                    let mentions =
+                        sig.params.iter().any(|(_, t)| has_self(t)) || has_self(&sig.ret);
+                    mentions.then(|| name.clone())
+                })
+        };
+        if let Some(name) = own(iface) {
+            return Some(name);
+        }
+        // An interface with super-interfaces is object-safe only if each of them is (chapter
+        // 4, section 8.5, rule 1).
+        self.supers_closure(iface, &[])
+            .into_iter()
+            .find_map(|(sup, _)| own(sup).map(|name| format!("{name}` of `{}", self.def_name(sup))))
     }
 
     /// Interfaces used as value types must be object-safe (chapter 4, 8.5; E0416).

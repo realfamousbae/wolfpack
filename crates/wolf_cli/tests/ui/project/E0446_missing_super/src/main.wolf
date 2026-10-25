@@ -1,0 +1,37 @@
+module main
+
+types {
+    struct Dog {
+        title: String
+    }
+
+    struct Bag<T> {
+        item: T
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Greeter: Named {
+        fn hello(self) -> String {
+            "Hello, " + self.name()
+        }
+    }
+}
+
+impl {
+    Dog: Greeter {}
+
+    Bag<T: Named>: Named {
+        fn name(self) -> String { self.item.name() }
+    }
+
+    Bag<T>: Greeter {}
+}
+
+main {
+    print("ok")
+}

@@ -22,6 +22,7 @@ mod derive;
 mod env;
 mod externs;
 mod pat;
+mod supers;
 mod ty;
 
 use std::collections::BTreeMap;
@@ -91,6 +92,9 @@ pub struct Decls {
     pub interface_methods: BTreeMap<DefId, BTreeMap<String, Sig>>,
     /// The methods of each interface that have a default (chapter 4, section 8.2, rule 4).
     pub interface_defaults: BTreeMap<DefId, BTreeSet<String>>,
+    /// The super-interfaces of each interface, in terms of its type parameters (chapter 4,
+    /// section 8.2, rule 6).
+    pub interface_supers: BTreeMap<DefId, Vec<Ty>>,
     /// The interfaces implemented by each type.
     pub impls: BTreeMap<DefId, Vec<ImplOf>>,
     /// The type of each constant.

@@ -2022,26 +2022,35 @@ impl<'a> Checker<'a> {
         if let Ty::Param(ParamId::Decl(span)) = recv_s {
             return self.bound_method(span, &recv_s, name);
         }
-        // `self` in a default: the methods of the interface, defaults included.
+        // `self` in a default: the methods of the interface, defaults included, and those of
+        // its super-interfaces.
         if let Ty::Param(ParamId::SelfType) = recv_s {
-            let (def, _) = self.current_interface.clone()?;
-            let sig = self.interface_methods.get(&def)?.get(name)?.clone();
+            let (def, params) = self.current_interface.clone()?;
+            let (owner, map, sig) = self.iface_method(def, &params, name)?;
+            let params: Vec<(Mode, Ty)> = sig
+                .params
+                .iter()
+                .map(|(m, t)| (*m, t.subst(&map)))
+                .collect();
+            let ret = sig.ret.subst(&map);
             let found = Found {
-                params: sig.params.clone(),
-                ret: sig.ret.clone(),
+                params: params.clone(),
+                ret: ret.clone(),
                 has_self: sig.self_mode.is_some(),
                 public: true,
                 module: None,
                 method: Some(MethodCall {
-                    owner: def,
+                    owner,
                     name: name.to_string(),
-                    interface: Some(def),
+                    interface: Some(owner),
                 }),
                 bounds: Vec::new(),
             };
             let sig = Sig {
                 generics: Vec::new(),
-                ..sig
+                self_mode: sig.self_mode,
+                params,
+                ret,
             };
             return Some((found, sig));
         }
@@ -2049,14 +2058,8 @@ impl<'a> Checker<'a> {
             return None;
         };
         if self.def_kind(def) == Some(DefKind::Interface) {
-            let sig = self.interface_methods.get(&def)?.get(name)?.clone();
-            let mut map: BTreeMap<ParamId, Ty> = BTreeMap::new();
+            let (owner, mut map, sig) = self.iface_method(def, &args, name)?;
             map.insert(ParamId::SelfType, Ty::Named(def, args.clone()));
-            if let Some(g) = self.type_generics.get(&def) {
-                for (g, a) in g.iter().zip(args) {
-                    map.insert(ParamId::Decl(g.span), a);
-                }
-            }
             let found = Found {
                 params: sig
                     .params
@@ -2068,9 +2071,9 @@ impl<'a> Checker<'a> {
                 public: true,
                 module: None,
                 method: Some(MethodCall {
-                    owner: def,
+                    owner,
                     name: name.to_string(),
-                    interface: Some(def),
+                    interface: Some(owner),
                 }),
                 bounds: Vec::new(),
             };
@@ -2164,24 +2167,14 @@ impl<'a> Checker<'a> {
     fn bound_method(&mut self, span: Span, recv: &Ty, name: &str) -> Option<(Found, Sig)> {
         let bounds = self.param_bounds.get(&span).cloned().unwrap_or_default();
         for bound in bounds {
-            let Ty::Named(iface, args) = bound else {
+            let Ty::Named(bound_iface, args) = bound else {
                 continue;
             };
-            let Some(sig) = self
-                .interface_methods
-                .get(&iface)
-                .and_then(|m| m.get(name))
-                .cloned()
-            else {
+            // The methods of the bound's super-interfaces too (chapter 4, section 8.2, rule 6).
+            let Some((iface, mut map, sig)) = self.iface_method(bound_iface, &args, name) else {
                 continue;
             };
-            let mut map: BTreeMap<ParamId, Ty> = BTreeMap::new();
             map.insert(ParamId::SelfType, recv.clone());
-            if let Some(g) = self.type_generics.get(&iface) {
-                for (g, a) in g.iter().zip(args) {
-                    map.insert(ParamId::Decl(g.span), a);
-                }
-            }
             let params: Vec<(Mode, Ty)> = sig
                 .params
                 .iter()
@@ -2491,8 +2484,11 @@ impl<'a> Checker<'a> {
                         let target_s = self.infer.shallow(&target);
                         let err_s = self.infer.shallow(&err);
                         let coerced = match (&target_s, &err_s) {
+                            // A value of another interface is not converted (chapter 4,
+                            // section 8.5, rule 1).
                             (Ty::Named(iface, _), Ty::Named(def, _))
                                 if self.def_kind(*iface) == Some(DefKind::Interface)
+                                    && self.def_kind(*def) != Some(DefKind::Interface)
                                     && iface != def =>
                             {
                                 if self.implements(&err_s, *iface) {

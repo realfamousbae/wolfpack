@@ -252,6 +252,7 @@ fn signatures(r: &mut Resolver<'_>, module: ModuleId, input: &ModuleInput<'_>) {
                     "constant"
                 }
                 ItemKind::Interface(decl) if decl.public => {
+                    types.extend(decl.supers.iter());
                     for method in &decl.methods {
                         sig_types(&method.decl.sig, &mut types);
                     }
@@ -322,6 +323,7 @@ fn public_types<'a>(item: &'a Item, out: &mut Vec<&'a Ty>) {
         ItemKind::Alias(decl) => out.push(&decl.ty),
         ItemKind::Config(entry) => out.push(&entry.ty),
         ItemKind::Interface(decl) => {
+            out.extend(decl.supers.iter());
             for method in &decl.methods {
                 sig_types(&method.decl.sig, out);
             }

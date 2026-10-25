@@ -1,0 +1,41 @@
+module main
+
+types {
+    struct Point {
+        x: Int
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface FromStruct: Point {
+        fn a(self)
+    }
+
+    interface Compared: Equatable {
+        fn b(self)
+    }
+
+    interface Itself: Itself {
+        fn c(self)
+    }
+
+    interface Twice: Named + Named {
+        fn d(self)
+    }
+
+    interface Ping: Pong {
+        fn e(self)
+    }
+
+    interface Pong: Ping {
+        fn f(self)
+    }
+}
+
+main {
+    print("ok")
+}

@@ -1206,34 +1206,77 @@ impl<'p> Emitter<'p> {
         for g in generics {
             let mut bounds = Vec::new();
             for b in &g.bounds {
-                let IrType::Named(def, args) = b else {
+                // The IR adds the super-interfaces of a bound, which a Rust super-trait implies.
+                if self.implied_by_others(b, &g.bounds) {
                     continue;
-                };
-                if Some(*def) == self.equatable {
-                    bounds.push("PartialEq".to_string());
-                } else if Some(*def) == self.copyable {
-                    bounds.push("Clone".to_string());
-                } else if Some(*def) == self.hashable {
-                    bounds.push("std::hash::Hash".to_string());
-                    bounds.push("Eq".to_string());
-                    bounds.push("Clone".to_string());
-                } else if Some(*def) == self.comparable {
-                    let r = self.rt("Comparable");
-                    bounds.push(format!("{r}::Comparable"));
-                } else {
-                    let mut list = Vec::new();
-                    for a in args {
-                        list.push(self.ty(a)?);
-                    }
-                    let p = self.def_path(*def);
-                    let t = rs::Type::Path(p, list);
-                    bounds.push(type_text(&t));
                 }
+                bounds.extend(self.bound_texts(b)?);
             }
             bounds.dedup();
             out.push((g.name.clone(), bounds));
         }
         Ok(out)
+    }
+
+    /// The Rust traits of a bound.
+    fn bound_texts(&mut self, b: &IrType) -> Result<Vec<String>, Error> {
+        let IrType::Named(def, args) = b else {
+            return Ok(Vec::new());
+        };
+        Ok(if Some(*def) == self.equatable {
+            vec!["PartialEq".to_string()]
+        } else if Some(*def) == self.copyable {
+            vec!["Clone".to_string()]
+        } else if Some(*def) == self.hashable {
+            vec![
+                "std::hash::Hash".to_string(),
+                "Eq".to_string(),
+                "Clone".to_string(),
+            ]
+        } else if Some(*def) == self.comparable {
+            let r = self.rt("Comparable");
+            vec![format!("{r}::Comparable")]
+        } else {
+            let mut list = Vec::new();
+            for a in args {
+                list.push(self.ty(a)?);
+            }
+            let p = self.def_path(*def);
+            let t = rs::Type::Path(p, list);
+            vec![type_text(&t)]
+        })
+    }
+
+    /// Whether the bound `b` is a super-interface of another bound in `all`.
+    fn implied_by_others(&self, b: &IrType, all: &[IrType]) -> bool {
+        let IrType::Named(def, _) = b else {
+            return false;
+        };
+        all.iter().any(|o| match o {
+            IrType::Named(other, _) if other != def => self.supers_of(*other).contains(def),
+            _ => false,
+        })
+    }
+
+    /// The super-interfaces of an interface, and theirs in turn.
+    fn supers_of(&self, iface: DefRef) -> BTreeSet<DefRef> {
+        let mut out = BTreeSet::new();
+        let mut stack = vec![iface];
+        while let Some(d) = stack.pop() {
+            for s in self
+                .ifaces
+                .get(&d)
+                .map(|i| i.supers.as_slice())
+                .unwrap_or(&[])
+            {
+                if let IrType::Named(s, _) = s {
+                    if out.insert(*s) {
+                        stack.push(*s);
+                    }
+                }
+            }
+        }
+        out
     }
 
     // ----- modules ----------------------------------------------------------------------------
@@ -1918,6 +1961,26 @@ impl<'p> Emitter<'p> {
                 None => groups.push((f.interface, bounds, vec![f])),
             }
         }
+        // A block that defines no method, such as one that takes every default, is an empty
+        // `impl`.
+        let (implements, heads): (&[IrType], &[Vec<Vec<IrType>>]) =
+            match (self.structs.get(&def), self.enums.get(&def)) {
+                (Some(s), _) => (&s.implements, &s.impl_heads),
+                (_, Some(e)) => (&e.implements, &e.impl_heads),
+                _ => (&[], &[]),
+            };
+        for (k, t) in implements.iter().enumerate() {
+            let IrType::Named(iface, _) = t else { continue };
+            if groups.iter().any(|g| g.0 == Some(*iface)) {
+                continue;
+            }
+            let bounds = heads
+                .get(k)
+                .filter(|h| h.iter().any(|b| !b.is_empty()))
+                .cloned()
+                .unwrap_or_else(|| type_generics.iter().map(|g| g.bounds.clone()).collect());
+            groups.push((Some(*iface), bounds, Vec::new()));
+        }
         // An error that is not `Display` is written by its message: `Error` of the runtime is a
         // subtrait of `Display` (spec chapter 7, section 4.1).
         let error_only = groups
@@ -2220,16 +2283,20 @@ impl<'p> Emitter<'p> {
             .methods
             .iter()
             .any(|f| f.params.iter().any(|p| mentions_self(&p.ty)) || mentions_self(&f.ret));
+        // Super-interfaces are super-traits (spec chapter 8, section 5.3).
+        let mut supertraits = Vec::new();
+        for s in &i.supers {
+            supertraits.extend(self.bound_texts(s)?);
+        }
+        if sized {
+            supertraits.push("Sized".to_string());
+        }
         out.push(Item::Trait {
             docs: i.docs.clone(),
             vis: self.vis(i.public),
             name: name.clone(),
             generics: generics.clone(),
-            supertraits: if sized {
-                vec!["Sized".to_string()]
-            } else {
-                Vec::new()
-            },
+            supertraits,
             methods,
         });
         if copyable {
@@ -2258,6 +2325,97 @@ impl<'p> Emitter<'p> {
         // it: `Box<dyn Named>` implements `Named` by calling the value it holds.
         if self.dyn_ifaces.contains(&i.def) {
             out.push(self.boxed_impl(i, &name, &forwards, copyable)?);
+            self.boxed_super_impls(i, &name, out)?;
+        }
+        Ok(())
+    }
+
+    /// `impl Named for Box<dyn Greeter>` for every super-interface of an interface whose values
+    /// are boxed: Rust wants them for `impl Greeter for Box<dyn Greeter>`. `Display` has one for
+    /// every `Box` in the runtime already.
+    fn boxed_super_impls(
+        &mut self,
+        i: &'p ir::Interface,
+        name: &str,
+        out: &mut Vec<Item>,
+    ) -> Result<(), Error> {
+        let args: Vec<IrType> = i
+            .generics
+            .iter()
+            .map(|g| IrType::Param(g.name.clone()))
+            .collect();
+        let mut stack: Vec<(DefRef, Vec<IrType>)> = vec![(i.def, args)];
+        let mut seen = BTreeSet::from([i.def]);
+        let targs: Vec<Type> = i.generics.iter().map(|g| Type::name(&g.name)).collect();
+        let boxed = Type::Path("Box".to_string(), vec![Type::Dyn(name.to_string(), targs)]);
+        while let Some((def, args)) = stack.pop() {
+            let Some(iface) = self.ifaces.get(&def).copied() else {
+                continue;
+            };
+            let map: BTreeMap<String, IrType> = iface
+                .generics
+                .iter()
+                .map(|g| g.name.clone())
+                .zip(args)
+                .collect();
+            for s in &iface.supers {
+                let s = subst(s, &map);
+                let IrType::Named(sdef, sargs) = &s else {
+                    continue;
+                };
+                if !seen.insert(*sdef) {
+                    continue;
+                }
+                stack.push((*sdef, sargs.clone()));
+                if Some(*sdef) == self.display {
+                    continue;
+                }
+                let Some(sup) = self.ifaces.get(sdef).copied() else {
+                    continue;
+                };
+                // The methods of the super-interface, with its type parameters replaced.
+                let smap: BTreeMap<String, Type> = {
+                    let mut m = BTreeMap::new();
+                    for (g, a) in sup.generics.iter().zip(sargs) {
+                        m.insert(g.name.clone(), self.ty(a)?);
+                    }
+                    m
+                };
+                self.in_iface_decl = true;
+                let mut methods = Vec::new();
+                for f in &sup.methods {
+                    match self.function(f, value(&f.name), None) {
+                        Ok(mut func) => {
+                            func.params = func
+                                .params
+                                .into_iter()
+                                .map(|(p, t)| (p, rs_subst(&t, &smap)))
+                                .collect();
+                            func.ret = func.ret.map(|t| rs_subst(&t, &smap));
+                            methods.push(func);
+                        }
+                        Err(e) => {
+                            self.in_iface_decl = false;
+                            return Err(e);
+                        }
+                    }
+                }
+                self.in_iface_decl = false;
+                let trait_ = match self.bound_texts(&s)?.into_iter().next() {
+                    Some(t) => t,
+                    None => continue,
+                };
+                let path = trait_.split('<').next().unwrap_or(&trait_).to_string();
+                let Item::Impl { fns, .. } = self.boxed_impl(sup, &path, &methods, false)? else {
+                    continue;
+                };
+                out.push(Item::Impl {
+                    generics: self.generics(&i.generics)?,
+                    trait_: Some(Type::name(&trait_)),
+                    ty: boxed.clone(),
+                    fns,
+                });
+            }
         }
         Ok(())
     }
@@ -4918,6 +5076,25 @@ fn paren_callee(e: Expr) -> Expr {
     match e {
         Expr::Path(_) | Expr::Paren(_) => e,
         other => Expr::Paren(Box::new(other)),
+    }
+}
+
+/// A Rust type with the type parameters in `map` replaced.
+fn rs_subst(t: &Type, map: &BTreeMap<String, Type>) -> Type {
+    match t {
+        Type::Path(n, args) if args.is_empty() => map.get(n).cloned().unwrap_or_else(|| t.clone()),
+        Type::Path(n, args) => {
+            Type::Path(n.clone(), args.iter().map(|a| rs_subst(a, map)).collect())
+        }
+        Type::Ref(x) => Type::Ref(Box::new(rs_subst(x, map))),
+        Type::RefMut(x) => Type::RefMut(Box::new(rs_subst(x, map))),
+        Type::DynFn(ps, r) => Type::DynFn(
+            ps.iter().map(|p| rs_subst(p, map)).collect(),
+            Box::new(rs_subst(r, map)),
+        ),
+        Type::Dyn(n, args) => Type::Dyn(n.clone(), args.iter().map(|a| rs_subst(a, map)).collect()),
+        Type::Slice(x) => Type::Slice(Box::new(rs_subst(x, map))),
+        Type::Unit | Type::Never => t.clone(),
     }
 }
 

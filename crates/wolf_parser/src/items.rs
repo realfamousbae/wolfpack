@@ -1188,6 +1188,14 @@ impl Parser<'_> {
         self.bump(); // `interface`
         let name = self.ident("an interface name")?;
         let generics = self.generics();
+        // `interface Greeter: Named + Display` (spec chapter 4, section 8.2, rule 6).
+        let mut supers = Vec::new();
+        if self.eat_then_lines(&TokenKind::Colon) {
+            supers.push(self.ty());
+            while self.eat_then_lines(&TokenKind::Plus) {
+                supers.push(self.ty());
+            }
+        }
         let open = self.expect(&TokenKind::LBrace, "`{`")?;
         let methods = self.significant_lines(|p| {
             let mut methods = Vec::new();
@@ -1228,6 +1236,7 @@ impl Parser<'_> {
             public,
             name,
             generics,
+            supers,
             methods,
         })
     }

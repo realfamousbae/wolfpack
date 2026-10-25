@@ -1,0 +1,7 @@
+error[E0401]: expected `Named`, found `Greeter`
+   --> src/main.wolf:31:20
+   |
+31 |     let n: Named = g
+   |                    ^ this is `Greeter`
+
+error: aborting due to 1 error

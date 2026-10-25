@@ -1,0 +1,16 @@
+module main
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Greeter: Named {
+        fn name(self) -> String
+        fn hello(self) -> String
+    }
+}
+
+main {
+    print("ok")
+}

@@ -1,0 +1,18 @@
+error[E0446]: `Dog` implements `Greeter` but not its super-interface `Named`
+   --> src/main.wolf:26:10
+   |
+26 |     Dog: Greeter {}
+   |          ^^^^^^^ `Greeter` needs `Named`
+   |
+   = help: add a block `Dog: Named { ... }` in the module of `Dog`
+
+error[E0446]: `Bag` implements `Greeter` but not its super-interface `Named`
+   --> src/main.wolf:32:13
+   |
+32 |     Bag<T>: Greeter {}
+   |             ^^^^^^^ `Greeter` needs `Named`
+   |
+   = help: add the bound to the head of this block: `T: Named`
+   = note: the implementation of `Named` needs `T: Named`, which the head of this block does not give
+
+error: aborting due to 2 errors

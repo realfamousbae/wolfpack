@@ -413,9 +413,56 @@ impl<'a> Lowerer<'a> {
                     .get(&g.span)
                     .cloned()
                     .unwrap_or_default(),
-                bounds: g.bounds.iter().map(|b| self.ty(b)).collect(),
+                bounds: self.bounds(g.bounds.iter()),
             })
             .collect()
+    }
+
+    /// Bounds with the super-interfaces they imply, each once after the written ones (spec
+    /// chapter 4, section 8.2, rule 6): `T: Greeter` is `T: Greeter + Named + Display`, so that
+    /// the targets pass and use what calls of the methods of the super-interfaces need.
+    fn bounds<'b>(&self, written: impl Iterator<Item = &'b Ty>) -> Vec<Type> {
+        let mut all: Vec<Ty> = Vec::new();
+        for b in written {
+            if !all.contains(b) {
+                all.push(b.clone());
+            }
+        }
+        let mut i = 0;
+        while i < all.len() {
+            if let Some(Ty::Named(def, args)) = all.get(i).cloned() {
+                let map: BTreeMap<ParamId, Ty> = self
+                    .typed
+                    .decls
+                    .type_generics
+                    .get(&def)
+                    .map(|g| {
+                        g.iter()
+                            .zip(&args)
+                            .map(|(g, a)| (ParamId::Decl(g.span), a.clone()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                for sup in self
+                    .typed
+                    .decls
+                    .interface_supers
+                    .get(&def)
+                    .into_iter()
+                    .flatten()
+                {
+                    let sup = sup.subst(&map);
+                    let known = all
+                        .iter()
+                        .any(|t| matches!((t, &sup), (Ty::Named(a, _), Ty::Named(b, _)) if a == b));
+                    if !known {
+                        all.push(sup);
+                    }
+                }
+            }
+            i += 1;
+        }
+        all.iter().map(|b| self.ty(b)).collect()
     }
 
     fn type_generics(&self, def: DefId) -> Vec<Generic> {
@@ -593,6 +640,16 @@ impl<'a> Lowerer<'a> {
             .collect()
     }
 
+    /// The head bounds of the interface implementations of a type, as [`Struct::impl_heads`].
+    fn impl_heads(&self, owner: DefId) -> Vec<Vec<Vec<Type>>> {
+        let Some(list) = self.typed.decls.impls.get(&owner) else {
+            return Vec::new();
+        };
+        list.iter()
+            .map(|imp| imp.bounds.iter().map(|b| self.bounds(b.iter())).collect())
+            .collect()
+    }
+
     fn item(
         &mut self,
         ctx: Ctx,
@@ -633,6 +690,7 @@ impl<'a> Lowerer<'a> {
                     fields,
                     methods: methods.remove(&def).unwrap_or_default(),
                     implements: self.implements(def),
+                    impl_heads: self.impl_heads(def),
                     extern_paths: BTreeMap::new(),
                     extern_fields: BTreeMap::new(),
                 }));
@@ -679,6 +737,7 @@ impl<'a> Lowerer<'a> {
                     variants,
                     methods: methods.remove(&def).unwrap_or_default(),
                     implements: self.implements(def),
+                    impl_heads: self.impl_heads(def),
                 }));
             }
             ItemKind::IntrinsicType(decl) => {
@@ -723,12 +782,20 @@ impl<'a> Lowerer<'a> {
                         in_tests: false,
                     });
                 }
+                let supers = self
+                    .typed
+                    .decls
+                    .interface_supers
+                    .get(&def)
+                    .map(|list| list.iter().map(|t| self.ty(t)).collect())
+                    .unwrap_or_default();
                 out.push(Item::Interface(Interface {
                     def: Lowerer::dref(def),
                     name: decl.name.name.clone(),
                     docs: docs(&item.docs),
                     public: decl.public,
                     generics: self.type_generics(def),
+                    supers,
                     methods: list,
                 }));
             }
@@ -919,7 +986,7 @@ impl<'a> Lowerer<'a> {
                 .impl_bounds
                 .iter()
                 .zip(m.where_bounds.iter().chain(std::iter::repeat(&Vec::new())))
-                .map(|(bounds, extra)| bounds.iter().chain(extra).map(|b| self.ty(b)).collect())
+                .map(|(bounds, extra)| self.bounds(bounds.iter().chain(extra)))
                 .collect(),
             self_mode: m.sig.self_mode,
             params: self.params(&decl.sig, &m.sig),

@@ -22,7 +22,11 @@ impl Checker<'_> {
     pub(crate) fn implements(&self, ty: &Ty, interface: DefId) -> bool {
         match self.infer.resolve(ty) {
             Ty::Named(def, args) => {
-                if def == interface {
+                // A value of an interface implements it and its super-interfaces.
+                if def == interface
+                    || (self.def_kind(def) == Some(DefKind::Interface)
+                        && self.is_super_or_self(def, interface))
+                {
                     return true;
                 }
                 let implemented = self.impls.get(&def).is_some_and(|list| {
@@ -32,11 +36,11 @@ impl Checker<'_> {
                 implemented && (!self.result_display(def, interface) || self.err_shown(&args))
             }
             Ty::Param(ParamId::Decl(span)) => self.has_bound(span, interface),
-            // `self` in a default implements its interface.
+            // `self` in a default implements its interface and its super-interfaces.
             Ty::Param(ParamId::SelfType) => self
                 .current_interface
                 .as_ref()
-                .is_some_and(|(d, _)| *d == interface),
+                .is_some_and(|(d, _)| self.is_super_or_self(*d, interface)),
             Ty::Error | Ty::Never => true,
             _ => false,
         }
@@ -150,12 +154,13 @@ impl Checker<'_> {
         }
     }
 
-    /// Whether the type parameter declared at `span` has the bound `interface`.
+    /// Whether the type parameter declared at `span` has the bound `interface`, or a bound
+    /// whose super-interfaces include it.
     pub(crate) fn has_bound(&self, span: Span, interface: DefId) -> bool {
         self.param_bounds.get(&span).is_some_and(|bounds| {
             bounds
                 .iter()
-                .any(|b| matches!(b, Ty::Named(d, _) if *d == interface))
+                .any(|b| matches!(b, Ty::Named(d, _) if self.is_super_or_self(*d, interface)))
         })
     }
 

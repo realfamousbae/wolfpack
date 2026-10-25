@@ -1,0 +1,33 @@
+module main
+
+types {
+    struct Dog {
+        title: String
+    }
+}
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Greeter: Named {
+        fn hello(self) -> String
+    }
+}
+
+impl {
+    Dog: Named {
+        fn name(self) -> String { self.title.copy() }
+    }
+
+    Dog: Greeter {
+        fn hello(self) -> String { "Hello" }
+    }
+}
+
+main {
+    let g: Greeter = Dog { title: "Rex" }
+    let n: Named = g
+    print(n.name())
+}

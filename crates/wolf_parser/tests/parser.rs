@@ -113,6 +113,19 @@ fn conditions_and_chains() {
     );
 }
 
+/// `interface Greeter: Named + Display` names its super-interfaces (chapter 4, section 8.2).
+#[test]
+fn super_interfaces() {
+    let dump = ok(
+        "module main\n\ninterfaces {\n    interface Greeter: Named + Display {\n        fn hi(self)\n    }\n    interface Sorted<T>:\n        Container<T> {\n        fn top(self) -> T\n    }\n}\n",
+    );
+    assert!(
+        dump.contains("(interface Greeter (: Named Display)"),
+        "{dump}"
+    );
+    assert!(dump.contains("(: (Container T))"), "{dump}");
+}
+
 #[test]
 fn binary_operators_are_left_associative() {
     let dump = ok(&body("        let x = a - b - c"));

@@ -222,6 +222,9 @@ pub struct Struct {
     pub methods: Vec<Function>,
     /// Interfaces it implements.
     pub implements: Vec<Type>,
+    /// For each of `implements`, the bounds that the head of its block gives the type's
+    /// parameters, in their order, with the super-interfaces they imply.
+    pub impl_heads: Vec<Vec<Vec<Type>>>,
     /// For a record (spec chapter 7, section 8.4a): the struct type of each target block that
     /// binds it, `ts`, `go` or `rust` to the path string.
     pub extern_paths: BTreeMap<String, String>,
@@ -262,6 +265,9 @@ pub struct Enum {
     pub methods: Vec<Function>,
     /// Interfaces it implements.
     pub implements: Vec<Type>,
+    /// For each of `implements`, the bounds that the head of its block gives the type's
+    /// parameters, in their order, with the super-interfaces they imply.
+    pub impl_heads: Vec<Vec<Vec<Type>>>,
 }
 
 /// A variant.
@@ -317,6 +323,9 @@ pub struct Interface {
     pub public: bool,
     /// Type parameters.
     pub generics: Vec<Generic>,
+    /// The super-interfaces, in terms of the type parameters (spec chapter 4, section 8.2,
+    /// rule 6).
+    pub supers: Vec<Type>,
     /// Method signatures (functions without bodies).
     pub methods: Vec<Function>,
 }

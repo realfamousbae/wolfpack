@@ -1536,6 +1536,14 @@ impl<'p> Emitter<'p> {
             let mut parts = Vec::new();
             for b in &g.bounds {
                 let IrType::Named(def, _) = b else { continue };
+                // The IR adds the super-interfaces of a bound, which the embedding implies.
+                let implied = g.bounds.iter().any(|o| match o {
+                    IrType::Named(other, _) if other != def => self.supers_of(*other).contains(def),
+                    _ => false,
+                });
+                if implied {
+                    continue;
+                }
                 if Some(*def) == self.hashable {
                     parts.push(Type::name("comparable"));
                 } else if [self.equatable, self.copyable, self.comparable, self.display]
@@ -1559,6 +1567,27 @@ impl<'p> Emitter<'p> {
             out.push((g.name.clone(), c));
         }
         Ok(out)
+    }
+
+    /// The super-interfaces of an interface, and theirs in turn.
+    fn supers_of(&self, iface: DefRef) -> BTreeSet<DefRef> {
+        let mut out = BTreeSet::new();
+        let mut stack = vec![iface];
+        while let Some(d) = stack.pop() {
+            for s in self
+                .ifaces
+                .get(&d)
+                .map(|i| i.supers.as_slice())
+                .unwrap_or(&[])
+            {
+                if let IrType::Named(s, _) = s {
+                    if out.insert(*s) {
+                        stack.push(*s);
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// The dictionary parameters of generics: `eqT func(T, T) bool` and so on.
@@ -2866,6 +2895,13 @@ impl<'p> Emitter<'p> {
         }
         let outer = std::mem::replace(&mut self.self_param, self_typed);
         let mut elems = Vec::new();
+        // Super-interfaces are embedded (spec chapter 8, section 5.3). `Comparable` has no
+        // interface in Go: it is a dictionary.
+        for s in &i.supers {
+            if !matches!(s, IrType::Named(d, _) if Some(*d) == self.comparable) {
+                elems.push(IfaceElem::Embed(self.ty(s)?));
+            }
+        }
         for f in &i.methods {
             let mut params = Vec::new();
             for p in &f.params {

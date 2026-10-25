@@ -1,0 +1,12 @@
+module main
+
+interfaces {
+    interface Ranked: Comparable {
+        fn rank(self) -> Int
+    }
+}
+
+main {
+    let ranked: List<Ranked> = []
+    print(ranked.len().to_string())
+}

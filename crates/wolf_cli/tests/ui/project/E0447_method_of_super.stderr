@@ -1,0 +1,10 @@
+error[E0447]: `name` is a method of `Named` too
+  --> src/main.wolf:9:12
+  |
+9 |         fn name(self) -> String
+  |            ^^^^ `Greeter` cannot declare it again
+  |
+  = help: rename the method, or leave it to `Named`
+  = note: a type that implements `Greeter` implements `Named` too, and a type has at most one method with a name
+
+error: aborting due to 1 error

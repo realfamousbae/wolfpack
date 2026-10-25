@@ -460,6 +460,8 @@ pub struct InterfaceDecl {
     pub name: Ident,
     /// Type parameters.
     pub generics: Vec<GenericParam>,
+    /// The super-interfaces after `:` (spec chapter 4, section 8.2, rule 6).
+    pub supers: Vec<Ty>,
     /// The methods: signatures, and defaults with a body.
     pub methods: Vec<MethodSig>,
 }

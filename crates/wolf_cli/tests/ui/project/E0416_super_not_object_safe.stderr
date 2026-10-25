@@ -1,0 +1,10 @@
+error[E0416]: `Ranked` cannot be used as a type
+   --> src/main.wolf:10:22
+   |
+10 |     let ranked: List<Ranked> = []
+   |                      ^^^^^^ this interface is not object-safe
+   |
+   = help: use it as a bound instead: `<T: Ranked>`
+   = note: method `compare` of `Comparable` mentions `Self` outside its receiver, so a value of type `Ranked` could not call it
+
+error: aborting due to 1 error

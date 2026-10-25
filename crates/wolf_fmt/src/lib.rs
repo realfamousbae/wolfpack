@@ -441,8 +441,14 @@ impl<'a> Fmt<'a> {
                 self.generics(&t.generics)
             )),
             ItemKind::Interface(i) => {
+                let supers: Vec<String> = i.supers.iter().map(|t| self.ty_text(t)).collect();
+                let supers = if supers.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", supers.join(" + "))
+                };
                 let head = text(format!(
-                    "{}interface {}{} {{",
+                    "{}interface {}{}{supers} {{",
                     vis(i.public),
                     i.name.name,
                     self.generics(&i.generics)
@@ -475,6 +481,11 @@ impl<'a> Fmt<'a> {
                     head.push(self.ty(i));
                 }
                 head.push(text(" {"));
+                // A block that defines nothing, such as one that takes every default, is `{}`.
+                if b.methods.is_empty() && !self.comment_inside(item.span.start, item.span.end) {
+                    head.push(text("}"));
+                    return cat(head);
+                }
                 let close = item.span.end.saturating_sub(1);
                 let elements = b
                     .methods

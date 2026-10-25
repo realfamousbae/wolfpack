@@ -182,6 +182,8 @@ pub enum Item {
         name: String,
         /// Type parameters.
         generics: Vec<(String, Option<Type>)>,
+        /// The interfaces after `extends`.
+        extends: Vec<Type>,
         /// Method signatures: docs, name, params, result.
         methods: Vec<Signature>,
     },
@@ -392,11 +394,18 @@ impl Printer {
                 export,
                 name,
                 generics,
+                extends,
                 methods,
             } => {
                 self.docs(docs);
+                let extends = if extends.is_empty() {
+                    String::new()
+                } else {
+                    let list: Vec<String> = extends.iter().map(ty).collect();
+                    format!(" extends {}", list.join(", "))
+                };
                 self.line(&format!(
-                    "{}interface {name}{} {{",
+                    "{}interface {name}{}{extends} {{",
                     export_kw(*export),
                     generic_decls(generics)
                 ));

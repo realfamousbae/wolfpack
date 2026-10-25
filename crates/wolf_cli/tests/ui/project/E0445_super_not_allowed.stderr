@@ -1,0 +1,38 @@
+error[E0445]: `Point` is not an interface
+   --> src/main.wolf:14:27
+   |
+14 |     interface FromStruct: Point {
+   |                           ^^^^^ a super-interface must be an interface
+
+error[E0445]: `Equatable` cannot be a super-interface
+   --> src/main.wolf:18:25
+   |
+18 |     interface Compared: Equatable {
+   |                         ^^^^^^^^^ a built-in interface that no block implements
+   |
+   = help: write it as a bound where it is needed: `<T: Compared + Equatable>`
+   = note: `Equatable` and `Copyable` are derived from the fields of a type, and `Hashable` is a fixed set of types
+
+error[E0445]: `Itself` is its own super-interface
+   --> src/main.wolf:22:23
+   |
+22 |     interface Itself: Itself {
+   |                       ^^^^^^ an interface cannot need itself
+
+error[E0445]: `Named` is named twice as a super-interface of `Twice`
+   --> src/main.wolf:26:30
+   |
+26 |     interface Twice: Named + Named {
+   |                      -----   ^^^^^ named again here
+   |                      |        
+   |                      first named here
+
+error[E0445]: `Ping` is its own super-interface
+   --> src/main.wolf:30:21
+   |
+30 |     interface Ping: Pong {
+   |                     ^^^^ this super-interface leads back to it
+   |
+   = note: the chain is Ping -> Pong -> Ping
+
+error: aborting due to 5 errors

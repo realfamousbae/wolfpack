@@ -1,0 +1,23 @@
+module main
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    interface Greeter:Named+Display {
+        fn greeting(self) -> String { "Hello, " + self.name() }
+    }
+
+    interface Sorted<T>:  Container<T> {
+        fn largest(self) -> Option<T>
+    }
+
+    interface Container<T> {
+        fn first(self) -> Option<T>
+    }
+}
+
+main {
+    print("ok")
+}

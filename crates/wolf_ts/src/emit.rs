@@ -1571,11 +1571,20 @@ impl<'p> Emitter<'p> {
                     let ret = self.ret_ty(&f.ret);
                     methods.push((f.docs.clone(), camel(&f.name), params, ret));
                 }
+                // Super-interfaces are extended (spec chapter 8, section 5.3), so that a value of
+                // the interface has their methods. `Comparable` has no interface of its own.
+                let mut extends = Vec::new();
+                for s in &i.supers {
+                    if !matches!(s, IrType::Named(d, _) if Some(*d) == self.comparable) {
+                        extends.push(self.ty(s));
+                    }
+                }
                 out.push(Item::Interface {
                     docs: i.docs.clone(),
                     export: true,
                     name: type_name(&i.name),
                     generics: generics.clone(),
+                    extends,
                     methods,
                 });
                 // Each default is a function that takes the interface value; a class that gets
@@ -3731,6 +3740,34 @@ impl<'p> Emitter<'p> {
         Expr::As(Box::new(view), Type::name(&class))
     }
 
+    /// The super-interfaces of an interface with the type arguments `args`, and theirs in turn,
+    /// each once, with their type arguments.
+    fn supers_with_args(&self, iface: DefRef, args: Vec<IrType>) -> Vec<(DefRef, Vec<IrType>)> {
+        let mut out = Vec::new();
+        let mut seen = BTreeSet::from([iface]);
+        let mut stack = vec![(iface, args)];
+        while let Some((def, args)) = stack.pop() {
+            let Some(i) = self.ifaces.get(&def).copied() else {
+                continue;
+            };
+            let map: BTreeMap<String, IrType> = i
+                .generics
+                .iter()
+                .map(|g| g.name.clone())
+                .zip(args)
+                .collect();
+            for s in &i.supers {
+                if let IrType::Named(d, a) = subst(s, &map) {
+                    if seen.insert(d) && Some(d) != self.comparable {
+                        out.push((d, a.clone()));
+                        stack.push((d, a));
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// The class that holds a payload-less enum used as a value of an interface: `Color$Animal`.
     fn wrapper_name(&self, e: DefRef, iface: DefRef) -> String {
         let name = |d: DefRef| self.p.def(d).map(|d| d.name.clone()).unwrap_or_default();
@@ -3747,27 +3784,33 @@ impl<'p> Emitter<'p> {
         to: &IrType,
     ) -> Result<Item, Error> {
         let en = self.enums.get(&e).copied().ok_or("enum")?;
-        let names: Vec<String> = self
-            .iface_fns
-            .keys()
-            .filter(|(i, _)| *i == iface)
-            .map(|(_, n)| n.clone())
-            .collect();
+        let args = match to {
+            IrType::Named(_, a) => a.clone(),
+            _ => Vec::new(),
+        };
+        // The methods of the interface and of its super-interfaces (spec chapter 4, section 8.2,
+        // rule 6), with the interface that declares each.
+        let mut owners = vec![(iface, args.clone())];
+        owners.extend(self.supers_with_args(iface, args));
+        let mut names: Vec<(DefRef, Vec<IrType>, String)> = Vec::new();
+        for (owner, oargs) in &owners {
+            for (i, n) in self.iface_fns.keys() {
+                if i == owner && !names.iter().any(|(_, _, m)| m == n) {
+                    names.push((*owner, oargs.clone(), n.clone()));
+                }
+            }
+        }
         let mut methods = Vec::new();
-        for n in names {
+        for (owner, oargs, n) in names {
             // A default that the enum gets: called on the wrapper itself.
             if !en.methods.iter().any(|f| f.name == n) {
                 let default: Option<&'p ir::Function> = self
                     .ifaces
-                    .get(&iface)
+                    .get(&owner)
                     .copied()
                     .and_then(|i| i.methods.iter().find(|f| f.name == n && f.body.is_some()));
                 if let Some(f) = default {
-                    let args = match to {
-                        IrType::Named(_, a) => a.clone(),
-                        _ => Vec::new(),
-                    };
-                    methods.push(self.delegate(Expr::This, e, iface, &args, f)?);
+                    methods.push(self.delegate(Expr::This, e, owner, &oargs, f)?);
                     continue;
                 }
             }

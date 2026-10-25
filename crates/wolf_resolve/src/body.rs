@@ -130,6 +130,9 @@ impl Resolver<'_> {
             }
             ItemKind::Interface(decl) => {
                 let mut ctx = self.with_generics(ctx, &decl.generics);
+                for sup in &decl.supers {
+                    self.ty(&ctx, sup);
+                }
                 ctx.self_type = Some(None);
                 // A default body is resolved like the body of a method (chapter 4, 8.2.4).
                 for method in &decl.methods {
