@@ -51,7 +51,7 @@ field_sig    = IDENT ":" type
 alias_decl   = visibility "type" IDENT generics? "=" type
 intrinsic_type = visibility "intrinsic" "type" IDENT generics?   // std only, chapter 7
 
-interface_decl = visibility "interface" IDENT generics? ( ":" bounds )? "{" ( fn_sig block? )* "}"   // a block is a default, chapter 4, section 8.2; [DRAFT] `: bounds` are super-interfaces, rule 6 there
+interface_decl = visibility "interface" IDENT generics? ( ":" bounds )? "{" ( fn_sig block? )* "}"   // a block is a default, chapter 4, section 8.2; `: bounds` are super-interfaces, rule 6 there
 fn_sig       = "fn" IDENT generics? "(" params? ")" ( "->" type )?
 
 impl_block   = IDENT generics? ( ":" type_path )? "{" ( "override"? fn_decl )* "}"   // `override`: chapter 4, section 8.3, rule 1

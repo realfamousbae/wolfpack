@@ -356,7 +356,7 @@ small class, `Color$Named`, that holds the value, or its place for a `mut self` 
 | as a bound | a dictionary parameter (5.4) | a constraint, or a dictionary parameter (5.4) | trait bound |
 | as a value type | the interface type | the interface type | `Box<dyn Trait>` |
 | mentioning `Self` beyond the receiver (a bound only) | `interface Same<Self>`: the implementing type is the last type argument | `same[Self]`: likewise | `trait Same: Sized` |
-| **[DRAFT]** (D4.20) with super-interfaces, `interface Greeter: Named + Display` | `interface Greeter extends Named, Display`; the dictionary of a `Greeter` bound also gives those of its super-interfaces | `Named` and `Display` embedded in the interface `greeter`; a dictionary likewise | `trait Greeter: Named + Display` |
+| with super-interfaces (D4.20), `interface Greeter: Named + Display` | `interface Greeter extends Named, Display`; the dictionary of a `Greeter` bound also gives those of its super-interfaces | `Named` and `Display` embedded in the interface `greeter`; a dictionary likewise | `trait Greeter: Named + Display` |
 
 `.copy()` on an interface value (author, 13b) calls a hidden copy method that every implementation
 gets (`Box<dyn Trait>` gets a `Clone` impl through it). **[INTERNAL]**
