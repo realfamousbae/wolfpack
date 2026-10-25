@@ -2,6 +2,20 @@
 
 All notable changes are recorded here at the end of each milestone.
 
+## Unreleased
+
+- Chains in conditions (spec chapter 3, section 5, rule 14a; D3.10 and D5.9): `if` and `while`
+  join `let` items and `Bool` items with `&&`, as in `if let Some(user) = find(id) &&
+  user.active && let Some(mail) = user.mail`. The items are tried from left to right, the
+  bindings of a `let` are visible to the items after it and to the first block, and an `||`
+  outside parentheses in a condition with a `let` is the new error E0317. Each `let` keeps its
+  borrow through the later items and the block (E0509), and a value that a later item moves may
+  have been moved in the `else` branch (E0502). The IR has a node of its own for a chain,
+  `IfChain`, so that the `else` branch is written once: TypeScript emits a labelled block,
+  Rust a labelled block left with `break 'chain_ value` (and labels the loops that a `break`
+  inside it leaves, E0695), Go a flag when the first block can end normally, and the VM jumps.
+  `wolf fmt` breaks a long chain after every `&&`.
+
 ## 0.4.1 (2026-10-24)
 
 - Fixed in the Go backend, which now runs what the other targets and the VM ran in 0.4.0 (the
