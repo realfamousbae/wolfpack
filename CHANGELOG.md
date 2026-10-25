@@ -2,6 +2,14 @@
 
 All notable changes are recorded here at the end of each milestone.
 
+## Unreleased
+
+- E0608 also covers the super-interfaces of a `pub` interface (spec chapter 6, section 4, rule 5):
+  a `pub` interface cannot extend a private one, and the message names the interface as an
+  interface.
+- CI runs the tests of `wolf self uninstall` on Windows and macOS too, the Windows one with the
+  user's `Path` in the registry and a running `wolf.exe` removed after it exits.
+
 ## 0.5.0 (2026-10-25)
 
 - Chains in conditions (spec chapter 3, section 5, rule 14a; D3.10 and D5.9): `if` and `while`
