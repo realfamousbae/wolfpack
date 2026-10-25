@@ -161,7 +161,10 @@ behaviour of a failed assertion are in chapter 7.
    `pub` associated function such as `FileStorage.open(path)` instead.
 5. **No private types in public signatures.** A `pub` function, method, field, constant or alias
    may only mention types that are visible wherever the declaration is visible (E0608).
-   **[PROPOSAL]**
+   **[PROPOSAL]** The same holds for a `pub` interface: its method signatures and its
+   super-interfaces (chapter 4, section 8.2, rule 6) may only name visible types and interfaces, so a
+   `pub` interface cannot extend a private one (author, 2026-10-25). In a library the
+   super-interfaces of an exported interface are part of the API (rule 6).
 6. **Library API.** For kind `lib`, code outside the project sees only the `pub` names of
    `src/lib.wolf` and its `pub` imports (author). Every type that appears in a signature of that
    API must itself be part of the API (E0608). Inside the project, `pub` means "visible to the other
