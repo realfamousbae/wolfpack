@@ -15,6 +15,38 @@ All notable changes are recorded here at the end of each milestone.
   Rust a labelled block left with `break 'chain_ value` (and labels the loops that a `break`
   inside it leaves, E0695), Go a flag when the first block can end normally, and the VM jumps.
   `wolf fmt` breaks a long chain after every `&&`.
+- Super-interfaces (spec chapter 4, sections 8.2 rule 6, 8.3 rule 7 and 8.5 rule 1; D4.20):
+  `interface Greeter: Named + Display`. A type that implements `Greeter` implements each
+  super-interface in its own block (E0446 otherwise, also when the head of a generic block lacks
+  a bound that the implementation of the super-interface needs), and wherever a type is known to
+  implement `Greeter` it has their methods: in defaults, through bounds and on values of
+  `Greeter`, which also meet a bound by `Named`. Super-interfaces are interfaces of the program,
+  `Error`, `Comparable` and `Display`; `Equatable`, `Copyable` and `Hashable`, cycles and repeats
+  are E0445, and a method with the name of a method of a super-interface is E0447. An interface
+  with `Comparable` among its super-interfaces is a bound only, and a value of `Greeter` is not
+  converted to a value of `Named` (E0401). The IR keeps the super-interfaces of each interface
+  and adds those of a bound to it (`T: Greeter + Named + Display`), so that TypeScript and Go
+  pass the dictionaries the calls need; TypeScript writes `extends`, Go embeds the interfaces,
+  Rust writes super-traits and `impl Named for Box<dyn Greeter>`, and each drops the bounds that
+  others imply.
+- `wolf check --bytecode [<name>]` (spec chapter 10, section 1a; D10.9), a disassembler: it
+  prints the bytecode that the VM runs for the functions of `src/`, in the order of the source
+  and each closure after its function (`shapes.area closure 1`), or only for the functions named
+  `area`, `Shape.area`, `shapes.area` or `main`. A module that cannot run in the VM is a comment
+  that says why; a name that names no function is E0002. The functions of the VM now have their
+  full names (`main.sum`) in listings and internal errors.
+- `wolf self uninstall [--yes]` (spec chapter 8, section 2c; D8.15): removes `wolf`, the
+  `PATH` lines that the terminal scripts marked with their comment (never other lines) and the
+  entry in the user's `Path` on Windows, and asks before it removes the wolfpack home, which
+  `--yes` removes without asking and a script keeps; only what `wolf` put there goes. For a `wolf`
+  of a package manager it prints the command of the manager, for the Windows setup program it
+  starts its uninstaller, and on Windows the renamed `wolf.old.exe` is removed by a hidden command
+  after `wolf` exits. A step that fails, or a directory that cannot be written such as
+  `/usr/local/bin` of the macOS package, is E0808 with the commands that remove it.
+- Fixed in the Rust backend: a block that implements an interface and defines no method, such as
+  one that takes every default (`Dog: Named {}`), wrote no `impl`, so the type did not implement
+  the trait. Go writes a constraint of several interfaces with one element per line, as gofmt
+  does, and `wolf fmt` writes a block that defines nothing as `Dog: Named {}`.
 
 ## 0.4.1 (2026-10-24)
 
