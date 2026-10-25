@@ -1,0 +1,12 @@
+error[E0502]: use of `name`, which may have been moved
+  --> src/main.wolf:9:18
+  |
+6 |     if check && let Some(n) = own name && n.len() > 5 {
+  |                                   ---- moved here on some paths
+  .
+9 |         print(f"{name}")
+  |                  ^^^^ used here
+  |
+  = help: pass a copy instead of moving it: `name.copy()`
+
+error: aborting due to 1 error

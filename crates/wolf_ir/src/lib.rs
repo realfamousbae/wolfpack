@@ -707,6 +707,17 @@ pub enum ExprKind {
         /// The `else` branch.
         otherwise: Option<Block>,
     },
+    /// `if` with a chain of conditions (spec chapter 3, section 5, rule 14a): the items are
+    /// tried in order, the first that fails runs `otherwise`, and the bindings of a `let` item
+    /// are visible to the items after it and to `then`. An `if let` of one item is a `match`.
+    IfChain {
+        /// The items, at least two.
+        items: Vec<CondItem>,
+        /// The branch taken when every item succeeds.
+        then: Block,
+        /// The branch taken when an item fails.
+        otherwise: Option<Block>,
+    },
     /// `match`
     Match {
         /// The value matched.
@@ -771,6 +782,22 @@ pub enum ExprKind {
         /// `file:line:column`.
         location: String,
     },
+}
+
+/// An item of an [`ExprKind::IfChain`].
+#[derive(Clone, Debug)]
+pub enum CondItem {
+    /// `let pattern = mode? value`: matches like the first arm of a `match`.
+    Let {
+        /// The pattern.
+        pattern: Pattern,
+        /// `let P = value`, `let P = mut value` or `let P = own value`.
+        mode: Mode,
+        /// The value matched.
+        value: Expr,
+    },
+    /// A `Bool` expression.
+    Bool(Expr),
 }
 
 /// An arm of a `match`.

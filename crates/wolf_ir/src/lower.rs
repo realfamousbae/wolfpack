@@ -7,7 +7,9 @@
 
 use std::collections::BTreeMap;
 
-use wolf_ast::{self as ast, ExprKind as AstExpr, ItemKind, Mode, PatKind, StmtKind};
+use wolf_ast::{
+    self as ast, CondItem as AstCondItem, ExprKind as AstExpr, ItemKind, Mode, PatKind, StmtKind,
+};
 use wolf_project::Kind;
 use wolf_resolve::{DefId, DefKind as RDef, ModuleInput, Res, Resolved, Role};
 use wolf_span::{FileId, SourceMap, Span};
@@ -951,6 +953,30 @@ impl<'a> Lowerer<'a> {
         Ok(out)
     }
 
+    /// The items of a chain of conditions (spec chapter 3, section 5, rule 14a).
+    fn cond_items(
+        &mut self,
+        ctx: Ctx,
+        items: &'a [AstCondItem],
+    ) -> Result<Vec<CondItem>, LowerError> {
+        let mut out = Vec::new();
+        for item in items {
+            out.push(match item {
+                AstCondItem::Let {
+                    pattern,
+                    mode,
+                    value,
+                } => CondItem::Let {
+                    pattern: self.pattern(ctx, pattern)?,
+                    mode: *mode,
+                    value: self.expr(ctx, value)?,
+                },
+                AstCondItem::Bool(e) => CondItem::Bool(self.expr(ctx, e)?),
+            });
+        }
+        Ok(out)
+    }
+
     /// An expression as a block (match arms, `else if`).
     fn expr_block(
         &mut self,
@@ -1020,15 +1046,9 @@ impl<'a> Lowerer<'a> {
                 cond: self.expr(ctx, cond)?,
                 body: self.block(ctx, body, true)?,
             },
-            StmtKind::WhileLet {
-                label,
-                pattern,
-                mode,
-                value,
-                body,
-            } => {
-                // `loop { match value { pattern => body, _ => break } }`
-                let value = self.expr(ctx, value)?;
+            StmtKind::WhileLet { label, items, body } => {
+                // `loop { match value { pattern => body, _ => break } }`, and for a chain
+                // `loop { if items { body } else { break } }`.
                 let span = stmt.span;
                 let stop = Expr {
                     kind: ExprKind::Break {
@@ -1038,27 +1058,45 @@ impl<'a> Lowerer<'a> {
                     ty: Type::Never,
                     span,
                 };
-                let arms = vec![
-                    Arm {
-                        pattern: self.pattern(ctx, pattern)?,
-                        guard: None,
-                        body: self.block(ctx, body, true)?,
-                    },
-                    Arm {
-                        pattern: Pattern::Wild,
-                        guard: None,
-                        body: Block {
-                            stmts: vec![Stmt::Expr(stop)],
-                            tail: None,
+                let stop = Block {
+                    stmts: vec![Stmt::Expr(stop)],
+                    tail: None,
+                };
+                let kind = match items.as_slice() {
+                    [
+                        AstCondItem::Let {
+                            pattern,
+                            mode,
+                            value,
                         },
+                    ] => {
+                        let value = self.expr(ctx, value)?;
+                        let arms = vec![
+                            Arm {
+                                pattern: self.pattern(ctx, pattern)?,
+                                guard: None,
+                                body: self.block(ctx, body, true)?,
+                            },
+                            Arm {
+                                pattern: Pattern::Wild,
+                                guard: None,
+                                body: stop,
+                            },
+                        ];
+                        ExprKind::Match {
+                            scrutinee: Box::new(value),
+                            mode: *mode,
+                            arms,
+                        }
+                    }
+                    _ => ExprKind::IfChain {
+                        items: self.cond_items(ctx, items)?,
+                        then: self.block(ctx, body, true)?,
+                        otherwise: Some(stop),
                     },
-                ];
+                };
                 let matched = Expr {
-                    kind: ExprKind::Match {
-                        scrutinee: Box::new(value),
-                        mode: *mode,
-                        arms,
-                    },
+                    kind,
                     ty: Type::Void,
                     span,
                 };
@@ -1316,33 +1354,49 @@ impl<'a> Lowerer<'a> {
                 }
             }
             AstExpr::IfLet {
-                pattern,
-                mode,
-                value,
+                items,
                 then,
                 otherwise,
             } => {
-                // `match value { pattern => then, _ => otherwise }`
                 let discard = matches!(ty, Type::Void);
-                let otherwise = match otherwise {
-                    Some(o) => self.expr_block(ctx, o, discard)?,
-                    None => Block::default(),
-                };
-                ExprKind::Match {
-                    scrutinee: self.boxed(ctx, value)?,
-                    mode: *mode,
-                    arms: vec![
-                        Arm {
-                            pattern: self.pattern(ctx, pattern)?,
-                            guard: None,
-                            body: self.block(ctx, then, discard)?,
+                match items.as_slice() {
+                    // `match value { pattern => then, _ => otherwise }`
+                    [
+                        AstCondItem::Let {
+                            pattern,
+                            mode,
+                            value,
                         },
-                        Arm {
-                            pattern: Pattern::Wild,
-                            guard: None,
-                            body: otherwise,
+                    ] => {
+                        let otherwise = match otherwise {
+                            Some(o) => self.expr_block(ctx, o, discard)?,
+                            None => Block::default(),
+                        };
+                        ExprKind::Match {
+                            scrutinee: self.boxed(ctx, value)?,
+                            mode: *mode,
+                            arms: vec![
+                                Arm {
+                                    pattern: self.pattern(ctx, pattern)?,
+                                    guard: None,
+                                    body: self.block(ctx, then, discard)?,
+                                },
+                                Arm {
+                                    pattern: Pattern::Wild,
+                                    guard: None,
+                                    body: otherwise,
+                                },
+                            ],
+                        }
+                    }
+                    _ => ExprKind::IfChain {
+                        items: self.cond_items(ctx, items)?,
+                        then: self.block(ctx, then, discard)?,
+                        otherwise: match otherwise {
+                            Some(o) => Some(self.expr_block(ctx, o, discard)?),
+                            None => None,
                         },
-                    ],
+                    },
                 }
             }
             AstExpr::Loop { label, body } => ExprKind::Loop {

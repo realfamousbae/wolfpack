@@ -1,0 +1,4 @@
+[package]
+name = "e0502-chain-later-move"
+version = "0.1.0"
+kind = "cli"

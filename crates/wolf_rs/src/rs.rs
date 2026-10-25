@@ -126,6 +126,8 @@ pub enum Expr {
     Continue(Option<String>),
     /// `'label: loop { ... }` as a value.
     Loop(Option<String>, Block),
+    /// `'label: { ... }`, a block that `break 'label value` leaves.
+    Labeled(String, Block),
     /// `x?`
     Try(Box<Expr>),
     /// `x as T`
@@ -452,7 +454,12 @@ fn simple_block(b: &Block) -> Option<&Expr> {
 pub fn block_like(e: &Expr) -> bool {
     matches!(
         e,
-        Expr::If(..) | Expr::IfLet(..) | Expr::Match(..) | Expr::Block(_) | Expr::Loop(..)
+        Expr::If(..)
+            | Expr::IfLet(..)
+            | Expr::Match(..)
+            | Expr::Block(_)
+            | Expr::Loop(..)
+            | Expr::Labeled(..)
     )
 }
 
@@ -668,7 +675,7 @@ impl Printer {
                 Some(l) => format!("continue '{l}"),
                 None => "continue".to_string(),
             },
-            Expr::Loop(..) => return None,
+            Expr::Loop(..) | Expr::Labeled(..) => return None,
             Expr::Cast(x, t) => format!("{} as {}", self.flat_operand(x, 11)?, self.ty(t)),
             Expr::Paren(x) => format!("({})", self.flat(x)?),
             Expr::Range(a, b, inclusive) => format!(
@@ -847,6 +854,7 @@ impl Printer {
                 Some(l) => format!("'{l}: loop {}", self.block(b, ind)),
                 None => format!("loop {}", self.block(b, ind)),
             },
+            Expr::Labeled(l, b) => format!("'{l}: {}", self.block(b, ind)),
             Expr::If(c, then, otherwise) => {
                 let cond = self.expr(c, ind, col + 3, 2);
                 let mut s = format!("if {cond} {}", self.block(then, ind));

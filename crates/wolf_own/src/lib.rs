@@ -12,8 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use wolf_diag::{Diagnostic, codes};
 use wolf_ir::{
-    Arg, Block, Callee, DefRef, Expr, ExprKind, Function, Item, LocalRef, Mode, Pattern, Program,
-    Stmt, Type,
+    Arg, Block, Callee, CondItem, DefRef, Expr, ExprKind, Function, Item, LocalRef, Mode, Pattern,
+    Program, Stmt, Type,
 };
 use wolf_span::Span;
 
@@ -813,6 +813,11 @@ impl<'p> Checker<'p> {
                 mode,
                 arms,
             } => self.match_(scrutinee, *mode, arms, u),
+            ExprKind::IfChain {
+                items,
+                then,
+                otherwise,
+            } => self.if_chain(items, then, otherwise.as_ref(), u),
             ExprKind::Block(b) => self.block(b, u),
             ExprKind::Return(v) => {
                 if let Some(v) = v {
@@ -878,9 +883,93 @@ impl<'p> Checker<'p> {
     }
 
     fn match_(&mut self, scrutinee: &Expr, mode: Mode, arms: &[wolf_ir::Arm], u: Use) {
+        let (binding, borrow) = self.scrutinee(scrutinee, mode);
+        if let Some(b) = &borrow {
+            self.borrows.push(b.clone());
+        }
+        let entry = self.state.clone();
+        let mut joined = State {
+            unreachable: true,
+            ..State::default()
+        };
+        for arm in arms {
+            self.state = entry.clone();
+            self.declare_bindings(&arm.pattern, binding);
+            if let Some(g) = &arm.guard {
+                self.expr(g, Use::Read);
+            }
+            self.block(&arm.body, u);
+            let s = std::mem::take(&mut self.state);
+            joined = State::join(joined, s);
+        }
+        if borrow.is_some() {
+            self.borrows.pop();
+        }
+        self.state = joined;
+    }
+
+    /// An `if` with a chain of conditions (chapter 5, section 7.4, rule 5): each `let` item is
+    /// the scrutinee of a `match` whose borrow lasts until the end of `then`, and the `else`
+    /// branch starts from the join of the states in which an item can fail, so a move by the
+    /// first item is a move there and a move by a later item a possible one.
+    fn if_chain(&mut self, items: &[CondItem], then: &Block, otherwise: Option<&Block>, u: Use) {
+        let borrows = self.borrows.len();
+        let mut failed = State {
+            unreachable: true,
+            ..State::default()
+        };
+        for item in items {
+            match item {
+                CondItem::Let {
+                    pattern,
+                    mode,
+                    value,
+                } => {
+                    let (binding, borrow) = self.scrutinee(value, *mode);
+                    if let Some(mut b) = borrow {
+                        b.what = if b.mutable {
+                            "this `if let` changes"
+                        } else {
+                            "this `if let` reads"
+                        };
+                        self.borrows.push(b);
+                    }
+                    failed = State::join(failed, self.state.clone());
+                    self.declare_bindings(pattern, binding);
+                }
+                CondItem::Bool(e) => {
+                    self.expr(e, Use::Read);
+                    failed = State::join(failed, self.state.clone());
+                }
+            }
+        }
+        self.block(then, u);
+        let after_then = std::mem::replace(&mut self.state, failed);
+        self.borrows.truncate(borrows);
+        if let Some(o) = otherwise {
+            self.block(o, u);
+        }
+        let after_else = std::mem::take(&mut self.state);
+        self.state = State::join(after_then, after_else);
+    }
+
+    /// Declares the bindings of a pattern with the facts that the scrutinee gives them.
+    fn declare_bindings(&mut self, pattern: &Pattern, binding: Facts) {
+        let mut binds = Vec::new();
+        bound(pattern, &mut binds);
+        for l in binds {
+            let mut f = binding;
+            f.name = Some(l);
+            self.declare(l, f);
+        }
+    }
+
+    /// The value of a `match` or of a `let` item in a chain: `match place` borrows the place,
+    /// `match own place` and `match temporary` move it. Gives the facts of the bindings and the
+    /// borrow to keep while they live.
+    fn scrutinee(&mut self, scrutinee: &Expr, mode: Mode) -> (Facts, Option<Borrow>) {
         let place = self.place(scrutinee);
-        // `match place` borrows the place; `match own place` and `match temporary` move it.
-        let (binding, borrow) = match (mode, &place) {
+        match (mode, &place) {
             (Mode::Read, Some(p)) => {
                 self.place_parts(scrutinee);
                 self.access(p, Access::Read, scrutinee.span);
@@ -920,35 +1009,7 @@ impl<'p> Checker<'p> {
                 self.expr(scrutinee, Use::Own);
                 (owned_kind(), None)
             }
-        };
-        if let Some(b) = &borrow {
-            self.borrows.push(b.clone());
         }
-        let entry = self.state.clone();
-        let mut joined = State {
-            unreachable: true,
-            ..State::default()
-        };
-        for arm in arms {
-            self.state = entry.clone();
-            let mut binds = Vec::new();
-            bound(&arm.pattern, &mut binds);
-            for l in binds {
-                let mut f = binding;
-                f.name = Some(l);
-                self.declare(l, f);
-            }
-            if let Some(g) = &arm.guard {
-                self.expr(g, Use::Read);
-            }
-            self.block(&arm.body, u);
-            let s = std::mem::take(&mut self.state);
-            joined = State::join(joined, s);
-        }
-        if borrow.is_some() {
-            self.borrows.pop();
-        }
-        self.state = joined;
     }
 
     fn closure(&mut self, e: &Expr, params: &[wolf_ir::Param], body: &Block) {
@@ -1437,6 +1498,27 @@ impl Free {
                         self.expr(g);
                     }
                     self.block(&arm.body);
+                }
+            }
+            ExprKind::IfChain {
+                items,
+                then,
+                otherwise,
+            } => {
+                for item in items {
+                    match item {
+                        CondItem::Let { pattern, value, .. } => {
+                            self.expr(value);
+                            let mut b = Vec::new();
+                            bound(pattern, &mut b);
+                            self.inner.extend(b);
+                        }
+                        CondItem::Bool(e) => self.expr(e),
+                    }
+                }
+                self.block(then);
+                if let Some(o) = otherwise {
+                    self.block(o);
                 }
             }
             ExprKind::Block(b) => self.block(b),

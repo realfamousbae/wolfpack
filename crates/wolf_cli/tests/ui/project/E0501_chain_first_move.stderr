@@ -1,0 +1,12 @@
+error[E0501]: use of moved value `name`
+  --> src/main.wolf:8:18
+  |
+5 |     if let Some(n) = own name && n.len() > 5 {
+  |                          ---- value moved here
+  .
+8 |         print(f"{name}")
+  |                  ^^^^ value used here after the move
+  |
+  = help: pass a copy instead of moving it: `name.copy()`
+
+error: aborting due to 1 error

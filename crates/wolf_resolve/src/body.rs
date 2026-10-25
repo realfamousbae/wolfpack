@@ -637,16 +637,9 @@ impl Resolver<'_> {
                 self.block(ctx, body, locals, false);
                 self.pop_label(label, locals);
             }
-            StmtKind::WhileLet {
-                label,
-                pattern,
-                value,
-                body,
-                ..
-            } => {
-                self.expr(ctx, value, locals);
+            StmtKind::WhileLet { label, items, body } => {
                 locals.scopes.push(Scope::default());
-                self.pattern(ctx, pattern, locals);
+                self.cond_items(ctx, items, locals);
                 self.push_label(label, locals);
                 self.block(ctx, body, locals, true);
                 self.pop_label(label, locals);
@@ -786,15 +779,12 @@ impl Resolver<'_> {
                 self.pop_label(label, locals);
             }
             ExprKind::IfLet {
-                pattern,
-                value,
+                items,
                 then,
                 otherwise,
-                ..
             } => {
-                self.expr(ctx, value, locals);
                 locals.scopes.push(Scope::default());
-                self.pattern(ctx, pattern, locals);
+                self.cond_items(ctx, items, locals);
                 self.block(ctx, then, locals, true);
                 self.pop_scope(locals);
                 if let Some(other) = otherwise {
@@ -1045,6 +1035,21 @@ impl Resolver<'_> {
             };
         }
         Some(current)
+    }
+
+    /// The items of an `if let` or a `while let`, in the scope pushed for their bindings: the
+    /// bindings of a `let` item are visible in the items after it (spec chapter 3, section 5,
+    /// rule 14a).
+    fn cond_items(&mut self, ctx: &Ctx, items: &[CondItem], locals: &mut Locals) {
+        for item in items {
+            match item {
+                CondItem::Let { pattern, value, .. } => {
+                    self.expr(ctx, value, locals);
+                    self.pattern(ctx, pattern, locals);
+                }
+                CondItem::Bool(e) => self.expr(ctx, e, locals),
+            }
+        }
     }
 
     // ----- patterns -------------------------------------------------------------------------

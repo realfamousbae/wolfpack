@@ -1,0 +1,4 @@
+[package]
+name = "e0509-chain-borrow"
+version = "0.1.0"
+kind = "cli"

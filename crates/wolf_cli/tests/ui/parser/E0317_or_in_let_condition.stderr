@@ -1,0 +1,25 @@
+error[E0317]: `||` in a condition with `let`
+  --> parser/E0317_or_in_let_condition.wolf:6:37
+  |
+6 |     if let Some(n) = found && n > 3 || small {
+  |                                     ^^ unclear whether this joins the items or the whole chain
+  |
+  = help: put the alternatives in parentheses: `let Some(x) = a && (b || c)`
+
+error[E0317]: `||` in a condition with `let`
+  --> parser/E0317_or_in_let_condition.wolf:9:25
+  |
+9 |     if let true = small || found == None {
+  |                         ^^ unclear whether this joins the items or the whole chain
+  |
+  = help: put the alternatives in parentheses: `let Some(x) = a && (b || c)`
+
+error[E0317]: `||` in a condition with `let`
+   --> parser/E0317_or_in_let_condition.wolf:12:17
+   |
+12 |     while small || found == None && let Some(m) = found {
+   |                 ^^ unclear whether this joins the items or the whole chain
+   |
+   = help: put the alternatives in parentheses: `let Some(x) = a && (b || c)`
+
+error: aborting due to 3 errors

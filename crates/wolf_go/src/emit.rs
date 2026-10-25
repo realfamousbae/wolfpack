@@ -24,8 +24,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use wolf_ir::{
-    self as ir, Arm, BinaryOp, Block, Callee, DefKind, DefRef, Expr as IrExpr, ExprKind, LocalRef,
-    Mode, ModuleRole, NativeTy, Pattern, Payload, Program, ProgramKind, Stmt as IrStmt,
+    self as ir, Arm, BinaryOp, Block, Callee, CondItem, DefKind, DefRef, Expr as IrExpr, ExprKind,
+    LocalRef, Mode, ModuleRole, NativeTy, Pattern, Payload, Program, ProgramKind, Stmt as IrStmt,
     Type as IrType, UnaryOp,
 };
 
@@ -496,6 +496,7 @@ fn mentions_self(t: &IrType) -> bool {
 fn needs_stmts(e: &IrExpr) -> bool {
     match &e.kind {
         ExprKind::If { .. }
+        | ExprKind::IfChain { .. }
         | ExprKind::Match { .. }
         | ExprKind::Block(_)
         | ExprKind::Try { .. }
@@ -553,6 +554,15 @@ struct Scan {
 }
 
 impl Scan {
+    fn cond_items(&mut self, items: &[CondItem]) {
+        for item in items {
+            match item {
+                CondItem::Let { value, .. } => self.expr(value),
+                CondItem::Bool(e) => self.expr(e),
+            }
+        }
+    }
+
     fn block(&mut self, b: &Block) {
         for s in &b.stmts {
             self.stmt(s);
@@ -683,6 +693,17 @@ impl Scan {
                         self.expr(g);
                     }
                     self.block(&a.body);
+                }
+            }
+            ExprKind::IfChain {
+                items,
+                then,
+                otherwise,
+            } => {
+                self.cond_items(items);
+                self.block(then);
+                if let Some(o) = otherwise {
+                    self.block(o);
                 }
             }
             ExprKind::Block(b) => self.block(b),
@@ -4194,6 +4215,11 @@ impl<'p> Emitter<'p> {
                 mode,
                 arms,
             } => self.match_(scrutinee, *mode, arms, target, out),
+            ExprKind::IfChain {
+                items,
+                then,
+                otherwise,
+            } => self.if_chain(items, then, otherwise.as_ref(), target, out),
             ExprKind::Block(b) => self.block(b, target, out),
             ExprKind::Loop { label, body } => {
                 let to = match target {
@@ -4605,6 +4631,7 @@ impl<'p> Emitter<'p> {
             if matches!(
                 value.kind,
                 ExprKind::If { .. }
+                    | ExprKind::IfChain { .. }
                     | ExprKind::Match { .. }
                     | ExprKind::Block(_)
                     | ExprKind::Loop { .. }
@@ -4618,6 +4645,7 @@ impl<'p> Emitter<'p> {
         if matches!(
             value.kind,
             ExprKind::If { .. }
+                | ExprKind::IfChain { .. }
                 | ExprKind::Match { .. }
                 | ExprKind::Block(_)
                 | ExprKind::Loop { .. }
@@ -5143,6 +5171,7 @@ impl<'p> Emitter<'p> {
                 data(self.closure(params, body, &ret)?)
             }
             ExprKind::If { .. }
+            | ExprKind::IfChain { .. }
             | ExprKind::Match { .. }
             | ExprKind::Block(_)
             | ExprKind::Loop { .. } => {
@@ -6394,6 +6423,221 @@ impl<'p> Emitter<'p> {
     }
 
     // ----- match ------------------------------------------------------------------------------
+
+    /// An `if` with a chain of conditions (spec chapter 3, section 5, rule 14a): an `if` per
+    /// item around the rest. When `then` can end without leaving, it sets a flag, and
+    /// `otherwise` runs only without it: `matched := false; if ... { ...; matched = true }; if
+    /// !matched { ... }`.
+    fn if_chain(
+        &mut self,
+        items: &'p [CondItem],
+        then: &'p Block,
+        otherwise: Option<&'p Block>,
+        target: Target,
+        out: &mut Vec<Stmt>,
+    ) -> Result<(), Error> {
+        // `otherwise` is emitted first, to know whether it has statements at all.
+        let name = otherwise.map(|_| self.fresh("matched"));
+        let mut other = Vec::new();
+        if let Some(o) = otherwise {
+            self.block(o, target.clone(), &mut other)?;
+        }
+        let flag = name.filter(|_| !other.is_empty());
+        let mut nested = Vec::new();
+        let mut falls = false;
+        self.chain_items(
+            items,
+            then,
+            flag.as_deref(),
+            &target,
+            &mut nested,
+            &mut falls,
+        )?;
+        match flag {
+            Some(flag) if falls => {
+                out.push(Stmt::Define(vec![flag.clone()], vec![lit("false")]));
+                out.extend(nested);
+                out.push(Stmt::If(None, not(id(&flag)), other, None));
+            }
+            // `then` always leaves: what follows the `if`s runs only when an item failed.
+            _ => {
+                out.extend(nested);
+                out.extend(other);
+            }
+        }
+        Ok(())
+    }
+
+    /// The items of a chain from the first one; `falls` is set when a `then` can end without
+    /// leaving (it then sets `flag`).
+    fn chain_items(
+        &mut self,
+        items: &'p [CondItem],
+        then: &'p Block,
+        flag: Option<&str>,
+        target: &Target,
+        out: &mut Vec<Stmt>,
+        falls: &mut bool,
+    ) -> Result<(), Error> {
+        let Some((first, rest)) = items.split_first() else {
+            self.block(then, target.clone(), out)?;
+            if !terminates(out) && !matches!(out.last(), Some(Stmt::Break(_) | Stmt::Continue(_))) {
+                *falls = true;
+                if let Some(f) = flag {
+                    out.push(Stmt::Assign(vec![id(f)], "=", vec![lit("true")]));
+                }
+            }
+            return Ok(());
+        };
+        match first {
+            CondItem::Bool(cond) => {
+                let c = self.expr(cond, out)?;
+                let mut inner = Vec::new();
+                self.chain_items(rest, then, flag, target, &mut inner, falls)?;
+                out.push(Stmt::If(None, c, inner, None));
+            }
+            CondItem::Let {
+                pattern,
+                mode,
+                value,
+            } => {
+                let mut scan = Scan::default();
+                scan.cond_items(rest);
+                scan.block(then);
+                // `let Some(x) = f()` on an idiomatic result: `if x, ok := f(); ok { ... }`.
+                let mut computed = None;
+                if let (
+                    ExprKind::Call { callee, args },
+                    Pattern::Some(inner) | Pattern::Ok(inner),
+                ) = (&value.kind, pattern)
+                {
+                    if matches!(**inner, Pattern::Bind(_) | Pattern::Wild) {
+                        let mut pre = Vec::new();
+                        let (v, form) = self.call(callee, args, &value.ty, &mut pre)?;
+                        out.extend(pre);
+                        let fits = match form {
+                            Form::OptPair | Form::OptPtr => matches!(pattern, Pattern::Some(_)),
+                            Form::ResPair | Form::ResErr => matches!(pattern, Pattern::Ok(_)),
+                            Form::Data => false,
+                        };
+                        if fits {
+                            let bind = match **inner {
+                                Pattern::Bind(l)
+                                    if scan.reads.contains(&l) || scan.assigned.contains(&l) =>
+                                {
+                                    Some(l)
+                                }
+                                _ => None,
+                            };
+                            let mut body = Vec::new();
+                            let (init, cond) = self.native_test(v, form, bind, &mut body)?;
+                            self.chain_items(rest, then, flag, target, &mut body, falls)?;
+                            out.push(Stmt::If(Some(Box::new(init)), cond, body, None));
+                            return Ok(());
+                        }
+                        computed = Some(v);
+                    }
+                }
+                let is_place = matches!(
+                    value.kind,
+                    ExprKind::Local(_)
+                        | ExprKind::Field { .. }
+                        | ExprKind::SelfValue
+                        | ExprKind::Index { .. }
+                );
+                let subject = if let Some(v) = computed {
+                    self.stable(v, "m", out)
+                } else if *mode == Mode::Mut && is_place {
+                    let p = self.place_expr(value, out)?;
+                    if pure(&p) {
+                        p
+                    } else {
+                        let t = self.fresh("m");
+                        out.push(Stmt::Define(vec![t.clone()], vec![addr(p)]));
+                        star(id(&t))
+                    }
+                } else {
+                    let v = self.expr(value, out)?;
+                    self.stable(v, "m", out)
+                };
+                // The bindings that the later items and `then` use.
+                let alts: Vec<&Pattern> = match pattern {
+                    Pattern::Or(alts) if alts.iter().any(binds) => alts.iter().collect(),
+                    p => vec![p],
+                };
+                for alt in alts {
+                    let mut conds = Vec::new();
+                    let mut bindings = Vec::new();
+                    self.test(alt, subject.clone(), &value.ty, &mut conds, &mut bindings)?;
+                    let used: Vec<(LocalRef, Expr)> = bindings
+                        .into_iter()
+                        .filter(|(l, _)| scan.reads.contains(l) || scan.assigned.contains(l))
+                        .collect();
+                    let mut inner = Vec::new();
+                    self.bind(&used, *mode, &mut inner)?;
+                    self.chain_items(rest, then, flag, target, &mut inner, falls)?;
+                    match and_all(conds) {
+                        Some(c) => out.push(Stmt::If(None, c, inner, None)),
+                        None => out.extend(inner),
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The init statement and the condition of `if x, ok := v; ok` for a value `v` of an
+    /// idiomatic form; the binding `bind`, if any, gets the value (`body` may need to declare it).
+    fn native_test(
+        &mut self,
+        v: Expr,
+        form: Form,
+        bind: Option<LocalRef>,
+        body: &mut Vec<Stmt>,
+    ) -> Result<(Stmt, Expr), Error> {
+        let name = |this: &mut Self| match bind {
+            Some(l) => {
+                let n = this.local_name(l);
+                this.f.locals.insert(l, Local::Val(n.clone()));
+                n
+            }
+            None => "_".to_string(),
+        };
+        Ok(match form {
+            Form::OptPair => {
+                let n = name(self);
+                let ok = self.shared("ok");
+                (Stmt::Define(vec![n, ok.clone()], vec![v]), id(&ok))
+            }
+            Form::OptPtr => {
+                let p = self.fresh("p");
+                if bind.is_some() {
+                    let n = name(self);
+                    body.push(Stmt::Define(vec![n], vec![star(id(&p))]));
+                }
+                (
+                    Stmt::Define(vec![p.clone()], vec![v]),
+                    bin(id(&p), "!=", lit("nil")),
+                )
+            }
+            Form::ResPair => {
+                let n = name(self);
+                let err = self.err_name();
+                (
+                    Stmt::Define(vec![n, err.clone()], vec![v]),
+                    bin(id(&err), "==", lit("nil")),
+                )
+            }
+            Form::ResErr => {
+                let err = self.err_name();
+                (
+                    Stmt::Define(vec![err.clone()], vec![v]),
+                    bin(id(&err), "==", lit("nil")),
+                )
+            }
+            Form::Data => return Err("a native test on data".to_string()),
+        })
+    }
 
     fn match_(
         &mut self,

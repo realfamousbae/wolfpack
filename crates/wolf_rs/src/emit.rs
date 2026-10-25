@@ -15,9 +15,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use wolf_ir::NativeTy;
 use wolf_ir::{
-    self as ir, Arm, BinaryOp, Block, Callee, DefKind, DefRef, Expr as IrExpr, ExprKind, LocalRef,
-    Mode, ModuleRole, Pattern, Payload, Program, ProgramKind, Stmt as IrStmt, Type as IrType,
-    UnaryOp,
+    self as ir, Arm, BinaryOp, Block, Callee, CondItem, DefKind, DefRef, Expr as IrExpr, ExprKind,
+    LocalRef, Mode, ModuleRole, Pattern, Payload, Program, ProgramKind, Stmt as IrStmt,
+    Type as IrType, UnaryOp,
 };
 
 use crate::names::{constant, type_name, value};
@@ -89,6 +89,23 @@ struct FnState {
     /// The body of `compare` of an implementation of `Comparable`: the trait is in scope there,
     /// and an import used only there would be unused.
     in_comparable: bool,
+    /// The labelled blocks of chains of conditions so far, for their labels.
+    chains: u32,
+    /// How many labelled blocks of chains are around the code being emitted.
+    chain_depth: u32,
+    /// The loops around the code being emitted, innermost last.
+    loops: Vec<LoopFrame>,
+    /// Labels given to loops so far.
+    loop_labels: u32,
+}
+
+/// A loop being emitted. Rust wants a label on a `break` or a `continue` that leaves a labelled
+/// block (E0695), so a loop without one gets a label when such a jump needs it.
+struct LoopFrame {
+    /// Its label, written or given.
+    label: Option<String>,
+    /// The value of `chain_depth` outside the loop.
+    chain_depth: u32,
 }
 
 pub(crate) struct Emitter<'p> {
@@ -463,6 +480,27 @@ impl Scan<'_> {
                         self.expr(g);
                     }
                     self.block(&a.body);
+                }
+            }
+            ExprKind::IfChain {
+                items,
+                then,
+                otherwise,
+            } => {
+                for item in items {
+                    match item {
+                        CondItem::Let { mode, value, .. } => {
+                            if *mode == Mode::Mut {
+                                self.change(value);
+                            }
+                            self.expr(value);
+                        }
+                        CondItem::Bool(e) => self.expr(e),
+                    }
+                }
+                self.block(then);
+                if let Some(o) = otherwise {
+                    self.block(o);
                 }
             }
             ExprKind::Block(b) | ExprKind::Loop { body: b, .. } => self.block(b),
@@ -2639,6 +2677,7 @@ impl<'p> Emitter<'p> {
                     | ExprKind::Ok(_)
                     | ExprKind::Err(_)
                     | ExprKind::If { .. }
+                    | ExprKind::IfChain { .. }
                     | ExprKind::Match { .. }
                     | ExprKind::Block(_)
                     | ExprKind::Unary { .. }
@@ -2676,17 +2715,18 @@ impl<'p> Emitter<'p> {
             }
             IrStmt::While { label, cond, body } => {
                 if matches!(cond.kind, ExprKind::Bool(true)) {
-                    if let Some(s) = self.while_let(body)? {
-                        out.push(labeled(label, s));
+                    if let (Some(s), l) = self.in_loop(label, |me| me.while_let(body))? {
+                        out.push(labeled(&l, s));
                         return Ok(());
                     }
                 }
-                let b = self.block(body, Want::Own)?;
                 if matches!(cond.kind, ExprKind::Bool(true)) {
-                    out.push(labeled(label, Stmt::Loop(b)));
+                    let (b, l) = self.in_loop(label, |me| me.block(body, Want::Own))?;
+                    out.push(labeled(&l, Stmt::Loop(b)));
                 } else {
                     let c = self.expr(cond, Want::Op)?;
-                    out.push(labeled(label, Stmt::While(c, b)));
+                    let (b, l) = self.in_loop(label, |me| me.block(body, Want::Own))?;
+                    out.push(labeled(&l, Stmt::While(c, b)));
                 }
             }
             IrStmt::ForList {
@@ -2735,9 +2775,9 @@ impl<'p> Emitter<'p> {
                     }
                 };
                 self.f.locals.insert(*var, local);
-                let b = self.block(body, Want::Own)?;
+                let (b, l) = self.in_loop(label, |me| me.block(body, Want::Own))?;
                 let pat = if used { pat } else { Pat::Wild };
-                out.push(labeled(label, Stmt::For(pat, iter, b)));
+                out.push(labeled(&l, Stmt::For(pat, iter, b)));
             }
             IrStmt::ForRange {
                 label,
@@ -2755,14 +2795,14 @@ impl<'p> Emitter<'p> {
                 let name = self.local_name(*var);
                 self.f.locals.insert(*var, Local::Val(name.clone()));
                 let used = self.f.reads.contains(var);
-                let b = self.block(body, Want::Own)?;
+                let (b, l) = self.in_loop(label, |me| me.block(body, Want::Own))?;
                 let pat = if used {
                     Pat::Bind(name, false)
                 } else {
                     Pat::Wild
                 };
                 out.push(labeled(
-                    label,
+                    &l,
                     Stmt::For(pat, Expr::Range(Box::new(s), Box::new(e), *inclusive), b),
                 ));
             }
@@ -2772,13 +2812,28 @@ impl<'p> Emitter<'p> {
                 ..
             }) => {
                 // `loop { match e { p => body, _ => break } }` is `while let p = e { body }`.
-                if let Some(s) = self.while_let(body)? {
-                    out.push(labeled(label, s));
+                if let (Some(s), l) = self.in_loop(label, |me| me.while_let(body))? {
+                    out.push(labeled(&l, s));
                 } else {
-                    let b = self.block(body, Want::Own)?;
-                    out.push(labeled(label, Stmt::Loop(b)));
+                    let (b, l) = self.in_loop(label, |me| me.block(body, Want::Own))?;
+                    out.push(labeled(&l, Stmt::Loop(b)));
                 }
             }
+            IrStmt::Expr(
+                e @ IrExpr {
+                    kind: ExprKind::IfChain { .. },
+                    ..
+                },
+            ) => match self.expr(e, Want::Own)? {
+                // A chain whose `then` always leaves is its statements, in the block around it.
+                Expr::Block(b) => {
+                    out.extend(b.stmts);
+                    if let Some(t) = b.tail {
+                        out.push(Stmt::Expr(*t));
+                    }
+                }
+                v => out.push(Stmt::Expr(v)),
+            },
             IrStmt::Expr(e) => {
                 let v = self.expr(e, Want::Own)?;
                 // Rust wants a `Result`, a closure and the values of the `#[must_use]` methods of
@@ -2819,6 +2874,7 @@ impl<'p> Emitter<'p> {
             }
             ExprKind::Coerce { value, .. } => self.has_effect(value),
             ExprKind::If { .. }
+            | ExprKind::IfChain { .. }
             | ExprKind::Match { .. }
             | ExprKind::Block(_)
             | ExprKind::Loop { .. }
@@ -3380,7 +3436,10 @@ impl<'p> Emitter<'p> {
                     _ => call(path("Box::new"), vec![c]),
                 }
             }
-            ExprKind::If { .. } | ExprKind::Match { .. } | ExprKind::Block(_)
+            ExprKind::If { .. }
+            | ExprKind::IfChain { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Block(_)
                 if !self.copy(t)
                     && matches!(want, Want::Op | Want::Read(_))
                     && !matches!(t, IrType::Void | IrType::Never) =>
@@ -3421,22 +3480,28 @@ impl<'p> Emitter<'p> {
                 mode,
                 arms,
             } => self.match_(scrutinee, *mode, arms, want)?,
+            ExprKind::IfChain {
+                items,
+                then,
+                otherwise,
+            } => self.if_chain(items, then, otherwise.as_ref(), want)?,
             ExprKind::Block(b) => Expr::Block(self.block(b, want)?),
             ExprKind::Return(v) => match v {
                 Some(v) => Expr::Return(Some(Box::new(self.expr(v, Want::Own)?))),
                 None => Expr::Return(None),
             },
             ExprKind::Loop { label, body } => {
-                Expr::Loop(label.clone(), self.block(body, Want::Own)?)
+                let (b, l) = self.in_loop(label, |me| me.block(body, Want::Own))?;
+                Expr::Loop(l, b)
             }
-            ExprKind::Break { label, value } => Expr::Break(
-                label.clone(),
-                match value {
+            ExprKind::Break { label, value } => {
+                let v = match value {
                     Some(v) => Some(Box::new(self.expr(v, Want::Own)?)),
                     None => None,
-                },
-            ),
-            ExprKind::Continue { label } => Expr::Continue(label.clone()),
+                };
+                Expr::Break(self.jump_label(label), v)
+            }
+            ExprKind::Continue { label } => Expr::Continue(self.jump_label(label)),
             ExprKind::Interpolate(parts) => {
                 let list: Vec<&'p IrExpr> = parts.iter().collect();
                 let v = self.format_parts(list)?;
@@ -3597,7 +3662,13 @@ impl<'p> Emitter<'p> {
             .reads
             .iter()
             .any(|l| !own.contains(l) && self.f.locals.contains_key(l));
-        let b = self.block(body, Want::Own)?;
+        // A closure is a body of its own: jumps never leave it.
+        let loops = std::mem::take(&mut self.f.loops);
+        let depth = std::mem::take(&mut self.f.chain_depth);
+        let b = self.block(body, Want::Own);
+        self.f.loops = loops;
+        self.f.chain_depth = depth;
+        let b = b?;
         let body = match b {
             rs::Block {
                 stmts,
@@ -4424,13 +4495,163 @@ impl<'p> Emitter<'p> {
 
     // ----- match ------------------------------------------------------------------------------
 
-    fn match_(
+    /// Emits the body of a loop with its frame; gives the result and the label of the loop,
+    /// the written one or one that a jump out of a labelled block needed.
+    fn in_loop<T>(
         &mut self,
-        scrutinee: &'p IrExpr,
-        mode: Mode,
-        arms: &'p [Arm],
+        label: &Option<String>,
+        body: impl FnOnce(&mut Self) -> Result<T, Error>,
+    ) -> Result<(T, Option<String>), Error> {
+        self.f.loops.push(LoopFrame {
+            label: label.clone(),
+            chain_depth: self.f.chain_depth,
+        });
+        let r = body(self);
+        let frame = self.f.loops.pop();
+        Ok((r?, frame.and_then(|f| f.label)))
+    }
+
+    /// The label of a `break` or a `continue`: the written one, or, inside a labelled block
+    /// of a chain within the innermost loop, the label of that loop.
+    fn jump_label(&mut self, label: &Option<String>) -> Option<String> {
+        if label.is_some() {
+            return label.clone();
+        }
+        let depth = self.f.chain_depth;
+        let given = self.f.loop_labels + 1;
+        let frame = self.f.loops.last_mut()?;
+        if frame.chain_depth == depth {
+            return None;
+        }
+        if frame.label.is_none() {
+            // A trailing `_` keeps the label apart from the labels of the program.
+            frame.label = Some(match given {
+                1 => "loop_".to_string(),
+                n => format!("loop{n}_"),
+            });
+            self.f.loop_labels = given;
+        }
+        frame.label.clone()
+    }
+
+    /// An `if` with a chain of conditions (spec chapter 3, section 5, rule 14a): an `if let`
+    /// or an `if` per item around the rest. With an `else` branch it is a labelled block whose
+    /// innermost `then` leaves it with its value, `'chain: { if let ... { break 'chain v; }
+    /// otherwise }`; when `then` never ends normally, a plain block does.
+    fn if_chain(
+        &mut self,
+        items: &'p [CondItem],
+        then: &'p Block,
+        otherwise: Option<&'p Block>,
         want: Want,
     ) -> Result<Expr, Error> {
+        let Some(o) = otherwise else {
+            return self.chain_items(items, then, None, want);
+        };
+        let label = if diverges(then) {
+            None
+        } else {
+            // A trailing `_` keeps the label apart from the labels of the program.
+            self.f.chains += 1;
+            Some(match self.f.chains {
+                1 => "chain_".to_string(),
+                n => format!("chain{n}_"),
+            })
+        };
+        let inside = u32::from(label.is_some());
+        self.f.chain_depth += inside;
+        let nested = self.chain_items(items, then, label.as_deref(), want);
+        let ob = self.block(o, want);
+        self.f.chain_depth -= inside;
+        let (nested, ob) = (nested?, ob?);
+        let mut stmts = vec![Stmt::Expr(nested)];
+        stmts.extend(ob.stmts);
+        let b = rs::Block {
+            stmts,
+            tail: ob.tail,
+        };
+        Ok(match label {
+            Some(l) => Expr::Labeled(l, b),
+            None => Expr::Block(b),
+        })
+    }
+
+    /// The items of a chain from the first one. Items that are not `let` and follow each other
+    /// are one `if` joined by `&&`, as clippy wants (`collapsible_if`).
+    fn chain_items(
+        &mut self,
+        items: &'p [CondItem],
+        then: &'p Block,
+        label: Option<&str>,
+        want: Want,
+    ) -> Result<Expr, Error> {
+        let bools = items
+            .iter()
+            .take_while(|i| matches!(i, CondItem::Bool(_)))
+            .count();
+        if bools > 0 {
+            let (conds, rest) = items.split_at(bools);
+            let mut c: Option<Expr> = None;
+            for item in conds {
+                if let CondItem::Bool(e) = item {
+                    let x = self.expr(e, Want::Op)?;
+                    c = Some(match c {
+                        Some(prev) => Expr::Binary(Box::new(prev), "&&", Box::new(x)),
+                        None => x,
+                    });
+                }
+            }
+            let inner = self.chain_rest(rest, then, label, want)?;
+            let c = c.ok_or("a chain without items")?;
+            return Ok(Expr::If(Box::new(c), inner, None));
+        }
+        let Some((
+            CondItem::Let {
+                pattern,
+                mode,
+                value,
+            },
+            rest,
+        )) = items.split_first()
+        else {
+            return Err("a chain without items".to_string());
+        };
+        let (subject, binding) = self.subject(value, *mode)?;
+        let pat = self.pattern(pattern, &value.ty, binding)?;
+        let inner = self.chain_rest(rest, then, label, want)?;
+        Ok(Expr::IfLet(pat, Box::new(subject), inner, None))
+    }
+
+    /// The block inside an item: the items after it, or `then` with the `break` that leaves the
+    /// labelled block.
+    fn chain_rest(
+        &mut self,
+        rest: &'p [CondItem],
+        then: &'p Block,
+        label: Option<&str>,
+        want: Want,
+    ) -> Result<rs::Block, Error> {
+        if !rest.is_empty() {
+            let e = self.chain_items(rest, then, label, want)?;
+            return Ok(block(vec![Stmt::Expr(e)], None));
+        }
+        let tb = self.block(then, want)?;
+        Ok(match label {
+            Some(l) => {
+                let mut stmts = tb.stmts;
+                let value = tb
+                    .tail
+                    .filter(|t| !matches!(**t, Expr::Tuple(ref x) if x.is_empty()));
+                stmts.push(Stmt::Expr(Expr::Break(Some(l.to_string()), value)));
+                block(stmts, None)
+            }
+            None => tb,
+        })
+    }
+
+    /// The value of a `match` or of a `let` in a chain, as Rust matches it, and how its
+    /// bindings reach the values they name.
+    fn subject(&mut self, scrutinee: &'p IrExpr, mode: Mode) -> Result<(Expr, BindKind), Error> {
         let place = matches!(
             scrutinee.kind,
             ExprKind::Local(_)
@@ -4476,6 +4697,17 @@ impl<'p> Emitter<'p> {
         } else {
             subject
         };
+        Ok((subject, binding))
+    }
+
+    fn match_(
+        &mut self,
+        scrutinee: &'p IrExpr,
+        mode: Mode,
+        arms: &'p [Arm],
+        want: Want,
+    ) -> Result<Expr, Error> {
+        let (subject, binding) = self.subject(scrutinee, mode)?;
         let mut out = Vec::new();
         for arm in arms {
             let pat = self.pattern(&arm.pattern, &scrutinee.ty, binding)?;
@@ -4686,6 +4918,15 @@ fn paren_callee(e: Expr) -> Expr {
     match e {
         Expr::Path(_) | Expr::Paren(_) => e,
         other => Expr::Paren(Box::new(other)),
+    }
+}
+
+/// Whether a block never ends normally: its value, or its last statement, has type Never.
+fn diverges(b: &Block) -> bool {
+    match (&b.tail, b.stmts.last()) {
+        (Some(t), _) => matches!(t.ty, IrType::Never),
+        (None, Some(IrStmt::Expr(e))) => matches!(e.ty, IrType::Never),
+        _ => false,
     }
 }
 

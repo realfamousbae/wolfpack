@@ -92,6 +92,27 @@ fn precedence_follows_the_table() {
     );
 }
 
+/// Conditions without `let` keep the tree of the precedence table; with a `let` they are chains
+/// whose items end at `&&` (chapter 3, section 5, rule 14a).
+#[test]
+fn conditions_and_chains() {
+    let dump = ok(&body(
+        "        if a && b || c && !d {\n            f()\n        }\n        while x < 1 && y || z {\n            f()\n        }",
+    ));
+    assert!(dump.contains("(if (|| (&& a b) (&& c (! d)))"), "{dump}");
+    assert!(dump.contains("(while (|| (&& (< x 1) y) z)"), "{dump}");
+    let dump = ok(&body(
+        "        if let Some(x) = a {\n            f()\n        }\n        if ready && let Some(x) = mut a && x > 0 && let B(y) = own x.b {\n            f()\n        } else {\n            g()\n        }\n        while let Some(t) = s.pop() && t != 0 {\n            f()\n        }",
+    ));
+    assert!(dump.contains("(if let (Some x) a"), "{dump}");
+    let chain = "if let\n          ready\n          (let (Some x) (mut a))\n          (> x 0)\n          (let (B y) (own (. x b)))\n";
+    assert!(dump.contains(chain), "{dump}");
+    assert!(
+        dump.contains("(while let (let (Some t) (call (. s pop))) (!= t 0)"),
+        "{dump}"
+    );
+}
+
 #[test]
 fn binary_operators_are_left_associative() {
     let dump = ok(&body("        let x = a - b - c"));

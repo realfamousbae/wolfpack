@@ -1,0 +1,11 @@
+error[E0509]: cannot use `slot` while it is borrowed
+  --> src/main.wolf:5:48
+  |
+5 |     if let Some(a) = mut slot && let Some(b) = slot {
+  |                          ----                  ^^^^ use here
+  |                          |                      
+  |                          this `if let` changes
+  |
+  = note: inside the body, the place is reached only through the bindings
+
+error: aborting due to 1 error

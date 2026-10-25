@@ -1,0 +1,15 @@
+module main
+
+main {
+    let found: Option<Int> = Some(4)
+    let small = false
+    if let Some(n) = found && n > 3 || small {
+        print(n.to_string())
+    }
+    if let true = small || found == None {
+        print("matched")
+    }
+    while small || found == None && let Some(m) = found {
+        print(m.to_string())
+    }
+}

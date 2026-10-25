@@ -18,6 +18,14 @@ pub(crate) struct Ctx {
 const NORMAL: Ctx = Ctx { no_struct: false };
 const NO_STRUCT: Ctx = Ctx { no_struct: true };
 
+/// The condition of an `if` or a `while`.
+enum Condition {
+    /// A `Bool` expression.
+    Plain(Expr),
+    /// Items joined by `&&`, at least one of them a `let`.
+    Chain(Vec<CondItem>),
+}
+
 /// Binding power and operator of a binary token (spec chapter 3, section 6).
 fn binary_op(kind: &TokenKind) -> Option<(BinaryOp, u8)> {
     use TokenKind::*;
@@ -295,35 +303,18 @@ impl Parser<'_> {
 
     fn while_stmt(&mut self, start: Span, label: Option<Ident>) -> Option<Stmt> {
         self.bump(); // `while`
-        if self.eat(&TokenKind::Let) {
-            let pattern = self.pattern();
-            if self
-                .expect(&TokenKind::Eq, "`=` and the matched value")
-                .is_none()
-            {
-                self.recover();
-                return None;
-            }
-            let mode = self.mode();
-            let value = self.expr_with(NO_STRUCT);
-            self.check_no_assignment();
-            let body = self.loop_body(&label)?;
-            return Some(Stmt {
-                kind: StmtKind::WhileLet {
-                    label,
-                    pattern,
-                    mode,
-                    value,
-                    body,
-                },
-                span: self.span_from(start),
-            });
-        }
-        let cond = self.expr_with(NO_STRUCT);
+        let Some(cond) = self.condition() else {
+            self.recover();
+            return None;
+        };
         self.check_no_assignment();
         let body = self.loop_body(&label)?;
+        let kind = match cond {
+            Condition::Plain(cond) => StmtKind::While { label, cond, body },
+            Condition::Chain(items) => StmtKind::WhileLet { label, items, body },
+        };
         Some(Stmt {
-            kind: StmtKind::While { label, cond, body },
+            kind,
             span: self.span_from(start),
         })
     }
@@ -1146,10 +1137,10 @@ impl Parser<'_> {
 
     fn if_expr(&mut self) -> Expr {
         let start = self.bump().span; // `if`
-        if self.eat(&TokenKind::Let) {
-            return self.if_let(start);
-        }
-        let cond = self.expr_with(NO_STRUCT);
+        let Some(cond) = self.condition() else {
+            self.recover();
+            return self.error_expr(start);
+        };
         self.check_no_assignment();
         let Some(then) = self.block() else {
             self.recover();
@@ -1158,45 +1149,135 @@ impl Parser<'_> {
         // `else` must be on the line of `}`; a newline in between ends the `if` (E0304 later).
         let otherwise = self.else_branch();
         let span = self.span_from(start);
-        self.expr_node(
-            ExprKind::If {
+        let kind = match cond {
+            Condition::Plain(cond) => ExprKind::If {
                 cond: Box::new(cond),
                 then,
                 otherwise,
+            },
+            Condition::Chain(items) => ExprKind::IfLet {
+                items,
+                then,
+                otherwise,
+            },
+        };
+        self.expr_node(kind, span)
+    }
+
+    /// The condition of an `if` or a `while` (spec chapter 3, section 5, rules 14 and 14a):
+    /// groups of items joined by `&&`, the groups joined by `||`. Without a `let` it is one
+    /// expression, the tree that the precedence of `&&` and `||` gives; with a `let` it is a
+    /// chain, and an `||` between groups is E0317. `None` after an error that was reported.
+    fn condition(&mut self) -> Option<Condition> {
+        let mut groups: Vec<Vec<CondItem>> = vec![Vec::new()];
+        let mut first_or = None;
+        let mut links = 0u32;
+        let mut ok = true;
+        loop {
+            let item = if self.eat(&TokenKind::Let) {
+                let pattern = self.pattern();
+                if self
+                    .expect(&TokenKind::Eq, "`=` and the matched value")
+                    .is_none()
+                {
+                    ok = false;
+                    break;
+                }
+                let mode = self.mode();
+                let value = self.operand();
+                CondItem::Let {
+                    pattern,
+                    mode,
+                    value,
+                }
+            } else {
+                CondItem::Bool(self.operand())
+            };
+            if let Some(group) = groups.last_mut() {
+                group.push(item);
+            }
+            let or = self.at(&TokenKind::OrOr);
+            if !or && !self.at(&TokenKind::AndAnd) {
+                break;
+            }
+            let op = self.bump().span;
+            self.skip_newlines();
+            if or {
+                first_or.get_or_insert(op);
+                groups.push(Vec::new());
+            }
+            // Each link nests the tree one level deeper (E0314), as in `binary`.
+            links += 1;
+            if !self.enter() {
+                ok = false;
+                self.give_up();
+                break;
+            }
+        }
+        self.depth_cleanup(links);
+        if !ok {
+            return None;
+        }
+        let has_let = groups
+            .iter()
+            .flatten()
+            .any(|item| matches!(item, CondItem::Let { .. }));
+        if !has_let {
+            let ors = groups.into_iter().filter_map(|group| {
+                group
+                    .into_iter()
+                    .filter_map(|item| match item {
+                        CondItem::Bool(e) => Some(e),
+                        CondItem::Let { .. } => None,
+                    })
+                    .reduce(|lhs, rhs| self.joined(BinaryOp::And, lhs, rhs))
+            });
+            let ors: Vec<Expr> = ors.collect();
+            return ors
+                .into_iter()
+                .reduce(|lhs, rhs| self.joined(BinaryOp::Or, lhs, rhs))
+                .map(Condition::Plain);
+        }
+        if let Some(op) = first_or {
+            self.report(
+                Diagnostic::new(codes::E0317, "`||` in a condition with `let`")
+                    .primary(
+                        op,
+                        "unclear whether this joins the items or the whole chain",
+                    )
+                    .help("put the alternatives in parentheses: `let Some(x) = a && (b || c)`"),
+            );
+        }
+        // After E0317 the items of every group are kept, so that their bindings exist.
+        Some(Condition::Chain(groups.into_iter().flatten().collect()))
+    }
+
+    /// `lhs op rhs` for the folding in [`Parser::condition`].
+    fn joined(&mut self, op: BinaryOp, lhs: Expr, rhs: Expr) -> Expr {
+        let span = lhs.span.to(rhs.span);
+        self.expr_node(
+            ExprKind::Binary {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
             },
             span,
         )
     }
 
-    /// `if let pattern = mode? value { } else ...`, after `if let`.
-    fn if_let(&mut self, start: Span) -> Expr {
-        let pattern = self.pattern();
-        if self
-            .expect(&TokenKind::Eq, "`=` and the matched value")
-            .is_none()
-        {
-            self.recover();
-            return self.error_expr(start);
+    /// An item of a condition, or the value of a `let` in it: an expression of the precedence
+    /// levels above `&&`, without a closure outside parentheses (spec chapter 3, section 5).
+    fn operand(&mut self) -> Expr {
+        let span = self.peek_span();
+        if !self.enter() {
+            self.leave();
+            self.give_up();
+            return self.error_expr(span);
         }
-        let mode = self.mode();
-        let value = self.expr_with(NO_STRUCT);
-        self.check_no_assignment();
-        let Some(then) = self.block() else {
-            self.recover();
-            return self.error_expr(start);
-        };
-        let otherwise = self.else_branch();
-        let span = self.span_from(start);
-        self.expr_node(
-            ExprKind::IfLet {
-                pattern,
-                mode,
-                value: Box::new(value),
-                then,
-                otherwise,
-            },
-            span,
-        )
+        // `&&` binds with 20 and `||` with 10 (`binary_op`).
+        let expr = self.binary(21, NO_STRUCT);
+        self.leave();
+        expr
     }
 
     /// The `else` branch of an `if`, if there is one on the line of `}`.

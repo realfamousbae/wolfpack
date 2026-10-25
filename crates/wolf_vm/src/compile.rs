@@ -3,8 +3,8 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use wolf_ir::{
-    Arg, BinaryOp, Block, Callee, ConstValue, DefKind, DefRef, Expr, ExprKind, Function, Item,
-    LocalRef, Mode, ModuleRole, Pattern, Program, Stmt, Type, UnaryOp,
+    Arg, BinaryOp, Block, Callee, CondItem, ConstValue, DefKind, DefRef, Expr, ExprKind, Function,
+    Item, LocalRef, Mode, ModuleRole, Pattern, Program, Stmt, Type, UnaryOp,
 };
 
 use crate::code::{BinOp, Chunk, Op, UnOp};
@@ -1178,6 +1178,59 @@ impl FnC {
                 }
                 self.depth = start + 1;
             }
+            ExprKind::IfChain {
+                items,
+                then,
+                otherwise,
+            } => {
+                // Every item that fails jumps to `otherwise` with the stack as at the start.
+                let start = self.depth;
+                let mut fails = Vec::new();
+                for item in items {
+                    match item {
+                        CondItem::Let {
+                            pattern,
+                            mode,
+                            value,
+                        } => {
+                            let by_ref = *mode == Mode::Mut;
+                            let t = self.temp();
+                            if by_ref {
+                                self.place_ref(c, value)?;
+                                self.refs.insert(t);
+                            } else {
+                                self.expr(c, value)?;
+                            }
+                            self.emit(Op::Store(t));
+                            let access = Access {
+                                root: t,
+                                by_ref,
+                                path: Vec::new(),
+                            };
+                            self.pattern(c, pattern, &access, by_ref, &mut fails)?;
+                        }
+                        CondItem::Bool(cond) => {
+                            self.expr(c, cond)?;
+                            fails.push(self.emit(Op::JumpUnless(0)));
+                        }
+                    }
+                    self.depth = start;
+                }
+                self.block(c, then)?;
+                let to_end = self.emit(Op::Jump(0));
+                for f in fails {
+                    self.patch(f);
+                }
+                self.depth = start;
+                match otherwise {
+                    Some(b) => self.block(c, b)?,
+                    None => {
+                        self.emit(Op::Unit);
+                    }
+                }
+                self.patch(to_end);
+                self.depth = start + 1;
+            }
             ExprKind::Block(b) => self.block(c, b)?,
             ExprKind::Return(v) => {
                 match v {
@@ -1814,6 +1867,27 @@ fn walk_expr(e: &Expr, used: &mut BTreeSet<Var>, bound: &mut BTreeSet<Var>) {
                     walk_expr(g, used, bound);
                 }
                 walk_block(&arm.body, used, bound);
+            }
+        }
+        ExprKind::IfChain {
+            items,
+            then,
+            otherwise,
+        } => {
+            for item in items {
+                match item {
+                    CondItem::Let { pattern, value, .. } => {
+                        walk_expr(value, used, bound);
+                        binds(pattern, &mut |l| {
+                            bound.insert(Var::Local(l));
+                        });
+                    }
+                    CondItem::Bool(e) => walk_expr(e, used, bound),
+                }
+            }
+            walk_block(then, used, bound);
+            if let Some(b) = otherwise {
+                walk_block(b, used, bound);
             }
         }
         ExprKind::Block(b) | ExprKind::Loop { body: b, .. } => walk_block(b, used, bound),

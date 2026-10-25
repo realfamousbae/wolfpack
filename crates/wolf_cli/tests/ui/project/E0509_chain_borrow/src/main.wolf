@@ -1,0 +1,9 @@
+module main
+
+main {
+    var slot: Option<Int> = Some(1)
+    if let Some(a) = mut slot && let Some(b) = slot {
+        a += b
+    }
+    print(f"{slot}")
+}

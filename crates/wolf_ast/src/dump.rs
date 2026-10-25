@@ -373,19 +373,11 @@ fn stmt(s: &Stmt) -> Tree {
         StmtKind::While { label, cond, body } => {
             labelled(label, node("while", vec![expr(cond), block(body)]))
         }
-        StmtKind::WhileLet {
-            label,
-            pattern,
-            mode: m,
-            value,
-            body,
-        } => labelled(
-            label,
-            node(
-                "while let",
-                vec![pat(pattern), moded(*m, expr(value)), block(body)],
-            ),
-        ),
+        StmtKind::WhileLet { label, items, body } => {
+            let mut kids = cond_items(items);
+            kids.push(block(body));
+            labelled(label, node("while let", kids))
+        }
         StmtKind::For {
             label,
             var,
@@ -424,6 +416,32 @@ fn labelled(label: &Option<Ident>, t: Tree) -> Tree {
         Some(l) => node(format!("{}:", l.name), vec![t]),
         None => t,
     }
+}
+
+/// The items of the condition of an `if let` or a `while let`. One `let` alone is its pattern and
+/// value, as before chains; in a chain each `let` is a node of its own.
+fn cond_items(items: &[CondItem]) -> Vec<Tree> {
+    if let [
+        CondItem::Let {
+            pattern,
+            mode,
+            value,
+        },
+    ] = items
+    {
+        return vec![pat(pattern), moded(*mode, expr(value))];
+    }
+    items
+        .iter()
+        .map(|item| match item {
+            CondItem::Let {
+                pattern,
+                mode,
+                value,
+            } => node("let", vec![pat(pattern), moded(*mode, expr(value))]),
+            CondItem::Bool(e) => expr(e),
+        })
+        .collect()
 }
 
 /// A value with its mode marker, if it has one.
@@ -573,13 +591,12 @@ fn expr(e: &Expr) -> Tree {
             node("if", kids)
         }
         ExprKind::IfLet {
-            pattern,
-            mode: m,
-            value,
+            items,
             then,
             otherwise,
         } => {
-            let mut kids = vec![pat(pattern), moded(*m, expr(value)), block(then)];
+            let mut kids = cond_items(items);
+            kids.push(block(then));
             if let Some(other) = otherwise {
                 kids.push(node("else", vec![expr(other)]));
             }

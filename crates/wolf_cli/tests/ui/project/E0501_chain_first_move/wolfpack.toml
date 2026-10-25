@@ -1,0 +1,4 @@
+[package]
+name = "e0501-chain-first-move"
+version = "0.1.0"
+kind = "cli"

@@ -1,0 +1,19 @@
+module main
+
+main {
+    let found: Option<Int> = Some(4)
+    let other: Option<Int> = None
+    if let Some(n) = found && n > 3 { print(n.to_string()) }
+    if found != None && let Some(n) = found && (n > 3 || n < -3) {
+        print(n.to_string())
+    } else if let Some(m) = other && m == 1 {
+        print("one")
+    }
+    var stack = [1, 2, 3]
+    while let Some(top) = stack.pop() &&
+        top > 1 &&
+        let Some(first_value_of_another_list) = other &&
+        first_value_of_another_list > top {
+        print(top.to_string())
+    }
+}

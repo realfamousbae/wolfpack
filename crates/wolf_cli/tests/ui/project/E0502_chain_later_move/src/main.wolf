@@ -1,0 +1,11 @@
+module main
+
+main {
+    let name: Option<String> = Some("Ann")
+    let check = true
+    if check && let Some(n) = own name && n.len() > 5 {
+        print(n)
+    } else {
+        print(f"{name}")
+    }
+}

@@ -636,6 +636,23 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// The items of an `if let` or a `while let`: each `let` matches its pattern against its
+    /// value, and the other items are `Bool` (chapter 4, rules 6.1 and 6.9b).
+    fn cond_items(&mut self, b: &mut Body, items: &[ast::CondItem]) {
+        for item in items {
+            match item {
+                ast::CondItem::Let { pattern, value, .. } => {
+                    let t = self.expr(b, value, None);
+                    self.pattern(b, pattern, &t);
+                }
+                ast::CondItem::Bool(e) => {
+                    let bool_ty = self.bool();
+                    self.expr(b, e, Some(&bool_ty));
+                }
+            }
+        }
+    }
+
     /// An expression statement (chapter 4, rules 6.7 and 6.8).
     pub(crate) fn discard(&mut self, b: &mut Body, e: &ast::Expr) -> Ty {
         let void = self.void();
@@ -806,14 +823,11 @@ impl<'a> Checker<'a> {
                 self.if_branches(b, then, otherwise.as_deref(), expected)
             }
             ExprKind::IfLet {
-                pattern,
-                value,
+                items,
                 then,
                 otherwise,
-                ..
             } => {
-                let t = self.expr(b, value, None);
-                self.pattern(b, pattern, &t);
+                self.cond_items(b, items);
                 self.if_branches(b, then, otherwise.as_deref(), expected)
             }
             ExprKind::Loop { label, body } => {
@@ -3003,15 +3017,8 @@ impl<'a> Checker<'a> {
                 // `while true` without its own `break` never ends (chapter 4, rule 6.9).
                 matches!(cond.kind, ExprKind::Bool(true)) && !has_break
             }
-            StmtKind::WhileLet {
-                label,
-                pattern,
-                value,
-                body,
-                ..
-            } => {
-                let t = self.expr(b, value, None);
-                self.pattern(b, pattern, &t);
+            StmtKind::WhileLet { label, items, body } => {
+                self.cond_items(b, items);
                 self.push_loop(b, label.as_ref(), false);
                 let void = self.void();
                 self.block(b, body, Some(&void), None);

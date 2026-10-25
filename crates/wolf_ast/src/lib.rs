@@ -669,16 +669,13 @@ pub enum StmtKind {
         /// The body.
         body: Block,
     },
-    /// `label: while let pattern = mode? value { body }` (0.2).
+    /// `label: while let pattern = mode? value { body }` (0.2), or a chain of conditions with a
+    /// `let` among them (spec chapter 3, section 5, rule 14a).
     WhileLet {
         /// The label of the loop.
         label: Option<Ident>,
-        /// The pattern.
-        pattern: Pat,
-        /// `mut`, `own` or read.
-        mode: Mode,
-        /// The value, evaluated before every iteration.
-        value: Expr,
+        /// The items of the condition, evaluated before every iteration; at least one is a `let`.
+        items: Vec<CondItem>,
         /// The body.
         body: Block,
     },
@@ -733,6 +730,33 @@ pub enum AssignOp {
     BitXor,
     Shl,
     Shr,
+}
+
+/// One item of the condition of an `if let` or a `while let`, joined to the others by `&&` (spec
+/// chapter 3, section 5, rule 14a).
+#[derive(Clone, Debug, PartialEq)]
+pub enum CondItem {
+    /// `let pattern = mode? value`
+    Let {
+        /// The pattern.
+        pattern: Pat,
+        /// The mode marker of the value.
+        mode: Mode,
+        /// The matched value.
+        value: Expr,
+    },
+    /// A `Bool` expression.
+    Bool(Expr),
+}
+
+impl CondItem {
+    /// From the start of the pattern, or of the expression, to the end of the item.
+    pub fn span(&self) -> Span {
+        match self {
+            CondItem::Let { pattern, value, .. } => pattern.span.to(value.span),
+            CondItem::Bool(e) => e.span,
+        }
+    }
 }
 
 /// An expression.
@@ -861,15 +885,12 @@ pub enum ExprKind {
         /// `else` followed by a block or another `if`.
         otherwise: Option<Box<Expr>>,
     },
-    /// `if let pattern = mode? value { } else ...` (0.2).
+    /// `if let pattern = mode? value { } else ...` (0.2), or a chain of conditions with a `let`
+    /// among them (spec chapter 3, section 5, rule 14a).
     IfLet {
-        /// The pattern.
-        pattern: Pat,
-        /// The mode marker of the value.
-        mode: Mode,
-        /// The matched value.
-        value: Box<Expr>,
-        /// The branch taken when the value matches.
+        /// The items of the condition; at least one is a `let`.
+        items: Vec<CondItem>,
+        /// The branch taken when every item succeeds.
         then: Block,
         /// `else` followed by a block or another `if`.
         otherwise: Option<Box<Expr>>,

@@ -55,6 +55,16 @@ fn long_binary_chain() {
 }
 
 #[test]
+fn long_chains_in_conditions() {
+    let items = vec!["a"; DEEP].join(" && ");
+    let text =
+        format!("module main\n\nmain {{\n    if let Some(x) = o && {items} {{\n    }}\n}}\n");
+    assert_eq!(parse(&text), ["E0314"]);
+    let text = format!("module main\n\nmain {{\n    while {items} || b {{\n    }}\n}}\n");
+    assert_eq!(parse(&text), ["E0314"]);
+}
+
+#[test]
 fn long_postfix_chain() {
     let body = format!("a{}", ".b".repeat(DEEP));
     assert_eq!(parse(&in_function(&body)), ["E0314"]);

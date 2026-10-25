@@ -1,0 +1,7 @@
+error[E0301]: expected an expression, found `let`
+  --> parser/E0301_let_in_parentheses.wolf:5:9
+  |
+5 |     if (let Some(n) = found) {
+  |         ^^^ expected an expression
+
+error: aborting due to 1 error

@@ -8,9 +8,9 @@
 mod doc;
 
 use wolf_ast::{
-    self as ast, Arg, Arm, AssignOp, BinaryOp, Block, ExprKind, ExternDeclKind, File, ForIter,
-    GenericParam, ItemKind, Mode, ParamKind, Pat, PatKind, SectionKind, Stmt, StmtKind, Ty, TyKind,
-    UnaryOp, VariantPayload,
+    self as ast, Arg, Arm, AssignOp, BinaryOp, Block, CondItem, ExprKind, ExternDeclKind, File,
+    ForIter, GenericParam, ItemKind, Mode, ParamKind, Pat, PatKind, SectionKind, Stmt, StmtKind,
+    Ty, TyKind, UnaryOp, VariantPayload,
 };
 use wolf_diag::Diagnostic;
 use wolf_span::{FileId, Span};
@@ -785,20 +785,9 @@ impl<'a> Fmt<'a> {
                 text(" "),
                 self.block(body, true),
             ]),
-            StmtKind::WhileLet {
-                label,
-                pattern,
-                mode: m,
-                value,
-                body,
-            } => cat(vec![
-                text(format!(
-                    "{}while let {} = {}",
-                    label_text(label),
-                    self.pat(pattern),
-                    mode(*m)
-                )),
-                self.expr(value),
+            StmtKind::WhileLet { label, items, body } => cat(vec![
+                text(format!("{}while ", label_text(label))),
+                self.cond_items(items),
                 text(" "),
                 self.block(body, true),
             ]),
@@ -1061,22 +1050,45 @@ impl<'a> Fmt<'a> {
                 otherwise.as_deref(),
             )),
             ExprKind::IfLet {
-                pattern,
-                mode: m,
-                value,
+                items,
                 then,
                 otherwise,
             } => Some((
-                vec![
-                    text(format!("if let {} = {}", self.pat(pattern), mode(*m))),
-                    self.expr(value),
-                    text(" "),
-                ],
+                vec![text("if "), self.cond_items(items), text(" ")],
                 then,
                 otherwise.as_deref(),
             )),
             _ => None,
         }
+    }
+
+    /// The items of an `if let` or a `while let`; a chain that does not fit breaks after every
+    /// `&&`, one item per line (spec chapter 3, section 8a, rule 6).
+    fn cond_items(&mut self, items: &[CondItem]) -> Doc {
+        let n = items.len();
+        let mut docs = Vec::new();
+        for (i, item) in items.iter().enumerate() {
+            let d = match item {
+                CondItem::Let {
+                    pattern,
+                    mode: m,
+                    value,
+                } => cat(vec![
+                    text(format!("let {} = {}", self.pat(pattern), mode(*m))),
+                    self.expr(value),
+                ]),
+                CondItem::Bool(e) => self.expr(e),
+            };
+            if i + 1 < n {
+                docs.extend([d, text(" &&"), Doc::Line]);
+            } else {
+                docs.push(d);
+            }
+        }
+        if n == 1 {
+            return docs.pop().unwrap_or_else(|| text(""));
+        }
+        group(nest(cat(docs)))
     }
 
     fn if_one_line(&mut self, e: &ast::Expr) -> Option<Doc> {

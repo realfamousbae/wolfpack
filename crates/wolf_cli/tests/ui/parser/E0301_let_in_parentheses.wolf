@@ -1,0 +1,8 @@
+module main
+
+main {
+    let found: Option<Int> = Some(4)
+    if (let Some(n) = found) {
+        print(n.to_string())
+    }
+}

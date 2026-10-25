@@ -17,8 +17,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use wolf_ir::{
-    self as ir, Arm, BinaryOp, Block, Callee, DefKind, DefRef, Expr as IrExpr, ExprKind, LocalRef,
-    Mode, ModuleRole, NativeTy, Pattern, Payload, Program, Stmt as IrStmt, Type as IrType, UnaryOp,
+    self as ir, Arm, BinaryOp, Block, Callee, CondItem, DefKind, DefRef, Expr as IrExpr, ExprKind,
+    LocalRef, Mode, ModuleRole, NativeTy, Pattern, Payload, Program, Stmt as IrStmt,
+    Type as IrType, UnaryOp,
 };
 
 use crate::names::{camel, type_name};
@@ -329,6 +330,7 @@ fn pure(e: &Expr) -> bool {
 fn needs_stmts(e: &IrExpr) -> bool {
     match &e.kind {
         ExprKind::If { .. }
+        | ExprKind::IfChain { .. }
         | ExprKind::Match { .. }
         | ExprKind::Block(_)
         | ExprKind::Try { .. }
@@ -2756,6 +2758,29 @@ impl<'p> Emitter<'p> {
                 mode,
                 arms,
             } => self.match_(scrutinee, *mode, arms, target, out),
+            ExprKind::IfChain {
+                items,
+                then,
+                otherwise,
+            } => {
+                // `$chain: { if (...) { ... then; break $chain; } otherwise }`; without an
+                // `else` the `if`s alone.
+                let Some(o) = otherwise else {
+                    return self.chain_items(items, then, None, &target, out);
+                };
+                let label = self.temp("chain");
+                let mut body = Vec::new();
+                self.chain_items(items, then, Some(&label), &target, &mut body)?;
+                let used = breaks_to(&body, &label);
+                self.block(o, target, &mut body)?;
+                if used {
+                    out.push(Stmt::Labeled(label, Box::new(Stmt::Block(body))));
+                } else {
+                    // `then` always leaves: what follows the `if`s runs only when an item failed.
+                    out.extend(body);
+                }
+                Ok(())
+            }
             ExprKind::Block(b) => self.block(b, target, out),
             ExprKind::Loop { label, body } => {
                 let to = match target {
@@ -2874,6 +2899,7 @@ impl<'p> Emitter<'p> {
                 if matches!(
                     value.kind,
                     ExprKind::If { .. }
+                        | ExprKind::IfChain { .. }
                         | ExprKind::Match { .. }
                         | ExprKind::Block(_)
                         | ExprKind::Loop { .. }
@@ -3432,6 +3458,7 @@ impl<'p> Emitter<'p> {
                 tagged(self.closure(params, body, &ret)?)
             }
             ExprKind::If { .. }
+            | ExprKind::IfChain { .. }
             | ExprKind::Match { .. }
             | ExprKind::Block(_)
             | ExprKind::Loop { .. } => {
@@ -4683,6 +4710,86 @@ impl<'p> Emitter<'p> {
         Ok(())
     }
 
+    /// The items of a chain of conditions from the first one: each is an `if` around the rest,
+    /// and the innermost runs `then` and leaves the block `label` (spec chapter 3, section 5,
+    /// rule 14a). Alternatives of `|` with bindings are tried one after the other, as in a
+    /// `match`.
+    fn chain_items(
+        &mut self,
+        items: &'p [CondItem],
+        then: &'p Block,
+        label: Option<&str>,
+        target: &Target,
+        out: &mut Vec<Stmt>,
+    ) -> Result<(), Error> {
+        let Some((first, rest)) = items.split_first() else {
+            self.block(then, target.clone(), out)?;
+            if let Some(label) = label {
+                if !matches!(
+                    out.last(),
+                    Some(Stmt::Return(_) | Stmt::Throw(_) | Stmt::Break(_) | Stmt::Continue(_))
+                ) {
+                    out.push(Stmt::Break(Some(label.to_string())));
+                }
+            }
+            return Ok(());
+        };
+        match first {
+            CondItem::Bool(cond) => {
+                let c = self.expr(cond, out)?;
+                let mut inner = Vec::new();
+                self.chain_items(rest, then, label, target, &mut inner)?;
+                out.push(Stmt::If(c, inner, None));
+            }
+            CondItem::Let {
+                pattern,
+                mode,
+                value,
+            } => {
+                let (raw, repr) = self.native(value, out, Repr::Undef)?;
+                let is_place = matches!(
+                    value.kind,
+                    ExprKind::Local(_) | ExprKind::Field { .. } | ExprKind::SelfValue
+                );
+                let object = matches!(&value.ty, IrType::Named(d, _)
+                    if self.structs.contains_key(d) || self.enums.contains_key(d));
+                let whole = matches!(pattern, Pattern::Bind(_));
+                let subject =
+                    if pure(&raw) || (*mode == Mode::Mut && is_place && (whole || !object)) {
+                        raw
+                    } else {
+                        let t = self.temp("m");
+                        out.push(Stmt::Const(t.clone(), None, raw));
+                        ident(&t)
+                    };
+                let alts: Vec<&Pattern> = match pattern {
+                    Pattern::Or(alts) if alts.iter().any(binds) => alts.iter().collect(),
+                    p => vec![p],
+                };
+                for alt in alts {
+                    let mut conds = Vec::new();
+                    let mut bindings = Vec::new();
+                    self.test(
+                        alt,
+                        subject.clone(),
+                        &value.ty,
+                        repr,
+                        &mut conds,
+                        &mut bindings,
+                    )?;
+                    let mut inner = Vec::new();
+                    self.bind(&bindings, *mode, &mut inner);
+                    self.chain_items(rest, then, label, target, &mut inner)?;
+                    match and_all(conds) {
+                        Some(c) => out.push(Stmt::If(c, inner, None)),
+                        None => out.push(Stmt::Block(inner)),
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn bind(&mut self, bindings: &[(LocalRef, Expr)], mode: Mode, out: &mut Vec<Stmt>) {
         for (local, path) in bindings {
             if mode == Mode::Mut {
@@ -4879,6 +4986,20 @@ enum PlaceKind {
     Whole(Expr, IrType),
     Elem(Expr, Expr),
     Key(Expr, Expr),
+}
+
+/// Whether statements hold a `break label`.
+fn breaks_to(stmts: &[Stmt], label: &str) -> bool {
+    stmts.iter().any(|s| match s {
+        Stmt::Break(Some(l)) => l == label,
+        Stmt::If(_, a, b) => breaks_to(a, label) || b.as_ref().is_some_and(|b| breaks_to(b, label)),
+        Stmt::Block(b) | Stmt::While(_, b) | Stmt::For(_, _, _, b) | Stmt::ForOf(_, _, b) => {
+            breaks_to(b, label)
+        }
+        Stmt::Labeled(_, s) => breaks_to(std::slice::from_ref(s), label),
+        Stmt::Try(a, _, b) => breaks_to(a, label) || breaks_to(b, label),
+        _ => false,
+    })
 }
 
 fn binds(p: &Pattern) -> bool {
