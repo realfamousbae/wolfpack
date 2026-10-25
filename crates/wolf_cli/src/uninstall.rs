@@ -56,8 +56,19 @@ pub(crate) fn uninstall(yes: bool) -> Result<(), Box<Diagnostic>> {
     }
     let dir = exe
         .parent()
-        .ok_or_else(|| fail("the running wolf has no directory"))?
-        .to_path_buf();
+        .map(plain)
+        .ok_or_else(|| fail("the running wolf has no directory"))?;
+    // The installer wrote the directory as it was given, which may differ from its canonical
+    // form (a home directory behind a symbolic link).
+    let mut dirs = vec![dir.clone()];
+    if let Some(given) = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(plain))
+    {
+        if !dirs.contains(&given) {
+            dirs.push(given);
+        }
+    }
     // The setup program of Windows has an uninstaller of its own (rule 4).
     if let Some(uninstaller) = dir.parent().map(|p| p.join("unins000.exe")) {
         if cfg!(windows) && uninstaller.is_file() {
@@ -70,7 +81,7 @@ pub(crate) fn uninstall(yes: bool) -> Result<(), Box<Diagnostic>> {
         }
     }
     // The order of rule 7: the lines, the home, `wolf` itself.
-    remove_path_lines(&dir)?;
+    remove_path_lines(&dirs)?;
     home(yes)?;
     remove_wolf(&exe, &dir)?;
     say(&format!(
@@ -83,9 +94,12 @@ pub(crate) fn uninstall(yes: bool) -> Result<(), Box<Diagnostic>> {
 
 /// The `PATH` lines of the terminal scripts (rule 1): the marked lines of the shell profiles and
 /// `wolfpack.fish` of fish, or the entry in the user's `Path` on Windows.
-fn remove_path_lines(dir: &Path) -> Result<(), Box<Diagnostic>> {
+fn remove_path_lines(dirs: &[PathBuf]) -> Result<(), Box<Diagnostic>> {
     if cfg!(windows) {
-        return remove_windows_path(dir);
+        for dir in dirs {
+            remove_windows_path(dir)?;
+        }
+        return Ok(());
     }
     let Some(user) = std::env::var_os("HOME").map(PathBuf::from) else {
         return Ok(());
@@ -93,7 +107,21 @@ fn remove_path_lines(dir: &Path) -> Result<(), Box<Diagnostic>> {
     let zdot = std::env::var_os("ZDOTDIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| user.clone());
-    let line = profile_line(dir, &user);
+    let mut users = vec![user.clone()];
+    if let Ok(real) = user.canonicalize() {
+        if real != user {
+            users.push(real);
+        }
+    }
+    let mut lines: Vec<String> = Vec::new();
+    for dir in dirs {
+        for u in &users {
+            let line = profile_line(dir, u);
+            if !lines.contains(&line) {
+                lines.push(line);
+            }
+        }
+    }
     let profiles = [
         user.join(".profile"),
         user.join(".bashrc"),
@@ -102,14 +130,27 @@ fn remove_path_lines(dir: &Path) -> Result<(), Box<Diagnostic>> {
         zdot.join(".zprofile"),
     ];
     for profile in profiles {
-        remove_marked(&profile, &line, false)?;
+        remove_marked(&profile, &lines, false)?;
     }
     let config = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| user.join(".config"));
     let fish = config.join("fish").join("conf.d").join("wolfpack.fish");
-    let fish_line = format!("fish_add_path --global \"{}\"", dir.display());
-    remove_marked(&fish, &fish_line, true)
+    let fish_lines: Vec<String> = dirs
+        .iter()
+        .map(|d| format!("fish_add_path --global \"{}\"", d.display()))
+        .collect();
+    remove_marked(&fish, &fish_lines, true)
+}
+
+/// A path without the `\\?\` that `canonicalize` puts before it on Windows, as installers and
+/// the registry write it.
+fn plain(path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) => PathBuf::from(rest),
+        None => path.to_path_buf(),
+    }
 }
 
 /// The line of `install.sh` for the directory `dir`: with `$HOME` when `dir` is in it.
@@ -121,13 +162,13 @@ pub(crate) fn profile_line(dir: &Path, user: &Path) -> String {
     format!("export PATH=\"{shown}:$PATH\"")
 }
 
-/// Removes every [`MARK`] followed by `line`, and the empty line before it, from `file`; a file
-/// that is left empty is removed when `whole` is set. Other lines are never changed.
-fn remove_marked(file: &Path, line: &str, whole: bool) -> Result<(), Box<Diagnostic>> {
+/// Removes every [`MARK`] followed by one of `lines`, and the empty line before it, from `file`;
+/// a file that is left empty is removed when `whole` is set. Other lines are never changed.
+fn remove_marked(file: &Path, lines: &[String], whole: bool) -> Result<(), Box<Diagnostic>> {
     let Ok(text) = fs::read_to_string(file) else {
         return Ok(());
     };
-    let Some(left) = without_marked(&text, line) else {
+    let Some(left) = without_marked(&text, lines) else {
         return Ok(());
     };
     let result = if whole && left.trim().is_empty() {
@@ -141,13 +182,17 @@ fn remove_marked(file: &Path, line: &str, whole: bool) -> Result<(), Box<Diagnos
 }
 
 /// `text` without the lines of the installer, if it has any.
-pub(crate) fn without_marked(text: &str, line: &str) -> Option<String> {
+pub(crate) fn without_marked(text: &str, ours: &[String]) -> Option<String> {
     let lines: Vec<&str> = text.split('\n').collect();
     let mut keep: Vec<&str> = Vec::new();
     let mut found = false;
     let mut i = 0;
     while let Some(&l) = lines.get(i) {
-        if l.trim_end() == MARK && lines.get(i + 1).is_some_and(|n| n.trim_end() == line) {
+        if l.trim_end() == MARK
+            && lines
+                .get(i + 1)
+                .is_some_and(|n| ours.iter().any(|o| n.trim_end() == o))
+        {
             // The script writes an empty line, the comment and the line.
             if keep.last().is_some_and(|k| k.trim().is_empty()) {
                 keep.pop();
@@ -324,7 +369,10 @@ fn remove_wolf(exe: &Path, dir: &Path) -> Result<(), Box<Diagnostic>> {
         let _ = fs::remove_file(&old);
         fs::rename(exe, &old).map_err(|e| Box::new(cannot(e)))?;
         let ours = dir.ends_with(Path::new("Programs").join("wolfpack").join("bin"));
-        let mut script = format!("ping -n 3 127.0.0.1 >nul & del /f /q \"{}\"", old.display());
+        let mut script = format!(
+            "ping -n 3 127.0.0.1 >nul & del /f /q \"{}\"",
+            plain(&old).display()
+        );
         if ours {
             script.push_str(&format!(" & rmdir \"{}\"", dir.display()));
             if let Some(parent) = dir.parent() {
@@ -366,16 +414,17 @@ mod tests {
     #[test]
     fn the_lines_of_the_installer_are_removed_and_nothing_else() {
         let line = "export PATH=\"$HOME/.local/bin:$PATH\"";
+        let ours = [line.to_string()];
         let text =
             format!("alias ll='ls -l'\nexport PATH=\"$HOME/.local/bin:$PATH\"\n\n{MARK}\n{line}\n");
         assert_eq!(
-            without_marked(&text, line).as_deref(),
+            without_marked(&text, &ours).as_deref(),
             Some("alias ll='ls -l'\nexport PATH=\"$HOME/.local/bin:$PATH\"\n")
         );
         // A marked line for another directory, and an unmarked one, stay.
         let other = format!("{MARK}\nexport PATH=\"/opt/wolf:$PATH\"\n");
-        assert_eq!(without_marked(&other, line), None);
-        assert_eq!(without_marked(line, line), None);
+        assert_eq!(without_marked(&other, &ours), None);
+        assert_eq!(without_marked(line, &ours), None);
     }
 
     #[test]
