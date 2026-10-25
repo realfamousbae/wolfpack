@@ -281,20 +281,25 @@ fn signatures(r: &mut Resolver<'_>, module: ModuleId, input: &ModuleInput<'_>) {
                 let Some(Res::Def(def)) = r.res.get(&(file, ty.id)).copied() else {
                     continue;
                 };
-                let private = r.def(def).is_some_and(|d| d.module == module && !d.public);
-                if private {
-                    let name = r.def(def).map(|d| d.name.clone()).unwrap_or_default();
-                    r.report(
-                        Diagnostic::new(
-                            codes::E0608,
-                            format!("private type `{name}` in a public {what}"),
-                        )
-                        .primary(ty.span, "this type is private to the module")
-                        .help(format!(
-                            "mark `{name}` as `pub`, or make the {what} private"
-                        )),
-                    );
-                }
+                let Some(d) = r.def(def).filter(|d| d.module == module && !d.public) else {
+                    continue;
+                };
+                let name = d.name.clone();
+                let noun = if d.kind == DefKind::Interface {
+                    "interface"
+                } else {
+                    "type"
+                };
+                r.report(
+                    Diagnostic::new(
+                        codes::E0608,
+                        format!("private {noun} `{name}` in a public {what}"),
+                    )
+                    .primary(ty.span, format!("this {noun} is private to the module"))
+                    .help(format!(
+                        "mark `{name}` as `pub`, or make the {what} private"
+                    )),
+                );
             }
         }
     }

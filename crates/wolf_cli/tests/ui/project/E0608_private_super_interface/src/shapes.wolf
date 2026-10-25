@@ -1,0 +1,11 @@
+module shapes
+
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+
+    pub interface Shape: Named {
+        fn area(self) -> Float
+    }
+}

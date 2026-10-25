@@ -1,0 +1,9 @@
+error[E0608]: private interface `Named` in a public interface
+  --> src/shapes.wolf:8:26
+  |
+8 |     pub interface Shape: Named {
+  |                          ^^^^^ this interface is private to the module
+  |
+  = help: mark `Named` as `pub`, or make the interface private
+
+error: aborting due to 1 error
