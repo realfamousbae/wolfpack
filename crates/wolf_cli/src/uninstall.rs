@@ -379,18 +379,31 @@ fn remove_wolf(exe: &Path, dir: &Path) -> Result<(), Box<Diagnostic>> {
                 script.push_str(&format!(" & rmdir \"{}\"", parent.display()));
             }
         }
-        hidden(Command::new("cmd").args(["/c", &script]))
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| {
-                fail(format!(
-                    "cannot start the removal of {}: {e}",
-                    old.display()
-                ))
-            })
+        hidden(&mut cmd(&script)).spawn().map(|_| ()).map_err(|e| {
+            fail(format!(
+                "cannot start the removal of {}: {e}",
+                old.display()
+            ))
+        })
     } else {
         fs::remove_file(exe).map_err(|e| Box::new(cannot(e)))
     }
+}
+
+/// `cmd /c script`, with the script passed as it is: the quoting of `Command::arg` writes `\"`,
+/// which `cmd` does not read as a quote.
+fn cmd(script: &str) -> Command {
+    let mut command = Command::new("cmd");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.raw_arg("/c").raw_arg(script);
+    }
+    #[cfg(not(windows))]
+    {
+        command.args(["/c", script]);
+    }
+    command
 }
 
 /// A command without a window of its own on Windows.

@@ -9,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+#[cfg_attr(windows, allow(dead_code))]
 const MARK: &str = "# Added by the wolfpack installer.";
 
 /// A fresh directory for one test.
@@ -21,6 +22,7 @@ fn tmp(name: &str) -> PathBuf {
 
 /// A home directory with a copy of `wolf` in `~/.local/bin`, profiles with the installer's
 /// lines and a wolfpack home with tools.
+#[cfg_attr(windows, allow(dead_code))]
 fn installed(name: &str) -> (PathBuf, PathBuf) {
     let home = tmp(name);
     let bin = home.join(".local").join("bin");

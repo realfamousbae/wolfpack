@@ -63,5 +63,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - uses: Swatinem/rust-cache@v2
+      # The code behind `cfg(windows)` is checked only here.
+      - run: cargo clippy -p wolfpack-lang --all-targets -- -D warnings
       - run: cargo test -p wolfpack-lang --test uninstall -- --nocapture
