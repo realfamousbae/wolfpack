@@ -191,6 +191,54 @@ and after a question at start.
 7. A failed update is E0805, with the URL or the file and the reason. Like the other E08xx
    errors, it has no source range.
 
+## 2c. Removing `wolf`
+
+**[DRAFT]** (2026-10-25, D8.15) `wolf self uninstall` undoes what the installers of section 2a,
+rule 5 did, so that no command has to be looked up.
+
+1. **What it removes.** The running `wolf` (`wolf.exe` on Windows), and the lines that the
+   terminal scripts added to put it on `PATH`: in `~/.profile`, `~/.bashrc`, `~/.bash_profile`
+   and the `.zshrc` and `.zprofile` of zsh (in `$ZDOTDIR` or the home directory), each comment
+   `# Added by the wolfpack installer.` together with the line after it, when that line puts the
+   directory of this `wolf` on `PATH`; the file `wolfpack.fish` in `conf.d` of the fish
+   configuration; on Windows the directory of `wolf.exe` in the user's `Path` in the registry.
+   A line without that comment is never changed, even when it names the same directory, and
+   the output lists every file it changed. The directory of `wolf` is removed when it is then
+   empty and belongs to wolfpack (`%LOCALAPPDATA%\Programs\wolfpack\bin` of `install.ps1`); a
+   shared one such as `~/.local/bin` stays.
+2. **The wolfpack home** (section 2a, rule 1, also when `WOLFPACK_HOME` names it). After the
+   above, `wolf` asks on standard error:
+   ```
+   Remove ~/.wolfpack too, with the tools of the targets (1.3 GB)? [y/N]
+   ```
+   `y` removes what `wolf` put there, `toolchains/`, `update-check.json` and `config.toml`, and
+   then the home itself if it is empty; anything else in it stays and is listed. Any other answer
+   keeps the home. With `wolf self uninstall --yes` nothing is asked and the home is removed.
+   Without a terminal (section 2b, rule 6) and without `--yes`, nothing is asked and the home is
+   kept; the output says so and names the directory.
+3. **Installations of package managers** (section 2b, rule 4). A `wolf` that a package manager
+   installed is removed by it: `wolf` removes nothing of itself and prints the command,
+   `cargo uninstall wolfpack-lang`, `brew uninstall wolfpack`, `scoop uninstall wolfpack`,
+   `winget uninstall realfamousbae.wolfpack`, or for `/usr/bin/wolf` `sudo apt remove wolfpack` or
+   `sudo dnf remove wolfpack`. It still asks about the home (rule 2), which no package manager
+   removes, and exits with code 0.
+4. **The setup program of Windows** (`...-windows-x64-setup.exe`) installs into the directory of
+   `install.ps1` and leaves its own uninstaller `unins000.exe` there. When that file is next to
+   the `bin` directory of `wolf`, `wolf` asks about the home (rule 2) and then starts the
+   uninstaller, which removes `wolf` and its `Path` entry, and is listed in the apps of Windows.
+5. **A directory that cannot be written**, such as `/usr/local/bin` of the macOS package, which
+   belongs to root: `wolf` is not removed, and the error E0808 names the directory and the
+   commands that remove it, for the package `sudo rm /usr/local/bin/wolf` and
+   `sudo pkgutil --forget io.github.realfamousbae.wolfpack`. The other steps are done as usual.
+6. **Windows.** A running `wolf.exe` cannot be removed, so `wolf` renames it to `wolf.old.exe`
+   (as `wolf self update` does) and, as its last step, starts a hidden command that removes that
+   file, and the directory when it is empty, a moment after `wolf` exits.
+7. **Order and failures.** The `PATH` lines go first, then the home, and `wolf` itself last, so
+   that a failure leaves a `wolf` that runs. A step that fails is E0808, with the file and the
+   reason; what was removed before stays removed and is listed. At the end `wolf` says that a new
+   terminal no longer finds it. The question of section 2b, rule 5 is never asked before
+   `wolf self uninstall` (section 2b, rule 6).
+
 ## 3. Names
 
 | Wolfpack | TS | Go | Rust |
@@ -516,6 +564,7 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16) |
 | E0805 | `wolf self update` could not download, check or install a release (section 2b); the URL or the file and the reason are shown (0.2) |
 | E0806 | A tool of the target rejected a project that has code in `native/<target>/` (section 8a); the output of the tool is shown. The error is usually in a native file or in an `extern` declaration that does not match it, so unlike E0802 it is reported for every rejection of such a project (author, 2026-10-19) (0.2) |
+| E0808 | **[DRAFT]** `wolf self uninstall` could not remove a file or a directory (section 2c), or the directory of `wolf` cannot be written; the file and the reason, or the commands that remove it, are shown (D8.15) |
 
 ## 10. Decisions for the author
 
@@ -535,3 +584,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.12 | 0.2: the target forms of `Option` parameters of extern functions (section 8, rule 2): `T \| undefined` in TS, `*T` in Go, `Option<&T>` in Rust; no `Option<Option<T>>` parameter | **answered** (author, 2026-10-21): yes |
 | D8.13 | 0.2: `wolf check --native [module]` prints what the compiler read from the native code as pasteable wolfpack source, with the items left out and why (section 8b); code E0716 | **answered** (author, 2026-10-21): yes |
 | D8.14 | Homebrew, Scoop, winget, `.deb` and `.rpm` packages and static Linux builds (section 2a, rule 5), and the package managers that `wolf self update` leaves alone (section 2b, rule 4) | **answered** (author, 2026-10-23): yes, all of them; the exact list of rule 4 is proposed |
+| D8.15 | **[DRAFT]** `wolf self uninstall [--yes]` (section 2c): removes `wolf`, the `PATH` lines that the terminal scripts marked with their comment (never other lines) and the `Path` entry on Windows; asks `[y/N]` before removing the wolfpack home, which `--yes` removes without asking and a script keeps; prints the command of a package manager instead of removing a `wolf` it installed; starts `unins000.exe` of the Windows setup program; E0808 for a step that fails or a directory that cannot be written (`/usr/local/bin` of the macOS package); on Windows the renamed `wolf.old.exe` is removed by a hidden command after `wolf` exits | **proposed** (2026-10-25), waiting for the author |
