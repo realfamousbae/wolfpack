@@ -1653,14 +1653,14 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
 name = "wolfpack-ast"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-span",
 ]
 
 [[package]]
 name = "wolfpack-diag"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "codespan-reporting",
  "wolfpack-span",
@@ -1668,7 +1668,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-driver"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-ast",
  "wolfpack-diag",
@@ -1688,7 +1688,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-fmt"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-ast",
  "wolfpack-diag",
@@ -1699,14 +1699,14 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-go"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-ir",
 ]
 
 [[package]]
 name = "wolfpack-ir"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-ast",
  "wolfpack-lexer",
@@ -1720,7 +1720,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-lang"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "clap",
  "codespan-reporting",
@@ -1754,7 +1754,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-lexer"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "insta",
  "wolfpack-diag",
@@ -1763,7 +1763,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-lsp"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "lsp-server",
  "lsp-types",
@@ -1780,7 +1780,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-native"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "oxc_allocator",
  "oxc_ast",
@@ -1793,7 +1793,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-own"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-diag",
  "wolfpack-ir",
@@ -1802,7 +1802,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-parser"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "insta",
  "wolfpack-ast",
@@ -1813,7 +1813,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-project"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "toml",
  "wolfpack-diag",
@@ -1822,7 +1822,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-resolve"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-ast",
  "wolfpack-diag",
@@ -1835,18 +1835,18 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-rs"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-ir",
 ]
 
 [[package]]
 name = "wolfpack-span"
-version = "0.4.1"
+version = "0.5.0"
 
 [[package]]
 name = "wolfpack-std"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-diag",
  "wolfpack-lexer",
@@ -1856,14 +1856,14 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-ts"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-ir",
 ]
 
 [[package]]
 name = "wolfpack-types"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "wolfpack-ast",
  "wolfpack-diag",
@@ -1877,7 +1877,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-vm"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "insta",
  "wolfpack-diag",
@@ -1890,7 +1890,7 @@ dependencies = [
 
 [[package]]
 name = "wolfpack-wasm"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
