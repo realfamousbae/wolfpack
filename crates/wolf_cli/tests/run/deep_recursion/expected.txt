@@ -1,0 +1,4 @@
+sum 1250025000
+even false
+interface 50000
+function value 25000

@@ -123,7 +123,8 @@ fn run_programs_match_expected_output_in_the_vm() {
 }
 
 /// The programs of `tests/vm/`: what the targets cannot share with the VM in `tests/run/`, such
-/// as unbounded recursion, standard input and arguments (`input.txt`, `args.txt`).
+/// as the nesting of calls from std back into the program, standard input and arguments
+/// (`input.txt`, `args.txt`).
 #[test]
 fn vm_programs_match_expected_output() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/vm");

@@ -1,0 +1,51 @@
+//! Recursion that never ends prints `panic: stack overflow` without a location and ends the
+//! program with exit code 101 on every target and in the VM (spec chapter 8, section 4.3, D8.16).
+//! Recursion a few thousand calls deep works everywhere.
+
+module main
+
+main {
+    print(f"sum {sum(5000)}")
+    print(f"even {is_even(4001)}")
+    print("start")
+    print(f"ping {ping(0)}")
+    print("not reached")
+}
+
+functions {
+    fn sum(n: Int) -> Int {
+        if n == 0 {
+            return 0
+        }
+        n + sum(n - 1)
+    }
+
+    fn is_even(n: Int) -> Bool {
+        if n == 0 {
+            return true
+        }
+        is_odd(n - 1)
+    }
+
+    fn is_odd(n: Int) -> Bool {
+        if n == 0 {
+            return false
+        }
+        is_even(n - 1)
+    }
+
+    /// Never ends: `n` only grows.
+    fn ping(n: Int) -> Int {
+        if n < 0 {
+            return n
+        }
+        pong(n + 1) + 1
+    }
+
+    fn pong(n: Int) -> Int {
+        if n < 0 {
+            return n
+        }
+        ping(n + 1) + 1
+    }
+}
