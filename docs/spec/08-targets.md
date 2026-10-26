@@ -385,6 +385,9 @@ The panic hook (Rust) and `recover` (Go) translate the target's own panic messag
 message of chapter 7, for example Rust's `attempt to add with overflow` becomes
 `panic: integer overflow`. **[INTERNAL]**
 
+**[DRAFT]** (2026-10-26, D8.20): the sized integer types use the same column of this table as `Int`,
+each helper checking the range of its width.
+
 **Debug builds** (D7.21; chapter 7, section 3, rule 1) **[DRAFT]**. With `--debug` every helper of the table
 takes the location as one more argument, a string such as `"src/stats.wolf:12:17"`, and Rust
 uses the helpers instead of its native operators: `wolf_rt::add_at(a, b, "src/stats.wolf:12:17")`.
@@ -405,8 +408,6 @@ location and ends the program with exit code 101 on every target, as in the VM (
    **[INTERNAL]**
 3. Deep data never reaches this limit: copies, equality and freeing are not calls of wolfpack
    functions (chapter 4, section 7.4).
-**[DRAFT]** (2026-10-26, D8.20): the sized integer types use the same column of this table as `Int`,
-each helper checking the range of its width.
 
 ## 5. Declarations
 
