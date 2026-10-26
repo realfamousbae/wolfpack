@@ -19,8 +19,6 @@ Do not implement anything listed here without an approved spec change.
 ## Standard library (from chapter 7)
 
 - Full Unicode case mapping (`to_upper`), once the targets can be made to agree.
-- A debug build flag (`wolf build --debug`) that adds `.wolf` source locations to built-in panics
-  (overflow, index out of range).
 - A `Bytes` type for byte arrays, so that hashing, encodings and binary files work, and so that
   bytes can cross `extern` (see `docs/plans/native-code.md`, section 3.4).
 

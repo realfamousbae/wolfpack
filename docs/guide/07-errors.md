@@ -267,12 +267,29 @@ fn average(values: List<Int>) -> Int {
 
 A panic writes a message to standard error and exits with code 101. `panic` and `assert` name the
 place in the `.wolf` file; the panics of the language itself do not, to keep the generated code
-readable:
+readable, unless the program is built for debugging (below):
 
 ```text
 panic at src/main.wolf:5:9: assertion failed: !values.is_empty()
 panic: integer overflow
 ```
+
+To find where a panic of the language happens, build or run the program with `--debug`:
+`wolf run --debug`, `wolf test --debug` and `wolf build --debug` (also with `--vm` and
+`--example`). The message then names the operation that failed: the operator (`+ - * / % << >>`,
+their compound assignments such as `*=`, and unary `-`), the `[` of an index or a slice, or the
+start of the call of a std function that panics, such as `list.remove(i)` or `process.exit(300)`.
+If `values` above holds `9223372036854775807` and `1`, the sum overflows; with `--debug` the
+message names the line and column of the call of `list.sum`, for example:
+
+```text
+panic at src/main.wolf:12:5: integer overflow
+```
+
+The message and the exit code stay the same; only the location is added. Stack overflow keeps no
+location. A build without `--debug` is not changed by it, and its code is as readable as before;
+the code of a debug build passes every operation that can panic through a helper of the runtime
+that takes the location.
 
 The output of a panic is the same on every target. There is no way to catch a panic: a part of a
 program that can fail in an expected way returns a `Result`.
