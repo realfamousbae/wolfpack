@@ -1,0 +1,5 @@
+test src/main.wolf: adds ... ok
+test src/main.wolf: prints an empty line ... ok
+
+test result: ok. 2 passed; 0 failed
+exit code: 0

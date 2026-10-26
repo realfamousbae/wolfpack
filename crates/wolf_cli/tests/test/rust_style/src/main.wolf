@@ -1,0 +1,25 @@
+//! Code that the Rust target once printed in a form that clippy or rustfmt rejected: an empty
+//! `print`, and a test whose body is only `assert_eq`.
+
+module main
+
+main {
+    print("")
+    print(two().to_string())
+}
+
+functions {
+    fn two() -> Int {
+        2
+    }
+}
+
+tests {
+    test "adds" {
+        assert_eq(1 + 1, two())
+    }
+
+    test "prints an empty line" {
+        print("")
+    }
+}

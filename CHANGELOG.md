@@ -28,6 +28,9 @@ All notable changes are recorded here at the end of each milestone.
 - Fixed in the TypeScript backend: the `.test.ts` file of a removed or renamed file of `tests/`
   stayed in `out/ts/test/`, and the next `wolf test` could fail in `tsc`. Go and Rust already
   removed such files.
+- Fixed in the Rust backend: `print("")` was printed as `println!("")`, which clippy rejects, and
+  a test whose body is only `assert_eq` got an extra block that `rustfmt --check` removes. The
+  test project `rust_style` checks both with clippy and rustfmt.
 
 ## 0.5.1 (2026-10-26)
 
