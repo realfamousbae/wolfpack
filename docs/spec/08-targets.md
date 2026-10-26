@@ -91,6 +91,24 @@ Decisions already taken by the author for this chapter (2026-10-07):
    `wolf test` reads the results of `node:test` through a generated reporter; `npm test` in the
    generated project uses the default reporter of Node.js.
 
+   **`exit` inside a test** (D8.17): a test, or a function it calls, that calls `exit(code)` does
+   not end the run. That test fails with the text `the test exited with code <code>` (also for
+   code 0), the output it wrote stays, and the other tests run, as in the VM (chapter 10). Outside
+   `wolf test` (in `main` and in examples) `exit` ends the program as before. **[PROPOSAL]**
+
+   ```
+   test tests/cli.wolf: stops on a bad flag ... FAILED
+
+   failures:
+
+     tests/cli.wolf: stops on a bad flag
+       the test exited with code 2
+   ```
+
+   In the code built for tests, `exit` stops the test the way a panic does, with its own value, so
+   that the framework of the target goes on (`process.exit`, `os.Exit` and `std::process::exit`
+   would end the whole run). Code built by `wolf build` does not change. **[INTERNAL]**
+
 ### 2.1 Re-exports, `tests/` and `examples/`
 
 Added after approval, while writing the examples. **[INTERNAL]**
@@ -601,3 +619,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.14 | Homebrew, Scoop, winget, `.deb` and `.rpm` packages and static Linux builds (section 2a, rule 5), and the package managers that `wolf self update` leaves alone (section 2b, rule 4) | **answered** (author, 2026-10-23): yes, all of them; the exact list of rule 4 is proposed |
 | D8.15 | `wolf self uninstall [--yes]` (section 2c): removes `wolf`, the `PATH` lines that the terminal scripts marked with their comment (never other lines) and the `Path` entry on Windows; asks `[y/N]` before removing the wolfpack home, which `--yes` removes without asking and a script keeps; prints the command of a package manager instead of removing a `wolf` it installed; starts `unins000.exe` of the Windows setup program; E0808 for a step that fails or a directory that cannot be written (`/usr/local/bin` of the macOS package); on Windows the renamed `wolf.old.exe` is removed by a hidden command after `wolf` exits | **answered** (author, 2026-10-25): yes |
 | D8.16 | Stack overflow on Go and Rust as on TypeScript and in the VM (section 4.3): `panic: stack overflow`, exit code 101; Go and Rust count the nested calls of functions that can call themselves and stop past 100,000, the limit of the VM | **proposed** (2026-10-26); the alignment itself was agreed in D10.5 |
+| D8.17 | `exit(code)` inside a test (section 2, rule 7): the test fails with `the test exited with code <code>`, also for 0, and the other tests run, on every target as in the VM. Alternatives: `exit(0)` passes the test; or `exit` ends the whole run with its code, as Go and Rust do today, and the VM changes to match | **proposed** (2026-10-26), waiting for the author (author agreed on 2026-10-22 that one rule is needed) |

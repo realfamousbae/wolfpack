@@ -305,7 +305,8 @@ pub enum FsError {
 comes from the target and may differ between targets. **[PROPOSAL]**
 
 **`std.process`**: `exit(code: Int) -> Never` (`code` in `0..=255`, else panic) and
-`env(name: String) -> Option<String>`.
+`env(name: String) -> Option<String>`. Inside a test, `exit` fails that test instead of ending the
+run (chapter 8, section 2, rule 7; D8.17).
 
 ## 8. `extern`
 
