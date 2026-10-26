@@ -2237,7 +2237,8 @@ func SliceStrFromAt(text string, start int64, location string) string {
     },
     Piece {
         name: "ExitAt",
-        deps: &["located", "Exit"],
+        // `Exit` comes from the piece `Exit` or, in the code built for tests, `ExitInTest`.
+        deps: &["located"],
         imports: &[],
         code: r#"// ExitAt is Exit with the location of the operation (debug builds).
 func ExitAt(code int64, location string) {

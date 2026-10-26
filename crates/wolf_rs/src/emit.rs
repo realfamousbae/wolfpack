@@ -4751,11 +4751,9 @@ impl<'p> Emitter<'p> {
                 let c = op(self, 0)?;
                 // In the code built for tests, `exit` stops only the test (spec chapter 8,
                 // section 2, rule 7).
-                if self.tests {
-                    self.rt_call("exit_in_test", "exit", vec![c])
-                } else {
-                    self.rt_call_at(("exit", "exit"), ("exit_at", "exit_at"), vec![c], at)
-                }
+                let piece = if self.tests { "exit_in_test" } else { "exit" };
+                self.rt(piece);
+                self.rt_call_at((piece, "exit"), ("exit_at", "exit_at"), vec![c], at)
             }
             "process.env" => {
                 let n = read(self, 0)?;

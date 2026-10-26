@@ -1572,7 +1572,8 @@ pub fn slice_str_from_at(text: &str, start: i64, location: &str) -> String {
     },
     Piece {
         name: "exit_at",
-        deps: &["exit"],
+        // `exit` comes from the piece `exit` or, in the code built for tests, `exit_in_test`.
+        deps: &["Panic"],
         code: r#"/// `exit` with the location of the call (debug builds).
 pub fn exit_at(code: i64, location: &str) -> ! {
     if !(0..=255).contains(&code) {
