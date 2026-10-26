@@ -245,10 +245,24 @@ fn to_string(e: Expr) -> Expr {
     method(e, "to_string", Vec::new())
 }
 
+/// The helper of a debug build for an operator of `Int` that can panic.
+fn checked(op: BinaryOp) -> Option<&'static str> {
+    Some(match op {
+        BinaryOp::Add => "add_at",
+        BinaryOp::Sub => "sub_at",
+        BinaryOp::Mul => "mul_at",
+        BinaryOp::Div => "div_at",
+        BinaryOp::Rem => "rem_at",
+        BinaryOp::Shl => "shl_at",
+        BinaryOp::Shr => "shr_at",
+        _ => return None,
+    })
+}
+
 /// Whether an emitted expression has a reference type.
 fn is_ref(e: &Expr) -> bool {
     matches!(e, Expr::Unary("&", _) | Expr::Str(_))
-        || matches!(e, Expr::Method(_, n, _, _) if n == "at")
+        || matches!(e, Expr::Method(_, n, _, _) if n == "at" || n == "item_at")
 }
 
 fn subst(t: &IrType, map: &BTreeMap<String, IrType>) -> IrType {
@@ -1089,6 +1103,58 @@ impl<'p> Emitter<'p> {
     fn rt_call(&mut self, piece: &'static str, name: &str, args: Vec<Expr>) -> Expr {
         let f = self.rt_path(piece, name);
         call(f, args)
+    }
+
+    /// A call of a helper that can panic; in a debug build, of its twin in `twin_piece`, which
+    /// takes the location of the operation too (spec chapter 8, section 4.3):
+    /// `wolf_rt::int_pow_at(a, b, "src/main.wolf:3:9")`.
+    fn rt_call_at(
+        &mut self,
+        (piece, name): (&'static str, &str),
+        (twin_piece, twin): (&'static str, &str),
+        mut args: Vec<Expr>,
+        location: Option<&String>,
+    ) -> Expr {
+        match location {
+            Some(l) => {
+                args.push(Expr::Str(l.clone()));
+                self.rt_call(twin_piece, twin, args)
+            }
+            None => self.rt_call(piece, name, args),
+        }
+    }
+
+    /// `items[i]` or `map[key]` (`at`, or `at_mut` for a place); in a debug build, the method
+    /// that takes the location of the `[` too: `items.item_at(i, "src/main.wolf:3:9")`.
+    fn index_call(
+        &mut self,
+        base: Expr,
+        map: bool,
+        key: Expr,
+        place: bool,
+        location: Option<&String>,
+    ) -> Expr {
+        let name = if place { "at_mut" } else { "at" };
+        match location {
+            Some(l) => {
+                if map {
+                    self.rt.insert("Map_at");
+                } else {
+                    self.rt_trait("ItemAt", "ItemAt");
+                }
+                method(
+                    base,
+                    &format!("item_{name}"),
+                    vec![key, Expr::Str(l.clone())],
+                )
+            }
+            None => {
+                if !map {
+                    self.rt_trait("At", "At");
+                }
+                method(base, name, vec![key])
+            }
+        }
     }
 
     /// Brings a trait of the runtime into scope, for its methods.
@@ -3087,9 +3153,12 @@ impl<'p> Emitter<'p> {
                 out.push(Stmt::Let(Pat::Bind(name, mutable), t, Some(v)));
             }
             IrStmt::Assign {
-                target, op, value, ..
+                target,
+                op,
+                value,
+                location,
             } => {
-                let s = self.assign(target, *op, value)?;
+                let s = self.assign(target, *op, value, location.as_ref())?;
                 out.push(Stmt::Expr(s));
             }
             IrStmt::LetPattern {
@@ -3363,6 +3432,7 @@ impl<'p> Emitter<'p> {
         target: &'p IrExpr,
         op: Option<BinaryOp>,
         value: &'p IrExpr,
+        location: Option<&String>,
     ) -> Result<Expr, Error> {
         let place = self.place(target)?;
         let ty = &target.ty;
@@ -3382,6 +3452,12 @@ impl<'p> Emitter<'p> {
             return Ok(method(place, "push_str", vec![v]));
         }
         let v = self.expr(value, Want::Op)?;
+        if let (Some(l), Some(f)) = (location, checked(op)) {
+            // `place = wolf_rt::add_at(place, v, location)`, as for the shifts below.
+            let current = self.expr(target, Want::Op)?;
+            let nv = self.rt_call("int_at", f, vec![current, v, Expr::Str(l.clone())]);
+            return Ok(bin(place, "=", nv));
+        }
         let sym = match op {
             BinaryOp::Add => "+=",
             BinaryOp::Sub => "-=",
@@ -3424,16 +3500,19 @@ impl<'p> Emitter<'p> {
                     f
                 }
             }
-            ExprKind::Index { base, index, .. } => {
+            ExprKind::Index {
+                base,
+                index,
+                location,
+            } => {
                 let b = self.place_base(base)?;
-                if matches!(base.ty, IrType::Map(..)) {
-                    let k = self.key(index)?;
-                    deref(method(b, "at_mut", vec![k]))
+                let map = matches!(base.ty, IrType::Map(..));
+                let k = if map {
+                    self.key(index)?
                 } else {
-                    self.rt_trait("At", "At");
-                    let i = self.expr(index, Want::Op)?;
-                    deref(method(b, "at_mut", vec![i]))
-                }
+                    self.expr(index, Want::Op)?
+                };
+                deref(self.index_call(b, map, k, true, location.as_ref()))
             }
             _ => self.expr(e, Want::Own)?,
         })
@@ -3568,8 +3647,12 @@ impl<'p> Emitter<'p> {
                     _ => call(path("Box::new"), vec![f]),
                 }
             }
-            ExprKind::Call { callee, args, .. } => {
-                let c = self.call(callee, args, t)?;
+            ExprKind::Call {
+                callee,
+                args,
+                location,
+            } => {
+                let c = self.call(callee, args, t, location.as_ref())?;
                 self.shape(c, t, want, false)
             }
             ExprKind::Field { base, name } => {
@@ -3598,26 +3681,25 @@ impl<'p> Emitter<'p> {
                     self.shape(f, t, want, true)
                 }
             }
-            ExprKind::Index { base, index, .. } => {
+            ExprKind::Index {
+                base,
+                index,
+                location,
+            } => {
                 let b = self.expr(base, Want::Op)?;
-                let at = if matches!(base.ty, IrType::Map(..)) {
-                    let k = self.key(index)?;
-                    method(b, "at", vec![k])
+                let map = matches!(base.ty, IrType::Map(..));
+                let k = if map {
+                    self.key(index)?
                 } else {
-                    self.rt_trait("At", "At");
                     let saved = self.f.suffix;
                     self.f.suffix = false;
                     let i = self.expr(index, Want::Op)?;
                     self.f.suffix = saved;
-                    method(b, "at", vec![i])
+                    i
                 };
+                let at = self.index_call(b, map, k, want == Want::Mut, location.as_ref());
                 match want {
-                    Want::Mut => {
-                        let Expr::Method(r, _, ta, a) = at else {
-                            return Err("index".to_string());
-                        };
-                        Expr::Method(r, "at_mut".to_string(), ta, a)
-                    }
+                    Want::Mut => at,
                     _ => self.shape_ref(at, t, want),
                 }
             }
@@ -3626,8 +3708,9 @@ impl<'p> Emitter<'p> {
                 start,
                 end,
                 inclusive,
-                ..
+                location,
             } => {
+                let at = location.as_ref();
                 let b = self.expr(base, Want::Read(true))?;
                 let s = match start {
                     Some(s) => self.expr(s, Want::Op)?,
@@ -3636,16 +3719,43 @@ impl<'p> Emitter<'p> {
                 let x = match end {
                     Some(x) => {
                         let v = self.expr(x, Want::Op)?;
-                        Some(if *inclusive { bin(v, "+", lit("1")) } else { v })
+                        Some(match (*inclusive, at) {
+                            (true, Some(l)) => {
+                                let l = Expr::Str(l.clone());
+                                self.rt_call("int_at", "add_at", vec![v, lit("1"), l])
+                            }
+                            (true, None) => bin(v, "+", lit("1")),
+                            (false, _) => v,
+                        })
                     }
                     None => None,
                 };
                 let string = matches!(base.ty, IrType::String);
                 let v = match (string, x) {
-                    (true, Some(x)) => self.rt_call("slice_str", "slice_str", vec![b, s, x]),
-                    (true, None) => self.rt_call("slice_str", "slice_str_from", vec![b, s]),
-                    (false, Some(x)) => self.rt_call("slice", "slice", vec![b, s, x]),
-                    (false, None) => self.rt_call("slice", "slice_from", vec![b, s]),
+                    (true, Some(x)) => self.rt_call_at(
+                        ("slice_str", "slice_str"),
+                        ("slice_str_at", "slice_str_at"),
+                        vec![b, s, x],
+                        at,
+                    ),
+                    (true, None) => self.rt_call_at(
+                        ("slice_str", "slice_str_from"),
+                        ("slice_str_at", "slice_str_from_at"),
+                        vec![b, s],
+                        at,
+                    ),
+                    (false, Some(x)) => self.rt_call_at(
+                        ("slice", "slice"),
+                        ("slice_at", "slice_at"),
+                        vec![b, s, x],
+                        at,
+                    ),
+                    (false, None) => self.rt_call_at(
+                        ("slice", "slice_from"),
+                        ("slice_at", "slice_from_at"),
+                        vec![b, s],
+                        at,
+                    ),
                 };
                 self.shape(v, t, want, false)
             }
@@ -3803,19 +3913,31 @@ impl<'p> Emitter<'p> {
                 };
                 self.shape(m, t, want, false)
             }
-            ExprKind::Unary { op, operand, .. } => {
+            ExprKind::Unary {
+                op,
+                operand,
+                location,
+            } => {
                 let v = self.expr(operand, Want::Op)?;
                 let x = match op {
                     UnaryOp::Not | UnaryOp::BitNot => not(v),
-                    UnaryOp::Neg => match v {
-                        Expr::Lit(t) if !t.starts_with('-') => lit(&format!("-{t}")),
-                        v => Expr::Unary("-", Box::new(v)),
+                    UnaryOp::Neg => match (v, location) {
+                        (Expr::Lit(t), _) if !t.starts_with('-') => lit(&format!("-{t}")),
+                        (v, Some(l)) => {
+                            self.rt_call("int_at", "neg_at", vec![v, Expr::Str(l.clone())])
+                        }
+                        (v, None) => Expr::Unary("-", Box::new(v)),
                     },
                 };
                 self.shape(x, t, want, false)
             }
-            ExprKind::Binary { op, lhs, rhs, .. } => {
-                let x = self.binary(*op, lhs, rhs)?;
+            ExprKind::Binary {
+                op,
+                lhs,
+                rhs,
+                location,
+            } => {
+                let x = self.binary(*op, lhs, rhs, location.as_ref())?;
                 self.shape(x, t, want, false)
             }
             ExprKind::Closure {
@@ -4116,11 +4238,24 @@ impl<'p> Emitter<'p> {
 
     // ----- operators --------------------------------------------------------------------------
 
-    fn binary(&mut self, op: BinaryOp, lhs: &'p IrExpr, rhs: &'p IrExpr) -> Result<Expr, Error> {
+    /// A binary operator; `location` is that of an operator that can panic, in a debug build,
+    /// which then goes through a helper: `wolf_rt::add_at(a, b, "src/main.wolf:3:9")`.
+    fn binary(
+        &mut self,
+        op: BinaryOp,
+        lhs: &'p IrExpr,
+        rhs: &'p IrExpr,
+        location: Option<&String>,
+    ) -> Result<Expr, Error> {
         use BinaryOp as B;
         let ty = &lhs.ty;
         if op == B::Add && matches!(ty, IrType::String) {
             return self.concat(lhs, rhs);
+        }
+        if let (Some(l), Some(f)) = (location, checked(op)) {
+            let a = self.expr(lhs, Want::Op)?;
+            let b = self.expr(rhs, Want::Op)?;
+            return Ok(self.rt_call("int_at", f, vec![a, b, Expr::Str(l.clone())]));
         }
         if matches!(op, B::Shl | B::Shr) {
             let l = self.expr(lhs, Want::Op)?;
@@ -4286,6 +4421,7 @@ impl<'p> Emitter<'p> {
         callee: &'p Callee,
         args: &'p [ir::Arg],
         ty: &IrType,
+        location: Option<&String>,
     ) -> Result<Expr, Error> {
         let (def, recv) = match callee {
             Callee::Fn(def) => (Some(*def), None),
@@ -4298,7 +4434,7 @@ impl<'p> Emitter<'p> {
         if let Some(def) = def {
             let d = self.p.def(def).ok_or("unknown function")?;
             if let Some(name) = d.intrinsic.clone() {
-                return self.intrinsic(&name, recv, args, ty);
+                return self.intrinsic(&name, recv, args, ty, location);
             }
         }
         let info = match callee {
@@ -4484,6 +4620,7 @@ impl<'p> Emitter<'p> {
         recv: Option<&'p IrExpr>,
         args: &'p [ir::Arg],
         _ty: &IrType,
+        at: Option<&String>,
     ) -> Result<Expr, Error> {
         let short = name.strip_prefix("std.").unwrap_or(name);
         let mut items: Vec<&'p IrExpr> = Vec::new();
@@ -4563,7 +4700,7 @@ impl<'p> Emitter<'p> {
             "io.args" => self.rt_call("io", "args", Vec::new()),
             "process.exit" => {
                 let c = op(self, 0)?;
-                self.rt_call("exit", "exit", vec![c])
+                self.rt_call_at(("exit", "exit"), ("exit_at", "exit_at"), vec![c], at)
             }
             "process.env" => {
                 let n = read(self, 0)?;
@@ -4603,11 +4740,20 @@ impl<'p> Emitter<'p> {
                 }
                 v => Expr::Cast(Box::new(v), Type::name("f64")),
             },
+            "math.Int.abs" if at.is_some() => {
+                let a = op(self, 0)?;
+                self.rt_call_at(("int_at", "abs_at"), ("int_at", "abs_at"), vec![a], at)
+            }
             "math.Int.abs" | "math.Float.abs" => method(op(self, 0)?, "abs", Vec::new()),
             "math.Int.pow" => {
                 let a = op(self, 0)?;
                 let b = op(self, 1)?;
-                self.rt_call("int", "int_pow", vec![a, b])
+                self.rt_call_at(
+                    ("int", "int_pow"),
+                    ("int_pow_at", "int_pow_at"),
+                    vec![a, b],
+                    at,
+                )
             }
             "math.Int.min" | "math.Float.min" => {
                 let a = op(self, 0)?;
@@ -4628,7 +4774,12 @@ impl<'p> Emitter<'p> {
             }
             "math.Float.to_int" => {
                 let x = unparen(op(self, 0)?);
-                self.rt_call("float_to_int", "float_to_int", vec![x])
+                self.rt_call_at(
+                    ("float_to_int", "float_to_int"),
+                    ("float_to_int_at", "float_to_int_at"),
+                    vec![x],
+                    at,
+                )
             }
             "math.Float.pow" => {
                 let a = op(self, 0)?;
@@ -4664,7 +4815,12 @@ impl<'p> Emitter<'p> {
             "string.String.split" => {
                 let s = read(self, 0)?;
                 let p = read(self, 1)?;
-                self.rt_call("strings", "split", vec![s, p])
+                self.rt_call_at(
+                    ("strings", "split"),
+                    ("strings_at", "split_at"),
+                    vec![s, p],
+                    at,
+                )
             }
             "string.String.lines" => {
                 let s = read(self, 0)?;
@@ -4682,12 +4838,22 @@ impl<'p> Emitter<'p> {
                 let s = read(self, 0)?;
                 let a = read(self, 1)?;
                 let b = read(self, 2)?;
-                self.rt_call("strings", "replace", vec![s, a, b])
+                self.rt_call_at(
+                    ("strings", "replace"),
+                    ("strings_at", "replace_at"),
+                    vec![s, a, b],
+                    at,
+                )
             }
             "string.String.repeat" => {
                 let s = read(self, 0)?;
                 let n = op(self, 1)?;
-                self.rt_call("strings", "repeat", vec![s, n])
+                self.rt_call_at(
+                    ("strings", "repeat"),
+                    ("strings_at", "repeat_at"),
+                    vec![s, n],
+                    at,
+                )
             }
             "string.String.to_upper_ascii" => {
                 method(op(self, 0)?, "to_ascii_uppercase", Vec::new())
@@ -4734,20 +4900,25 @@ impl<'p> Emitter<'p> {
                 let l = self.expr(l, Want::Mut)?;
                 let i = op(self, 1)?;
                 let v = own(self, 2)?;
-                self.rt_call("list", "insert", vec![l, i, v])
+                self.rt_call_at(
+                    ("list", "insert"),
+                    ("list_at", "insert_at"),
+                    vec![l, i, v],
+                    at,
+                )
             }
             "list.List.remove" => {
                 let l = get(0)?;
                 let l = self.expr(l, Want::Mut)?;
                 let i = op(self, 1)?;
-                self.rt_call("list", "remove", vec![l, i])
+                self.rt_call_at(("list", "remove"), ("list_at", "remove_at"), vec![l, i], at)
             }
             "list.List.swap" => {
                 let l = get(0)?;
                 let l = self.expr(l, Want::Mut)?;
                 let i = op(self, 1)?;
                 let j = op(self, 2)?;
-                self.rt_call("list", "swap", vec![l, i, j])
+                self.rt_call_at(("list", "swap"), ("list_at", "swap_at"), vec![l, i, j], at)
             }
             "list.List.reverse" => method(place(self, 0)?, "reverse", Vec::new()),
             "list.List.clear" => method(place(self, 0)?, "clear", Vec::new()),
@@ -4820,6 +4991,10 @@ impl<'p> Emitter<'p> {
                 let l = read(self, 0)?;
                 let f = if short.ends_with("min") { "min" } else { "max" };
                 self.rt_call("sort", f, vec![l])
+            }
+            "list.sum" if at.is_some() => {
+                let l = read(self, 0)?;
+                self.rt_call_at(("int_at", "sum_at"), ("int_at", "sum_at"), vec![l], at)
             }
             "list.sum" => {
                 let l = op(self, 0)?;
