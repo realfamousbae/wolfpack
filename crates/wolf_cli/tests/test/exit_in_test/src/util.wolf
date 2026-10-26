@@ -1,0 +1,49 @@
+//! `exit` inside a test fails that test, and the other tests still run (spec chapter 8,
+//! section 2, rule 7).
+
+module util
+
+imports {
+    std.process
+}
+
+functions {
+    /// Doubles a number.
+    pub fn double(n: Int) -> Int {
+        n * 2
+    }
+
+    /// Prints why and ends the program with `code`.
+    pub fn stop(code: Int) {
+        print("stopping with code " + code.to_string())
+        process.exit(code)
+    }
+}
+
+tests {
+    fn give_up() {
+        process.exit(4)
+    }
+
+    test "doubles a number" {
+        assert(double(2) == 4)
+    }
+
+    test "exits with a code" {
+        print("before exit")
+        process.exit(3)
+    }
+
+    test "exits with code zero" {
+        process.exit(0)
+    }
+
+    test "a helper exits" {
+        give_up()
+        assert(false)
+    }
+
+    test "still runs after the exits" {
+        assert(double(21) == 42)
+    }
+}

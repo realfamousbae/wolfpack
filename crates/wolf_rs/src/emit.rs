@@ -4559,7 +4559,10 @@ impl<'p> Emitter<'p> {
             "io.args" => self.rt_call("io", "args", Vec::new()),
             "process.exit" => {
                 let c = op(self, 0)?;
-                self.rt_call("exit", "exit", vec![c])
+                // In the code built for tests, `exit` stops only the test (spec chapter 8,
+                // section 2, rule 7).
+                let piece = if self.tests { "exit_in_test" } else { "exit" };
+                self.rt_call(piece, "exit", vec![c])
             }
             "process.env" => {
                 let n = read(self, 0)?;

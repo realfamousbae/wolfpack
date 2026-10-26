@@ -1,0 +1,24 @@
+test src/util.wolf: doubles a number ... ok
+test src/util.wolf: exits with a code ... FAILED
+test src/util.wolf: exits with code zero ... FAILED
+test src/util.wolf: a helper exits ... FAILED
+test src/util.wolf: still runs after the exits ... ok
+test tests/cli.wolf: stops on a bad flag ... FAILED
+test tests/cli.wolf: doubles after a stop ... ok
+
+failures:
+
+  src/util.wolf: exits with a code
+    the test exited with code 3
+
+  src/util.wolf: exits with code zero
+    the test exited with code 0
+
+  src/util.wolf: a helper exits
+    the test exited with code 4
+
+  tests/cli.wolf: stops on a bad flag
+    the test exited with code 2
+
+test result: FAILED. 3 passed; 4 failed
+exit code: 1

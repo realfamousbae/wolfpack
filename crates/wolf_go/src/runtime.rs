@@ -445,21 +445,29 @@ func RunMainArgsResult(main func([]string) error) {
     Piece {
         name: "Test",
         deps: &["message", "deepStacks"],
-        imports: &["fmt"],
+        imports: &["fmt", "strconv"],
         code: r#"// T is the part of *testing.T that tests use.
 type T interface {
 	FailNow()
 }
 
+// Exited is the value of the panic that stops a test which calls exit (spec chapter 8, section 2,
+// rule 7).
+type Exited struct {
+	Code int64
+}
+
 // Test runs the body of a test; a panic fails the test with its message, on a line of its own
-// even if the test wrote text without a line feed.
+// even if the test wrote text without a line feed, and exit with its code.
 func Test(t T, body func()) {
 	allowDeepStacks()
 	failed := true
 	defer func() {
 		if r := recover(); r != nil || failed {
 			text := "test failed"
-			if r != nil {
+			if e, ok := r.(Exited); ok {
+				text = "the test exited with code " + strconv.FormatInt(e.Code, 10)
+			} else if r != nil {
 				text = message(r)
 			}
 			fmt.Println("\n--- wolf failure: " + text)
@@ -480,6 +488,19 @@ func Exit(code int64) {
 		Fail("exit code " + strconv.FormatInt(code, 10) + " out of range")
 	}
 	os.Exit(int(code))
+}"#,
+    },
+    Piece {
+        name: "ExitInTest",
+        deps: &["Panic", "Test"],
+        imports: &["strconv"],
+        code: r#"// Exit is std.process.exit in the code built for tests: it stops the test, which fails with the
+// code, and the other tests run (spec chapter 8, section 2, rule 7).
+func Exit(code int64) {
+	if code < 0 || code > 255 {
+		Fail("exit code " + strconv.FormatInt(code, 10) + " out of range")
+	}
+	panic(Exited{Code: code})
 }"#,
     },
     Piece {

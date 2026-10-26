@@ -46,6 +46,3 @@ Scoop, winget, `.deb`/`.rpm` packages and static Linux builds after 0.3.
 ## The virtual machine (from 2026-10-22, chapter 10, D10.5 and D10.7)
 
 - A bytecode file and a `wolf build` form for it.
-- `exit()` inside a test: the VM fails that test with `the test exited with code N` and runs the
-  others; the targets end the whole run in their own ways. A rule for every target (author agreed
-  to record it, 2026-10-22).

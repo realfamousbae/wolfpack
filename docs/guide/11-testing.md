@@ -89,6 +89,19 @@ test fails, and 0 when all pass.
 - `wolf test --target go` and `wolf test --target rust` run the same tests on another target. The
   report has the same form on each.
 
+A test also fails when it, or a function it calls, ends the program with `process.exit(code)`. The
+output it wrote stays, the other tests still run, and the report gives the code, also for
+`exit(0)`:
+
+```text
+failures:
+
+  tests/cli.wolf: stops on a bad flag
+    the test exited with code 2
+```
+
+Outside `wolf test`, in `main` and in the examples, `exit` ends the program as usual.
+
 ## Integration tests
 
 The files in `tests/` test the project from outside, through its public names. Each is a module

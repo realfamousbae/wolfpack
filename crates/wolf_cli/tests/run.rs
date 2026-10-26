@@ -453,6 +453,27 @@ fn renamed_test_files_leave_nothing_behind() {
     }
 }
 
+/// `exit` fails only the test under `wolf test` (spec chapter 8, section 2, rule 7); in the code
+/// built by `wolf build` it still ends the program.
+#[test]
+fn exit_ends_the_program_in_the_normal_build() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/test/exit_in_test");
+    let out = tmp("build-exit_in_test");
+    let output = Command::new(env!("CARGO_BIN_EXE_wolf"))
+        .args(["build", "--out"])
+        .arg(&out)
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0));
+    let rt = fs::read_to_string(out.join("src/wolf_rt.ts")).unwrap();
+    assert!(rt.contains("throw new WolfExit("), "{rt}");
+    assert!(
+        !rt.contains("runTest") && !rt.contains("the test exited"),
+        "{rt}"
+    );
+}
+
 /// `wolf fmt --check` lists the unformatted files and changes nothing; `wolf fmt` formats them.
 #[test]
 fn fmt_checks_and_formats_a_project() {

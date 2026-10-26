@@ -53,6 +53,15 @@ All notable changes are recorded here at the end of each milestone.
   `tests/run/deep_recursion` (50,000 calls deep on Go, Rust and in the VM; not on TypeScript,
   whose stack holds about 10,000 calls, which a new `skip-ts.txt` says) and
   `tests/test/stack_overflow`; `tests/vm/stack_overflow` is part of the first.
+- `exit` inside a test (spec chapter 8, section 2, rule 7; D8.17): a test, or a function it
+  calls, that calls `exit(code)` fails with `the test exited with code <code>`, also for code 0;
+  the output it wrote stays and the other tests run, on TypeScript, Go and Rust as in the VM.
+  Before, TypeScript failed the test with `exit(3) was called`, Go ended the test binary of the
+  package so that the tests after it failed too, and Rust reported E0802. Only the code built for
+  tests changes: TypeScript runs each test through `runTest` of the runtime, which turns the
+  `WolfExit` of `exit` into the failure, and on Go and Rust `exit` panics with a value of its
+  own, `Exited`, which the runner of a test reports. `wolf build` and `wolf run` give the same
+  code as before, and `exit` there still ends the program with its code.
 
 ## 0.5.1 (2026-10-26)
 

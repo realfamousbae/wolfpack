@@ -238,6 +238,22 @@ fn tests_are_not_in_the_normal_go_build() {
     assert!(!out.join("util/math/math_test.go").exists());
 }
 
+/// `exit` fails only the test under `wolf test` (spec chapter 8, section 2, rule 7); in the code
+/// built by `wolf build --target go` it still ends the program.
+#[test]
+fn exit_ends_the_program_in_the_normal_go_build() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/test/exit_in_test");
+    let out = tmp("build-exit_in_test");
+    let output = wolf("build", &dir, &out, &[], None);
+    assert_eq!(output.status.code(), Some(0));
+    let rt = fs::read_to_string(out.join("wolfrt/wolfrt.go")).unwrap();
+    assert!(rt.contains("os.Exit(int(code))"), "{rt}");
+    assert!(
+        !rt.contains("Exited") && !rt.contains("the test exited"),
+        "{rt}"
+    );
+}
+
 /// E0801: `go` is missing.
 #[test]
 fn e0801_missing_go() {
