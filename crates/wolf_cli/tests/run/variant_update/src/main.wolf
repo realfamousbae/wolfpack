@@ -1,0 +1,76 @@
+//! The update syntax `..base` for enum variants with named fields (spec chapter 4, section 7.2;
+//! D4.22): the base has the type of the enum; a base of another variant is a panic of the
+//! language, `panic: update of Shape.Rect from Shape.Circle`, on every target and in the VM.
+
+module main
+
+types {
+    enum Shape {
+        Circle { radius: Int }
+        Rect { width: Int, height: Int, label: String }
+        Dot
+    }
+
+    enum Tagged<T> {
+        Plain(T)
+        Named { name: String, value: T, tags: List<String> }
+    }
+}
+
+main {
+    let small = Shape.Rect { width: 2, height: 3, label: "small" }
+    let wide = Shape.Rect { width: 10, ..small }
+    print(describe(wide))
+
+    // The base is moved; `.copy()` keeps it.
+    let square = Shape.Rect { width: 5, height: 5, label: "square" }
+    let renamed = Shape.Rect { label: "renamed", ..square.copy() }
+    print(f"{describe(square)} {describe(renamed)}")
+
+    // The listed fields are evaluated first, then the base.
+    let tall = Shape.Rect { height: note("height", 7), ..note_shape("base") }
+    print(describe(tall))
+
+    // A generic enum: the base has the same type arguments.
+    let first = Tagged.Named { name: "n", value: 1, tags: ["a"] }
+    let second = Tagged.Named { value: 2, ..first }
+    match second {
+        Tagged.Named { name, value, tags } => print(f"{name} {value} {tags.len()}")
+        Tagged.Plain(v) => print(f"plain {v}")
+    }
+    let circle = Shape.Circle { radius: 4 }
+    let bigger = Shape.Circle { radius: 8, ..circle }
+    print(describe(bigger))
+
+    // A base of another variant panics.
+    let one = Shape.Circle { radius: 1 }
+    print(describe(resize(own one)))
+    let dot = Shape.Dot
+    print(describe(resize(own dot)))
+    print("not reached")
+}
+
+functions {
+    fn describe(s: Shape) -> String {
+        match s {
+            Shape.Circle { radius } => f"circle {radius}"
+            Shape.Rect { width, height, label } => f"{label} {width}x{height}"
+            Shape.Dot => "dot"
+        }
+    }
+
+    fn note(what: String, n: Int) -> Int {
+        print(f"evaluating {what}")
+        n
+    }
+
+    fn note_shape(what: String) -> Shape {
+        print(f"evaluating {what}")
+        Shape.Rect { width: 1, height: 1, label: "noted" }
+    }
+
+    /// A circle with the radius 3, from a circle.
+    fn resize(own s: Shape) -> Shape {
+        Shape.Circle { radius: 3, ..s }
+    }
+}
