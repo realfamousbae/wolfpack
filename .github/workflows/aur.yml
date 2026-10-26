@@ -1,0 +1,96 @@
+name: AUR
+
+# The AUR package wolfpack-bin (docs/plans/distribution.md). For a published release the job
+# `check` builds the package of that release in a clean Arch Linux container and installs it, and
+# `publish` pushes its PKGBUILD and .SRCINFO to ssh://aur@aur.archlinux.org/wolfpack-bin.git. The
+# push needs the secret AUR_SSH_KEY: the private SSH key whose public key is in the AUR account of
+# the owner. Without it, `publish` says so and changes nothing. A push to night that changes the
+# package script only runs `check`, with the latest release.
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [night]
+    paths:
+      - release/aur/**
+      - .github/workflows/aur.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release tag, such as v0.5.1"
+        required: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: The tools
+        run: pacman -Syu --noconfirm --needed git github-cli namcap
+      - uses: actions/checkout@v4
+      - name: The release
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p SHA256SUMS.txt
+          release/aur/package.sh "${TAG#v}" SHA256SUMS.txt aur
+      - name: Build and install the package
+        run: |
+          useradd -m builder
+          chown -R builder aur
+          cd aur
+          namcap PKGBUILD
+          su builder -c "makepkg --noconfirm"
+          diff <(su builder -c "makepkg --printsrcinfo") .SRCINFO
+          pacman -U --noconfirm wolfpack-bin-*.pkg.tar.zst
+          namcap wolfpack-bin-*.pkg.tar.zst
+          wolf --version
+          cd /tmp && su builder -c "wolf new hello && cd hello && wolf run --vm"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aur
+          path: |
+            aur/PKGBUILD
+            aur/.SRCINFO
+          include-hidden-files: true
+
+  publish:
+    needs: check
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: aur
+          path: aur
+      - name: Push to the AUR
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          if [ -z "$AUR_SSH_KEY" ]; then
+            echo "::warning::AUR_SSH_KEY is not set: the AUR package is not updated"
+            exit 0
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$AUR_SSH_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/aur"
+          git config --global user.name "Aleksey"
+          git config --global user.email "223102174+realfamousbae@users.noreply.github.com"
+          git clone ssh://aur@aur.archlinux.org/wolfpack-bin.git repo
+          cp aur/PKGBUILD aur/.SRCINFO repo/
+          cd repo
+          git add PKGBUILD .SRCINFO
+          git diff --cached --quiet || git commit -m "wolfpack ${TAG#v}"
+          git push origin HEAD:master

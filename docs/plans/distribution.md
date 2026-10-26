@@ -3,9 +3,9 @@
 Status: stage D1 is done; `wolf self update` of stage D4 is done in 0.2 (2026-10-18). Stage D2
 and the static builds of D4 are done after 0.3.0 (2026-10-23, the author chose all of D2): the tap
 and the bucket exist with 0.3.0, the release workflow builds the static archives and the `.deb`
-and `.rpm` packages, and `packages.yml` updates the managers when a release is published. What is
-left for the author: the secrets `PACKAGES_TOKEN` and `WINGET_TOKEN`, and the first winget pull
-request (section 3). Stage D3 waits for paid accounts; `wolf self uninstall` and the AUR wait.
+and `.rpm` packages, and `packages.yml` updates the managers when a release is published.
+`wolf self uninstall` is done in 0.5.0. The AUR package is prepared (2026-10-26) and waits for the
+author's AUR account and the secret `AUR_SSH_KEY` (section 3). Stage D3 waits for paid accounts.
 
 ## 1. Goal
 
@@ -50,7 +50,7 @@ Ordered by how many users each one reaches and how little it costs to keep.
 | Scoop (Windows) | done: the bucket `realfamousbae/scoop-wolfpack`, `bucket/wolfpack.json` written by `release/scoop/manifest.sh`, with `checkver` and `autoupdate` | `packages.yml`, as for Homebrew |
 | winget (Windows) | `release/winget/manifests.sh` writes the manifests: the zip as a portable command `wolf`, because the setup program runs `wolf setup` (about 1 GB) | `packages.yml` opens a pull request with `release/winget/submit.sh` (`WINGET_TOKEN`); Microsoft reviews each version |
 | Debian/Ubuntu, Fedora | done: `.deb` and `.rpm` of the static builds, made with nfpm (`release/linux/nfpm.yaml`) | built in the release workflow, tried on Ubuntu and Fedora |
-| Arch Linux | an AUR package `wolfpack-bin` | not yet |
+| Arch Linux | prepared: the AUR package `wolfpack-bin`, `PKGBUILD` and `.SRCINFO` written by `release/aur/package.sh` from the glibc archives of the release | `aur.yml` builds and installs the package in a clean Arch Linux container, then pushes it to the AUR (`AUR_SSH_KEY`) |
 | Cargo | done: `cargo install --locked wolfpack-lang` | `cargo publish` of every crate in order |
 
 Answers of the author (2026-10-23): separate repositories for the tap and the bucket are
@@ -60,6 +60,12 @@ The first winget pull request is opened by the author, because Microsoft asks it
 the contributor license agreement: `release/winget/manifests.sh 0.5.1 SHA256SUMS.txt out`, then
 `release/winget/submit.sh 0.5.1 out new`, with `gh` signed in. The later ones are opened by
 `packages.yml`.
+
+The AUR needs an account of the owner on aur.archlinux.org with an SSH key: the public key goes
+into the account (**My Account, SSH Public Key**), the private key into the secret `AUR_SSH_KEY`
+of `realfamousbae/wolfpack`. The first push of `aur.yml` creates the package `wolfpack-bin`; until
+the secret exists, the workflow only checks the package. To publish the current release after
+adding the secret, run the workflow **AUR** by hand with its tag.
 
 The tokens are fine-grained personal access tokens of the owner, added under **Settings, Secrets
 and variables, Actions** of `realfamousbae/wolfpack`: `PACKAGES_TOKEN` with **Contents: read and
