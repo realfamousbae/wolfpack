@@ -2080,6 +2080,232 @@ func FsExists(path string) bool {
 	return err == nil
 }"#,
     },
+    // ----- debug builds (spec chapter 8, section 4.3) -----
+    Piece {
+        name: "located",
+        deps: &["Panic", "message"],
+        imports: &["strings"],
+        code: r#"// located gives a panic of the language that a deferred operation raises the location of
+// the operation (debug builds); other panics go on unchanged.
+func located(location string) {
+	if r := recover(); r != nil {
+		if p, ok := r.(Panic); ok && strings.HasPrefix(p.Message, "panic: ") {
+			panic(PanicAt(strings.TrimPrefix(p.Message, "panic: "), location))
+		}
+		panic(r)
+	}
+}"#,
+    },
+    Piece {
+        name: "intAt",
+        deps: &["located", "int"],
+        imports: &[],
+        code: r#"// AddAt is Add with the location of the operation (debug builds).
+func AddAt(a, b int64, location string) int64 {
+	defer located(location)
+	return Add(a, b)
+}
+
+// SubAt is Sub with the location of the operation (debug builds).
+func SubAt(a, b int64, location string) int64 {
+	defer located(location)
+	return Sub(a, b)
+}
+
+// MulAt is Mul with the location of the operation (debug builds).
+func MulAt(a, b int64, location string) int64 {
+	defer located(location)
+	return Mul(a, b)
+}
+
+// DivAt is Div with the location of the operation (debug builds).
+func DivAt(a, b int64, location string) int64 {
+	defer located(location)
+	return Div(a, b)
+}
+
+// RemAt is Rem with the location of the operation (debug builds).
+func RemAt(a, b int64, location string) int64 {
+	defer located(location)
+	return Rem(a, b)
+}
+
+// NegAt is Neg with the location of the operation (debug builds).
+func NegAt(a int64, location string) int64 {
+	defer located(location)
+	return Neg(a)
+}
+
+// ShlAt is Shl with the location of the operation (debug builds).
+func ShlAt(a, n int64, location string) int64 {
+	defer located(location)
+	return Shl(a, n)
+}
+
+// ShrAt is Shr with the location of the operation (debug builds).
+func ShrAt(a, n int64, location string) int64 {
+	defer located(location)
+	return Shr(a, n)
+}
+
+// IntAbsAt is IntAbs with the location of the operation (debug builds).
+func IntAbsAt(a int64, location string) int64 {
+	defer located(location)
+	return IntAbs(a)
+}
+
+// IntPowAt is IntPow with the location of the operation (debug builds).
+func IntPowAt(a, exp int64, location string) int64 {
+	defer located(location)
+	return IntPow(a, exp)
+}"#,
+    },
+    Piece {
+        name: "indexAt",
+        deps: &["located", "index"],
+        imports: &[],
+        code: r#"// ItemAt is At with the location of the operation (debug builds).
+func ItemAt[T any](items []T, i int64, location string) T {
+	defer located(location)
+	return At(items, i)
+}
+
+// SetItemAt is SetAt with the location of the operation (debug builds).
+func SetItemAt[T any](items []T, i int64, value T, location string) {
+	defer located(location)
+	SetAt(items, i, value)
+}
+
+// RefItemAt is RefAt with the location of the operation (debug builds).
+func RefItemAt[T any](items []T, i int64, location string) *T {
+	defer located(location)
+	return RefAt(items, i)
+}"#,
+    },
+    Piece {
+        name: "SliceListAt",
+        deps: &["located", "SliceList"],
+        imports: &[],
+        code: r#"// SliceListAt is SliceList with the location of the operation (debug builds).
+func SliceListAt[T any](items []T, start, end int64, copy func(T) T, location string) []T {
+	defer located(location)
+	return SliceList(items, start, end, copy)
+}
+
+// SliceListFromAt is SliceListFrom with the location of the operation (debug builds).
+func SliceListFromAt[T any](items []T, start int64, copy func(T) T, location string) []T {
+	defer located(location)
+	return SliceListFrom(items, start, copy)
+}"#,
+    },
+    Piece {
+        name: "SliceStrAt",
+        deps: &["located", "SliceStr"],
+        imports: &[],
+        code: r#"// SliceStrAt is SliceStr with the location of the operation (debug builds).
+func SliceStrAt(text string, start, end int64, location string) string {
+	defer located(location)
+	return SliceStr(text, start, end)
+}
+
+// SliceStrFromAt is SliceStrFrom with the location of the operation (debug builds).
+func SliceStrFromAt(text string, start int64, location string) string {
+	defer located(location)
+	return SliceStrFrom(text, start)
+}"#,
+    },
+    Piece {
+        name: "ExitAt",
+        deps: &["located", "Exit"],
+        imports: &[],
+        code: r#"// ExitAt is Exit with the location of the operation (debug builds).
+func ExitAt(code int64, location string) {
+	defer located(location)
+	Exit(code)
+}"#,
+    },
+    Piece {
+        name: "floatAt",
+        deps: &["located", "float"],
+        imports: &[],
+        code: r#"// FloatToIntAt is FloatToInt with the location of the operation (debug builds).
+func FloatToIntAt(x float64, location string) int64 {
+	defer located(location)
+	return FloatToInt(x)
+}"#,
+    },
+    Piece {
+        name: "stringsAt",
+        deps: &["located", "strings"],
+        imports: &[],
+        code: r#"// StrSplitAt is StrSplit with the location of the operation (debug builds).
+func StrSplitAt(text, separator string, location string) []string {
+	defer located(location)
+	return StrSplit(text, separator)
+}
+
+// StrReplaceAt is StrReplace with the location of the operation (debug builds).
+func StrReplaceAt(text, from, to string, location string) string {
+	defer located(location)
+	return StrReplace(text, from, to)
+}
+
+// StrRepeatAt is StrRepeat with the location of the operation (debug builds).
+func StrRepeatAt(text string, times int64, location string) string {
+	defer located(location)
+	return StrRepeat(text, times)
+}"#,
+    },
+    Piece {
+        name: "listAt",
+        deps: &["located", "list"],
+        imports: &[],
+        code: r#"// ListInsertAt is ListInsert with the location of the operation (debug builds).
+func ListInsertAt[T any](items *[]T, i int64, item T, location string) {
+	defer located(location)
+	ListInsert(items, i, item)
+}
+
+// ListRemoveAt is ListRemove with the location of the operation (debug builds).
+func ListRemoveAt[T any](items *[]T, i int64, location string) T {
+	defer located(location)
+	return ListRemove(items, i)
+}
+
+// ListSwapAt is ListSwap with the location of the operation (debug builds).
+func ListSwapAt[T any](items []T, i, j int64, location string) {
+	defer located(location)
+	ListSwap(items, i, j)
+}
+
+// ListSumAt is ListSum with the location of the operation (debug builds).
+func ListSumAt(items []int64, location string) int64 {
+	defer located(location)
+	return ListSum(items)
+}"#,
+    },
+    Piece {
+        name: "MapAt",
+        deps: &["located", "Map"],
+        imports: &[],
+        code: r#"// GetAt is Get with the location of the operation (debug builds).
+func (m Map[K, V]) GetAt(key K, location string) V {
+	defer located(location)
+	return m.Get(key)
+}
+
+// SetAt is Set with the location of the operation (debug builds).
+func (m Map[K, V]) SetAt(key K, value V, location string) {
+	defer located(location)
+	m.Set(key, value)
+}
+
+// RefAt is Ref with the location of the operation (debug builds).
+func (m Map[K, V]) RefAt(key K, location string) *V {
+	defer located(location)
+	return m.Ref(key)
+}"#,
+    },
 ];
 
 /// The runtime package with the given pieces and their dependencies, in a fixed order.
