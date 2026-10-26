@@ -82,6 +82,38 @@ fn flush() {
 }"#,
     },
     Piece {
+        name: "depth",
+        deps: &["Panic"],
+        code: r#"thread_local! {
+    /// The calls of functions that can call themselves that have not returned yet.
+    static DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// The deepest nesting of calls of functions that can call themselves, the limit of the VM (spec
+/// chapter 8, section 4.3).
+const MAX_DEPTH: u32 = 100_000;
+
+/// A call of a function that can call itself, from `enter` until it is dropped.
+pub struct Depth(());
+
+/// Starts a call of a function that can call itself: past `MAX_DEPTH` nested calls it is a stack
+/// overflow, which Rust itself cannot recover from.
+pub fn enter() -> Depth {
+    let depth = DEPTH.get();
+    if depth >= MAX_DEPTH {
+        fail("stack overflow");
+    }
+    DEPTH.set(depth + 1);
+    Depth(())
+}
+
+impl Drop for Depth {
+    fn drop(&mut self) {
+        DEPTH.set(DEPTH.get().saturating_sub(1));
+    }
+}"#,
+    },
+    Piece {
         name: "big_stack",
         deps: &[],
         code: r#"/// The stacks tried for the thread that runs the program or a test, largest first. Derived

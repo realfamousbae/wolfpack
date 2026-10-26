@@ -1793,6 +1793,9 @@ impl<'p> Emitter<'p> {
         let body = match &f.body {
             Some(b) => {
                 let mut b = self.block(b, Want::Own)?;
+                if f.recursive {
+                    rebind.insert(0, self.depth_guard());
+                }
                 rebind.append(&mut b.stmts);
                 b.stmts = rebind;
                 Some(b)
@@ -3771,8 +3774,12 @@ impl<'p> Emitter<'p> {
                 let x = self.binary(*op, lhs, rhs)?;
                 self.shape(x, t, want, false)
             }
-            ExprKind::Closure { params, body, .. } => {
-                let c = self.closure(params, body, t)?;
+            ExprKind::Closure {
+                params,
+                body,
+                recursive,
+            } => {
+                let c = self.closure(params, body, t, *recursive)?;
                 match want {
                     Want::Read(_) => reference(c),
                     _ => call(path("Box::new"), vec![c]),
@@ -3966,6 +3973,7 @@ impl<'p> Emitter<'p> {
         params: &'p [ir::Param],
         body: &'p Block,
         ty: &IrType,
+        recursive: bool,
     ) -> Result<Expr, Error> {
         let _ = ty;
         let typed = std::mem::take(&mut self.f.typed_closure);
@@ -4033,7 +4041,33 @@ impl<'p> Emitter<'p> {
                 return Ok(*f.clone());
             }
         }
+        let body = if recursive {
+            let guard = self.depth_guard();
+            match body {
+                Expr::Block(mut b) => {
+                    b.stmts.insert(0, guard);
+                    Expr::Block(b)
+                }
+                other => Expr::Block(rs::Block {
+                    stmts: vec![guard],
+                    tail: Some(Box::new(other)),
+                }),
+            }
+        } else {
+            body
+        };
         Ok(Expr::Closure(ps, Box::new(body), captures))
+    }
+
+    /// `let _depth = wolf_rt::enter();` at the start of a function that can call itself (spec
+    /// chapter 8, section 4.3): its nested calls are counted until the guard is dropped, so that
+    /// recursion that never ends is `panic: stack overflow` and not an abort of Rust.
+    fn depth_guard(&mut self) -> Stmt {
+        Stmt::Let(
+            Pat::Bind("_depth".to_string(), false),
+            None,
+            Some(self.rt_call("depth", "enter", Vec::new())),
+        )
     }
 
     // ----- operators --------------------------------------------------------------------------
@@ -4828,7 +4862,11 @@ impl<'p> Emitter<'p> {
     /// A function argument of an iterator adapter, which receives `&T`.
     fn fn_arg(&mut self, e: &'p IrExpr) -> Result<Expr, Error> {
         match &e.kind {
-            ExprKind::Closure { params, body, .. } => self.closure(params, body, &e.ty),
+            ExprKind::Closure {
+                params,
+                body,
+                recursive,
+            } => self.closure(params, body, &e.ty, *recursive),
             ExprKind::FnValue(def) => self.fn_value(*def, &e.ty),
             _ => {
                 let f = self.expr(e, Want::Op)?;
