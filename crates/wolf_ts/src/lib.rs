@@ -194,7 +194,10 @@ export default async function* reporter(source) {
     } else if (event.type === "test:fail") {
       const error = data.details?.error;
       const cause = error?.cause ?? error;
-      const message = cause?.message ?? String(cause);
+      // Node.js's own stack overflow, as `report` of the runtime writes it (spec chapter 8,
+      // section 4.3).
+      const message =
+        cause?.name === "RangeError" ? "panic: stack overflow" : (cause?.message ?? String(cause));
       if (ours || message !== "test failed") {
         // A failed test, or a test file that could not run at all.
         failures.push([name, message]);
