@@ -45,8 +45,6 @@ Scoop, winget, `.deb`/`.rpm` packages and static Linux builds after 0.3.
 
 ## The virtual machine (from 2026-10-22, chapter 10, D10.5 and D10.7)
 
-- Stack overflow on Go and Rust: print `panic: stack overflow` and exit with 101, as the TypeScript
-  target and the VM do (today Go prints its runtime trace with exit code 2 and Rust aborts).
 - A bytecode file and a `wolf build` form for it.
 - `exit()` inside a test: the VM fails that test with `the test exited with code N` and runs the
   others; the targets end the whole run in their own ways. A rule for every target (author agreed
