@@ -624,7 +624,8 @@ The string after `from` is the full path in the notation of the target (author):
 
 For a **method** path (a Go method expression, a TS path through `.prototype.`, a Rust associated
 function taking `self`), the first wolfpack parameter becomes the receiver. A path that does not fit
-the target's form is an error (E0705).
+the target's form is an error (E0705). TypeScript paths, with members of globals and of exports,
+are described in detail in section 8.2b.
 
 The path of a Go **opaque type** may start with `*` for a pointer type (author, 2026-10-14):
 `type Regex from "*regexp.Regexp"`.
@@ -670,6 +671,78 @@ extern {
    module of `src/`) is an error (E0710, naming both).
 5. `wolf test` does not run tests written in the native files; they run with the tools of the
    target in `out/<target>/`.
+
+### 8.2b TypeScript paths in detail
+
+Written down on 2026-10-26 (D7.40). Rules 1 to 5 describe what `wolf` 0.5.1 does; they fill a gap
+of section 8.2 and change nothing. Rules 6 and 7 are **[PROPOSAL]** (D7.41), waiting for the author.
+
+A TypeScript path names a **global** (a path without `#`) or an **export of a module**
+(`module#...`). The part after `#`, or the whole path of a global, is a **member path**: names
+separated by `.`, each a JavaScript identifier (ASCII letters, digits, `_` and `$`, not starting
+with a digit). `wolf` checks only this form (E0705); whether the global, the module or the export
+exists and has the declared types is checked by `tsc`.
+
+1. **Globals.** A path without `#` names a global of the JavaScript environment, with any number of
+   names: `"parseInt"`, `"Math.max"`, `"Number.isInteger"`, `"JSON.stringify"`. The generated
+   wrapper calls it as written: `Math.max(p0, p1)`. A type path without `#` is a global type,
+   dotted as well: `type Pattern from "RegExp"`.
+2. **Methods.** A path that contains `.prototype.` names a method: the first wolfpack parameter is
+   the receiver, the others are its arguments. `fn upper(s: String) -> String from
+   "String.prototype.toUpperCase"` calls `p0.toUpperCase()`. Only the names after `.prototype.` are
+   used; the names before it document the type of the receiver and are not checked. In 0.5.1 every
+   name after `.prototype.` is used (`"A.prototype.b.c"` calls `p0.b.c()`); rule 7 proposes to
+   allow exactly one.
+3. **Exports.** `module#export` imports `export` from `module`, as TypeScript's `import` names it:
+   a package of `[extern.ts.dependencies]` (`"fastest-levenshtein#distance"`), a subpath of one
+   (`"date-fns/addDays#addDays"`), or a built-in module of Node.js (`"node:path#join"`). The
+   wrapper calls the imported function: `import { distance } from "fastest-levenshtein"`.
+   `module#default` names the default export. After `#` comes exactly **one** name:
+   `"node:path#posix.join"` is E0705 in 0.5.1. A type path after `#` is one name too:
+   `type Emitter from "node:events#EventEmitter"`.
+4. **Members of native exports.** A `native:` path (section 8.2a) may continue the export with a
+   member, in three forms, for functions only:
+
+   | Path | Calls |
+   | --- | --- |
+   | `"native:words#Index.size"` | the static member `size` of the export `Index`: `Index.size(p0)` |
+   | `"native:words#Index.prototype.add"` | the method `add`: the first parameter is the receiver, `p0.add(p1)` |
+   | `"native:words#Index.constructor"` | the constructor: `new Index(p0)` |
+
+   These are the paths that native modules generate for the methods and constructors of classes
+   (section 8.7, rule 17), and a written `extern` block accepts them too. The export may be any
+   exported value, not only a class: `"native:util#helpers.join"` calls `helpers.join(p0)`.
+5. **Types of Node.js.** The generated project has the library of ES2022 and no type declarations
+   of Node.js (its `tsconfig.json`, chapter 8, section 2). A path to a built-in module of Node.js
+   (`"node:path#join"`) or to a global that only Node.js has (`"console.error"`, `"process.cwd"`,
+   `"setTimeout"`) passes `wolf check`, but `tsc` rejects the generated code unless
+   `"@types/node"` is listed in `[extern.ts.dependencies]`. `wolf` reports that rejection as
+   E0802, as if `wolf` had generated wrong code (chapter 8, section 9).
+6. **[PROPOSAL]** (D7.41) **Members of every export.** After `#`, the export of any module (not only
+   of `native:` code) may be followed by members, in the forms of rule 4 and with any number of
+   names before the last one:
+
+   | Path | Generated |
+   | --- | --- |
+   | `"node:path#posix.join"` | `import { posix } from "node:path"`, then `posix.join(p0, p1)` |
+   | `"some-lib#Parser.parse"` | `import { Parser } from "some-lib"`, then `Parser.parse(p0)` |
+   | `"some-lib#Parser.prototype.parse"` | `p0.parse(p1)`: the first parameter is the receiver |
+   | `"some-lib#Parser.constructor"` | `new Parser(p0)` |
+   | `"some-lib#default.parse"` | the member `parse` of the default export |
+
+   The export, the first name after `#`, is imported once per module; the rest is a member path on
+   it. A type path after `#` stays one name.
+7. **[PROPOSAL]** (D7.41) **One meaning of `prototype` and `constructor`** in every path, global,
+   export or native:
+   - `prototype` may only be the name before the last one: `"String.prototype.toUpperCase"`,
+     `"Intl.Collator.prototype.compare"`. Elsewhere it is E0705 (`"String.prototype.trim.call"`,
+     which 0.5.1 accepts and turns into `p0.trim.call()`, losing the receiver).
+   - `constructor` may only be the last name, after at least one other, and makes a `new`
+     expression for globals too: `fn compile(p: String) -> Pattern from "RegExp.constructor"` calls
+     `new RegExp(p0)`. In 0.5.1 a global `"RegExp.constructor"` is called as
+     `RegExp.constructor(p0)`, which in JavaScript calls `Function` instead of creating a
+     `RegExp`, and `tsc` accepts it. A written `extern` block has no other way to call a
+     constructor of TypeScript.
 
 ### 8.3 Opaque types
 
@@ -1000,3 +1073,6 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.33 | **[DRAFT]** `Bytes` at the `extern` boundary (section 8.4, rules 1 and 7; section 8.4a): as a parameter, a result, inside `List`, `Option` and `Map` values, as a record field and in a callback; the target forms are D8.25. Native modules read `&[u8]`, `Vec<u8>`, `&Vec<u8>` (Rust), `[]byte` (Go) and `Uint8Array` (TypeScript) as `Bytes` (section 8.7, rules 3, 9 and 13). This **changes the signatures** of native modules that use `u8` slices today, which the readers map to `List<Int>`; TypeScript's `Uint8Array` goes from not available to `Bytes`. Recommendation: accept the change, since bytes are what such code means and a list of `Int` costs eight bytes or a `bigint` for each byte. Alternative: keep `List<Int>` for them and read `Bytes` only from written `extern` blocks, which breaks nothing but leaves native modules without bytes | **proposed** (2026-10-26), waiting for the author |
 | D7.34 | **[DRAFT]** Full Unicode case mapping (section 4.3; section 4.3a): `to_upper` and `to_lower` of `String`, the default full case conversion of the Unicode Standard (the unconditional entries of `SpecialCasing.txt`, then the simple mappings of `UnicodeData.txt`, and Final_Sigma), with the data of Unicode 17.0.0 on every target and in the VM; no locale, no title case, no case folding; the result may be longer than the text; `to_upper_ascii` and `to_lower_ascii` stay. What the targets do, measured on 2026-10-26 with Node.js 26.12, Go 1.27.2 and Rust 1.99.1, which all have Unicode 17.0: TypeScript and Rust agree on every scalar value and on every Final_Sigma context tried; Go maps one scalar value to one, so it differs on 103 of them (`ß`, `ﬁ`, `ŉ`, `İ` and 99 more), and has no Final_Sigma (`"ΟΔΟΣ"` gives `"οδοσ"`). The oldest tools of chapter 8 do not share a Unicode version (Go 1.24 has 15.0 and Rust 1.85 has 16.0, by their release notes, not checked here; Node.js 22 has that of the ICU it bundles); `wolf` also runs tools found on `PATH` (chapter 8, section 2a, rule 1), and the VM would use the Unicode of the Rust that compiled `wolf`. So the version of the native functions is not under the control of `wolf`. Recommendation: **tables of their own** in every runtime piece and in the VM (D8.26), so that a program gives the same text everywhere and the result changes only with a release of `wolf`. Alternatives: (a) **the targets' own functions**, with the Go runtime adding the 103 mappings and Final_Sigma: much less code and the same results while all tools have one Unicode version, but otherwise a program prints different text on different machines, also for old letters (`"ƛ".to_upper()` is `"ƛ"` with the data of Unicode 13.0 and `"Ƛ"` with that of 17.0); (b) **simple case mapping**, one scalar value for one, as Go does: keeps `len()`, but needs tables in TypeScript and Rust as well, and gives `"STRAßE"`, which surprises users of JavaScript, Rust, Python and Java; (c) ASCII only, as today (D7.3) | **proposed** (2026-10-26), waiting for the author |
 | D7.35 | **[DRAFT]** When the Unicode version of section 4.3a moves (rule 5). A new version can change what a program prints, so recommendation: only in a minor release of `wolf` (0.x.0), to the version of the Rust that `wolf setup` of that release installs, so that the tables can be tested against `char::to_uppercase` (D8.26), announced in the CHANGELOG with the number of scalar values whose mapping changes. The first version: 17.0.0, which Rust 1.99.1 and Go 1.27.2 of `wolf setup` have (chapter 8, section 2a, rule 2; with tables of its own, the version of Node.js does not matter). Alternatives: in any release, as the versions of the tools move; or only with the author's word each time | **proposed** (2026-10-26), waiting for the author |
+| D7.21 | Debug builds (section 3, rule 1): `--debug` for `wolf build`, `wolf run` and `wolf test` (and with `--vm`) adds the location of the failing operation to the panics of the language, `panic at <file>:<line>:<column>: <message>`; stack overflow stays without one; builds without the flag do not change. Alternatives: a setting in `wolfpack.toml` (`[build] debug = true`); locations always in the VM only | **proposed** (2026-10-26), waiting for the author |
+| D7.40 | TypeScript paths as `wolf` 0.5.1 builds them (section 8.2b, rules 1 to 5; chapter 8, section 8, rule 1): globals with any number of names, called as written; methods through `.prototype.`; `module#export` with exactly one name after `#`; the member forms `#X.name`, `#X.prototype.name` and `#X.constructor` only for `native:` paths; Node.js modules and globals need `"@types/node"` in `[extern.ts.dependencies]`, else `tsc` rejects the project (E0802) | **proposed** (2026-10-26), waiting for the author: this only writes down existing behaviour and changes nothing |
+| D7.41 | Member paths of TypeScript (section 8.2b, rules 6 and 7): every export may have members, as `native:` exports already do (`"node:path#posix.join"`, `"some-lib#Parser.parse"`, `"some-lib#Parser.prototype.parse"`, `"some-lib#Parser.constructor"`); `prototype` only before the last name and `constructor` only as the last name, else E0705; a global `.constructor` is `new` (`"RegExp.constructor"` gives `new RegExp(p0)`, where 0.5.1 calls `Function`). Alternatives: keep one name after `#` and call members through a `native/` wrapper; constructors written as `"new RegExp"` instead of `.constructor` | **proposed** (2026-10-26), waiting for the author |

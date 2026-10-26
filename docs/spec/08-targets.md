@@ -605,6 +605,14 @@ copy defensively.
 
 1. Imports are generated from the path strings of chapter 7: `import { parse } from "some-lib"`,
    `import "crypto/sha256"`, `use sha2::Sha256;`.
+   In TypeScript (chapter 7, section 8.2b; written down 2026-10-26, D7.40) a global is called as
+   written and is not imported. An export is imported under its own name, or under a name with a
+   `$` suffix, which wolfpack names cannot produce, when the wrapper function has the same name or
+   for the default export (`join as join$extern`, `default as parse$default`). A member path of a
+   `native:` export imports the export as `Index as Index$class` and calls the member on it:
+   `Index$class.size(p0)`, `p0.add(p1)` for a `.prototype.` method, `new Index$class(p0)` for
+   `.constructor`. **[INTERNAL]** With D7.41 (proposed) every export with members is imported and
+   called this way, and a global `.constructor` becomes `new`: `new RegExp(p0)`.
 2. Boundary conversions (author, 2026-10-14):
    - TS: `Int` is passed to extern code as a `number` and checked to be a safe integer (otherwise a
      panic); returned numbers must be integers and become `bigint`. Exceptions become `Err` or a
