@@ -117,8 +117,19 @@ Added after approval, while writing the examples. **[INTERNAL]**
    "./text/words.js"`; Rust `pub use crate::text::words::capitalize;` with the inner modules
    declared `pub(crate)`; Go has no re-exports, so the root package declares type aliases
    (`type User = model.User`) and forwarding functions.
-2. **`tests/`**: TS `test/<path>.test.ts`; Go an external test package (`package mylib_test`) in the
-   root directory; Rust the native `tests/<path>.rs` integration tests of Cargo.
+2. **`tests/`**: TS `test/<path>.test.ts`. Go: an external test package in the root directory,
+   `package mylib_test` for a library and `package main_test` for a program (an external test
+   package may import the package `main` of its own directory), one file
+   `tests_<path with _>_test.go` per file (`tests/a/b.wolf` gives `tests_a_b_test.go`); a file
+   name already taken, also by the root package's own `main_test.go` or `mylib_test.go`, gets a
+   `_` before `_test.go`, and since the files share one package, their helpers get distinct names
+   as in rule 4 of section 3. Rust: for a library, the native `tests/<path>.rs` integration tests
+   of Cargo, where a file in a directory of `tests/` (which Cargo does not find by itself) is
+   declared as a `[[test]]` named `<path with _>` in `Cargo.toml` of a test build; for a program,
+   which Cargo's integration tests cannot use, modules `crate::tests::<path>` in
+   `src/tests/<path>.rs`, declared in the `#[cfg(test)] mod tests` of `src/main.rs` and run by
+   `cargo test --bin`. On Rust, a test function whose name a function, constant or import of its
+   scope already has (`test "twice"` next to the imported `twice`) gets a `_` suffix.
 3. **`examples/`**: TS `examples/<path>.ts` compiled as separate entry points; Go one `main` package
    per example in `examples/<path>/main.go`; Rust the native `examples/<path>.rs` of Cargo.
 
