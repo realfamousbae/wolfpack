@@ -195,9 +195,10 @@ export default async function* reporter(source) {
       const error = data.details?.error;
       const cause = error?.cause ?? error;
       // Node.js's own stack overflow, as `report` of the runtime writes it (spec chapter 8,
-      // section 4.3).
-      const message =
-        cause?.name === "RangeError" ? "panic: stack overflow" : (cause?.message ?? String(cause));
+      // section 4.3); other `RangeError`s keep their message.
+      const overflow =
+        cause?.name === "RangeError" && cause?.message === "Maximum call stack size exceeded";
+      const message = overflow ? "panic: stack overflow" : (cause?.message ?? String(cause));
       if (ours || message !== "test failed") {
         // A failed test, or a test file that could not run at all.
         failures.push([name, message]);

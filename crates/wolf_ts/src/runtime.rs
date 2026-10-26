@@ -898,7 +898,7 @@ export function replace<T>(place: Ref<T>, value: T): T {
   } else if (error instanceof WolfPanic) {
     process.stderr.write(error.message + "\n");
     process.exitCode = 101;
-  } else if (error instanceof RangeError) {
+  } else if (error instanceof RangeError && error.message === "Maximum call stack size exceeded") {
     process.stderr.write("panic: stack overflow\n");
     process.exitCode = 101;
   } else if (error instanceof Error) {
