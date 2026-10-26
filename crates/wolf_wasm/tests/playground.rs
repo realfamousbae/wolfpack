@@ -113,8 +113,8 @@ fn quote(s: &str) -> String {
 }
 
 /// The programs of `crates/wolf_cli/tests/run/` that the playground can hold, one file without
-/// code of the targets, files or the environment, give in its VM the standard output, error
-/// output and exit code they give on the targets (spec chapter 10).
+/// code of the targets, files or the environment and not built for debugging, give in its VM the
+/// standard output, error output and exit code they give on the targets (spec chapter 10).
 #[test]
 fn run_programs_give_their_target_output_in_the_playground() {
     use std::fs;
@@ -136,7 +136,9 @@ fn run_programs_give_their_target_output_in_the_playground() {
         let Ok(source) = fs::read_to_string(dir.join("src/main.wolf")) else {
             continue;
         };
+        // The playground makes no debug builds (`debug.txt`: built with `--debug`).
         let held = !name.starts_with("E0")
+            && !dir.join("debug.txt").is_file()
             && sources.len() == 1
             && !dir.join("native").exists()
             && !manifest.contains("[config")
