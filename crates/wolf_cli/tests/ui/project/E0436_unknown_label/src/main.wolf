@@ -9,4 +9,8 @@ main {
             break inner
         }
     }
+    let x = loop {
+        break found: 5
+    }
+    print(x.to_string())
 }

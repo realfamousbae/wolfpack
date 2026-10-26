@@ -1621,7 +1621,9 @@ impl<'p> Emitter<'p> {
         // were written;
         // `manual_contains` is newer than Rust 1.85. Clippy's judgements of what the program
         // itself computes are allowed too: `0.0 / 0.0` and `x == x` are how a wolfpack program
-        // writes NaN and tests for it, and `3.14159` is a value it may write.
+        // writes NaN and tests for it, and `3.14159` is a value it may write. A `loop` that
+        // always ends in its first round, such as a search left with `break search: value` from
+        // the loops inside it (chapter 3, section 4, rule 5), is written as it is too.
         let attrs = if matches!(
             m.role,
             ModuleRole::Entry | ModuleRole::Example | ModuleRole::Test
@@ -1634,6 +1636,7 @@ impl<'p> Emitter<'p> {
                 "#![allow(clippy::match_single_binding, clippy::approx_constant)]".to_string(),
                 "#![allow(clippy::manual_find, clippy::eq_op, clippy::zero_divided_by_zero)]"
                     .to_string(),
+                "#![allow(clippy::never_loop)]".to_string(),
             ]
         } else {
             Vec::new()

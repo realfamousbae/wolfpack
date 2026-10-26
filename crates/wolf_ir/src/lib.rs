@@ -747,7 +747,7 @@ pub enum ExprKind {
         /// The body.
         body: Block,
     },
-    /// `break`, `break label` or `break value`.
+    /// `break`, `break label`, `break value` or `break label: value`.
     Break {
         /// The labelled loop it leaves; `None` for the innermost loop.
         label: Option<String>,

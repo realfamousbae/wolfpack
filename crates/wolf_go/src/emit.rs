@@ -4387,8 +4387,24 @@ impl<'p> Emitter<'p> {
                 out.push(Stmt::Break(label));
             }
             ExprKind::Break {
-                label: Some(user), ..
+                label: Some(user),
+                value,
             } => {
+                if let Some(v) = value {
+                    // `break label: value` leaves the labelled `loop` with the value (D3.11).
+                    let target = self
+                        .f
+                        .loops
+                        .iter()
+                        .rev()
+                        .find(|l| l.user.as_deref() == Some(user.as_str()))
+                        .and_then(|l| l.target.clone());
+                    match target {
+                        Some(Target::Return) => return self.control_return(v, out),
+                        Some(t) => self.tail(v, t, out)?,
+                        None => self.tail(v, Target::Discard, out)?,
+                    }
+                }
                 let l = self.user_label(user)?;
                 out.push(Stmt::Break(Some(l)));
             }

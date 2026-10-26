@@ -754,9 +754,10 @@ impl Resolver<'_> {
                     self.jump_label(label, locals);
                 }
                 if let Some(value) = value {
-                    // `break name` with an unknown name: a label was most likely meant.
+                    // `break name` with an unknown name: a label was most likely meant. After
+                    // `break label:` the value is always a value (D3.11).
                     let unknown = match &value.kind {
-                        ExprKind::Name(name) => {
+                        ExprKind::Name(name) if label.is_none() => {
                             self.lookup_local(&name.name, locals).is_none()
                                 && self
                                     .lookup_module_level(

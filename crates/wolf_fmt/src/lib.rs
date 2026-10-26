@@ -1003,7 +1003,8 @@ impl<'a> Fmt<'a> {
                 self.block(body, true),
             ]),
             ExprKind::Break { label, value } => match (label, value) {
-                (Some(l), _) => text(format!("break {}", l.name)),
+                (Some(l), Some(v)) => cat(vec![text(format!("break {}: ", l.name)), self.expr(v)]),
+                (Some(l), None) => text(format!("break {}", l.name)),
                 (None, Some(v)) => cat(vec![text("break "), self.expr(v)]),
                 (None, None) => text("break"),
             },

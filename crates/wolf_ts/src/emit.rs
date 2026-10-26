@@ -2857,8 +2857,19 @@ impl<'p> Emitter<'p> {
             },
             ExprKind::Break { label, value } => {
                 if let Some(v) = value {
-                    // `break value` leaves the innermost loop, a `loop` (chapter 3, rule 4.5).
-                    match self.f.loops.last().and_then(|(_, t)| t.clone()) {
+                    // `break value` leaves the innermost loop, a `loop`, and `break label: value`
+                    // the labelled one (chapter 3, rule 4.5; D3.11).
+                    let target = match label {
+                        Some(l) => self
+                            .f
+                            .loops
+                            .iter()
+                            .rev()
+                            .find(|(name, _)| name.as_deref() == Some(l.as_str()))
+                            .and_then(|(_, t)| t.clone()),
+                        None => self.f.loops.last().and_then(|(_, t)| t.clone()),
+                    };
+                    match target {
                         Some(Target::Return) => {
                             let want = self.ret_repr();
                             let v = self.value(v, out, want)?;

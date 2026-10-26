@@ -897,7 +897,8 @@ pub enum ExprKind {
         /// `else` followed by a block or another `if`.
         otherwise: Option<Box<Expr>>,
     },
-    /// `label: loop { body }` (0.2).
+    /// `label: loop { body }` (0.2). A labelled `loop` may stand where an expression is
+    /// expected (D3.11).
     Loop {
         /// The label of the loop.
         label: Option<Ident>,
@@ -915,8 +916,9 @@ pub enum ExprKind {
     },
     /// `return e?`
     Return(Option<Box<Expr>>),
-    /// `break`, `break label`, `break value`. The parser takes a name after `break` as a label
-    /// when an enclosing loop has that label.
+    /// `break`, `break label`, `break value`, `break label: value` (D3.11). The parser takes a
+    /// name alone after `break` as a label when an enclosing loop has that label, and a name
+    /// followed by `:` always.
     Break {
         /// The label of the loop that is left.
         label: Option<Ident>,
