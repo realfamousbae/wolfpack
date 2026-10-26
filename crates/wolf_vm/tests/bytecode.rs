@@ -1,4 +1,5 @@
-//! The bytecode of small functions (snapshots) and programs run in memory, with their output.
+//! The bytecode of small functions (snapshots), programs run in memory with their output, and
+//! bytecode files (spec chapter 10, section 1b) written, read back and damaged.
 
 // Test helpers may fail loudly.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -202,5 +203,209 @@ fn overflow_and_division_panic() {
             "module main\n\nmain {{\n    print(({expr}).to_string())\n}}\n"
         ));
         assert_eq!((code, err), (101, format!("panic: {message}\n")), "{expr}");
+    }
+}
+
+/// A program with most kinds of instructions and constants: config values of every kind, a
+/// struct update, an interface call, a match on variants, a map, closures, a string slice, the
+/// arguments and an `Err` from `main`.
+const RICH: &str = r#"module main
+
+imports {
+    std.map.{get}
+}
+
+config {
+    limit: Int = 3
+    name: String = "wolf"
+    loud: Bool = true
+    ratio: Float = 0.5
+}
+
+types {
+    struct Point {
+        x: Int
+        y: Int
+    }
+
+    enum Shape {
+        Circle(Float)
+        Rect(Point)
+    }
+}
+
+interfaces {
+    interface Sized {
+        fn size(self) -> Int
+    }
+}
+
+impl {
+    Point: Sized {
+        fn size(self) -> Int {
+            self.x * self.y
+        }
+    }
+}
+
+main(args: List<String>) -> Result<Void, Error> {
+    let p = Point { x: 2, y: 5 }
+    let q = Point { y: 7, ..p.copy() }
+    let things: List<Sized> = [p, q.copy()]
+    var total = 0
+    for t in things {
+        total += t.size()
+    }
+    print(f"{name} {total} {limit} {loud} {ratio}")
+    let shapes = [Shape.Circle(1.5), Shape.Rect(q)]
+    for s in shapes {
+        match s {
+            Shape.Circle(r) => print(f"circle {r * 2.0}")
+            Shape.Rect(pt) => print(f"rect {pt.x}")
+        }
+    }
+    var counts: Map<String, Int> = ["a": 1]
+    counts["a"] += 1
+    let found = get(counts, "a")
+    print(f"{found} {counts}")
+    let add = |n: Int| |x: Int| x + n
+    let add4 = add(4)
+    let word = "wolfpack"
+    print(f"{add4(5)} {word[0..4]} {args}")
+    let n = "x".parse_int()?
+    print(n.to_string())
+    Ok(())
+}
+"#;
+
+const VERSION: &str = "1.2.3";
+
+/// The bytecode file of a program of one module.
+fn file(source: &str) -> Vec<u8> {
+    let p = program(source);
+    let entry = p
+        .modules
+        .iter()
+        .position(|m| m.role == wolf_ir::ModuleRole::Entry)
+        .unwrap();
+    wolf_vm::write_file(&p, entry, VERSION).unwrap()
+}
+
+#[test]
+fn a_bytecode_file_runs_like_the_program() {
+    let bytes = file(RICH);
+    assert!(bytes.starts_with(b"wolfpack bytecode 1.2.3\n"));
+    assert_eq!(
+        bytes,
+        file(RICH),
+        "a build writes the same bytes every time"
+    );
+    let exe = wolf_vm::read_file(&bytes, VERSION).unwrap();
+    let mut io = Captured::default();
+    let code = exe.run(&mut io).unwrap();
+    assert_eq!(run(RICH), (code, io.out.clone(), io.err.clone()));
+    assert_eq!(
+        (code, io.out.as_str(), io.err.as_str()),
+        (
+            1,
+            "wolf 24 3 true 0.5\ncircle 3.0\nrect 2\nSome(2) [\"a\": 2]\n9 wolf [\"one\"]\n",
+            "error: cannot parse x\n"
+        )
+    );
+}
+
+#[test]
+fn a_file_of_another_version_is_not_read() {
+    let bytes = file(RICH);
+    assert_eq!(
+        wolf_vm::read_file(&bytes, "1.2.4").err(),
+        Some(wolf_vm::ReadError::OtherVersion(VERSION.to_string()))
+    );
+    assert_eq!(
+        wolf_vm::read_file(b"fn main() {}\n", VERSION).err(),
+        Some(wolf_vm::ReadError::NotBytecode)
+    );
+}
+
+/// The checksum of a file, as the format describes it: FNV-1a of 64 bits.
+fn checksum(bytes: &[u8]) -> u64 {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in bytes {
+        hash ^= u64::from(*b);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
+}
+
+/// About 3000 positions of a file of `len` bytes: every one of the first 64 (the header and the
+/// checksum), then evenly spread.
+fn positions(len: usize) -> Vec<usize> {
+    let step = (len / 3000).max(1);
+    (0..len.min(64)).chain((64..len).step_by(step)).collect()
+}
+
+/// The changes made to one byte.
+fn changes(b: u8) -> [u8; 4] {
+    [b ^ 0xff, b ^ 0x01, 0x00, 0xff]
+}
+
+/// Any changed byte and any cut is found, and reading never panics.
+#[test]
+fn a_damaged_file_is_an_error() {
+    let bytes = file(RICH);
+    for at in positions(bytes.len()) {
+        for new in changes(bytes[at]) {
+            let mut damaged = bytes.clone();
+            damaged[at] = new;
+            if damaged != bytes {
+                assert!(
+                    wolf_vm::read_file(&damaged, VERSION).is_err(),
+                    "byte {at} set to {new}"
+                );
+            }
+        }
+    }
+    for cut in positions(bytes.len()) {
+        assert!(
+            wolf_vm::read_file(&bytes[..cut], VERSION).is_err(),
+            "cut at {cut}"
+        );
+    }
+}
+
+/// Damage that the checksum cannot see, because the file was changed and its checksum written
+/// again, is found by the checks of the image or reads as another program: reading never panics
+/// and the VM is never given an image it cannot run.
+#[test]
+fn a_damaged_file_with_a_right_checksum_never_panics() {
+    let bytes = file(RICH);
+    let header = bytes.iter().position(|b| *b == b'\n').unwrap() + 1;
+    let body = &bytes[header + 8..];
+    let seal = |body: &[u8]| {
+        let mut out = bytes[..header].to_vec();
+        out.extend(checksum(body).to_le_bytes());
+        out.extend(body);
+        out
+    };
+    assert!(wolf_vm::read_file(&seal(body), VERSION).is_ok());
+    let mut rejected = 0;
+    let mut tried = 0;
+    for at in positions(body.len()) {
+        for new in changes(body[at]) {
+            let mut damaged = body.to_vec();
+            damaged[at] = new;
+            tried += 1;
+            if wolf_vm::read_file(&seal(&damaged), VERSION).is_err() {
+                rejected += 1;
+            }
+        }
+    }
+    // Most changes break the structure; the others change a number or a text that may be right.
+    assert!(rejected * 2 > tried, "{rejected} of {tried} rejected");
+    for cut in positions(body.len()) {
+        assert!(
+            wolf_vm::read_file(&seal(&body[..cut]), VERSION).is_err(),
+            "cut at {cut}"
+        );
     }
 }

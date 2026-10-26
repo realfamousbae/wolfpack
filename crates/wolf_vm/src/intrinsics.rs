@@ -29,6 +29,13 @@ macro_rules! intrinsics {
                     _ => None,
                 }
             }
+
+            /// The qualified name of the intrinsic, as [`Intrinsic::from_name`] takes it.
+            pub fn name(self) -> &'static str {
+                match self {
+                    $(Intrinsic::$variant => $name,)*
+                }
+            }
         }
     };
 }
