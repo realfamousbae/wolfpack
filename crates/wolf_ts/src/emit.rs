@@ -339,7 +339,7 @@ fn needs_stmts(e: &IrExpr) -> bool {
         | ExprKind::Break { .. }
         | ExprKind::Continue { .. } => true,
         ExprKind::Interpolate(parts) => parts.iter().any(needs_stmts),
-        ExprKind::Call { callee, args } => {
+        ExprKind::Call { callee, args, .. } => {
             let c = match callee {
                 Callee::Method { recv, .. }
                 | Callee::Interface { recv, .. }
@@ -350,7 +350,7 @@ fn needs_stmts(e: &IrExpr) -> bool {
             c || args.iter().any(|a| needs_stmts(&a.value))
         }
         ExprKind::Field { base, .. } | ExprKind::Copy(base) => needs_stmts(base),
-        ExprKind::Index { base, index } => needs_stmts(base) || needs_stmts(index),
+        ExprKind::Index { base, index, .. } => needs_stmts(base) || needs_stmts(index),
         ExprKind::Slice {
             base, start, end, ..
         } => {
@@ -396,6 +396,7 @@ fn plain_text<'e>(p: &Program, e: &'e IrExpr) -> Option<&'e IrExpr> {
         ExprKind::Call {
             callee: Callee::Method { recv, method },
             args,
+            ..
         } if args.is_empty()
             && matches!(recv.ty, IrType::Int | IrType::Bool | IrType::String)
             && p.def(*method).is_some_and(|d| d.name == "to_string") =>
@@ -1162,6 +1163,25 @@ impl<'p> Emitter<'p> {
     fn rt_call(&mut self, name: &'static str, args: Vec<Expr>) -> Expr {
         let f = self.rt(name);
         call(f, args)
+    }
+
+    /// A call of a helper that can panic; in a debug build, of its `twin`, which takes the
+    /// location of the operation too (spec chapter 8, section 4.3):
+    /// `$rt.addAt(a, b, "src/main.wolf:3:9")`.
+    fn rt_call_at(
+        &mut self,
+        name: &'static str,
+        twin: &'static str,
+        mut args: Vec<Expr>,
+        location: Option<&String>,
+    ) -> Expr {
+        match location {
+            Some(l) => {
+                args.push(Expr::Str(l.clone()));
+                self.rt_call(twin, args)
+            }
+            None => self.rt_call(name, args),
+        }
     }
 
     // ----- names and imports ------------------------------------------------------------------
@@ -2994,7 +3014,12 @@ impl<'p> Emitter<'p> {
                     self.f.locals.insert(local, Local::Plain(name));
                 }
             }
-            IrStmt::Assign { target, op, value } => self.assign(target, *op, value, out)?,
+            IrStmt::Assign {
+                target,
+                op,
+                value,
+                location,
+            } => self.assign(target, *op, value, location.as_ref(), out)?,
             IrStmt::While { label, cond, body } => {
                 let mut pre = Vec::new();
                 let c = self.expr(cond, &mut pre)?;
@@ -3113,7 +3138,7 @@ impl<'p> Emitter<'p> {
                 let b = self.expr(base, out)?;
                 PlaceKind::Simple(member(b, &camel(name)))
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let b = self.expr(base, out)?;
                 let b = self.stable(b, "base", out);
                 let i = self.expr(index, out)?;
@@ -3154,30 +3179,40 @@ impl<'p> Emitter<'p> {
         target: &'p IrExpr,
         op: Option<BinaryOp>,
         value: &'p IrExpr,
+        location: Option<&String>,
         out: &mut Vec<Stmt>,
     ) -> Result<(), Error> {
         let place = self.place(target, out)?;
         let v = self.expr(value, out)?;
+        // The location of the `[` of an indexed place, in a debug build.
+        let at = match &target.kind {
+            ExprKind::Index { location, .. } => location.as_ref(),
+            _ => None,
+        };
         let v = match op {
             None if matches!(place, PlaceKind::Simple(_)) => self.widened(value, v),
             None => v,
             Some(op) => {
                 let current = match &place {
                     PlaceKind::Simple(e) | PlaceKind::Whole(e, _) => e.clone(),
-                    PlaceKind::Elem(l, i) => self.rt_call("at", vec![l.clone(), i.clone()]),
-                    PlaceKind::Key(m, k) => self.rt_call("mapGet", vec![m.clone(), k.clone()]),
+                    PlaceKind::Elem(l, i) => {
+                        self.rt_call_at("at", "itemAt", vec![l.clone(), i.clone()], at)
+                    }
+                    PlaceKind::Key(m, k) => {
+                        self.rt_call_at("mapGet", "mapGetAt", vec![m.clone(), k.clone()], at)
+                    }
                 };
-                self.binary_values(op, current, v, &target.ty)
+                self.binary_values(op, current, v, &target.ty, location)
             }
         };
         match place {
             PlaceKind::Simple(e) => out.push(Stmt::Assign(e, v)),
             PlaceKind::Elem(l, i) => {
-                let c = self.rt_call("setAt", vec![l, i, v]);
+                let c = self.rt_call_at("setAt", "setItemAt", vec![l, i, v], at);
                 out.push(Stmt::Expr(c));
             }
             PlaceKind::Key(m, k) => {
-                let c = self.rt_call("mapReplace", vec![m, k, v]);
+                let c = self.rt_call_at("mapReplace", "mapReplaceAt", vec![m, k, v], at);
                 out.push(Stmt::Expr(c));
             }
             PlaceKind::Whole(e, ty) => match ty {
@@ -3351,21 +3386,32 @@ impl<'p> Emitter<'p> {
                 }
             }
             ExprKind::Const(def) => tagged(ident(&self.def_name(*def))),
-            ExprKind::Call { callee, args } => self.call(callee, args, &e.ty, out),
+            ExprKind::Call {
+                callee,
+                args,
+                location,
+            } => self.call(callee, args, &e.ty, location.as_ref(), out),
             ExprKind::Field { base, name } => {
                 let b = self.expr(base, out)?;
                 tagged(member(b, &camel(name)))
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index {
+                base,
+                index,
+                location,
+            } => {
                 let v = self.seq(&[(base, Repr::Tagged), (index, Repr::Tagged)], out)?;
                 let mut it = v.into_iter();
                 let (b, i) = (
                     it.next().unwrap_or(Expr::Undefined),
                     it.next().unwrap_or(Expr::Undefined),
                 );
+                let at = location.as_ref();
                 match &base.ty {
-                    IrType::Map(..) => tagged(self.rt_call("mapGet", vec![b, i])),
-                    _ => tagged(self.rt_call("at", vec![b, i])),
+                    IrType::Map(..) => {
+                        tagged(self.rt_call_at("mapGet", "mapGetAt", vec![b, i], at))
+                    }
+                    _ => tagged(self.rt_call_at("at", "itemAt", vec![b, i], at)),
                 }
             }
             ExprKind::Slice {
@@ -3373,6 +3419,7 @@ impl<'p> Emitter<'p> {
                 start,
                 end,
                 inclusive,
+                location,
             } => {
                 let b = self.expr(base, out)?;
                 let s = match start {
@@ -3383,12 +3430,13 @@ impl<'p> Emitter<'p> {
                     Some(s) => self.expr(s, out)?,
                     None => Expr::Undefined,
                 };
-                let f = if matches!(base.ty, IrType::String) {
-                    "sliceStr"
+                let (f, twin) = if matches!(base.ty, IrType::String) {
+                    ("sliceStr", "sliceStrAt")
                 } else {
-                    "sliceList"
+                    ("sliceList", "sliceListAt")
                 };
-                tagged(self.rt_call(f, vec![b, s, x, Expr::Bool(*inclusive)]))
+                let args = vec![b, s, x, Expr::Bool(*inclusive)];
+                tagged(self.rt_call_at(f, twin, args, location.as_ref()))
             }
             ExprKind::Struct { def, fields, base } => {
                 let mut items: Vec<(&IrExpr, Repr)> =
@@ -3491,21 +3539,30 @@ impl<'p> Emitter<'p> {
                     args,
                 ))
             }
-            ExprKind::Unary { op, operand } => {
+            ExprKind::Unary {
+                op,
+                operand,
+                location,
+            } => {
                 let v = self.expr(operand, out)?;
                 tagged(match op {
                     UnaryOp::Not => not(v),
                     UnaryOp::BitNot => Expr::Unary("~", Box::new(v)),
                     UnaryOp::Neg => {
                         if matches!(operand.ty, IrType::Int) {
-                            self.rt_call("neg", vec![v])
+                            self.rt_call_at("neg", "negAt", vec![v], location.as_ref())
                         } else {
                             Expr::Unary("-", Box::new(v))
                         }
                     }
                 })
             }
-            ExprKind::Binary { op, lhs, rhs } => tagged(self.binary(*op, lhs, rhs, out)?),
+            ExprKind::Binary {
+                op,
+                lhs,
+                rhs,
+                location,
+            } => tagged(self.binary(*op, lhs, rhs, location.as_ref(), out)?),
             ExprKind::Closure { params, body, .. } => {
                 let ret = match &e.ty {
                     IrType::Fn(_, r) => (**r).clone(),
@@ -3970,6 +4027,7 @@ impl<'p> Emitter<'p> {
         op: BinaryOp,
         lhs: &'p IrExpr,
         rhs: &'p IrExpr,
+        location: Option<&String>,
         out: &mut Vec<Stmt>,
     ) -> Result<Expr, Error> {
         if matches!(op, BinaryOp::And | BinaryOp::Or) {
@@ -4010,20 +4068,29 @@ impl<'p> Emitter<'p> {
             it.next().unwrap_or(Expr::Undefined),
             it.next().unwrap_or(Expr::Undefined),
         );
-        Ok(self.binary_values(op, l, r, &lhs.ty))
+        Ok(self.binary_values(op, l, r, &lhs.ty, location))
     }
 
-    fn binary_values(&mut self, op: BinaryOp, l: Expr, r: Expr, ty: &IrType) -> Expr {
+    /// The operator on two values; `location` is that of an operator that can panic, in a
+    /// debug build.
+    fn binary_values(
+        &mut self,
+        op: BinaryOp,
+        l: Expr,
+        r: Expr,
+        ty: &IrType,
+        location: Option<&String>,
+    ) -> Expr {
         use BinaryOp as B;
         let int = matches!(ty, IrType::Int);
         match op {
-            B::Add if int => self.rt_call("add", vec![l, r]),
-            B::Sub if int => self.rt_call("sub", vec![l, r]),
-            B::Mul if int => self.rt_call("mul", vec![l, r]),
-            B::Div if int => self.rt_call("div", vec![l, r]),
-            B::Rem if int => self.rt_call("rem", vec![l, r]),
-            B::Shl => self.rt_call("shl", vec![l, r]),
-            B::Shr => self.rt_call("shr", vec![l, r]),
+            B::Add if int => self.rt_call_at("add", "addAt", vec![l, r], location),
+            B::Sub if int => self.rt_call_at("sub", "subAt", vec![l, r], location),
+            B::Mul if int => self.rt_call_at("mul", "mulAt", vec![l, r], location),
+            B::Div if int => self.rt_call_at("div", "divAt", vec![l, r], location),
+            B::Rem if int => self.rt_call_at("rem", "remAt", vec![l, r], location),
+            B::Shl => self.rt_call_at("shl", "shlAt", vec![l, r], location),
+            B::Shr => self.rt_call_at("shr", "shrAt", vec![l, r], location),
             B::Add => bin(l, "+", r),
             B::Sub => bin(l, "-", r),
             B::Mul => bin(l, "*", r),
@@ -4073,6 +4140,7 @@ impl<'p> Emitter<'p> {
         callee: &'p Callee,
         args: &'p [ir::Arg],
         ty: &IrType,
+        location: Option<&String>,
         out: &mut Vec<Stmt>,
     ) -> Result<(Expr, Repr), Error> {
         let (recv, info, intrinsic) = match callee {
@@ -4259,7 +4327,7 @@ impl<'p> Emitter<'p> {
                     return Ok((call(f, vec![x]), Repr::Tagged));
                 }
             }
-            let v = self.intrinsic(&name, all, ty)?;
+            let v = self.intrinsic(&name, all, ty, location)?;
             let repr = if matches!(ty, IrType::Option(_)) {
                 Repr::Undef
             } else {
@@ -4428,15 +4496,19 @@ impl<'p> Emitter<'p> {
                 let b = self.stable(b, "base", out);
                 Ok(self.ref_of(member(b, &camel(name)), out))
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index {
+                base,
+                index,
+                location,
+            } => {
                 let b = self.expr(base, out)?;
                 let i = self.expr(index, out)?;
-                let f = if matches!(base.ty, IrType::Map(..)) {
-                    "refKey"
+                let (f, twin) = if matches!(base.ty, IrType::Map(..)) {
+                    ("refKey", "refKeyAt")
                 } else {
-                    "refAt"
+                    ("refAt", "refItemAt")
                 };
-                Ok(self.rt_call(f, vec![b, i]))
+                Ok(self.rt_call_at(f, twin, vec![b, i], location.as_ref()))
             }
             _ => Err("a `mut` argument that is not a place".to_string()),
         }
@@ -4470,9 +4542,35 @@ impl<'p> Emitter<'p> {
         Expr::RefTo(Box::new(place))
     }
 
-    /// A call of an intrinsic of std, with the receiver first.
-    fn intrinsic(&mut self, name: &str, mut a: Vec<Expr>, ty: &IrType) -> Result<Expr, Error> {
+    /// A call of an intrinsic of std, with the receiver first; `location` is that of a call
+    /// that can panic, in a debug build.
+    fn intrinsic(
+        &mut self,
+        name: &str,
+        mut a: Vec<Expr>,
+        ty: &IrType,
+        location: Option<&String>,
+    ) -> Result<Expr, Error> {
         let short = name.strip_prefix("std.").unwrap_or(name);
+        if let Some(l) = location {
+            let twin = match short {
+                "process.exit" => Some(("exit", "exitAt")),
+                "math.Int.abs" => Some(("intAbs", "intAbsAt")),
+                "math.Int.pow" => Some(("intPow", "intPowAt")),
+                "math.Float.to_int" => Some(("floatToInt", "floatToIntAt")),
+                "string.String.split" => Some(("strSplit", "strSplitAt")),
+                "string.String.replace" => Some(("strReplace", "strReplaceAt")),
+                "string.String.repeat" => Some(("strRepeat", "strRepeatAt")),
+                "list.List.insert" => Some(("listInsert", "listInsertAt")),
+                "list.List.remove" => Some(("listRemove", "listRemoveAt")),
+                "list.List.swap" => Some(("listSwap", "listSwapAt")),
+                "list.sum" => Some(("listSum", "listSumAt")),
+                _ => None,
+            };
+            if let Some((plain, twin)) = twin {
+                return Ok(self.rt_call_at(plain, twin, a, Some(l)));
+            }
+        }
         let arg = |a: &mut Vec<Expr>| {
             if a.is_empty() {
                 Expr::Undefined

@@ -4,6 +4,16 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Added: debug builds (D7.21 **[DRAFT]**, spec chapter 7, section 3, rule 1). `--debug` for
+  `wolf build`, `wolf run` and `wolf test`, also with `--vm` and `--example`, makes the panics of
+  the language print the location of the operation that failed, as `panic` does:
+  `panic at src/stats.wolf:12:17: integer overflow`. The location is that of the operator
+  (`+ - * / % << >>`, their compound assignments and unary `-`), of the `[` of an index or a
+  slice, or of the call of a std function that panics (`exit`, `list.remove`, `Float.to_int`...).
+  The generated code passes these operations to helpers of the runtime that take the location
+  (`wolf_rt::add_at(a, b, "src/main.wolf:3:9")`; Rust uses them instead of its own operators);
+  the VM keeps the locations beside its bytecode. Stack overflow keeps no location, and a build
+  without `--debug` is unchanged, byte for byte.
 - Fixed in the Rust backend: an example of a `cli` program did not build, since Cargo's examples
   cannot use a binary crate (`use my_app::util::twice;` named a crate that did not exist). A
   build of a program with examples now also writes `src/lib.rs`, which declares the modules of

@@ -28,6 +28,9 @@ pub struct ProjectMeta<'a> {
     /// The packages of each target (`ts`, `go`, `rust`) from `[extern.<target>.dependencies]`:
     /// name and version.
     pub dependencies: BTreeMap<String, Vec<(String, String)>>,
+    /// A debug build (`--debug`): the operations that can panic carry their location
+    /// ([`Program::debug`]).
+    pub debug: bool,
 }
 
 /// A construct the IR cannot express yet. The driver reports it as an internal error.
@@ -47,6 +50,7 @@ pub fn lower(
     meta: &ProjectMeta<'_>,
 ) -> Result<Program, LowerError> {
     let mut l = Lowerer::new(modules, resolved, typed, map);
+    l.debug = meta.debug;
     l.defs();
     l.extern_methods();
     let mut program = Program {
@@ -60,6 +64,7 @@ pub fn lower(
         defs: BTreeMap::new(),
         locals: BTreeMap::new(),
         dependencies: meta.dependencies.clone(),
+        debug: meta.debug,
     };
     for (index, input) in modules.iter().enumerate() {
         let module = l.module(index, input)?;
@@ -141,12 +146,16 @@ struct Lowerer<'a> {
     param_rename: BTreeMap<Span, String>,
     /// Locals made by the lowering, numbered after those of name resolution.
     extra_locals: Vec<(String, Type)>,
+    /// A debug build: operations that can panic get their location.
+    debug: bool,
 }
 
 /// Where code being lowered is.
 #[derive(Clone, Copy)]
 struct Ctx {
     file: FileId,
+    /// The operations that can panic get their location: a debug build, outside std.
+    located: bool,
 }
 
 fn unsupported(message: impl Into<String>) -> LowerError {
@@ -220,6 +229,7 @@ impl<'a> Lowerer<'a> {
             method_at: BTreeMap::new(),
             param_rename: BTreeMap::new(),
             extra_locals: Vec::new(),
+            debug: false,
         }
     }
 
@@ -238,7 +248,10 @@ impl<'a> Lowerer<'a> {
     /// an extern function, which the calls of the method call instead.
     fn extern_methods(&mut self) {
         for (index, input) in self.inputs.iter().enumerate() {
-            let ctx = Ctx { file: input.file };
+            let ctx = Ctx {
+                file: input.file,
+                located: false,
+            };
             for (s, section) in input.ast.sections.iter().enumerate() {
                 for (i, item) in section.items.iter().enumerate() {
                     let ItemKind::Impl(block) = &item.kind else {
@@ -526,7 +539,6 @@ impl<'a> Lowerer<'a> {
     }
 
     fn module(&mut self, index: usize, input: &'a ModuleInput<'a>) -> Result<Module, LowerError> {
-        let ctx = Ctx { file: input.file };
         let role = match input.role {
             Role::Prelude | Role::Std => ModuleRole::Std,
             Role::Entry => ModuleRole::Entry,
@@ -534,6 +546,12 @@ impl<'a> Lowerer<'a> {
             Role::Native => ModuleRole::Native,
             Role::Test => ModuleRole::Test,
             Role::Example => ModuleRole::Example,
+        };
+        // The panics of std functions are located at their calls (spec chapter 7, section 3,
+        // rule 1), not inside std.
+        let ctx = Ctx {
+            file: input.file,
+            located: self.debug && role != ModuleRole::Std,
         };
         let file = self
             .map
@@ -1119,11 +1137,22 @@ impl<'a> Lowerer<'a> {
                 pattern: self.pattern(ctx, pattern)?,
                 mutable: *mutable,
             },
-            StmtKind::Assign { target, op, value } => Stmt::Assign {
-                target: self.expr(ctx, target)?,
-                op: assign_op(*op),
-                value: self.expr(ctx, value)?,
-            },
+            StmtKind::Assign { target, op, value } => {
+                let lowered = self.expr(ctx, target)?;
+                let op = assign_op(*op);
+                let location = match op {
+                    Some(op) if ctx.located && can_panic(op, &lowered.ty) => {
+                        Some(self.location_after(target.span))
+                    }
+                    _ => None,
+                };
+                Stmt::Assign {
+                    target: lowered,
+                    op,
+                    value: self.expr(ctx, value)?,
+                    location,
+                }
+            }
             StmtKind::While { label, cond, body } => Stmt::While {
                 label: label_name(label),
                 cond: self.expr(ctx, cond)?,
@@ -1320,6 +1349,7 @@ impl<'a> Lowerer<'a> {
             AstExpr::Index { base, index } => ExprKind::Index {
                 base: self.boxed(ctx, base)?,
                 index: self.boxed(ctx, index)?,
+                location: ctx.located.then(|| self.location_after(base.span)),
             },
             AstExpr::Slice {
                 base,
@@ -1337,6 +1367,7 @@ impl<'a> Lowerer<'a> {
                     None => None,
                 },
                 inclusive: *inclusive,
+                location: ctx.located.then(|| self.location_after(base.span)),
             },
             AstExpr::Try(inner) => ExprKind::Try {
                 value: self.boxed(ctx, inner)?,
@@ -1359,15 +1390,29 @@ impl<'a> Lowerer<'a> {
                         .map_err(|_| unsupported("integer literal out of range"))?,
                 )
             }
-            AstExpr::Unary { op, operand } => ExprKind::Unary {
-                op: *op,
-                operand: self.boxed(ctx, operand)?,
-            },
-            AstExpr::Binary { op, lhs, rhs } => ExprKind::Binary {
-                op: *op,
-                lhs: self.boxed(ctx, lhs)?,
-                rhs: self.boxed(ctx, rhs)?,
-            },
+            AstExpr::Unary { op, operand } => {
+                let operand = self.boxed(ctx, operand)?;
+                // Only `-` on an `Int` panics: `-MIN` overflows.
+                let located = ctx.located && *op == ast::UnaryOp::Neg && operand.ty == Type::Int;
+                ExprKind::Unary {
+                    op: *op,
+                    operand,
+                    location: located.then(|| self.location(e.span)),
+                }
+            }
+            AstExpr::Binary { op, lhs: l, rhs: r } => {
+                let lhs = self.boxed(ctx, l)?;
+                let rhs = self.boxed(ctx, r)?;
+                // The operator is the first token after the left operand of the syntax tree,
+                // whose span has its parentheses.
+                let located = ctx.located && can_panic(*op, &lhs.ty);
+                ExprKind::Binary {
+                    op: *op,
+                    lhs,
+                    rhs,
+                    location: located.then(|| self.location_after(l.span)),
+                }
+            }
             AstExpr::Closure { params, body, .. } => {
                 let ret_void = matches!(&ty, Type::Fn(_, r) if matches!(**r, Type::Void));
                 let modes: Vec<Mode> = match &ty {
@@ -1503,11 +1548,35 @@ impl<'a> Lowerer<'a> {
             },
             AstExpr::Error => return Err(unsupported("an expression with an error")),
         };
+        let kind = match kind {
+            ExprKind::Call {
+                callee,
+                args,
+                location: None,
+            } if ctx.located && self.panicking_call(&callee) => ExprKind::Call {
+                callee,
+                args,
+                location: Some(self.location(e.span)),
+            },
+            other => other,
+        };
         Ok(Expr {
             kind,
             ty,
             span: e.span,
         })
+    }
+
+    /// Whether a call calls an intrinsic function of std that can panic.
+    fn panicking_call(&self, callee: &Callee) -> bool {
+        let def = match callee {
+            Callee::Fn(def) | Callee::Method { method: def, .. } => *def,
+            _ => return false,
+        };
+        self.defs
+            .get(&def)
+            .and_then(|d| d.intrinsic.as_deref())
+            .is_some_and(crate::intrinsic_panics)
     }
 
     /// What a name or a dotted path names, if it is a path rather than a field access.
@@ -1822,6 +1891,7 @@ impl<'a> Lowerer<'a> {
                             value,
                         })
                         .collect(),
+                    location: None,
                 },
                 ty: Type::String,
                 span,
@@ -1906,6 +1976,7 @@ impl<'a> Lowerer<'a> {
             kind: ExprKind::Call {
                 callee,
                 args: Vec::new(),
+                location: None,
             },
             ty: Type::String,
             span,
@@ -1960,6 +2031,7 @@ impl<'a> Lowerer<'a> {
                 op: ast::BinaryOp::NotEq,
                 lhs: Box::new(local(left)),
                 rhs: Box::new(local(right)),
+                location: None,
             },
             ty: Type::Bool,
             span,
@@ -2023,6 +2095,14 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    /// The location of the first token after `span`: the operator after a left operand, or
+    /// the `[` after the base of an index.
+    fn location_after(&self, span: Span) -> String {
+        let text = self.map.get(span.file).map(|f| f.text()).unwrap_or("");
+        let at = u32::try_from(next_token(text, span.end as usize)).unwrap_or(span.end);
+        self.location(Span::new(span.file, at, at))
+    }
+
     fn source_text(&self, span: Span) -> String {
         self.map
             .get(span.file)
@@ -2053,6 +2133,7 @@ impl<'a> Lowerer<'a> {
                     marker: recv.mode,
                 },
                 args: lowered,
+                location: None,
             });
         }
         // A method call: `recv.m(...)` where `recv` is a value.
@@ -2071,6 +2152,7 @@ impl<'a> Lowerer<'a> {
                                     recv,
                                 },
                                 args: lowered,
+                                location: None,
                             })
                         } else if let (None, Some(interface)) = (
                             self.method_by_name.get(&(call.owner, call.name.clone())),
@@ -2084,6 +2166,7 @@ impl<'a> Lowerer<'a> {
                                     recv,
                                 },
                                 args: lowered,
+                                location: None,
                             })
                         } else {
                             let method = self
@@ -2103,11 +2186,13 @@ impl<'a> Lowerer<'a> {
                                 return Ok(ExprKind::Call {
                                     callee: Callee::Fn(f),
                                     args: all,
+                                    location: None,
                                 });
                             }
                             Ok(ExprKind::Call {
                                 callee: Callee::Method { method, recv },
                                 args: lowered,
+                                location: None,
                             })
                         }
                     }
@@ -2173,6 +2258,7 @@ impl<'a> Lowerer<'a> {
                     return Ok(ExprKind::Call {
                         callee: Callee::Fn(f),
                         args: self.args(ctx, args)?,
+                        location: None,
                     });
                 }
                 _ => {}
@@ -2181,6 +2267,7 @@ impl<'a> Lowerer<'a> {
         Ok(ExprKind::Call {
             callee: Callee::Value(self.boxed(ctx, callee)?),
             args: self.args(ctx, args)?,
+            location: None,
         })
     }
 
@@ -2308,6 +2395,50 @@ fn label_name(label: &Option<ast::Ident>) -> Option<String> {
     label.as_ref().map(|l| l.name.clone())
 }
 
+/// Whether the operator panics on some values of this type: the arithmetic of `Int`.
+fn can_panic(op: BinaryOp, ty: &Type) -> bool {
+    use BinaryOp as B;
+    *ty == Type::Int
+        && matches!(
+            op,
+            B::Add | B::Sub | B::Mul | B::Div | B::Rem | B::Shl | B::Shr
+        )
+}
+
+/// The offset of the first token at `offset` or after it: white space and comments, nested
+/// block comments too, are skipped.
+fn next_token(text: &str, mut offset: usize) -> usize {
+    loop {
+        let rest = text.get(offset..).unwrap_or("");
+        if rest.starts_with("//") {
+            offset += rest.find('\n').unwrap_or(rest.len());
+        } else if rest.starts_with("/*") {
+            let mut depth = 0usize;
+            let mut i = 0;
+            while let Some(r) = rest.get(i..).filter(|r| !r.is_empty()) {
+                if r.starts_with("/*") {
+                    depth += 1;
+                    i += 2;
+                } else if r.starts_with("*/") {
+                    depth = depth.saturating_sub(1);
+                    i += 2;
+                    if depth == 0 {
+                        break;
+                    }
+                } else {
+                    i += r.chars().next().map_or(1, char::len_utf8);
+                }
+            }
+            offset += i;
+        } else {
+            match rest.chars().next() {
+                Some(c) if c.is_whitespace() => offset += c.len_utf8(),
+                _ => return offset,
+            }
+        }
+    }
+}
+
 fn assign_op(op: ast::AssignOp) -> Option<BinaryOp> {
     use ast::AssignOp as A;
     Some(match op {
@@ -2323,4 +2454,20 @@ fn assign_op(op: ast::AssignOp) -> Option<BinaryOp> {
         A::Shl => BinaryOp::Shl,
         A::Shr => BinaryOp::Shr,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::next_token;
+
+    #[test]
+    fn next_token_skips_white_space_and_comments() {
+        assert_eq!(next_token("a + b", 1), 2);
+        assert_eq!(next_token("a\n    + b", 1), 6);
+        assert_eq!(next_token("a // one\n  // two\n  * b", 1), 20);
+        assert_eq!(next_token("a /* x /* y */ z */ / b", 1), 20);
+        assert_eq!(next_token("a /* é */[0]", 1), 10);
+        assert_eq!(next_token("a", 1), 1);
+        assert_eq!(next_token("a /* never closed", 1), 17);
+    }
 }

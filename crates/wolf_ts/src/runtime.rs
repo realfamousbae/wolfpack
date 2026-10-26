@@ -1385,6 +1385,255 @@ export function fromNumber(value: number): bigint {
   return int(BigInt(value));
 }"#,
     },
+    // ----- debug builds (spec chapter 8, section 4.3) -----
+    Piece {
+        name: "located",
+        deps: &["WolfPanic"],
+        code: r#"/**
+ * Debug builds: runs an operation of the language; a panic of the language that it raises gets
+ * the location of the operation.
+ */
+function located<T>(location: string, run: () => T): T {
+  try {
+    return run();
+  } catch (e) {
+    if (e instanceof WolfPanic && e.message.startsWith("panic: ")) {
+      throw new WolfPanic(`panic at ${location}: ${e.message.slice(7)}`);
+    }
+    throw e;
+  }
+}"#,
+    },
+    Piece {
+        name: "addAt",
+        deps: &["located", "add"],
+        code: r#"/** `add` with the location of the operation (debug builds). */
+export function addAt(a: bigint, b: bigint, location: string): bigint {
+  return located(location, () => add(a, b));
+}"#,
+    },
+    Piece {
+        name: "subAt",
+        deps: &["located", "sub"],
+        code: r#"/** `sub` with the location of the operation (debug builds). */
+export function subAt(a: bigint, b: bigint, location: string): bigint {
+  return located(location, () => sub(a, b));
+}"#,
+    },
+    Piece {
+        name: "mulAt",
+        deps: &["located", "mul"],
+        code: r#"/** `mul` with the location of the operation (debug builds). */
+export function mulAt(a: bigint, b: bigint, location: string): bigint {
+  return located(location, () => mul(a, b));
+}"#,
+    },
+    Piece {
+        name: "divAt",
+        deps: &["located", "div"],
+        code: r#"/** `div` with the location of the operation (debug builds). */
+export function divAt(a: bigint, b: bigint, location: string): bigint {
+  return located(location, () => div(a, b));
+}"#,
+    },
+    Piece {
+        name: "remAt",
+        deps: &["located", "rem"],
+        code: r#"/** `rem` with the location of the operation (debug builds). */
+export function remAt(a: bigint, b: bigint, location: string): bigint {
+  return located(location, () => rem(a, b));
+}"#,
+    },
+    Piece {
+        name: "negAt",
+        deps: &["located", "neg"],
+        code: r#"/** `neg` with the location of the operation (debug builds). */
+export function negAt(a: bigint, location: string): bigint {
+  return located(location, () => neg(a));
+}"#,
+    },
+    Piece {
+        name: "shlAt",
+        deps: &["located", "shl"],
+        code: r#"/** `shl` with the location of the operation (debug builds). */
+export function shlAt(a: bigint, n: bigint, location: string): bigint {
+  return located(location, () => shl(a, n));
+}"#,
+    },
+    Piece {
+        name: "shrAt",
+        deps: &["located", "shr"],
+        code: r#"/** `shr` with the location of the operation (debug builds). */
+export function shrAt(a: bigint, n: bigint, location: string): bigint {
+  return located(location, () => shr(a, n));
+}"#,
+    },
+    Piece {
+        name: "itemAt",
+        deps: &["located", "at"],
+        code: r#"/** `at` with the location of the operation (debug builds). */
+export function itemAt<T>(items: T[], i: bigint, location: string): T {
+  return located(location, () => at(items, i));
+}"#,
+    },
+    Piece {
+        name: "setItemAt",
+        deps: &["located", "setAt"],
+        code: r#"/** `setAt` with the location of the operation (debug builds). */
+export function setItemAt<T>(items: T[], i: bigint, value: T, location: string): void {
+  return located(location, () => setAt(items, i, value));
+}"#,
+    },
+    Piece {
+        name: "mapGetAt",
+        deps: &["located", "mapGet"],
+        code: r#"/** `mapGet` with the location of the operation (debug builds). */
+export function mapGetAt<K, V>(map: Map<K, V>, key: K, location: string): V {
+  return located(location, () => mapGet(map, key));
+}"#,
+    },
+    Piece {
+        name: "mapReplaceAt",
+        deps: &["located", "mapReplace"],
+        code: r#"/** `mapReplace` with the location of the operation (debug builds). */
+export function mapReplaceAt<K, V>(map: Map<K, V>, key: K, value: V, location: string): void {
+  return located(location, () => mapReplace(map, key, value));
+}"#,
+    },
+    Piece {
+        name: "sliceListAt",
+        deps: &["located", "sliceList"],
+        code: r#"/** `sliceList` with the location of the operation (debug builds). */
+export function sliceListAt<T>(items: T[], start: bigint | undefined, end: bigint | undefined, inclusive: boolean, location: string): T[] {
+  return located(location, () => sliceList(items, start, end, inclusive));
+}"#,
+    },
+    Piece {
+        name: "sliceStrAt",
+        deps: &["located", "sliceStr"],
+        code: r#"/** `sliceStr` with the location of the operation (debug builds). */
+export function sliceStrAt(text: string, start: bigint | undefined, end: bigint | undefined, inclusive: boolean, location: string): string {
+  return located(location, () => sliceStr(text, start, end, inclusive));
+}"#,
+    },
+    Piece {
+        name: "exitAt",
+        deps: &["located", "exit"],
+        code: r#"/** `exit` with the location of the operation (debug builds). */
+export function exitAt(code: bigint, location: string): never {
+  return located(location, () => exit(code));
+}"#,
+    },
+    Piece {
+        name: "intAbsAt",
+        deps: &["located", "intAbs"],
+        code: r#"/** `intAbs` with the location of the operation (debug builds). */
+export function intAbsAt(a: bigint, location: string): bigint {
+  return located(location, () => intAbs(a));
+}"#,
+    },
+    Piece {
+        name: "intPowAt",
+        deps: &["located", "intPow"],
+        code: r#"/** `intPow` with the location of the operation (debug builds). */
+export function intPowAt(a: bigint, exp: bigint, location: string): bigint {
+  return located(location, () => intPow(a, exp));
+}"#,
+    },
+    Piece {
+        name: "floatToIntAt",
+        deps: &["located", "floatToInt"],
+        code: r#"/** `floatToInt` with the location of the operation (debug builds). */
+export function floatToIntAt(x: number, location: string): bigint {
+  return located(location, () => floatToInt(x));
+}"#,
+    },
+    Piece {
+        name: "strSplitAt",
+        deps: &["located", "strSplit"],
+        code: r#"/** `strSplit` with the location of the operation (debug builds). */
+export function strSplitAt(text: string, separator: string, location: string): string[] {
+  return located(location, () => strSplit(text, separator));
+}"#,
+    },
+    Piece {
+        name: "strReplaceAt",
+        deps: &["located", "strReplace"],
+        code: r#"/** `strReplace` with the location of the operation (debug builds). */
+export function strReplaceAt(text: string, from: string, to: string, location: string): string {
+  return located(location, () => strReplace(text, from, to));
+}"#,
+    },
+    Piece {
+        name: "strRepeatAt",
+        deps: &["located", "strRepeat"],
+        code: r#"/** `strRepeat` with the location of the operation (debug builds). */
+export function strRepeatAt(text: string, times: bigint, location: string): string {
+  return located(location, () => strRepeat(text, times));
+}"#,
+    },
+    Piece {
+        name: "listInsertAt",
+        deps: &["located", "listInsert"],
+        code: r#"/** `listInsert` with the location of the operation (debug builds). */
+export function listInsertAt<T>(items: T[], i: bigint, item: T, location: string): void {
+  return located(location, () => listInsert(items, i, item));
+}"#,
+    },
+    Piece {
+        name: "listRemoveAt",
+        deps: &["located", "listRemove"],
+        code: r#"/** `listRemove` with the location of the operation (debug builds). */
+export function listRemoveAt<T>(items: T[], i: bigint, location: string): T {
+  return located(location, () => listRemove(items, i));
+}"#,
+    },
+    Piece {
+        name: "listSwapAt",
+        deps: &["located", "listSwap"],
+        code: r#"/** `listSwap` with the location of the operation (debug builds). */
+export function listSwapAt<T>(items: T[], i: bigint, j: bigint, location: string): void {
+  return located(location, () => listSwap(items, i, j));
+}"#,
+    },
+    Piece {
+        name: "listSumAt",
+        deps: &["located", "listSum"],
+        code: r#"/** `listSum` with the location of the operation (debug builds). */
+export function listSumAt(items: bigint[], location: string): bigint {
+  return located(location, () => listSum(items));
+}"#,
+    },
+    Piece {
+        name: "refItemAt",
+        deps: &["itemAt", "setItemAt", "Ref"],
+        code: r#"/** `refAt` with the location of the operation (debug builds). */
+export function refItemAt<T>(items: T[], i: bigint, location: string): Ref<T> {
+  return {
+    get v() {
+      return itemAt(items, i, location);
+    },
+    set v(value: T) {
+      setItemAt(items, i, value, location);
+    },
+  };
+}"#,
+    },
+    Piece {
+        name: "refKeyAt",
+        deps: &["mapGetAt", "mapReplaceAt", "Ref"],
+        code: r#"/** `refKey` with the location of the operation (debug builds). */
+export function refKeyAt<K, V>(map: Map<K, V>, key: K, location: string): Ref<V> {
+  return {
+    get v() {
+      return mapGetAt(map, key, location);
+    },
+    set v(value: V) {
+      mapReplaceAt(map, key, value, location);
+    },
+  };
+}"#,
+    },
 ];
 
 /// The runtime file with the given pieces and their dependencies, in a fixed order.

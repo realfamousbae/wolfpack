@@ -572,6 +572,8 @@ struct FnC {
     name: String,
     code: Vec<Op>,
     consts: Vec<Value>,
+    /// The instructions that can panic and the constants of their locations.
+    locations: Vec<(u32, u32)>,
     slots: HashMap<Var, u32>,
     /// Bindings of an alternative of an or-pattern that share the slot of the first alternative.
     alias: HashMap<LocalRef, LocalRef>,
@@ -620,6 +622,7 @@ impl FnC {
             name,
             code: Vec::new(),
             consts: Vec::new(),
+            locations: Vec::new(),
             slots: HashMap::new(),
             alias: HashMap::new(),
             refs: HashSet::new(),
@@ -637,6 +640,7 @@ impl FnC {
             slots: self.count,
             code: self.code,
             consts: self.consts,
+            locations: self.locations,
         }
     }
 
@@ -644,6 +648,16 @@ impl FnC {
         self.depth = effect(&op, self.depth);
         self.code.push(op);
         self.code.len() - 1
+    }
+
+    /// In a debug build, gives the instruction just emitted the location that its panics of the
+    /// language print (spec chapter 7, section 3, rule 1).
+    fn locate(&mut self, location: Option<&String>) {
+        if let (Some(l), Some(pc)) = (location, self.code.len().checked_sub(1)) {
+            let k = self.constant(Value::str(l));
+            self.locations
+                .push((u32::try_from(pc).unwrap_or(u32::MAX), k));
+        }
     }
 
     fn here(&self) -> u32 {
@@ -742,7 +756,12 @@ impl FnC {
                     self.patch(skip);
                 }
             }
-            Stmt::Assign { target, op, value } => self.assign(c, target, *op, value)?,
+            Stmt::Assign {
+                target,
+                op,
+                value,
+                location,
+            } => self.assign(c, target, *op, value, location.as_ref())?,
             Stmt::While { label, cond, body } => {
                 let top = self.here();
                 self.loops.push(Loop {
@@ -890,6 +909,7 @@ impl FnC {
         target: &Expr,
         op: Option<BinaryOp>,
         value: &Expr,
+        location: Option<&String>,
     ) -> Result<(), Error> {
         match &target.kind {
             ExprKind::Local(_) | ExprKind::SelfValue => {
@@ -901,6 +921,7 @@ impl FnC {
                     self.load_var(var);
                     self.expr(c, value)?;
                     self.binary(op, &target.ty)?;
+                    self.locate(location);
                 } else {
                     self.expr(c, value)?;
                 }
@@ -917,13 +938,19 @@ impl FnC {
                     self.emit(Op::Field(i));
                     self.expr(c, value)?;
                     self.binary(op, &target.ty)?;
+                    self.locate(location);
                 } else {
                     self.expr(c, value)?;
                 }
                 self.emit(Op::SetField(i));
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index {
+                base,
+                index,
+                location: at,
+            } => {
                 let map = matches!(base.ty, Type::Map(..));
+                let at = at.as_ref();
                 self.expr(c, base)?;
                 self.expr(c, index)?;
                 if let Some(op) = op {
@@ -935,12 +962,15 @@ impl FnC {
                     self.emit(Op::Load(tb));
                     self.emit(Op::Load(ti));
                     self.emit(if map { Op::IndexKey } else { Op::Index });
+                    self.locate(at);
                     self.expr(c, value)?;
                     self.binary(op, &target.ty)?;
+                    self.locate(location);
                 } else {
                     self.expr(c, value)?;
                 }
                 self.emit(if map { Op::SetKey } else { Op::SetIndex });
+                self.locate(at);
             }
             _ => return Err("an assignment to something that is not a place".to_string()),
         }
@@ -1003,13 +1033,25 @@ impl FnC {
                 let k = self.constant(v);
                 self.emit(Op::Const(k));
             }
-            ExprKind::Call { callee, args } => self.call(c, callee, args)?,
+            ExprKind::Call {
+                callee,
+                args,
+                location,
+            } => {
+                self.call(c, callee, args)?;
+                // The call of a std function that can panic.
+                self.locate(location.as_ref());
+            }
             ExprKind::Field { base, name } => {
                 let i = c.field_index(&base.ty, name)?;
                 self.expr(c, base)?;
                 self.emit(Op::Field(i));
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index {
+                base,
+                index,
+                location,
+            } => {
                 self.expr(c, base)?;
                 self.expr(c, index)?;
                 self.emit(if matches!(base.ty, Type::Map(..)) {
@@ -1017,12 +1059,14 @@ impl FnC {
                 } else {
                     Op::Index
                 });
+                self.locate(location.as_ref());
             }
             ExprKind::Slice {
                 base,
                 start,
                 end,
                 inclusive,
+                location,
             } => {
                 self.expr(c, base)?;
                 if let Some(s) = start {
@@ -1037,6 +1081,7 @@ impl FnC {
                     inclusive: *inclusive,
                     string: base.ty == Type::String,
                 });
+                self.locate(location.as_ref());
             }
             ExprKind::Struct { def, fields, base } => match base {
                 None => {
@@ -1106,7 +1151,11 @@ impl FnC {
                 }
                 self.emit(Op::Map(count(pairs.len())?));
             }
-            ExprKind::Unary { op, operand } => {
+            ExprKind::Unary {
+                op,
+                operand,
+                location,
+            } => {
                 self.expr(c, operand)?;
                 let u = match op {
                     UnaryOp::Neg if operand.ty == Type::Float => UnOp::FNeg,
@@ -1115,8 +1164,14 @@ impl FnC {
                     UnaryOp::BitNot => UnOp::BitNot,
                 };
                 self.emit(Op::Unary(u));
+                self.locate(location.as_ref());
             }
-            ExprKind::Binary { op, lhs, rhs } => match op {
+            ExprKind::Binary {
+                op,
+                lhs,
+                rhs,
+                location,
+            } => match op {
                 BinaryOp::And | BinaryOp::Or => {
                     self.expr(c, lhs)?;
                     let start = self.depth;
@@ -1136,6 +1191,7 @@ impl FnC {
                     self.expr(c, lhs)?;
                     self.expr(c, rhs)?;
                     self.binary(*op, &lhs.ty)?;
+                    self.locate(location.as_ref());
                 }
             },
             ExprKind::Closure { params, body, .. } => self.closure(c, params, body)?,
@@ -1427,7 +1483,11 @@ impl FnC {
                 self.expr(c, base)?;
                 self.emit(Op::RefField(i));
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index {
+                base,
+                index,
+                location,
+            } => {
                 self.expr(c, base)?;
                 self.expr(c, index)?;
                 self.emit(if matches!(base.ty, Type::Map(..)) {
@@ -1435,6 +1495,7 @@ impl FnC {
                 } else {
                     Op::RefIndex
                 });
+                self.locate(location.as_ref());
             }
             _ => {
                 self.expr(c, e)?;
@@ -1814,7 +1875,7 @@ fn walk_expr(e: &Expr, used: &mut BTreeSet<Var>, bound: &mut BTreeSet<Var>) {
             used.insert(Var::SelfValue);
         }
         ExprKind::Interpolate(parts) | ExprKind::List(parts) => parts.iter().for_each(go),
-        ExprKind::Call { callee, args } => {
+        ExprKind::Call { callee, args, .. } => {
             match callee {
                 Callee::Fn(_) => {}
                 Callee::Method { recv, .. }
@@ -1827,7 +1888,7 @@ fn walk_expr(e: &Expr, used: &mut BTreeSet<Var>, bound: &mut BTreeSet<Var>) {
             }
         }
         ExprKind::Field { base, .. } => go(base),
-        ExprKind::Index { base, index } => {
+        ExprKind::Index { base, index, .. } => {
             go(base);
             go(index);
         }

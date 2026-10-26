@@ -70,7 +70,14 @@ pub(crate) enum Targets {
 }
 
 /// Checks, lowers and generates the project around `start`; with `Then::Run`, also runs it.
-pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: Targets) -> Outcome {
+/// `debug` asks for a debug build (spec chapter 7, section 3, rule 1).
+pub(crate) fn build(
+    start: &Path,
+    out_dir: Option<&Path>,
+    then: Then,
+    targets: Targets,
+    debug: bool,
+) -> Outcome {
     let args = CheckArgs {
         paths: Vec::new(),
         message_format: MessageFormat::Human,
@@ -159,7 +166,8 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
     if !result.diagnostics.is_empty() {
         return Outcome::Failed(Box::new(result), crate::EXIT_ERRORS);
     }
-    let meta = wolf_driver::meta(&project.manifest, true);
+    let mut meta = wolf_driver::meta(&project.manifest, true);
+    meta.debug = debug;
     let program = match wolf_ir::lower(
         &inputs,
         &project.resolved,

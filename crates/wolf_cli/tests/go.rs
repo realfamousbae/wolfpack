@@ -58,6 +58,15 @@ fn go_checks(out: &Path) -> Option<String> {
     (!problems.is_empty()).then_some(problems)
 }
 
+/// `--debug` for a project with a `debug.txt`: a debug build (spec chapter 7, section 3, rule 1).
+fn debug_flag(dir: &Path) -> &'static [&'static str] {
+    if dir.join("debug.txt").is_file() {
+        &["--debug"]
+    } else {
+        &[]
+    }
+}
+
 fn examples() -> Vec<PathBuf> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     let mut projects: Vec<PathBuf> = fs::read_dir(&root)
@@ -125,7 +134,7 @@ fn run_programs_match_expected_output_on_go() {
             continue;
         }
         let out = tmp(&format!("run-{name}"));
-        let output = wolf("run", &dir, &out, &[], None);
+        let output = wolf("run", &dir, &out, debug_flag(&dir), None);
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         let code = output.status.code().unwrap_or(-1).to_string();
@@ -180,7 +189,8 @@ fn test_reports_on_go_match_typescript() {
             runs.push((Some(filter.trim().to_string()), "expected_filtered.txt"));
         }
         for (filter, file) in runs {
-            let extra: Vec<&str> = filter.iter().map(String::as_str).collect();
+            let mut extra: Vec<&str> = filter.iter().map(String::as_str).collect();
+            extra.extend(debug_flag(&dir));
             let out = tmp(&format!("t-{name}"));
             let output = wolf("test", &dir, &out, &extra, None);
             let actual = format!(

@@ -278,6 +278,12 @@ impl Writer {
                 other => self.scalar(other)?,
             }
         }
+        // The locations of a debug build (spec chapter 7, section 3, rule 1).
+        self.len(c.locations.len())?;
+        for (at, k) in &c.locations {
+            self.u32(*at);
+            self.u32(*k);
+        }
         Ok(())
     }
 
@@ -607,6 +613,11 @@ impl<'a> Reader<'a> {
             };
             consts.push(v);
         }
+        let mut locations = Vec::new();
+        for _ in 0..self.len()? {
+            let at = self.u32()?;
+            locations.push((at, self.u32()?));
+        }
         Ok(Chunk {
             name,
             params,
@@ -614,6 +625,7 @@ impl<'a> Reader<'a> {
             slots,
             code,
             consts,
+            locations,
         })
     }
 
@@ -746,6 +758,15 @@ fn check_chunk(c: &Chunk, funcs: usize) -> Result<(), String> {
         return Err("a function has too many slots".to_string());
     }
     let len = c.code.len();
+    // Locations name instructions in increasing order and constants that are texts.
+    let mut previous = None;
+    for (at, k) in &c.locations {
+        let text = matches!(c.consts.get(*k as usize), Some(Value::Str(_)));
+        if *at as usize >= len || previous.is_some_and(|p| p >= *at) || !text {
+            return Err("a location of a debug build is wrong".to_string());
+        }
+        previous = Some(*at);
+    }
     let slot = |s: u32| {
         if s < c.slots {
             Ok(())

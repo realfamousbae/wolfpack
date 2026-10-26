@@ -1395,6 +1395,244 @@ pub fn args() -> Vec<String> {
     std::env::args().skip(1).collect()
 }"#,
     },
+    // ----- debug builds (spec chapter 8, section 4.3) -----
+    Piece {
+        name: "int_at",
+        deps: &["Panic"],
+        code: r#"/// `a + b` with the location of the operator (debug builds).
+pub fn add_at(a: i64, b: i64, location: &str) -> i64 {
+    a.checked_add(b)
+        .unwrap_or_else(|| panic_at("integer overflow", location))
+}
+
+/// `a - b` with the location of the operator (debug builds).
+pub fn sub_at(a: i64, b: i64, location: &str) -> i64 {
+    a.checked_sub(b)
+        .unwrap_or_else(|| panic_at("integer overflow", location))
+}
+
+/// `a * b` with the location of the operator (debug builds).
+pub fn mul_at(a: i64, b: i64, location: &str) -> i64 {
+    a.checked_mul(b)
+        .unwrap_or_else(|| panic_at("integer overflow", location))
+}
+
+/// `a / b` with the location of the operator (debug builds).
+pub fn div_at(a: i64, b: i64, location: &str) -> i64 {
+    if b == 0 {
+        panic_at("division by zero", location);
+    }
+    a.checked_div(b)
+        .unwrap_or_else(|| panic_at("integer overflow", location))
+}
+
+/// `a % b` with the location of the operator (debug builds).
+pub fn rem_at(a: i64, b: i64, location: &str) -> i64 {
+    if b == 0 {
+        panic_at("division by zero", location);
+    }
+    a.checked_rem(b)
+        .unwrap_or_else(|| panic_at("integer overflow", location))
+}
+
+/// `-a` with the location of the operator (debug builds).
+pub fn neg_at(a: i64, location: &str) -> i64 {
+    a.checked_neg()
+        .unwrap_or_else(|| panic_at("integer overflow", location))
+}
+
+/// `a << n` with the location of the operator (debug builds).
+pub fn shl_at(a: i64, n: i64, location: &str) -> i64 {
+    if !(0..=63).contains(&n) {
+        panic_at("shift amount out of range", location);
+    }
+    a.wrapping_shl(n as u32)
+}
+
+/// `a >> n` with the location of the operator (debug builds).
+pub fn shr_at(a: i64, n: i64, location: &str) -> i64 {
+    if !(0..=63).contains(&n) {
+        panic_at("shift amount out of range", location);
+    }
+    a >> n
+}
+
+/// `Int.abs` with the location of the call (debug builds).
+pub fn abs_at(a: i64, location: &str) -> i64 {
+    a.checked_abs()
+        .unwrap_or_else(|| panic_at("integer overflow", location))
+}
+
+/// `list.sum` with the location of the call (debug builds).
+pub fn sum_at(items: &[i64], location: &str) -> i64 {
+    items.iter().fold(0, |total, x| add_at(total, *x, location))
+}"#,
+    },
+    Piece {
+        name: "ItemAt",
+        deps: &["Panic"],
+        code: r#"fn index_at(i: i64, length: usize, location: &str) -> usize {
+    match usize::try_from(i) {
+        Ok(k) if k < length => k,
+        _ => panic_at(
+            &format!("index {i} out of range for length {length}"),
+            location,
+        ),
+    }
+}
+
+/// `items[i]` with the range check of wolfpack and the location of the `[` (debug builds).
+pub trait ItemAt<T> {
+    /// `items[i]`
+    fn item_at(&self, i: i64, location: &str) -> &T;
+    /// `items[i]` as a place.
+    fn item_at_mut(&mut self, i: i64, location: &str) -> &mut T;
+}
+
+impl<T> ItemAt<T> for [T] {
+    fn item_at(&self, i: i64, location: &str) -> &T {
+        &self[index_at(i, self.len(), location)]
+    }
+
+    fn item_at_mut(&mut self, i: i64, location: &str) -> &mut T {
+        let k = index_at(i, self.len(), location);
+        &mut self[k]
+    }
+}"#,
+    },
+    Piece {
+        name: "Map_at",
+        deps: &["Map"],
+        code: r#"impl<K: std::hash::Hash + Eq + Clone, V> Map<K, V> {
+    /// `map[key]` with the location of the `[` (debug builds).
+    pub fn item_at<Q>(&self, key: &Q, location: &str) -> &V
+    where
+        K: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq + ?Sized,
+    {
+        match self.index.get(key) {
+            Some(&i) => &self.values[i],
+            None => panic_at("key not found in map", location),
+        }
+    }
+
+    /// `map[key]` as a place, with the location of the `[` (debug builds).
+    pub fn item_at_mut<Q>(&mut self, key: &Q, location: &str) -> &mut V
+    where
+        K: std::borrow::Borrow<Q>,
+        Q: std::hash::Hash + Eq + ?Sized,
+    {
+        match self.index.get(key) {
+            Some(&i) => &mut self.values[i],
+            None => panic_at("key not found in map", location),
+        }
+    }
+}"#,
+    },
+    Piece {
+        name: "located",
+        deps: &["Panic", "message"],
+        code: r#"/// Debug builds: runs an operation of the language; a panic of the language that it raises
+/// gets the location of the operation, and other panics go on unchanged.
+fn located<R>(location: &str, run: impl FnOnce() -> R) -> R {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)) {
+        Ok(value) => value,
+        Err(payload) => match message(&*payload).strip_prefix("panic: ") {
+            Some(rest) => panic_at(rest, location),
+            None => std::panic::resume_unwind(payload),
+        },
+    }
+}"#,
+    },
+    Piece {
+        name: "slice_at",
+        deps: &["located", "slice"],
+        code: r#"/// `slice` with the location of the `[` (debug builds).
+pub fn slice_at<T: Clone>(items: &[T], start: i64, end: i64, location: &str) -> Vec<T> {
+    located(location, || slice(items, start, end))
+}
+
+/// `slice_from` with the location of the `[` (debug builds).
+pub fn slice_from_at<T: Clone>(items: &[T], start: i64, location: &str) -> Vec<T> {
+    located(location, || slice_from(items, start))
+}"#,
+    },
+    Piece {
+        name: "slice_str_at",
+        deps: &["located", "slice_str"],
+        code: r#"/// `slice_str` with the location of the `[` (debug builds).
+pub fn slice_str_at(text: &str, start: i64, end: i64, location: &str) -> String {
+    located(location, || slice_str(text, start, end))
+}
+
+/// `slice_str_from` with the location of the `[` (debug builds).
+pub fn slice_str_from_at(text: &str, start: i64, location: &str) -> String {
+    located(location, || slice_str_from(text, start))
+}"#,
+    },
+    Piece {
+        name: "exit_at",
+        deps: &["exit"],
+        code: r#"/// `exit` with the location of the call (debug builds).
+pub fn exit_at(code: i64, location: &str) -> ! {
+    if !(0..=255).contains(&code) {
+        panic_at(&format!("exit code {code} out of range"), location);
+    }
+    exit(code)
+}"#,
+    },
+    Piece {
+        name: "int_pow_at",
+        deps: &["located", "int"],
+        code: r#"/// `int_pow` with the location of the call (debug builds).
+pub fn int_pow_at(a: i64, exp: i64, location: &str) -> i64 {
+    located(location, || int_pow(a, exp))
+}"#,
+    },
+    Piece {
+        name: "float_to_int_at",
+        deps: &["located", "float_to_int"],
+        code: r#"/// `float_to_int` with the location of the call (debug builds).
+pub fn float_to_int_at(x: f64, location: &str) -> i64 {
+    located(location, || float_to_int(x))
+}"#,
+    },
+    Piece {
+        name: "strings_at",
+        deps: &["located", "strings"],
+        code: r#"/// `split` with the location of the call (debug builds).
+pub fn split_at(text: &str, separator: &str, location: &str) -> Vec<String> {
+    located(location, || split(text, separator))
+}
+
+/// `replace` with the location of the call (debug builds).
+pub fn replace_at(text: &str, from: &str, to: &str, location: &str) -> String {
+    located(location, || replace(text, from, to))
+}
+
+/// `repeat` with the location of the call (debug builds).
+pub fn repeat_at(text: &str, times: i64, location: &str) -> String {
+    located(location, || repeat(text, times))
+}"#,
+    },
+    Piece {
+        name: "list_at",
+        deps: &["located", "list"],
+        code: r#"/// `insert` with the location of the call (debug builds).
+pub fn insert_at<T>(items: &mut Vec<T>, i: i64, item: T, location: &str) {
+    located(location, move || insert(items, i, item))
+}
+
+/// `remove` with the location of the call (debug builds).
+pub fn remove_at<T>(items: &mut Vec<T>, i: i64, location: &str) -> T {
+    located(location, move || remove(items, i))
+}
+
+/// `swap` with the location of the call (debug builds).
+pub fn swap_at<T>(items: &mut [T], i: i64, j: i64, location: &str) {
+    located(location, move || swap(items, i, j))
+}"#,
+    },
 ];
 
 /// The runtime module with the given pieces and their dependencies, in a fixed order.

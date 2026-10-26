@@ -238,6 +238,25 @@ fn main() {
 - The `#![allow(...)]` lines keep `cargo clippy` quiet about shapes that come from the program as
   it was written, such as a `match` with one arm or `0.0 / 0.0` for NaN.
 
+## Debug builds
+
+With `--debug` (`wolf build --debug`, `wolf run --debug`, `wolf test --debug`), a panic of the
+language names the place in the `.wolf` file, as `panic` does (chapter 7). For that, every
+operation that can panic calls a helper of the runtime that takes its location as one more
+argument. `total * 2` and `items[i]` become, on each target:
+
+```text
+TypeScript  $rt.mulAt(total, 2n, "src/main.wolf:4:15")    $rt.itemAt(items, i, "src/main.wolf:5:16")
+Go          wolfrt.MulAt(total, 2, "src/main.wolf:4:15")  wolfrt.ItemAt(items, i, "src/main.wolf:5:16")
+Rust        wolf_rt::mul_at(total, 2, "src/main.wolf:4:15")  *items.item_at(i, "src/main.wolf:5:16")
+```
+
+Rust then uses these checked helpers instead of its own operators, whose panics would name a
+place in the generated Rust code. The std functions that can panic, such as `list.remove` or
+`process.exit`, get the location of their call the same way. `wolf run --vm --debug` prints the
+same locations. Without `--debug` nothing of this is generated: the code is what this chapter
+shows.
+
 ## Building the output yourself
 
 The generated projects need no `wolf` to build: `npm install` and `tsc` for TypeScript, `go build`

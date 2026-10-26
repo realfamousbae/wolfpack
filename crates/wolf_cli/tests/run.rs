@@ -32,6 +32,15 @@ fn wolf_run(project: &Path, out: &Path, extra: &[&str], path: Option<&str>) -> O
     cmd.output().unwrap()
 }
 
+/// `--debug` for a project with a `debug.txt`: a debug build (spec chapter 7, section 3, rule 1).
+fn debug_flag(dir: &Path) -> &'static [&'static str] {
+    if dir.join("debug.txt").is_file() {
+        &["--debug"]
+    } else {
+        &[]
+    }
+}
+
 fn tool_dir(name: &str) -> PathBuf {
     let path = std::env::var_os("PATH").unwrap_or_default();
     std::env::split_paths(&path)
@@ -92,7 +101,7 @@ fn run_programs_match_expected_output() {
         if name.starts_with("E08") || dir.join("skip-ts.txt").is_file() {
             continue;
         }
-        let output = wolf_run(&dir, &tmp(&name), &[], None);
+        let output = wolf_run(&dir, &tmp(&name), debug_flag(&dir), None);
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
         let code = output.status.code().unwrap_or(-1).to_string();
@@ -305,7 +314,8 @@ fn test_reports_match_expected_output() {
             runs.push((Some(filter.trim().to_string()), "expected_filtered.txt"));
         }
         for (filter, file) in runs {
-            let extra: Vec<&str> = filter.iter().map(String::as_str).collect();
+            let mut extra: Vec<&str> = filter.iter().map(String::as_str).collect();
+            extra.extend(debug_flag(&dir));
             let output = wolf_test(&dir, &tmp(&format!("t-{name}")), &extra);
             let actual = format!(
                 "{}exit code: {}\n",
@@ -325,6 +335,65 @@ fn test_reports_match_expected_output() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// The files under `dir` by their path relative to it.
+fn files(dir: &Path) -> std::collections::BTreeMap<PathBuf, String> {
+    let mut found = std::collections::BTreeMap::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for entry in fs::read_dir(&d).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                let text = fs::read_to_string(&path).unwrap_or_default();
+                found.insert(path.strip_prefix(dir).unwrap().to_path_buf(), text);
+            }
+        }
+    }
+    found
+}
+
+/// `--debug` adds the locations of the operations that can panic (spec chapter 7, section 3,
+/// rule 1); a build without it has none, also in a directory where a debug build was made before,
+/// and is the same as a build that never saw `--debug`.
+#[test]
+fn builds_without_debug_have_no_locations() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run/debug_add_overflow");
+    for target in ["ts", "go", "rust"] {
+        let build = |out: &Path, debug: bool| {
+            let _ = fs::remove_dir_all(out);
+            let mut cmd = Command::new(env!("CARGO_BIN_EXE_wolf"));
+            cmd.args(["build", "--target", target, "--out"])
+                .arg(out)
+                .current_dir(&dir);
+            if debug {
+                cmd.arg("--debug");
+            }
+            let output = cmd.output().unwrap();
+            assert!(output.status.success(), "{target}: {output:?}");
+            files(out)
+        };
+        let plain = build(&tmp(&format!("plain-{target}")), false);
+        let reused = tmp(&format!("debug-then-plain-{target}"));
+        let debug = build(&reused, true);
+        let location = "\"src/main.wolf:10:16\"";
+        let text = |files: &std::collections::BTreeMap<PathBuf, String>| {
+            files.values().cloned().collect::<Vec<_>>().concat()
+        };
+        assert!(text(&debug).contains(location), "{target}");
+        assert!(!text(&plain).contains(location), "{target}");
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_wolf"));
+        let output = cmd
+            .args(["build", "--target", target, "--out"])
+            .arg(&reused)
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{target}: {output:?}");
+        assert_eq!(files(&reused), plain, "{target}");
+    }
 }
 
 /// Tests and test helpers are not part of `wolf build`.

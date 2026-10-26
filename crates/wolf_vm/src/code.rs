@@ -209,9 +209,23 @@ pub struct Chunk {
     pub code: Vec<Op>,
     /// The constants.
     pub consts: Vec<Value>,
+    /// In a debug build, the instructions that can panic with the constant that holds their
+    /// location, by increasing position (spec chapter 7, section 3, rule 1).
+    pub locations: Vec<(u32, u32)>,
 }
 
 impl Chunk {
+    /// The location of the instruction at `pc`, in a debug build.
+    pub fn location(&self, pc: usize) -> Option<&Value> {
+        let pc = u32::try_from(pc).ok()?;
+        let i = self
+            .locations
+            .binary_search_by_key(&pc, |(at, _)| *at)
+            .ok()?;
+        let (_, k) = self.locations.get(i)?;
+        self.consts.get(*k as usize)
+    }
+
     /// A listing of the instructions, one per line; `tag` names a struct or variant and `func`
     /// a function.
     pub fn listing(&self, tag: &dyn Fn(u32) -> String, func: &dyn Fn(u32) -> String) -> String {

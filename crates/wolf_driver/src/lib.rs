@@ -114,7 +114,8 @@ pub fn analyze(
     }
 }
 
-/// The project data the IR keeps; with `dependencies`, the packages of the targets too.
+/// The project data the IR keeps; with `dependencies`, the packages of the targets too. It is
+/// not a debug build; the caller sets [`wolf_ir::ProjectMeta::debug`] for one.
 pub fn meta(manifest: &Manifest, dependencies: bool) -> wolf_ir::ProjectMeta<'_> {
     wolf_ir::ProjectMeta {
         name: &manifest.name,
@@ -129,6 +130,7 @@ pub fn meta(manifest: &Manifest, dependencies: bool) -> wolf_ir::ProjectMeta<'_>
         } else {
             BTreeMap::new()
         },
+        debug: false,
     }
 }
 

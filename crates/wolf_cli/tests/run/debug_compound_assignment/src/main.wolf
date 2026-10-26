@@ -1,0 +1,11 @@
+module main
+
+main {
+    var total = 1
+    var steps = 0
+    while steps < 100 {
+        total *= 1000
+        steps += 1
+    }
+    print(total.to_string())
+}

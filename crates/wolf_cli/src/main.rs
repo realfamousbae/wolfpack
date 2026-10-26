@@ -141,6 +141,11 @@ struct TestArgs {
     #[arg(long)]
     vm: bool,
 
+    /// Build for debugging: the panics of the language (integer overflow, division by zero,
+    /// index out of range...) print the location of the operation that failed.
+    #[arg(long)]
+    debug: bool,
+
     /// Build in this directory instead of `out/<target>/` (for tests).
     #[arg(long, hide = true)]
     out: Option<PathBuf>,
@@ -175,6 +180,11 @@ struct BuildArgs {
     #[arg(long)]
     example: Option<String>,
 
+    /// Build for debugging: the panics of the language (integer overflow, division by zero,
+    /// index out of range...) print the location of the operation that failed.
+    #[arg(long)]
+    debug: bool,
+
     /// Write the generated project here instead of `out/<target>/` (for tests).
     #[arg(long, hide = true)]
     out: Option<PathBuf>,
@@ -197,6 +207,11 @@ struct RunArgs {
     /// Run the example `examples/<name>.wolf` instead of the program.
     #[arg(long)]
     example: Option<String>,
+
+    /// Build for debugging: the panics of the language (integer overflow, division by zero,
+    /// index out of range...) print the location of the operation that failed.
+    #[arg(long)]
+    debug: bool,
 
     /// Build in this directory instead of `out/<target>/` (for tests).
     #[arg(long, hide = true)]
@@ -369,6 +384,7 @@ fn run() -> ExitCode {
                 out_dir(&cwd, args.out.as_deref()).as_deref(),
                 then,
                 target,
+                args.debug,
             ))
         }
         Command::Test(args) => {
@@ -385,6 +401,7 @@ fn run() -> ExitCode {
                 out_dir(&cwd, args.out.as_deref()).as_deref(),
                 then,
                 target,
+                args.debug,
             ))
         }
         Command::Run(args) => {
@@ -423,6 +440,7 @@ fn run() -> ExitCode {
                 out_dir(&cwd, args.out.as_deref()).as_deref(),
                 then,
                 target,
+                args.debug,
             ))
         }
         Command::Fmt(args) => {
