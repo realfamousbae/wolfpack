@@ -294,6 +294,7 @@ rule 5 did, so that no command has to be looked up.
 | `String` | `string` | `string` | `String`; `&str` for read parameters |
 | `Void` | `void` as a result, `undefined` as a value | no result; `struct{}` as data | `()` |
 | `List<T>` | `T[]` | `[]T` | `Vec<T>`; `&[T]` for read parameters |
+| `Bytes` (**[DRAFT]**, D8.25) | `Uint8Array` | `[]byte` | `Vec<u8>`; `&[u8]` for read parameters |
 | `Map<K, V>` | `Map<K, V>` | `wolfrt.Map[K, V]` | `wolf_rt::Map<K, V>` |
 | `Option<T>` | section 4.1 | section 4.1 | `Option<T>` |
 | `Result<T, E>` | `{ ok: true, value: T } \| { ok: false, error: E }` | section 4.1 | `Result<T, E>` |
@@ -372,6 +373,42 @@ rule 5 did, so that no command has to be looked up.
    explicitly: `items[Number(i)]` after a range check, `BigInt(items.length)`. **[INTERNAL]**
 3. `print` and `to_string` of an `Int` never show the `n` suffix (ADR 0001).
 
+### 4.2a `Bytes`
+
+**[DRAFT]** (2026-10-26, D8.25) **[INTERNAL]** for the whole section. Chapter 4, section 4,
+rule 7 and chapter 7, section 6a fix the behaviour.
+
+1. **TypeScript.** A value is a `Uint8Array` that holds exactly its bytes. Its `ArrayBuffer` may be
+   longer: `push` and `append` write into the room after the bytes when there is enough, and
+   otherwise copy the bytes into a buffer twice as large. Either way the result is a new
+   `Uint8Array`, which the generated code stores back into the place (`data = $rt.bytesPush(data,
+   1n)`), so a `Bytes` is a value that JavaScript does not pass by reference, like a `String`: a
+   `mut` parameter of type `Bytes` receives a `Ref` (section 6). The ownership rules make the room
+   safe to use: slices and `.copy()` copy into a new buffer (`slice()`), and a moved value is never
+   used again, so no other live value shares the room. The `eq` and `copy` pieces of the runtime
+   get a branch for `Uint8Array` (today's `copyOneLevel` would copy its properties, not its
+   bytes). `data[i]` is a helper that checks the index and gives a `bigint`; `data[i] = v` a
+   helper that checks the index and the byte value.
+2. **Go.** `[]byte`, as `[]T` is for a list: a `mut` parameter is `*[]byte`, `push` is `append`,
+   `==` is `bytes.Equal` and `.copy()` makes a new slice (`nil` and an empty slice are the same
+   value). The helpers of section 4.3 check indices and byte values.
+3. **Rust.** `Vec<u8>`, `&[u8]` for read parameters and `&mut Vec<u8>` for `mut` parameters;
+   `==` and `.copy()` are the native `PartialEq` and `Clone`, so structs that hold `Bytes` derive
+   them unchanged. `data[i]` is `i64::from(*data.at(i))`, through the index helper.
+4. **UTF-8, hex and base64** are written in each runtime piece, the same algorithm on every
+   target, because the targets do not agree: Node.js decodes invalid hex and base64 without an
+   error (`Buffer.from("zz", "hex")` is empty, `Buffer.from("ab$c", "base64")` skips the `$`),
+   `Uint8Array.fromHex` and `fromBase64` are not in Node.js 22, and Rust's standard library has
+   neither. Go's `encoding/hex` and `encoding/base64` may serve, with their errors mapped to the
+   positions of chapter 7, section 6a, rule 5. The UTF-8 check is `std::str::from_utf8` in Rust
+   (its `valid_up_to` is the position), `utf8.Valid` and a scan for the position in Go, and in
+   TypeScript a `TextDecoder` with `fatal: true` and `ignoreBOM: true` (so that a leading U+FEFF
+   is kept, as in Go and Rust) and a scan for the position after a failure. `TextEncoder` and
+   `TextDecoder` are declared in the `host` piece, as `process` is, since the generated
+   `tsconfig.json` has only the ES2022 library.
+5. **Standard streams.** `io.write_bytes` goes through the same buffered writer as `print`, so
+   the order of output is kept. `io.read_bytes` takes what `read_line` has buffered first.
+
 ### 4.3 Overflow and other built-in panics
 
 | | TS | Go | Rust |
@@ -380,6 +417,7 @@ rule 5 did, so that no command has to be looked up.
 | `/ %` | helpers (zero, `MIN / -1`) | helpers (`MIN / -1` wraps in Go) | native (panics already) |
 | shifts | helpers | helpers | helpers (Rust masks the amount) |
 | index | helper with range check | helper with range check (ADR 0009) | helper with range check (`items.at(i)`; author, 2026-10-13) |
+| byte value (**[DRAFT]**, D8.25) | helper | helper | helper |
 
 The panic hook (Rust) and `recover` (Go) translate the target's own panic message into the canonical
 message of chapter 7, for example Rust's `attempt to add with overflow` becomes
@@ -613,6 +651,18 @@ copy defensively.
      is checked where the target type allows other values: in TS the `string` must hold exactly
      one scalar value, in Go the `rune` must be a scalar value (`utf8.ValidRune`). A failed
      check is a panic `invalid character from extern code`. A Rust `char` is always valid.
+   - `Bytes` (**[DRAFT]**, 2026-10-26, D8.25; chapter 7, section 8.4, rule 1) is passed without a
+     copy and taken back as a copy that the extern code cannot reach any more:
+
+     | | TS | Go | Rust |
+     | --- | --- | --- | --- |
+     | parameter | the `Uint8Array` itself, not copied (chapter 7, section 8.4, rule 4) | the `[]byte` with its capacity cut to its length (`data[:len(data):len(data)]`), so that an `append` in Go code cannot write into the room of the wolfpack value | `&[u8]` |
+     | result | any `Uint8Array`, also a Node.js `Buffer`, copied into a new `Uint8Array` | a `[]byte`, copied, since Go code may keep and reuse its slice (`bufio.Scanner.Bytes` does); `nil` is an empty `Bytes` | `Vec<u8>`, or a type that converts into it with `Into<Vec<u8>>` (`Box<[u8]>`) |
+     | `Option<Bytes>` parameter (D8.12) | `Uint8Array \| undefined` | `*[]byte` | `Option<&[u8]>` |
+     | inside a `List`, a `Map` or a record, a callback parameter | `Uint8Array` | `[]byte` | `Vec<u8>`; `&[u8]` for a callback parameter |
+
+     A result is copied in TypeScript too: the extern code may keep and change the array it
+     returned, and a small Node.js `Buffer` is a view of a pool that other buffers share.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
 ## 8a. Code of the project (`native/`)
@@ -691,3 +741,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.18 | **[DRAFT]** The AUR package `wolfpack-bin` (section 2a, rule 2): the glibc archives of the release and the license files, built and installed in a clean Arch Linux container for each release and pushed to the AUR by the workflow `aur.yml`; `wolf self update` treats its `/usr/bin/wolf` like a `.deb` or `.rpm` | **proposed** (2026-10-26), waiting for the author, who needs an AUR account and the secret `AUR_SSH_KEY` |
 | D8.19 | `Char` on the targets (section 4; section 8, rule 2): TS `string` of one scalar value, compared with the scalar-value helper of strings; Go `wolfrt.Char`, a type defined as `rune`, so that it is never the Go type `int32` of an `Int32`, should sized integers come (D4.24), in the type switches of the runtime; Rust `char`; at the extern boundary `string`, `rune` and `char`, with values that come back checked in TS and Go (panic `invalid character from extern code`). Alternatives: TS `number`, the code (faster comparisons, but the generated code shows `97` for `'a'` and every text needs `String.fromCodePoint`); Go plain `rune` (reads better, but every place of the runtime that dispatches on the Go type would need a dictionary instead) | **proposed** (2026-10-26), waiting for the author |
 | D8.20 | The sized integer types on the targets (section 4; section 4.3; section 8, rule 2): TS `bigint` as `Int` (ADR 0001), with range-checking helpers per width and `BigInt.asIntN`/`asUintN` for the bitwise operators and shifts, so the runtime's `typeof` fallbacks need no change; Go `int8` to `uint32` with checked helpers as for `Int`; Rust `i8` to `u32` with `overflow-checks`; at the extern boundary a TS `number` (exact for every value), the Go and Rust type of the width, and results of any integer type checked against the declared range. Alternative for TS: `number` (idiomatic and faster, and what typed arrays hold; but a `number` is a `Float` to the runtime's fallbacks, so every `Display` and `compare` of a sized value in generic code would need a dictionary, and every conversion to and from `Int` a `BigInt()` or `Number()`) | **proposed** (2026-10-26), waiting for the author |
+| D8.25 | **[DRAFT]** The target forms of `Bytes` (section 4, section 4.2a, section 4.3, section 8): a `Uint8Array` in TypeScript, with room in its buffer for `push` and `append` and stored back into its place, so a `mut` parameter gets a `Ref`; `[]byte` in Go; `Vec<u8>` and `&[u8]` in Rust; UTF-8, hex and base64 written in each runtime, since Node.js decodes hex and base64 leniently and Rust's standard library has neither; at the `extern` boundary parameters without a copy (Go's capacity cut to the length) and results copied in TypeScript and Go. Alternatives for TypeScript: a small class around a `Uint8Array` and a length, changed in place like a list (no `Ref`, but every boundary crossing and every helper unwraps it); a resizable `ArrayBuffer` (ES2024, needs a maximum size given in advance). Recommendation: the plain `Uint8Array`, which is what TypeScript code expects at the boundary | **proposed** (2026-10-26), waiting for the author |

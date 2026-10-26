@@ -38,8 +38,9 @@ Decisions already taken by the author for this chapter (2026-10-07):
    **[DRAFT]** (2026-10-26, chapter 4, D4.24): so are `Int8`, `Int16`, `Int32`, `UInt8`, `UInt16`
    and `UInt32`.
 2. All other types are **move types**: `String`, `List`, `Map`, `Option`, `Result`, structs, enums,
-   interface values, function values. They are copied only explicitly with `x.copy()` **[PLAN]**,
-   which requires `Copyable` (chapter 4, section 9) and returns a new owned value.
+   interface values, function values, and `Bytes` (**[DRAFT]**, 2026-10-26, chapter 4, D4.30).
+   They are copied only explicitly with `x.copy()` **[PLAN]**, which requires `Copyable`
+   (chapter 4, section 9) and returns a new owned value.
 3. `Option<Int>` and similar are move types even if their contents are copy types. **[PROPOSAL]**
    A **type parameter** `T` is a move type inside the generic code, whatever it is instantiated with:
    `self.items.push(own item)` needs the marker even if `T` turns out to be `Int`.

@@ -38,6 +38,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
 | `Bool` | `true`, `false` | |
 | `String` | immutable sequences of Unicode scalar values, stored as UTF-8 | **[PLAN]**, G1 |
 | `Char` | one Unicode scalar value | **[DRAFT]** (2026-10-26, D4.23), section 3.7 |
+| `Bytes` | growable sequences of bytes; a byte is read and written as an `Int` in `0..=255` | **[DRAFT]** (2026-10-26, D4.30), section 4, rule 7 |
 | `Void` | exactly one value, `()` | **[PLAN]** |
 | `List<T>` | ordered, growable sequence | **[PLAN]** |
 | `Map<K, V>` | finite map from keys to values, `K: Hashable` | **[PLAN]**, G3 |
@@ -306,6 +307,37 @@ fn count_vowels(s: String) -> Int {
    from context (section 10).
 6. Two lists are equal when they have the same length and equal elements in order. Two maps are
    equal when they have the same keys and equal values, independent of order.
+7. **[DRAFT]** (2026-10-26, D4.30) **`Bytes`** is a sequence of bytes for binary data: the
+   contents of a file, the UTF-8 form of a string, the input of a hash function in target code.
+   It behaves like a `List<Int>` whose elements are bytes, stored compactly (one byte each) on
+   every target:
+   - `data[i]` requires `i: Int` and gives an `Int` in `0..=255`; an index outside `0..len`
+     panics, as for a list. `data[i] = v` (and `data[i] += v`) replaces a byte under the same
+     rule.
+   - A byte value outside `0..=255` panics with `panic: byte value 256 out of range`, wherever it
+     is stored: `data[i] = v`, `push` and `Bytes.from_list` (chapter 7, section 6a). Nothing is
+     wrapped or cut to eight bits: `data[i] = ~data[i]` panics, and `data[i] = ~data[i] & 0xff`
+     inverts the bits.
+   - `data[a..b]` (and the other slice forms) gives a new `Bytes` with copies of the bytes;
+     bounds as for lists. It needs no bound, since a byte is an `Int`.
+   - Two values of `Bytes` are equal when they have the same length and the same bytes in order.
+   - It is a move type (chapter 5, section 2), like a list; `.copy()` copies it.
+   - There is no literal. `[1, 2]` is a `List<Int>` and never a `Bytes` (E0401); values come
+     from `Bytes.from_list([1, 2])`, `"text".to_utf8()`, files and the other functions of
+     chapter 7, section 6a. `+` does not join two values of `Bytes` (E0405); `a.append(b)` does.
+     `for` does not iterate it (section 6, rule 6; D4.10): write `for i in 0..data.len()` or
+     `for x in data.to_list()`.
+   - `Bytes` is `Equatable`, `Copyable` and `Display` (section 9), but not `Hashable`, for the
+     reason of G3: a TypeScript `Map` keys a `Uint8Array` by identity, and a Go `[]byte` is not
+     comparable. `data.to_hex()` is a key that works. It is not `Comparable` either, so `<` and
+     `compare` do not apply.
+   - **With a byte type.** Sized integer types are a separate draft. If wolfpack gets a type for
+     one byte (`Byte` or `UInt8`), the elements of `Bytes` become values of that type: `data[i]`,
+     `push`, `from_list` and `to_list` take and give `Byte` instead of `Int`, the range check
+     moves from storing into `Bytes` to the conversion from `Int` to `Byte`, and `Bytes` itself may
+     become another name for `List<Byte>` (`type Bytes = List<Byte>`) with the compact
+     representation. That changes the signatures above, so it breaks programs written against
+     this draft; the order of the two features is a question for the author (D4.30).
 
 ## 5. `Option`, `Result` and the `?` operator
 
@@ -633,11 +665,11 @@ bounds. Associated functions are called as `Type.f(args)`.
 
 | Interface | Meaning | Who implements it |
 | --- | --- | --- |
-| `Equatable` | `==` and `!=` are defined | **derived automatically**: `Int`, `Float`, `Bool`, `String`, `Void`, `Ordering`; `List<T>`, `Option<T>` if `T: Equatable`; `Map<K, V>` if `V: Equatable`; `Result<T, E>` if both are; a struct or enum if all its fields and payloads are. Not: function types, interface values |
+| `Equatable` | `==` and `!=` are defined | **derived automatically**: `Int`, `Float`, `Bool`, `String`, `Void`, `Ordering`, `Bytes` (**[DRAFT]**, D4.30); `List<T>`, `Option<T>` if `T: Equatable`; `Map<K, V>` if `V: Equatable`; `Result<T, E>` if both are; a struct or enum if all its fields and payloads are. Not: function types, interface values |
 | `Copyable` | `.copy()` is defined | **derived automatically**: every type except function types and types containing them. Interface values are `Copyable` (author, 13b) |
-| `Hashable` | can be a `Map` key | **closed**: `Int`, `String`, `Bool` and enums without payloads (G3). Cannot be implemented by the user |
+| `Hashable` | can be a `Map` key | **closed**: `Int`, `String`, `Bool` and enums without payloads (G3). Cannot be implemented by the user. Not `Bytes` (**[DRAFT]**, D4.30; section 4, rule 7) |
 | `Comparable` | `fn compare(self, other: Self) -> Ordering` | built in for `Int` and `String`; implemented by the user for own types like any interface |
-| `Display` | `fn to_string(self) -> String` (0.2) | built in for `Int`, `Float`, `Bool`, `String`; implemented by the user for own types like any interface |
+| `Display` | `fn to_string(self) -> String` (0.2) | built in for `Int`, `Float`, `Bool`, `String`, and `Bytes` (**[DRAFT]**, D4.30; chapter 7, section 4.1); implemented by the user for own types like any interface |
 
 1. `Equatable` and `Copyable` cannot be implemented by hand: there is no custom equality or copy
    in v1 (no operator overloading, PLAN section 3). **[PROPOSAL]**
@@ -800,6 +832,7 @@ integer type).
 | D4.22 | **[DRAFT]** `..base` for enum variants with named fields (section 7.2): the base has the enum type; a base of another variant panics at run time (`panic: update of Shape.Rect from Shape.Circle`); E0434 is retired. Alternative: keep E0434 (no compile-time check is possible without a type for one variant), which is the drafter's second choice | **proposed** (2026-10-26), waiting for the author |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.23 | The type `Char` (section 3.7): one Unicode scalar value (not a grapheme cluster); a copy type (chapter 5, section 2); `==` and `<` by scalar value, which adds `Char` to the author's list of section 3.5, rule 2; no arithmetic or bitwise operators, and `"a" + c` stays E0405 (section 3.4, rule 1 unchanged); `Equatable`, `Copyable`, `Hashable` (a `Map` key, one more type in the closed list of G3), `Comparable`, `Display`; literal patterns, exhaustive only with `_`; not a `config` type; declared in `std.string` and part of the prelude, so a 0.5 program with a top-level type `Char` must rename it (E0617, chapter 6, section 3.3). `s[i]` stays absent (D4.10); `s.char_at(i)` is proposed instead (chapter 7, D7.22). No new E04xx code. Alternatives: `s[i] -> Char`, reversing D4.10 (it would look O(1) but walks the string on every target); `+` of a `String` and a `Char`; `Char` as a `config` type, from a one-character TOML string; a grapheme cluster, as Swift's `Character` (the targets disagree on clusters as they do on case mapping, D7.3) | **proposed** (2026-10-26), waiting for the author |
+| D4.30 | **[DRAFT]** A built-in type `Bytes` for binary data (section 2; section 4, rule 7; section 9; chapter 5, section 2; its methods are D7.30): a move type that behaves like a `List<Int>` of bytes stored compactly, with `data[i]`, `data[i] = v`, slices, `==`, `.copy()` and `Display`; a byte value outside `0..=255` panics with `panic: byte value 256 out of range`, nothing is wrapped; no literal, no `+`, no `for`; not `Hashable` (G3) and not `Comparable`. No new diagnostic codes: misuses are E0401, E0405 and E0407. Recommendation: **growable and changeable in place**, like a list: that is what Go's `[]byte` and Rust's `Vec<u8>` are and what building a file needs, and the ownership rules keep the changes invisible to every other name. Alternatives: **immutable like `String`**, simplest in TypeScript, where a `Uint8Array` cannot grow, but then every `push` copies and a file is built through a `List<Int>` first; **no type of its own**, a `List<Int>` that the backends store compactly when it holds bytes, which they cannot know, since an `Int` element may hold any 64-bit value. **Open question: the order with sized integers** (another draft). Recommendation: if the author accepts a byte type (`Byte` or `UInt8`), add `Bytes` after it with `Byte` elements from the start, possibly as `type Bytes = List<Byte>`; otherwise `Int` elements now, accepting that a later byte type changes `data[i]`, `push`, `from_list` and `to_list` | **proposed** (2026-10-26), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |
 | D4.24 | Sized integer types (section 3.1a): `Int8`, `Int16`, `Int32`, `UInt8`, `UInt16`, `UInt32`, named in the style of `Int` (as Swift names them); `Int` stays the default and the only 64-bit type; copy types; the arithmetic of `Int` with the range of the type, panicking on overflow and never wrapping; no unary minus on the unsigned types; bitwise operators on the bits of the width; the shift amount is always an `Int` in `0` to the width minus one, `>>` arithmetic on signed and logical on unsigned types; no mixing in an operator (E0405) and no implicit widening; indices, slices and ranges stay `Int`; `Equatable`, `Copyable`, `Hashable` (`Map` keys), `Comparable`, `Display` (decimal); literal patterns, a `match` needing `_`; not `config` types; prelude names, so a program with a top-level type of one of these names must rename it (E0617). No new E04xx code. **Open**: (1) the set: recommended these six, which all fit in `Int`, so `to_int()` never fails; alternatives a smaller set (`UInt8` for bytes, `Int32` and `UInt32` for interop) or a larger one with `UInt64` (64-bit hashes; then `to_int()` can fail) and `Int64` as a second name of `Int`; (2) the names: alternatives `I8`/`U8` (they match the suffixes, not `Int` and `Float`), or `Byte`/`Short` (signed in Java and Kotlin, unsigned in Go and C#); (3) `Byte`: recommended no second name, and the `Bytes` draft uses `UInt8` for its elements; the alternative `type Byte = UInt8` in the prelude is best decided with `Bytes`; (4) wrapping arithmetic (`wrapping_add`, `wrapping_mul`) is not proposed: 32-bit hashes such as FNV-1a work in `Int` and are masked (`((h ^ b) * 16777619) & 0xFFFF_FFFF`), 64-bit ones would need it | **proposed** (2026-10-26), waiting for the author |
 | D4.25 | Literals of the sized types (section 3.1a, rule 14). (a) only with a suffix, as section 3.1, rule 6 says today: `let b: UInt8 = 255u8`, `b + 1u8`, `match b { 0u8 => ... }`; (b) **recommended**: a literal without a suffix takes the sized type expected at its place (the positions of interface coercion, section 8.5, rule 2; the right side of an assignment; the other operand of an operator, not a shift amount; a literal pattern; the branches of an `if` or a `match`; parentheses and both operands of an arithmetic or bitwise operator, so `let x: UInt8 = 1 + 2` works) and is an `Int` everywhere else, E0423 when it does not fit; inference never changes it later (`let n = 5` stays `Int`); for a parameter of a type parameter the type must be known from an earlier argument, so `assert_eq(b, 5)` works and `assert_eq(5, b)` is E0401 (write `5u8`). (b) changes the letter of section 3.1, rule 6, not its point: no literal becomes a `Float`, nothing is converted at run time. Alternative (c): Rust's inference of integer literals with `Int` as the default (`let n = 5` becomes a `UInt8` when it is passed to a `UInt8` parameter), more convenient but a literal's type then depends on code far from it | **proposed** (2026-10-26), waiting for the author |

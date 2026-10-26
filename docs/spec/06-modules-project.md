@@ -135,7 +135,7 @@ From the innermost to the outermost:
 Available in every module without imports (author):
 
 - the built-in types `Int`, `Float`, `Bool`, `String`, `Void`, `List`, `Map`, `Option`, `Result`,
-  `Ordering`;
+  `Ordering`, and `Bytes` (**[DRAFT]**, 2026-10-26, chapter 7, D7.30);
 - the variants `Some`, `None`, `Ok`, `Err`;
 - the built-in interfaces `Equatable`, `Copyable`, `Hashable`, `Comparable`, `Display` (0.2), and
   the error interface `Error` (chapter 7);
@@ -144,7 +144,8 @@ Available in every module without imports (author):
 
 The names added in 0.2 cannot be declared again at the top level (E0617), so a 0.1 program with a
 top-level `fn error` or `type Display` must rename it. Local variables named `error` are fine: they
-shadow the prelude function (section 3.2).
+shadow the prelude function (section 3.2). **[DRAFT]** (D7.30): likewise, a program with a top-level
+type `Bytes` must rename it when `Bytes` joins the prelude.
 
 **[DRAFT]** (2026-10-26, chapter 4, D4.23): the built-in type `Char` joins the prelude. Like the
 names of 0.2 it cannot be declared again at the top level (E0617), so a program with a top-level

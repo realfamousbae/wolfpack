@@ -30,6 +30,10 @@ Decisions already taken by the author for this chapter (2026-10-07):
    without exceptions. Like `intrinsic` functions, `intrinsic type` is allowed only in std
    (E0701). **[DRAFT]** (2026-10-26, D7.22): `std.string` also declares `Char`.
    **[DRAFT]** (2026-10-26, D7.23): `std.math` also declares the sized integer types.
+   declared in the prelude module. **[DRAFT]** (2026-10-26, D7.30): `std.bytes` declares `Bytes`.
+   Each of these modules holds the inherent `impl` block of its types, so the coherence rule of
+   chapter 4 (an `impl` lives in the module of its type) holds without exceptions. Like
+   `intrinsic` functions, `intrinsic type` is allowed only in std (E0701).
 5. **Methods of built-in types are available everywhere without an import**: a method is found
    through the type of the receiver (chapter 4, section 8.4). Importing `std.list` is needed only for
    its free functions.
@@ -140,6 +144,7 @@ list, an option, a map and a result writes it as the literal that would build it
 | `Ok(12)`, `Err("bad")` | `Ok(12)`, `Err("bad")`: an error of a `Display` type by its `to_string` |
 | `Err(e)` with `e` a `ParseError` | `Err(not a number: x)`: an error that is not `Display` but implements `Error`, by `message()`, without quotes |
 | `[Some([1]), None]` | `[Some([1]), None]`: parts that are collections are written the same way |
+| `Bytes.from_list([104, 105])`, `Bytes.new()` | `[104, 105]`, `[]`: **[DRAFT]** (D7.31) the bytes in decimal, as a `List<Int>` is written (section 6a, rule 6) |
 
 1. A part whose type is `String` is written in `"` quotes. Inside them `"` is `\"`, `\` is
    `\\`, line feed, carriage return, tab and U+0000 are `\n`, `\r`, `\t` and `\0`, and the
@@ -231,6 +236,8 @@ All positions and lengths count Unicode scalar values (G1).
 | `replace(self, from: String, to: String) -> String` | all occurrences; empty `from` panics |
 | `repeat(self, times: Int) -> String` | negative `times` panics |
 | `to_upper_ascii(self) -> String`, `to_lower_ascii(self) -> String` | ASCII letters only, see D7.3 |
+| `to_utf8(self) -> Bytes` | **[DRAFT]** (D7.31) the UTF-8 form of the string (section 6a, rule 2) |
+| `String.from_utf8(data: Bytes) -> Result<String, DecodeError>` | **[DRAFT]** (D7.31) the text of valid UTF-8, else an error at the first bad byte (section 6a, rule 2) |
 
 Free function: `string.join(parts: List<String>, separator: String) -> String`.
 
@@ -380,16 +387,141 @@ Free functions in `std.map`: `get<K, V: Copyable>(m: Map<K, V>, key: K) -> Optio
 `values<K, V: Copyable>(m: Map<K, V>) -> List<V>`. Reading a value in place, without a copy, is
 `m[key]` (panics if missing, chapter 4).
 
+## 6a. Bytes (module `std.bytes`)
+
+**[DRAFT]** (2026-10-26, D7.30 to D7.33). `std.bytes` declares the built-in type `Bytes` of
+chapter 4, section 4, rule 7 (`pub intrinsic type Bytes`), and the prelude re-exports it, as it
+re-exports `String` (section 1, rule 4; chapter 6, section 3.3). Methods of `Bytes`, available
+without import:
+
+| Method | Notes |
+| --- | --- |
+| `Bytes.new() -> Bytes` | no bytes |
+| `Bytes.from_list(items: List<Int>) -> Bytes` | an element outside `0..=255` panics: `panic: byte value 256 out of range` |
+| `Bytes.from_hex(text: String) -> Result<Bytes, DecodeError>` | two hexadecimal digits per byte (rule 3) |
+| `Bytes.from_base64(text: String) -> Result<Bytes, DecodeError>` | base64 of RFC 4648 with padding (rule 4) |
+| `len(self) -> Int`, `is_empty(self) -> Bool` | |
+| `push(mut self, byte: Int)` | a value outside `0..=255` panics, as above |
+| `append(mut self, other: Bytes)` | copies the bytes of `other` to the end; `data.append(data)` is E0508 (chapter 5) |
+| `clear(mut self)` | |
+| `to_list(self) -> List<Int>` | one `Int` per byte |
+| `to_hex(self) -> String` | two lower-case digits per byte, without separators: `"00ff10"` |
+| `to_base64(self) -> String` | base64 of RFC 4648 with padding: `"AP8Q"` |
+
+Two methods of `String` belong to this draft and are declared in `std.string` (section 4.3):
+`to_utf8(self) -> Bytes` and `String.from_utf8(data: Bytes) -> Result<String, DecodeError>`.
+
+1. Indexing (`data[i]`, `data[i] = v`), slices, `==` and `.copy()` are in chapter 4, section 4,
+   rule 7.
+2. **UTF-8.** `s.to_utf8()` gives the UTF-8 form of `s`: `"héllo".to_utf8().len()` is 6, while
+   `"héllo".len()` is 5. `String.from_utf8(data)` gives the text when `data` is valid UTF-8 as the
+   Unicode Standard defines it (no surrogates, no overlong forms, nothing above U+10FFFF), and an
+   error at the first byte that is not part of a valid sequence otherwise. A byte order mark at the
+   start is kept as the character U+FEFF. There is no lossy form that puts U+FFFD in place of bad
+   bytes.
+3. **Hex.** `Bytes.from_hex` takes an even number of hexadecimal digits (`0` to `9`, `a` to `f`,
+   `A` to `F`) and nothing else: no `0x`, no spaces, no separators. `to_hex` writes lower case, so
+   `Bytes.from_hex(h)?.to_hex()` is `h` in lower case.
+4. **Base64.** The standard alphabet of RFC 4648, section 4 (`A` to `Z`, `a` to `z`, `0` to `9`,
+   `+`, `/`), always padded with `=` to a multiple of four characters. `Bytes.from_base64` is
+   strict: a character outside the alphabet (a space and a line break too), a `=` that is not
+   padding, a length that is not a multiple of four, and bits of the last character that no byte
+   uses are errors. So `Bytes.from_base64(t)?.to_base64()` is always `t`.
+5. **`DecodeError`** is a struct of `std.bytes` that implements `Error` (section 2), as
+   `ParseError` does; its fields are not public. Its message says where decoding stopped, the same
+   on every target:
+
+   | Function | Message |
+   | --- | --- |
+   | `String.from_utf8` | `invalid UTF-8 at byte 7`: the first byte that is not part of a valid sequence, counted from 0 (the length of the longest valid start) |
+   | `Bytes.from_hex` | `invalid hex at position 3`: the first character that cannot be there, counted in Unicode scalar values from 0; the length of the text when it is valid so far but ends too early (an odd number of digits) |
+   | `Bytes.from_base64` | `invalid base64 at position 12`: the same rule |
+
+6. **Text.** `Bytes` is `Display` (chapter 4, section 9): its `to_string` writes the bytes in
+   decimal, as a `List<Int>` is written (section 4.1): `[104, 105]`, and `[]` when empty. That is
+   what `f"{data}"` and a failing `assert_eq` show. `to_hex` and `to_base64` give the other usual
+   forms; `String.from_utf8` reads bytes as text.
+7. **Left out** of this draft, each possible later on its own:
+   - cryptographic hashes (SHA-256 and others). Node.js (`node:crypto`) and Go (`crypto/sha256`)
+     have them in their standard libraries, but Rust's has none, so the Rust runtime and the VM
+     would carry an implementation of security code of their own. They are reached through
+     `extern` or a native module instead, which `Bytes` makes possible (the example below);
+   - a literal `b"..."`. The prefix `b` is already reserved (chapter 1, section 5.3, rule 5;
+     E0113), so adding it later breaks no program;
+   - the URL-safe alphabet of base64 and base64 without padding; lossy UTF-8; searching
+     (`find`, `starts_with`, `split`); reading and writing integers of several bytes at an offset
+     (a little-endian `u32`), which fits better with sized integer types; `for` over `Bytes`;
+     `Bytes` as a `Map` key; reading standard input as bytes line by line.
+
+```
+module main
+
+imports {
+    std.fs
+    native.digest
+}
+
+main -> Result<Void, Error> {
+    let data = fs.read_bytes("photo.jpg")?
+    print(f"{data.len()} bytes, SHA-256 {digest.sha256(data).to_hex()}")
+    var out = Bytes.from_list([0x89, 0x57, 0x4c, 0x46])
+    out.append("wolf".to_utf8())
+    out.push(0)
+    fs.write_bytes("photo.wolf", out)?
+    Ok(())
+}
+```
+
+The native module `digest` (section 8.7) reads as `fn sha256(data: Bytes) -> Bytes`
+from each target:
+
+```
+// native/ts/digest.ts (with "@types/node" in [extern.ts.dependencies])
+import { createHash } from "node:crypto";
+export function sha256(data: Uint8Array): Uint8Array {
+  return createHash("sha256").update(data).digest();
+}
+
+// native/go/digest/digest.go
+package digest
+
+import "crypto/sha256"
+
+func Sha256(data []byte) []byte {
+	sum := sha256.Sum256(data)
+	return sum[:]
+}
+
+// native/rust/digest.rs (with sha2 in [extern.rust.dependencies])
+use sha2::Digest;
+
+pub fn sha256(data: &[u8]) -> Vec<u8> {
+    sha2::Sha256::digest(data).to_vec()
+}
+```
+
 ## 7. Input, output, files, process
 
 **`std.io`**: `print` (also in the prelude); `write(s: String)` without a line feed;
 `eprint(s: String)` to standard error with a line feed; `read_line() -> Option<String>` (`None` at end
 of input, the line without its terminator); `args() -> List<String>` (the arguments without the
 program name).
+**[DRAFT]** (2026-10-26, D7.32): `write_bytes(data: Bytes)` writes the bytes to standard output as
+they are, in order with what `print` and `write` wrote before; `read_bytes() -> Bytes` reads the
+rest of standard input, after the lines that `read_line` has taken, and gives no bytes at the end
+of input.
 
 **`std.fs`**: `read_text(path: String) -> Result<String, FsError>`,
 `write_text(path: String, content: String) -> Result<Void, FsError>`, `exists(path: String) -> Bool`.
 Paths are relative to the current directory. Files are UTF-8; invalid UTF-8 is an error.
+**[DRAFT]** (2026-10-26, D7.32): `read_bytes(path: String) -> Result<Bytes, FsError>` and
+`write_bytes(path: String, content: Bytes) -> Result<Void, FsError>` read and write a file as it
+is, with the errors of `read_text` and `write_text`. **Open question** (D7.32): the targets do not
+follow the rule "invalid UTF-8 is an error" of `read_text` today. Rust and the VM return
+`FsError.Other` with the text of the system, Go returns the bytes as a string that is not valid
+UTF-8, and TypeScript puts U+FFFD in place of the bad bytes. With `Bytes`, every target can read
+the bytes and decode them as `String.from_utf8` does, so that the error is
+`FsError.Other("<path>: invalid UTF-8 at byte 7")` everywhere.
 
 ```
 pub enum FsError {
@@ -520,6 +652,8 @@ extern {
    chapter 8, section 8.
    **[DRAFT]** (2026-10-26, D7.23): so are the sized integer types `Int8` to `UInt32`, in the
    same places; chapter 8, section 8 converts them.
+   **[DRAFT]** (2026-10-26, D7.33): `Bytes` is one of these types too, also as `B`, in a record
+   field (section 8.4a, rule 3) and in a callback (rule 7). Chapter 8, section 8 has its forms.
 2. The error type of a `Result` at the boundary is always `Error` **[PROPOSAL]**: a Go `error`, a
    value thrown in TS, or a Rust `E: Display` becomes an `Error` whose `message()` is the target's
    text.
@@ -537,7 +671,8 @@ extern {
    `fn each(items: List<String>, f: fn(String) -> Void) from "..."` (0.2, author, 2026-10-19,
    D7.14):
    - its parameters and result are `Int`, `Float`, `Bool`, `String`, `Void`, `List` of these, or
-     opaque types; its parameters are read parameters (no `mut` or `own`);
+     opaque types, and `Bytes` (**[DRAFT]**, D7.33); its parameters are read parameters (no `mut`
+     or `own`);
    - a callback is passed only as a parameter: not as a result, and not inside a `List`, an
      `Option` or a `Map` (E0702);
    - the extern code may call the callback only **during the call** of the extern function, and
@@ -639,7 +774,8 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
    | `Bool` | `bool` |
    | `String` | `&str`, `String`, `&String` |
    | `Void` | `()`, or no result |
-   | `List<T>` | `&[T]`, `Vec<T>`, `&Vec<T>` |
+   | `List<T>` | `&[T]`, `Vec<T>`, `&Vec<T>`; **[DRAFT]** (D7.33) not with `u8` elements, which are `Bytes` |
+   | `Bytes` | **[DRAFT]** (D7.33) `&[u8]`, `Vec<u8>`, `&Vec<u8>` |
    | `Map<K, V>` | `&HashMap<K, V>`, `HashMap<K, V>`; as a result also `BTreeMap<K, V>`; keys `Int`, `String` or `Bool` |
    | `Option<T>` | `Option<T>` |
    | `Result<T, Error>` | `Result<T, E>` as a result; `E` must implement `Display`, whose text is the message |
@@ -654,6 +790,9 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
    keep reading every integer type of a target as `Int` (`u8` and `int32` too), converted with a
    check, so no native module changes its signatures; a sized type crosses through a written
    `extern` block.
+   **[DRAFT]** (2026-10-26, D7.33): before `Bytes`, `&[u8]` and `Vec<u8>` were read as `List<Int>`
+   (and Go's `[]byte` as well, rule 9); a native module that uses them gets `Bytes` in its
+   signatures instead, which `wolf check --native` shows (chapter 8, section 8b).
 4. **Callbacks.** A parameter of type `impl Fn(A, ..) -> R`, `&dyn Fn(A, ..) -> R`, or of a type
    parameter `F` bounded by `Fn(A, ..) -> R` is a callback `fn(A, ..) -> R` (section 8.4, rule 7).
 5. **Names.** The Rust names are kept: they already follow the wolfpack style. A name that is a
@@ -685,7 +824,8 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
    | `Float` | `float64`; `float32` (converted) |
    | `Bool`, `String` | `bool`, `string` |
    | `Void` | no result |
-   | `List<T>` | `[]T` |
+   | `List<T>` | `[]T`; **[DRAFT]** (D7.33) not `[]byte` |
+   | `Bytes` | **[DRAFT]** (D7.33) `[]byte`, also written `[]uint8` |
    | `Map<K, V>` | `map[K]V`; keys `Int`, `String` or `Bool` |
    | `Option<T>` | the results `(T, bool)` |
    | `Result<T, Error>` | the results `(T, error)`; `Result<Void, Error>` for the result `error` |
@@ -725,6 +865,7 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
     | `Bool`, `String` | `boolean`, `string` |
     | `Void` | the result `void` |
     | `List<T>` | `T[]`, `readonly T[]`, `Array<T>`, `ReadonlyArray<T>` |
+    | `Bytes` | **[DRAFT]** (D7.33) `Uint8Array` |
     | `Map<K, V>` | `Map<K, V>`, `ReadonlyMap<K, V>`; keys `Int`, `String` or `Bool`; as a result also `Record<string, V>` |
     | `Option<T>` | `T \| undefined`, and a parameter `x?: T`; as a result also `T \| null` and `T \| null \| undefined` |
     | a callback | `(a: A, ..) => R` with the types of section 8.4, rule 7 |
@@ -811,3 +952,7 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.21 | **[DRAFT]** Debug builds (section 3, rule 1): `--debug` for `wolf build`, `wolf run` and `wolf test` (and with `--vm`) adds the location of the failing operation to the panics of the language, `panic at <file>:<line>:<column>: <message>`; stack overflow stays without one; builds without the flag do not change. Alternatives: a setting in `wolfpack.toml` (`[build] debug = true`); locations always in the VM only | **proposed** (2026-10-26), waiting for the author |
 | D7.22 | `Char` in std (sections 4.1, 4.3, 4.3a, 8.4, 8.7): declared in `std.string`, in the prelude; `c.to_int()`; `Char.from_int(n) -> Option<Char>` (`None` for negatives, surrogates and codes above U+10FFFF); `Display` and `Comparable` built in; **`s.chars()` returns `List<Char>` instead of `List<String>`** (breaking: a program that uses the parts as strings gets E0401 or E0405 and writes `c.to_string()`); new `s.char_at(i) -> Char`, which panics out of range like `l[i]`, and `String.from_chars(chars) -> String`; a `Char` inside a collection is written `'a'`, escaped like a string part, with `\'`; `Char` crosses `extern` (also as a `Map` key, a record field and in callbacks); the readers of native modules do not change. Alternatives: keep `chars() -> List<String>` and add `to_chars()` (or `scalars()`) for `List<Char>`, which breaks nothing; `Int.to_char()` in `std.math` instead of `Char.from_int` (then `std.math` must know `Char`), or a panicking form beside the `Option`; a free function `string.from_chars`; ASCII classification and case mapping on `Char` now; readers that map Rust `char` to `Char` (breaks nothing) and Go `rune` to `Char` (changes the signatures of Go native modules that use `rune`, read as `Int` since D7.17; with only the Rust change a module with both would disagree, E0715) | **proposed** (2026-10-26), waiting for the author |
 | D7.23 | The sized integer types in std (section 4.1a; sections 4.4, 8.4, 8.7): declared in `std.math`, in the prelude; conversions only through `Int`: `x.to_int()` on each sized type, which never fails, and `n.to_int8()` to `n.to_uint32()` on `Int`, which panic out of range with `integer overflow` as `Float.to_int` does; `Display` (decimal) and `Comparable` built in; format specifications as for `Int`; the six types cross `extern` (also as keys, record fields and in callbacks); the readers of native modules keep reading every integer type as `Int` (D7.18), so no native module changes. Alternatives: an `Option` form of each narrowing conversion beside the panicking one (`to_uint8_checked()`), or instead of it; direct conversions between every two integer types (42 methods instead of 12); `abs`, `min`, `max`, `pow` and wrapping arithmetic on the sized types; readers that map `u8`, `int32` and the like to the sized types (exact, but it changes the signatures of existing native modules, and a TS `number` has no width, so a module with a TS part would disagree, E0715) | **proposed** (2026-10-26), waiting for the author |
+| D7.30 | **[DRAFT]** The module `std.bytes` and the methods of `Bytes` (section 6a; the type itself is D4.30): `Bytes.new`, `Bytes.from_list`, `len`, `is_empty`, `push`, `append` (copies a read `other`), `clear`, `to_list`, and the encodings of D7.31; `Bytes` is declared in `std.bytes` and re-exported by the prelude like `String`, so a program with a top-level type `Bytes` must rename it (E0617, as for the names of 0.2). Recommendation: this short list, mirroring the methods of `List` that bytes need. Alternatives: `Bytes` only through `imports { std.bytes.{Bytes} }`, which breaks nothing but makes the one built-in type that needs an import; more methods now (`insert`, `remove`, `pop`, `reverse`, searching), which can be added later without breaking anything | **proposed** (2026-10-26), waiting for the author |
+| D7.31 | **[DRAFT]** Text and encodings of `Bytes` (section 6a, rules 2 to 7; section 4.1; section 4.3): `s.to_utf8()` and `String.from_utf8(data)` (an error at the first bad byte, no lossy form, a byte order mark kept); `to_hex` and `Bytes.from_hex` (lower case out, either case in, nothing else allowed); `to_base64` and `Bytes.from_base64` (RFC 4648 standard alphabet with padding, strict: no spaces or line breaks, unused bits must be zero); one error type `DecodeError` whose message names the position (`invalid UTF-8 at byte 7`, `invalid hex at position 3`, `invalid base64 at position 12`); `Display` writes the bytes as a `List<Int>` is written, `[104, 105]`. Recommendation: as written; the encodings are methods of `Bytes` (no module `std.encoding`), and every runtime decodes by itself, since Node.js accepts invalid hex and base64 silently (`Buffer.from("zz", "hex")` is empty) and Rust's standard library has neither. Alternatives: `Display` as hex (`6869`: shorter for hashes, but an empty value shows as nothing and it differs from `List<Int>`, so a later `type Bytes = List<Byte>` would change the text); `data.to_string()` decoding UTF-8 (not possible: `to_string` is the method of `Display`); `ParseError` instead of `DecodeError` (its message repeats the whole input, which for base64 may be a file); lenient base64 that skips line breaks, as Go and Node.js do. Left out (section 6a, rule 7): cryptographic hashes, which Rust's standard library lacks and which `extern` and native modules now reach; a literal `b"..."` (the prefix stays reserved); URL-safe and unpadded base64; lossy UTF-8; searching; integers of several bytes at an offset; `for` over `Bytes`; `Bytes` as a map key | **proposed** (2026-10-26), waiting for the author |
+| D7.32 | **[DRAFT]** Binary files and streams (section 7): `fs.read_bytes(path)`, `fs.write_bytes(path, content)` with the errors of `read_text` and `write_text`; `io.write_bytes(data)` to standard output in order with `print`, and `io.read_bytes()` for the rest of standard input after the lines `read_line` took. Recommendation: all four; the two of `std.io` are the smallest part and may wait. **Open question**: `read_text` does not follow its rule "invalid UTF-8 is an error" on every target today (Rust and the VM: `FsError.Other` with the text of the system; Go: a string that is not valid UTF-8; TypeScript: U+FFFD in place of the bad bytes). Recommendation: fix it with the UTF-8 check of `String.from_utf8`, so that every target returns `FsError.Other("<path>: invalid UTF-8 at byte 7")`, as a separate change | **proposed** (2026-10-26), waiting for the author |
+| D7.33 | **[DRAFT]** `Bytes` at the `extern` boundary (section 8.4, rules 1 and 7; section 8.4a): as a parameter, a result, inside `List`, `Option` and `Map` values, as a record field and in a callback; the target forms are D8.25. Native modules read `&[u8]`, `Vec<u8>`, `&Vec<u8>` (Rust), `[]byte` (Go) and `Uint8Array` (TypeScript) as `Bytes` (section 8.7, rules 3, 9 and 13). This **changes the signatures** of native modules that use `u8` slices today, which the readers map to `List<Int>`; TypeScript's `Uint8Array` goes from not available to `Bytes`. Recommendation: accept the change, since bytes are what such code means and a list of `Int` costs eight bytes or a `bigint` for each byte. Alternative: keep `List<Int>` for them and read `Bytes` only from written `extern` blocks, which breaks nothing but leaves native modules without bytes | **proposed** (2026-10-26), waiting for the author |

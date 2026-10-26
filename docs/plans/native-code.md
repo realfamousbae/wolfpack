@@ -185,7 +185,10 @@ TS needs no target type: the value is a plain object. Enums stay out of N2.
 ### 3.4 Bytes
 
 Byte arrays (`Uint8Array`, `[]byte`, `Vec<u8>`) need a `Bytes` type in `std` first. That is a
-language feature of its own and goes to `docs/ideas.md`; the boundary rule follows it.
+language feature of its own and goes to `docs/ideas.md`; the boundary rule follows it. A draft
+of both is in the spec (2026-10-26, waiting for the author): chapter 4, section 4, rule 7
+(D4.30), chapter 7, sections 6a and 8.4 (D7.30 to D7.33), chapter 8, sections 4.2a and 8
+(D8.25).
 
 ### 3.5 Done when
 
