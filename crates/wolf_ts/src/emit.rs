@@ -2842,6 +2842,7 @@ impl<'p> Emitter<'p> {
                     }
                     Target::Assign(place, repr) => {
                         let v = self.value(e, out, repr)?;
+                        let v = self.widened(e, v);
                         if matches!(e.ty, IrType::Never) {
                             out.push(Stmt::Expr(v));
                         } else {
@@ -2939,6 +2940,7 @@ impl<'p> Emitter<'p> {
                     self.tail(value, Target::Assign(ident(&name), Repr::Tagged), out)?;
                 } else {
                     let v = self.value(value, out, Repr::Tagged)?;
+                    let v = self.widened(value, v);
                     if *mutable {
                         out.push(Stmt::Let(name.clone(), Some(t), Some(v)));
                     } else {
@@ -3124,6 +3126,18 @@ impl<'p> Emitter<'p> {
         ident(&t)
     }
 
+    /// A new variant of an enum with payloads stored in a variable, as a value of the whole
+    /// enum: `new ShapeRect(1n, 2n) as Shape`. TypeScript narrows a variable of a union type to
+    /// the class of the value assigned to it, and would then reject a `match` on it that tests
+    /// the other variants.
+    fn widened(&mut self, value: &IrExpr, v: Expr) -> Expr {
+        if matches!(value.kind, ExprKind::Variant { .. }) && !self.plain_enum(&value.ty) {
+            Expr::As(Box::new(v), self.ty(&value.ty))
+        } else {
+            v
+        }
+    }
+
     fn assign(
         &mut self,
         target: &'p IrExpr,
@@ -3134,6 +3148,7 @@ impl<'p> Emitter<'p> {
         let place = self.place(target, out)?;
         let v = self.expr(value, out)?;
         let v = match op {
+            None if matches!(place, PlaceKind::Simple(_)) => self.widened(value, v),
             None => v,
             Some(op) => {
                 let current = match &place {
