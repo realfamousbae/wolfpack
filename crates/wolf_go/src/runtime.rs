@@ -426,7 +426,8 @@ type T interface {
 	FailNow()
 }
 
-// Test runs the body of a test; a panic fails the test with its message.
+// Test runs the body of a test; a panic fails the test with its message, on a line of its own
+// even if the test wrote text without a line feed.
 func Test(t T, body func()) {
 	allowDeepStacks()
 	failed := true
@@ -436,7 +437,7 @@ func Test(t T, body func()) {
 			if r != nil {
 				text = message(r)
 			}
-			fmt.Println("--- wolf failure: " + text)
+			fmt.Println("\n--- wolf failure: " + text)
 			t.FailNow()
 		}
 	}()

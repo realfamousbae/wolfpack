@@ -1,0 +1,36 @@
+//! Tests that write text without a line feed before they fail: the report still shows the
+//! panic message.
+
+module main
+
+imports {
+    std.io
+}
+
+main {
+    io.write("no line feed, then ")
+    print("a line")
+}
+
+tests {
+    test "writes and passes" {
+        io.write("abc")
+        assert(1 + 1 == 2)
+    }
+
+    test "writes and panics" {
+        io.write("abc")
+        panic("boom")
+    }
+
+    test "writes and fails an assertion" {
+        io.write("xyz")
+        assert(1 + 1 == 3)
+    }
+
+    test "prints and fails" {
+        print("line")
+        io.write("partial")
+        assert_eq(2, 3)
+    }
+}
