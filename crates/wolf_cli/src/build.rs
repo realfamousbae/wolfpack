@@ -28,6 +28,22 @@ pub(crate) enum Then {
         /// Only tests whose name contains this text.
         filter: Option<String>,
     },
+    /// Write the bytecode file of the program, or of an example, for the VM (`wolf build --vm`,
+    /// spec chapter 10, section 1b).
+    Bytecode {
+        /// `--example <name>`
+        example: Option<String>,
+    },
+}
+
+impl Then {
+    /// The example to run or to write, if one was named.
+    fn example(&self) -> Option<&String> {
+        match self {
+            Then::Run { example, .. } | Then::Bytecode { example } => example.as_ref(),
+            _ => None,
+        }
+    }
 }
 
 /// The outcome of `wolf build` or `wolf run`.
@@ -49,7 +65,7 @@ pub(crate) enum Targets {
     One(Target),
     /// `--target all`: every enabled target (`wolf build` only).
     All,
-    /// `--vm`: the virtual machine (`wolf run` and `wolf test` only; spec chapter 10).
+    /// `--vm`: the virtual machine (spec chapter 10).
     Vm,
 }
 
@@ -92,11 +108,18 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
         };
         let mut order = vec![target];
         order.extend(project.manifest.enabled.iter().filter(|t| **t != target));
-        let command = if tests { "test" } else { "run" };
+        let command = match then {
+            Then::Test { .. } => "test",
+            Then::Bytecode { .. } => "build",
+            _ => "run",
+        };
         let help = match order
             .iter()
             .find(|t| wolf_resolve::check_target(&inputs, t.name(), built).is_empty())
         {
+            Some(t) if command == "build" => {
+                format!("build it for a target: `wolf build --target {}`", t.name())
+            }
             Some(t) => format!("run it on a target: `wolf {command} --target {}`", t.name()),
             None => "no target has the code of every module either; see `wolf build`".to_string(),
         };
@@ -113,14 +136,13 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
                         .any(|s| s.kind == wolf_ast::SectionKind::Tests),
                     _ => false,
                 },
-                Then::Run {
-                    example: Some(name),
-                    ..
-                } => {
-                    m.role == wolf_resolve::Role::Example
-                        && m.path.get(1..) == Some(&[name.clone()][..])
-                }
-                _ => m.role == wolf_resolve::Role::Entry,
+                _ => match then.example() {
+                    Some(name) => {
+                        m.role == wolf_resolve::Role::Example
+                            && m.path.get(1..) == Some(&[name.clone()][..])
+                    }
+                    None => m.role == wolf_resolve::Role::Entry,
+                },
             },
             &help,
         );
@@ -148,20 +170,27 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
         Ok(p) => p,
         Err(e) => return internal(result, target, &e.message),
     };
-    if let Then::Run { example: None, .. } = &then {
-        if program.kind == wolf_ir::ProgramKind::Lib {
-            result.diagnostics.push(
+    if program.kind == wolf_ir::ProgramKind::Lib && then.example().is_none() {
+        let refused = match then {
+            Then::Run { .. } => Some(
                 Diagnostic::new(codes::E0002, "a library cannot be run")
                     .help("run one of its examples: `wolf run --example <name>`"),
-            );
+            ),
+            Then::Bytecode { .. } => Some(
+                Diagnostic::new(
+                    codes::E0002,
+                    "a library cannot be built into a bytecode file",
+                )
+                .help("build one of its examples: `wolf build --vm --example <name>`"),
+            ),
+            _ => None,
+        };
+        if let Some(refused) = refused {
+            result.diagnostics.push(refused);
             return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
         }
     }
-    if let Then::Run {
-        example: Some(name),
-        ..
-    } = &then
-    {
+    if let Some(name) = then.example() {
         let exists = program.modules.iter().any(|m| {
             m.role == wolf_ir::ModuleRole::Example && m.path.get(1..) == Some(&[name.clone()][..])
         });
@@ -172,6 +201,12 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
             ));
             return Outcome::Failed(Box::new(result), crate::EXIT_USAGE);
         }
+    }
+    if let Then::Bytecode { example } = &then {
+        let dir = out_dir
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| project.root.join("out").join("vm"));
+        return write_bytecode(result, &program, example.as_deref(), &dir);
     }
     if targets == Targets::Vm {
         return vm(result, &program, then);
@@ -206,57 +241,147 @@ pub(crate) fn build(start: &Path, out_dir: Option<&Path>, then: Then, targets: T
 /// from memory.
 const VM_STACK_SIZE: usize = 256 * 1024 * 1024;
 
-/// Runs the program or its tests in the virtual machine (spec chapter 10).
-fn vm(mut result: CheckResult, program: &wolf_ir::Program, then: Then) -> Outcome {
-    if matches!(then, Then::Nothing) {
-        return Outcome::Built;
-    }
-    let ran = std::thread::scope(|scope| {
+/// Runs `work` on a thread with the stack of the VM; an `Err` is a bug of the VM.
+fn on_vm_thread<T: Send>(work: impl FnOnce() -> Result<T, String> + Send) -> Result<T, String> {
+    std::thread::scope(|scope| {
         std::thread::Builder::new()
             .name("wolf-vm".to_string())
             .stack_size(VM_STACK_SIZE)
-            .spawn_scoped(scope, || run_vm(program, then))
+            .spawn_scoped(scope, work)
             .map_err(|e| format!("the thread of the VM could not be started: {e}"))
             .and_then(|handle| {
                 handle
                     .join()
                     .unwrap_or_else(|_| Err("the VM stopped unexpectedly".to_string()))
             })
-    });
-    match ran {
-        Ok(code) => Outcome::Ran(code),
-        Err(e) => {
-            result.diagnostics.push(
-                Diagnostic::new(codes::E0003, "internal compiler error")
-                    .note(format!("the VM failed: {e}"))
-                    .help("this is a bug in wolf; please report it with the input that caused it"),
-            );
-            Outcome::Failed(Box::new(result), crate::EXIT_INTERNAL)
-        }
+    })
+}
+
+/// E0003 for a failure of the VM, which is a bug of `wolf`.
+fn vm_failed(mut result: CheckResult, e: &str) -> Outcome {
+    result.diagnostics.push(
+        Diagnostic::new(codes::E0003, "internal compiler error")
+            .note(format!("the VM failed: {e}"))
+            .help("this is a bug in wolf; please report it with the input that caused it"),
+    );
+    Outcome::Failed(Box::new(result), crate::EXIT_INTERNAL)
+}
+
+/// Runs the program or its tests in the virtual machine (spec chapter 10).
+fn vm(result: CheckResult, program: &wolf_ir::Program, then: Then) -> Outcome {
+    if matches!(then, Then::Nothing | Then::Bytecode { .. }) {
+        return Outcome::Built;
     }
+    match on_vm_thread(|| run_vm(program, then)) {
+        Ok(code) => Outcome::Ran(code),
+        Err(e) => vm_failed(result, &e),
+    }
+}
+
+/// The module whose `main` runs: the entry module, or the example `name`.
+fn module_to_run(program: &wolf_ir::Program, example: Option<&str>) -> Option<usize> {
+    program.modules.iter().position(|m| match example {
+        Some(name) => {
+            m.role == wolf_ir::ModuleRole::Example
+                && m.path.get(1..) == Some(&[name.to_string()][..])
+        }
+        None => m.role == wolf_ir::ModuleRole::Entry,
+    })
 }
 
 fn run_vm(program: &wolf_ir::Program, then: Then) -> Result<i32, String> {
     match then {
-        Then::Run { example, args } => {
-            let module = program.modules.iter().position(|m| match &example {
-                Some(name) => {
-                    m.role == wolf_ir::ModuleRole::Example
-                        && m.path.get(1..) == Some(&[name.clone()][..])
-                }
-                None => m.role == wolf_ir::ModuleRole::Entry,
-            });
-            match module {
-                Some(i) => wolf_vm::run_main(program, i, &mut wolf_vm::StdIo::new(args)),
-                None => Err("the module to run is missing".to_string()),
-            }
-        }
+        Then::Run { example, args } => match module_to_run(program, example.as_deref()) {
+            Some(i) => wolf_vm::run_main(program, i, &mut wolf_vm::StdIo::new(args)),
+            None => Err("the module to run is missing".to_string()),
+        },
         Then::Test { filter } => wolf_vm::run_tests(
             program,
             filter.as_deref(),
             &mut wolf_vm::StdIo::new(Vec::new()),
         ),
-        Then::Nothing => Ok(0),
+        Then::Nothing | Then::Bytecode { .. } => Ok(0),
+    }
+}
+
+/// `wolf build --vm`: writes `<dir>/<package name>.wbc`, or `<dir>/<example>.wbc` (spec chapter
+/// 10, section 1b). The overrides of `[config.<module>]` are in the program already.
+fn write_bytecode(
+    result: CheckResult,
+    program: &wolf_ir::Program,
+    example: Option<&str>,
+    dir: &Path,
+) -> Outcome {
+    let written = on_vm_thread(|| match module_to_run(program, example) {
+        Some(i) => wolf_vm::write_file(program, i, env!("CARGO_PKG_VERSION")),
+        None => Err("the module to run is missing".to_string()),
+    });
+    let bytes = match written {
+        Ok(bytes) => bytes,
+        Err(e) => return vm_failed(result, &e),
+    };
+    let path = dir.join(format!("{}.wbc", example.unwrap_or(&program.name)));
+    match fs::create_dir_all(dir).and_then(|()| fs::write(&path, bytes)) {
+        Ok(()) => Outcome::Built,
+        Err(e) => write_failed(result, &path, &e),
+    }
+}
+
+/// The result of a command without a project, with these diagnostics.
+fn no_project(diagnostics: Vec<Diagnostic>) -> CheckResult {
+    CheckResult {
+        map: wolf_span::SourceMap::new(),
+        diagnostics,
+        project: None,
+        native: false,
+        listings: Vec::new(),
+    }
+}
+
+/// `wolf run <file>`: reads a bytecode file and runs it in the VM, without a project (spec
+/// chapter 10, section 1b).
+pub(crate) fn run_file(file: &Path, args: Vec<String>) -> Outcome {
+    let name = file.to_string_lossy().replace('\\', "/");
+    let failed = |d: Diagnostic| Outcome::Failed(Box::new(no_project(vec![d])), crate::EXIT_ERRORS);
+    let bytes = match fs::read(file) {
+        Ok(bytes) => bytes,
+        Err(e) => return failed(check::read_error(&name, &e)),
+    };
+    let version = env!("CARGO_PKG_VERSION");
+    // The image holds values that stay on the thread of the VM, so it is read there too.
+    let ran = on_vm_thread(move || match wolf_vm::read_file(&bytes, version) {
+        Ok(program) => program.run(&mut wolf_vm::StdIo::new(args)).map(Ok),
+        Err(e) => Ok(Err(e)),
+    });
+    match ran {
+        Ok(Ok(code)) => Outcome::Ran(code),
+        Ok(Err(e)) => failed(unreadable(&name, version, e)),
+        Err(e) => vm_failed(no_project(Vec::new()), &e),
+    }
+}
+
+/// E0809: a bytecode file of another version of `wolf`, not a bytecode file, or a damaged one.
+fn unreadable(name: &str, version: &str, error: wolf_vm::ReadError) -> Diagnostic {
+    match error {
+        wolf_vm::ReadError::OtherVersion(other) => Diagnostic::new(
+            codes::E0809,
+            format!("`{name}` was built by wolf {other}, and this is wolf {version}"),
+        )
+        .note("a bytecode file runs only with the version of `wolf` that built it")
+        .help("build it again with this `wolf`: `wolf build --vm`"),
+        wolf_vm::ReadError::NotBytecode => {
+            Diagnostic::new(codes::E0809, format!("`{name}` is not a bytecode file"))
+                .note(format!(
+                    "a bytecode file starts with the line `{} <version>`; this is wolf {version}",
+                    wolf_vm::HEADER
+                ))
+                .help("build one with `wolf build --vm` in the project of the program")
+        }
+        wolf_vm::ReadError::Damaged(what) => {
+            Diagnostic::new(codes::E0809, format!("`{name}` is damaged: {what}"))
+                .note(format!("this is wolf {version}"))
+                .help("build it again with `wolf build --vm`")
+        }
     }
 }
 
@@ -436,7 +561,7 @@ fn ts(
         result
     };
     match then {
-        Then::Nothing => Outcome::Built,
+        Then::Nothing | Then::Bytecode { .. } => Outcome::Built,
         Then::Test { filter } => run_ts_tests(
             result,
             out,
@@ -612,7 +737,7 @@ fn go(
         return write_failed(result, out, &e);
     }
     match then {
-        Then::Nothing => Outcome::Built,
+        Then::Nothing | Then::Bytecode { .. } => Outcome::Built,
         Then::Test { filter } => run_go_tests(result, out, &project.tests, filter.as_deref()),
         Then::Run { example, args } => {
             let Some(package) = wolf_go::main_package(program, example.as_deref()) else {
@@ -866,7 +991,7 @@ fn rust(
         return write_failed(result, out, &e);
     }
     match then {
-        Then::Nothing => Outcome::Built,
+        Then::Nothing | Then::Bytecode { .. } => Outcome::Built,
         Then::Test { filter } => {
             run_rust_tests(result, out, program, &project.tests, filter.as_deref())
         }

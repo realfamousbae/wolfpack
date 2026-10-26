@@ -378,7 +378,8 @@ fn parse_file(
     Some((id, file))
 }
 
-fn read_error(name: &str, error: &std::io::Error) -> Diagnostic {
+/// E0001 for a file that cannot be read, with the reason in words.
+pub(crate) fn read_error(name: &str, error: &std::io::Error) -> Diagnostic {
     let reason = match error.kind() {
         std::io::ErrorKind::NotFound => "no such file or directory".to_string(),
         std::io::ErrorKind::PermissionDenied => "permission denied".to_string(),
