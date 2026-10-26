@@ -218,6 +218,16 @@ Decisions already taken by the author for this chapter (2026-10-07):
 2. Variants are not types of their own: `StorageError.Io("x")` has type `StorageError`.
 3. An enum has at least one variant (chapter 3).
 
+**Update syntax for variants** (D4.22) **[PROPOSAL]**. The update syntax `..base` (chapter 3,
+section 4, rule 6) works for an enum variant with named fields too:
+`Shape.Rect { width: 10, ..old }`. The base is an expression of the enum type with the same type
+arguments (E0401). At run time the base must be the same variant; if it is another one, the
+program panics with `panic: update of Shape.Rect from Shape.Circle` (a panic of the language,
+without a location; chapter 7, section 3). The listed fields are evaluated first, then the base, as
+for structs. E0434 is retired. The reason for a panic rather than a compile-time check: a value of
+type `Shape` does not know its variant before it runs, and the language has no type for one
+variant.
+
 ### 7.3 Type aliases
 
 `type UserId = Int` introduces another name for the same type: `UserId` and `Int` are fully
@@ -548,7 +558,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0431 | Implementation that cannot be written: not an interface, a derived built-in interface (`Equatable`, `Copyable`, `Hashable`), or an interface implemented twice (added in M5) |
 | E0432 | A method of a struct with the name of one of its fields (section 8.3, rule 6; added in M12) |
 | E0433 | A pattern that may fail in `let` or `var` (hint: `if let` or `match`; added in 0.2) |
-| E0434 | Update syntax `..base` in a literal of an enum variant (added in 0.2) |
+| E0434 | Update syntax `..base` in a literal of an enum variant (added in 0.2; retired by D4.22 if it is approved) |
 | E0435 | `break` with a value in a `while` or a `for` (added in 0.2) |
 | E0436 | Unknown loop label (added in 0.2) |
 | E0437 | A name after `break` that is both an enclosing label and a variable (added in 0.2) |
@@ -595,5 +605,6 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.19 | Default methods in interfaces (section 8.2, rules 4 and 5; section 8.3, rules 1 and 4): a body after the signature is the default, checked once over `Self: I`; a replacement is written `override fn` (E0443); `I.m(x)` calls the default also when it is replaced (E0444 for a method without one); inherited defaults count for E0415 and E0432. Targets: the default is a function of its own that the implementing types and `I.m(x)` call (in Rust too, which cannot call a replaced trait default) | **answered** (author, 2026-10-23): replacements marked with `override`; `Named.greeting(self)` calls the default |
 | D4.20 | Super-interfaces (section 8.2, rule 6; section 8.3, rule 7; section 8.5, rule 1; chapter 8, section 5.3): `interface Greeter: Named + Display`; a type implements each super-interface in its own block (E0446 otherwise); a bound by `Greeter` gives the methods of the super-interfaces, also to its defaults; super-interfaces are interfaces of the program, `Error`, `Comparable` and `Display`, not `Equatable`, `Copyable` or `Hashable`; cycles and repeats are E0445, a method name taken from a super-interface E0447; no coercion of a `Greeter` value to a `Named` value (Rust 1.85). Reverses "no super-interfaces" of D3.3. Targets: Rust super-traits, TS `extends`, Go embedded interfaces; the dictionaries of TS and Go bounds carry those of the super-interfaces | **answered** (author, 2026-10-25): yes |
 | D4.21 | Inherent blocks for one instantiation, `Stack<Int> { ... }` (section 8.3, rule 8): a head argument that names a type is a type argument, a name that names no type is a parameter; method names stay unique across all blocks of the type (E0415); interface implementations for one instantiation are E0448. Alternatives: an explicit marker for parameters (`Stack<Int>` vs `<T> Stack<T>`, as in Rust), at the cost of changing every existing head; or `where T == Int` on single methods | **proposed** (2026-10-26), waiting for the author |
+| D4.22 | `..base` for enum variants with named fields (section 7.2): the base has the enum type; a base of another variant panics at run time (`panic: update of Shape.Rect from Shape.Circle`); E0434 is retired. Alternative: keep E0434 (no compile-time check is possible without a type for one variant), which is the drafter's second choice | **proposed** (2026-10-26), waiting for the author |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |
