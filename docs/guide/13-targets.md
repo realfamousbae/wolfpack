@@ -179,6 +179,9 @@ func main() {
 - An enum with data is a sealed interface with a struct per variant, and `match` is a type switch.
 - `Option` and `Result` become the idiomatic forms where they can: `(T, error)` results and `?` as
   `if err != nil { return ..., err }`.
+- A function that can call itself, directly or through others, starts with `wolfrt.Enter()` and
+  `defer wolfrt.Leave()`: they count its nested calls, so that recursion that never ends is
+  `panic: stack overflow` and not a fatal error of Go. Other functions do not have these lines.
 
 ## Rust
 
@@ -228,6 +231,9 @@ fn main() {
   parameter `&mut T`, and an `own` parameter takes `T` by value.
 - `Option`, `Result` and `?` are Rust's own; recursive types are boxed where needed.
 - Integer overflow panics through `overflow-checks = true` in `Cargo.toml`.
+- A function that can call itself starts with `let _depth = wolf_rt::enter();`, which counts its
+  nested calls until it returns, so that recursion that never ends is `panic: stack overflow`
+  and not an abort.
 - The `#![allow(...)]` lines keep `cargo clippy` quiet about shapes that come from the program as
   it was written, such as a `match` with one arm or `0.0 / 0.0` for NaN.
 
