@@ -6173,7 +6173,12 @@ impl<'p> Emitter<'p> {
             "io.eprint" => data(self.rt_call("print", "Eprint", vec![arg()])),
             "io.read_line" => pair(self.rt_call("ReadLine", "ReadLine", Vec::new())),
             "io.args" => data(self.rt_call("process", "Args", Vec::new())),
-            "process.exit" => data(self.rt_call("Exit", "Exit", vec![arg()])),
+            "process.exit" => {
+                // In the code built for tests, `exit` stops only the test (spec chapter 8,
+                // section 2, rule 7).
+                let piece = if self.tests { "ExitInTest" } else { "Exit" };
+                data(self.rt_call(piece, "Exit", vec![arg()]))
+            }
             "process.env" => pair(self.rt_call("process", "Env", vec![arg()])),
             "prelude.replace" => {
                 let p = arg();
