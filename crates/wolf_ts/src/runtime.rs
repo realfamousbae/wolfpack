@@ -938,6 +938,24 @@ export function runMainResult(main: (args: string[]) => { ok: boolean; error?: {
   }
 }"#,
     },
+    Piece {
+        name: "runTest",
+        deps: &["WolfPanic"],
+        code: r#"/**
+ * Runs the body of a test. `exit` fails the test with its code instead of ending the run (spec
+ * chapter 8, section 2, rule 7).
+ */
+export function runTest(run: () => void): void {
+  try {
+    run();
+  } catch (error) {
+    if (error instanceof WolfExit) {
+      throw new Error(`the test exited with code ${error.code}`);
+    }
+    throw error;
+  }
+}"#,
+    },
     // ----- std intrinsics ---------------------------------------------------------------------
     Piece {
         name: "strLen",
