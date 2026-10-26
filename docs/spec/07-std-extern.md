@@ -87,7 +87,7 @@ pub interface Error {
    `panic: integer overflow` and `panic: index 5 out of range for length 3`. The exit code is also
    101. (Author, 2026-10-07: locations on every operation would make the generated code much less
    readable.)
-   **Debug builds** (D7.21) **[PROPOSAL]**: `wolf build --debug`, `wolf run --debug` and
+   **Debug builds** (D7.21) **[DRAFT]**: `wolf build --debug`, `wolf run --debug` and
    `wolf test --debug` (also with `--vm` and `--example`) build the program so that the panics of
    the language print the location of the operation that failed, in the form of `panic`:
    `panic at src/stats.wolf:12:17: integer overflow`. The location is that of the operator
@@ -317,7 +317,7 @@ comes from the target and may differ between targets. **[PROPOSAL]**
 
 **`std.process`**: `exit(code: Int) -> Never` (`code` in `0..=255`, else panic) and
 `env(name: String) -> Option<String>`. Inside a test, `exit` fails that test instead of ending the
-run (chapter 8, section 2, rule 7; D8.17).
+run (chapter 8, section 2, rule 7; D8.17) **[DRAFT]**.
 
 ## 8. `extern`
 
@@ -708,4 +708,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.18 | 0.2: records of native modules: fields of the types the reader found (any integer type, converted with a check; `float32`, `f32`), Go fields with their Go names, and agreement of the fields between targets (section 8.7, rules 8 and 10; chapter 8, section 8a) | **answered** (author, 2026-10-21): yes |
 | D7.19 | 0.2: native modules read from TypeScript (section 8.7, rules 12 to 16): exported functions, records from interfaces and object types, opaque classes; `number` is `Float` unless another target says `Int`; no `Result` results | **answered** (author, 2026-10-21): yes |
 | D7.20 | 0.2: methods of opaque types of native modules (section 8.7, rule 17): read-receiver methods become methods called `x.name()`, functions without a receiver and TS constructors become associated functions `Type.name()`; the alternative is plain functions of the module (`index_add(index, word)`), which needs no change to opaque types | **answered** (author, 2026-10-21): methods as methods |
-| D7.21 | Debug builds (section 3, rule 1): `--debug` for `wolf build`, `wolf run` and `wolf test` (and with `--vm`) adds the location of the failing operation to the panics of the language, `panic at <file>:<line>:<column>: <message>`; stack overflow stays without one; builds without the flag do not change. Alternatives: a setting in `wolfpack.toml` (`[build] debug = true`); locations always in the VM only | **proposed** (2026-10-26), waiting for the author |
+| D7.21 | **[DRAFT]** Debug builds (section 3, rule 1): `--debug` for `wolf build`, `wolf run` and `wolf test` (and with `--vm`) adds the location of the failing operation to the panics of the language, `panic at <file>:<line>:<column>: <message>`; stack overflow stays without one; builds without the flag do not change. Alternatives: a setting in `wolfpack.toml` (`[build] debug = true`); locations always in the VM only | **proposed** (2026-10-26), waiting for the author |
