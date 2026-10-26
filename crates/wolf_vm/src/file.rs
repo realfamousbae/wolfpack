@@ -61,7 +61,8 @@ pub enum ReadError {
     NotBytecode,
     /// The file was written by another version of `wolf`, named here.
     OtherVersion(String),
-    /// The header is right, but the rest of the file is damaged: what is wrong.
+    /// The header line is broken, or it names this version but the rest of the file is damaged:
+    /// what is wrong.
     Damaged(String),
 }
 
