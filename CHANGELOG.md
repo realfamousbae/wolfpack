@@ -2,6 +2,33 @@
 
 All notable changes are recorded here at the end of each milestone.
 
+## Unreleased
+
+- Fixed: the tests of `tests/` of a `cli` program did not build on Go and Rust (spec chapter 8,
+  section 2.1, rule 2). On Go they are now the external test package `main_test` in the root
+  directory (`mylib_test` for a library), which may import the package `main`, in files named
+  `tests_<path>_test.go`, so that `tests/main.wolf` no longer overwrites the test file of
+  `src/main.wolf`; helpers of different files of `tests/` no longer collide in that one package.
+  On Rust, which cannot use a binary crate from Cargo's integration tests, they are modules
+  `crate::tests::<path>` in `src/tests/`, declared in the `#[cfg(test)] mod tests` of
+  `src/main.rs`. A Rust test function whose name a function or an import of its scope already
+  has (`test "twice"` next to the imported `twice`, also in the `tests` section of a module of
+  `src/`) gets a `_` suffix: before, the test function hid the function it called.
+- Fixed in the Rust backend: an example or a test of `tests/` of a library that imports a name
+  declared in `src/lib.wolf` itself (not re-exported from another module) named it
+  `crate::<name>` instead of `<library>::<name>`. A test project now covers such names in
+  `tests/` and `examples/` on every target and in the VM, and the guide checks the report of
+  `wolf test` for the `shouter` library of chapter 11 on every target.
+- Fixed in the Rust backend: a file in a directory of `tests/` of a library, such as
+  `tests/deep/inner.wolf`, is declared as a `[[test]]` in `Cargo.toml`, since Cargo does not find
+  it by itself; `wolf test` failed with "no test target named `deep_inner`".
+- Fixed in the Go backend: a test that wrote text without a final line feed (`io.write("abc")`)
+  and then failed was reported as `test failed`, since the failure marker was glued to that
+  text; the panic message is reported again.
+- Fixed in the TypeScript backend: the `.test.ts` file of a removed or renamed file of `tests/`
+  stayed in `out/ts/test/`, and the next `wolf test` could fail in `tsc`. Go and Rust already
+  removed such files.
+
 ## 0.5.1 (2026-10-26)
 
 - E0608 also covers the super-interfaces of a `pub` interface (spec chapter 6, section 4, rule 5):
