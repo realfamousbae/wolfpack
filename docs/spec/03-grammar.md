@@ -162,7 +162,30 @@ range      = expr ( ".." | "..=" ) expr
      label before anything that is not a loop is an error (E0315). A labelled `loop` is a
      statement, so its value is not used.
    - `break value` is allowed only in a `loop` and always ends the innermost loop (E0435 in a
-     `while` or a `for`). A `break` with both a label and a value does not exist.
+     `while` or a `for`). A `break` with both a label and a value did not exist in 0.2 (D3.9).
+   - **`break label: value`** (D3.11) **[PROPOSAL]** ends the labelled `loop` with the value:
+     ```
+     let found = search: loop {
+         for row in rows {
+             for cell in row {
+                 if cell.marked {
+                     break search: cell.copy()
+                 }
+             }
+         }
+         break search: default_cell()
+     }
+     ```
+     The `:` tells the parser that the name before it is a label, so no name resolution is
+     needed to read it; the name must be the label of an enclosing loop (E0436) and that loop must
+     be a `loop` (E0435 for a `while` or a `for`). For this, a labelled `loop` may stand where an
+     expression is expected, so its value can be used: `let found = search: loop { ... }`; other
+     labelled loops stay statements. In a map literal `[key: loop { ... }]` the name before `:` is
+     a key, as before; a labelled `loop` there needs parentheses. The types of all the values that end one `loop` must agree, as
+     for `break value` (chapter 4, section 6). `break label` without a value still ends a labelled
+     `loop` with `()`. **[INTERNAL]**: the targets already have what it needs: Rust
+     `break 'search value`, and in TypeScript and Go a variable of the loop, set before a
+     labelled `break`, as for `break value` today.
    - The parser reads `break name` as `break` with an expression. Name resolution decides: if an
      enclosing loop has the label `name`, it is a labelled `break`; otherwise `name` is the value.
      A name that is both an enclosing label and a variable in scope is an error (E0437). After
@@ -203,7 +226,7 @@ primary    = INT | FLOAT | STRING | "true" | "false"
            | "(" expr ")" | "(" ")"
            | list_lit | map_lit | struct_lit
            | if_expr | match_expr
-           | "return" expr? | "break" expr? | "continue" IDENT?
+           | "return" expr? | "break" ( IDENT ":" expr | expr )? | "continue" IDENT?   // `break label: value`: section 5, rule 5 (D3.11)
            | loop_expr
 loop_expr  = "loop" block
 list_lit   = "[" sep(expr, ",")? "]"
@@ -469,3 +492,4 @@ level, or to the closing delimiter, and continues.
 | D3.8 | 0.2: destructuring `let`, `if let`, `while let`, `loop` with `break value`, labels `outer: while`, update syntax `..base` (reverses D3.4 and part of D3.7) | **answered** (author, 2026-10-18): yes; labels without `'` |
 | D3.9 | 0.2: the details of section 4 rules 2 and 5 and section 5 rules 6 and 14 (no `break label value`, the name after `break` resolved as a label first, no `if let` chains, `..base` for structs only), codes E0315, E0316 | **answered** (author, 2026-10-18): yes |
 | D3.10 | Chains in conditions (section 5, rule 14a; chapter 4, section 6; chapter 5, section 7.4): `let` items and `Bool` items joined by `&&` in `if` and `while`, tried left to right with short-circuit, bindings visible to the later items and the first block; `\|\|` outside parentheses in a condition with a `let` is E0317; `if let P = a && b` becomes a chain and `if let P = a \|\| b` an error (no program is affected). Reverses "no `if let` chains" of D3.9. **[INTERNAL]** expected: the IR lowers a chain into the `match`, `loop` and `break` it already has, so the targets and the VM need no new construct | **answered** (author, 2026-10-25): yes |
+| D3.11 | `break label: value` (section 5, rule 5): ends the labelled `loop` with a value; a labelled `loop` may be an expression (`let x = name: loop { ... }`). Reverses "no `break label value`" of D3.9. Alternatives: `break label value` without `:` (the parser cannot tell `break a -1` from `break (a - 1)`); `break label with value` (a new contextual word) | **proposed** (2026-10-26), waiting for the author |
