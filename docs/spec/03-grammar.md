@@ -272,7 +272,7 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
    base is an expression of the same struct type with the same type arguments (E0401); every field
    that is not listed takes its value from the base. The listed fields are evaluated first, left
    to right, then the base. The update syntax is for structs only, not for enum variants with
-   named fields (E0434). Ownership of the base is in chapter 5, section 3.
+   named fields (E0434; **[DRAFT]** D4.22 of chapter 4 allows them). Ownership of the base is in chapter 5, section 3.
 7. **Struct literals in conditions.** In the condition of `if`, `while`, the scrutinee of `match`
    and the collection of `for` (`expr_no_struct`), a struct literal must be in parentheses:
    `if p == (Point { x: 0, y: 0 }) { }`. Otherwise `if x == Point {` would be ambiguous. This is

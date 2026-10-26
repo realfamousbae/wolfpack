@@ -428,7 +428,7 @@ fn count_vowels(s: String) -> Int {
 3. An enum has at least one variant (chapter 3).
 
 **Update syntax for variants** (D4.22) **[DRAFT]**. The update syntax `..base` (chapter 3,
-section 4, rule 6) works for an enum variant with named fields too:
+section 5, rule 6) works for an enum variant with named fields too:
 `Shape.Rect { width: 10, ..old }`. The base is an expression of the enum type with the same type
 arguments (E0401). At run time the base must be the same variant; if it is another one, the
 program panics with `panic: update of Shape.Rect from Shape.Circle` (a panic of the language,
