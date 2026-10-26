@@ -337,6 +337,12 @@ The panic hook (Rust) and `recover` (Go) translate the target's own panic messag
 message of chapter 7, for example Rust's `attempt to add with overflow` becomes
 `panic: integer overflow`. **[INTERNAL]**
 
+**Debug builds** (D7.21; chapter 7, section 3, rule 1). With `--debug` every helper of the table
+takes the location as one more argument, a string such as `"src/stats.wolf:12:17"`, and Rust
+uses the helpers instead of its native operators: `wolf_rt::add_at(a, b, "src/stats.wolf:12:17")`.
+The index helpers and the std functions that panic take it too. Without `--debug` the generated
+code is exactly as without this rule. **[INTERNAL]**
+
 **Stack overflow** (D8.16). Recursion that never ends prints `panic: stack overflow` without a
 location and ends the program with exit code 101 on every target, as in the VM (chapter 10, section
 2, rule 7). The depth at which this happens is not specified; a program must not rely on it.
