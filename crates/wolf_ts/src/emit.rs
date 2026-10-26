@@ -2823,6 +2823,11 @@ impl<'p> Emitter<'p> {
                 out.push(Stmt::Expr(p));
                 Ok(())
             }
+            ExprKind::Fail(message) => {
+                let p = self.rt_call("fail", vec![Expr::Str(message.clone())]);
+                out.push(Stmt::Expr(p));
+                Ok(())
+            }
             _ => {
                 match target {
                     Target::Discard => {
@@ -3569,6 +3574,9 @@ impl<'p> Emitter<'p> {
             ExprKind::Panic { message, location } => {
                 let m = self.expr(message, out)?;
                 tagged(self.rt_call("panic", vec![m, Expr::Str(location.clone())]))
+            }
+            ExprKind::Fail(message) => {
+                tagged(self.rt_call("fail", vec![Expr::Str(message.clone())]))
             }
             ExprKind::Assert {
                 cond,

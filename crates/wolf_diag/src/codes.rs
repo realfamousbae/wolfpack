@@ -198,8 +198,6 @@ pub const E0431: Code = Code::new("E0431", "implementation that cannot be writte
 pub const E0432: Code = Code::new("E0432", "method with the name of a field");
 /// A pattern that may fail in `let` or `var`.
 pub const E0433: Code = Code::new("E0433", "refutable pattern in `let`");
-/// Update syntax `..base` in a literal of an enum variant.
-pub const E0434: Code = Code::new("E0434", "update syntax on an enum variant");
 /// `break` with a value in a `while` or a `for`.
 pub const E0435: Code = Code::new("E0435", "`break` with a value outside `loop`");
 /// Unknown loop label.
@@ -372,16 +370,17 @@ pub const ALL: &[Code] = &[
     E0306, E0307, E0308, E0309, E0310, E0311, E0312, E0313, E0314, E0315, E0316, E0317, E0401,
     E0402, E0403, E0404, E0405, E0406, E0407, E0408, E0409, E0410, E0411, E0412, E0413, E0414,
     E0415, E0416, E0417, E0418, E0419, E0420, E0421, E0422, E0423, E0424, E0425, E0426, E0427,
-    E0428, E0429, E0430, E0431, E0432, E0433, E0434, E0435, E0436, E0437, E0438, E0439, E0441,
-    E0442, E0443, E0444, E0445, E0446, E0447, E0448, E0501, E0502, E0503, E0504, E0505, E0506,
-    E0507, E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608,
-    E0609, E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620, E0701,
-    E0702, E0703, E0704, E0705, E0706, E0707, E0708, E0709, E0710, E0711, E0712, E0713, E0714,
-    E0715, E0716, E0801, E0802, E0803, E0804, E0805, E0806, E0807, E0808,
+    E0428, E0429, E0430, E0431, E0432, E0433, E0435, E0436, E0437, E0438, E0439, E0441, E0442,
+    E0443, E0444, E0445, E0446, E0447, E0448, E0501, E0502, E0503, E0504, E0505, E0506, E0507,
+    E0508, E0509, E0510, E0511, E0601, E0602, E0603, E0604, E0605, E0606, E0607, E0608, E0609,
+    E0610, E0611, E0612, E0613, E0614, E0615, E0616, E0617, E0618, E0619, E0620, E0701, E0702,
+    E0703, E0704, E0705, E0706, E0707, E0708, E0709, E0710, E0711, E0712, E0713, E0714, E0715,
+    E0716, E0801, E0802, E0803, E0804, E0805, E0806, E0807, E0808,
 ];
 
 /// Codes that were used once and must never be used again.
-pub const RETIRED: &[&str] = &["E0213"];
+/// E0434 was the update syntax `..base` on an enum variant, allowed since D4.22.
+pub const RETIRED: &[&str] = &["E0213", "E0434"];
 
 #[cfg(test)]
 mod tests {

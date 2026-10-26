@@ -1616,6 +1616,11 @@ impl<'a> Lowerer<'a> {
             .into_iter()
             .filter_map(|n| values.remove(&n).map(|v| (n, v)))
             .collect();
+        if let (Some(RDef::Variant { .. }), Some(base)) =
+            (self.resolved.def(def).map(|d| d.kind), base)
+        {
+            return self.variant_update(ctx, e, def, ordered, base);
+        }
         Ok(match self.resolved.def(def).map(|d| d.kind) {
             Some(RDef::Struct) => ExprKind::Struct {
                 def: Lowerer::dref(def),
@@ -1630,6 +1635,166 @@ impl<'a> Lowerer<'a> {
                 values: ordered.into_iter().map(|(_, v)| v).collect(),
             },
         })
+    }
+
+    /// The update syntax of a variant, `Shape.Rect { width: 10, ..old }` (spec chapter 4,
+    /// section 7.2; D4.22), as what the targets already have: the listed fields are evaluated
+    /// first, into variables unless they are literals, then the base is matched and moved. The
+    /// arm of the variant takes the fields that are not listed from it; the arm of every other
+    /// variant is the panic `update of Shape.Rect from Shape.Circle`.
+    fn variant_update(
+        &mut self,
+        ctx: Ctx,
+        e: &'a ast::Expr,
+        def: DefId,
+        listed: Vec<(String, Expr)>,
+        base: &'a ast::Expr,
+    ) -> Result<ExprKind, LowerError> {
+        let span = e.span;
+        let Some(info) = self.typed.decls.variants.get(&def) else {
+            return Err(unsupported("update of an unknown variant"));
+        };
+        let parent = info.parent;
+        let Shape::Struct(fields) = &info.shape else {
+            return Err(unsupported("update of a variant without named fields"));
+        };
+        // The fields' types with the enum's type arguments.
+        let args = match self.typed.expr_types.get(&(ctx.file, e.id)) {
+            Some(Ty::Named(_, args)) => args.clone(),
+            _ => Vec::new(),
+        };
+        let map: BTreeMap<ParamId, Ty> = self
+            .typed
+            .decls
+            .type_generics
+            .get(&parent)
+            .map(|g| g.iter().map(|g| ParamId::Decl(g.span)).zip(args).collect())
+            .unwrap_or_default();
+        let mut stmts = Vec::new();
+        let mut given: BTreeMap<String, Expr> = BTreeMap::new();
+        for (name, value) in listed {
+            let literal = matches!(
+                value.kind,
+                ExprKind::Int(_)
+                    | ExprKind::Float(_)
+                    | ExprKind::Str(_)
+                    | ExprKind::Bool(_)
+                    | ExprKind::Unit
+            );
+            if literal {
+                given.insert(name, value);
+                continue;
+            }
+            let local = self.fresh_local(&name, value.ty.clone());
+            let read = Expr {
+                kind: ExprKind::Local(local),
+                ty: value.ty.clone(),
+                span: value.span,
+            };
+            stmts.push(Stmt::Let {
+                local,
+                mutable: false,
+                value,
+            });
+            given.insert(name, read);
+        }
+        let mut patterns = Vec::new();
+        let mut values = Vec::new();
+        for f in fields {
+            match given.remove(&f.name) {
+                Some(v) => {
+                    patterns.push(Pattern::Wild);
+                    values.push(v);
+                }
+                None => {
+                    let ty = self.ty(&f.ty.subst(&map));
+                    let local = self.fresh_local(&f.name, ty.clone());
+                    patterns.push(Pattern::Bind(local));
+                    values.push(Expr {
+                        kind: ExprKind::Local(local),
+                        ty,
+                        span,
+                    });
+                }
+            }
+        }
+        let ty = self.expr_ty(ctx, e.id);
+        let name_of = |l: &Lowerer<'_>, d: DefId| {
+            l.resolved
+                .def(d)
+                .map(|x| x.name.clone())
+                .unwrap_or_default()
+        };
+        let enum_name = name_of(self, parent);
+        let target = format!("{enum_name}.{}", name_of(self, def));
+        let mut arms = vec![Arm {
+            pattern: Pattern::Variant {
+                def: Lowerer::dref(def),
+                fields: patterns,
+            },
+            guard: None,
+            body: Block {
+                stmts: Vec::new(),
+                tail: Some(Box::new(Expr {
+                    kind: ExprKind::Variant {
+                        def: Lowerer::dref(def),
+                        values,
+                    },
+                    ty: ty.clone(),
+                    span,
+                })),
+            },
+        }];
+        let others = self
+            .typed
+            .decls
+            .enum_variants
+            .get(&parent)
+            .cloned()
+            .unwrap_or_default();
+        for other in others.into_iter().filter(|o| *o != def) {
+            let count = match self.typed.decls.variants.get(&other).map(|v| &v.shape) {
+                Some(Shape::Tuple(types)) => types.len(),
+                Some(Shape::Struct(fields)) => fields.len(),
+                _ => 0,
+            };
+            let message = format!(
+                "update of {target} from {enum_name}.{}",
+                name_of(self, other)
+            );
+            arms.push(Arm {
+                pattern: Pattern::Variant {
+                    def: Lowerer::dref(other),
+                    fields: vec![Pattern::Wild; count],
+                },
+                guard: None,
+                body: Block {
+                    stmts: Vec::new(),
+                    tail: Some(Box::new(Expr {
+                        kind: ExprKind::Fail(message),
+                        ty: Type::Never,
+                        span,
+                    })),
+                },
+            });
+        }
+        let scrutinee = self.expr(ctx, base)?;
+        let matched = Expr {
+            kind: ExprKind::Match {
+                scrutinee: Box::new(scrutinee),
+                mode: Mode::Own,
+                arms,
+            },
+            ty,
+            span,
+        };
+        if stmts.is_empty() {
+            return Ok(matched.kind);
+        }
+        Ok(ExprKind::Block(Block {
+            stmts,
+            tail: Some(Box::new(matched)),
+        }))
     }
 
     /// The text of a value for an interpolated string: the value itself for a `String`, else a

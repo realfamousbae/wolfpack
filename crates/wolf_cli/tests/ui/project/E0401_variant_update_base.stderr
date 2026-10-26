@@ -1,0 +1,13 @@
+error[E0401]: expected `Shape`, found `Size`
+   --> src/main.wolf:21:38
+   |
+21 |     let a = Shape.Rect { width: 3, ..size }
+   |                                      ^^^^ this is `Size`
+
+error[E0401]: expected `Tagged<String>`, found `Tagged<Int>`
+   --> src/main.wolf:23:42
+   |
+23 |     let u = Tagged.Named { value: "x", ..t }
+   |                                          ^ this is `Tagged<Int>`
+
+error: aborting due to 2 errors

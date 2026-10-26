@@ -3254,6 +3254,7 @@ impl<'p> Emitter<'p> {
             | ExprKind::Continue { .. }
             | ExprKind::Try { .. }
             | ExprKind::Panic { .. }
+            | ExprKind::Fail(_)
             | ExprKind::Assert { .. } => true,
             _ => false,
         }
@@ -3911,6 +3912,9 @@ impl<'p> Emitter<'p> {
             ExprKind::Panic { message, location } => {
                 let m = self.expr(message, Want::Read(true))?;
                 self.rt_call("Panic", "panic_at", vec![m, Expr::Str(location.clone())])
+            }
+            ExprKind::Fail(message) => {
+                self.rt_call("Panic", "fail", vec![Expr::Str(message.clone())])
             }
             ExprKind::Assert {
                 cond,

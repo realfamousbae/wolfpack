@@ -147,6 +147,23 @@ fn explain_rejects_unknown_codes() {
     }
 }
 
+/// A retired code says so and exits with 0 (spec chapter 9, section 2, rule 8), and has no
+/// text left in `explain/`.
+#[test]
+fn explain_reports_retired_codes() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    for code in wolf_diag::codes::RETIRED {
+        let output = wolf(dir, &["explain", code]);
+        assert_eq!(output.status.code(), Some(0), "{code}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("{code} is no longer used by the compiler\n")
+        );
+        assert!(explain::text(code).is_none(), "{code}");
+    }
+    assert!(wolf_diag::codes::RETIRED.contains(&"E0434"));
+}
+
 #[test]
 fn every_code_has_a_text() {
     let ids: Vec<&str> = wolf_diag::codes::ALL.iter().map(|c| c.id()).collect();

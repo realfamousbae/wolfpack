@@ -506,7 +506,8 @@ fn needs_stmts(e: &IrExpr) -> bool {
         | ExprKind::Loop { .. }
         | ExprKind::Break { .. }
         | ExprKind::Continue { .. }
-        | ExprKind::Panic { .. } => true,
+        | ExprKind::Panic { .. }
+        | ExprKind::Fail(_) => true,
         ExprKind::Interpolate(parts) => parts.iter().any(needs_stmts),
         ExprKind::Call { callee, args } => {
             let c = match callee {
@@ -4327,6 +4328,11 @@ impl<'p> Emitter<'p> {
                 out.push(Stmt::Expr(call(id("panic"), vec![v])));
                 Ok(())
             }
+            ExprKind::Fail(message) => {
+                let v = self.rt_call("Panic", "Fail", vec![Expr::Str(message.clone())]);
+                out.push(Stmt::Expr(v));
+                Ok(())
+            }
             _ => {
                 match target {
                     Target::Discard => {
@@ -5299,7 +5305,8 @@ impl<'p> Emitter<'p> {
             ExprKind::Return(_)
             | ExprKind::Break { .. }
             | ExprKind::Continue { .. }
-            | ExprKind::Panic { .. } => {
+            | ExprKind::Panic { .. }
+            | ExprKind::Fail(_) => {
                 self.tail(e, Target::Discard, out)?;
                 data(unit())
             }

@@ -1323,19 +1323,9 @@ impl<'a> Checker<'a> {
         else {
             return Ty::Error;
         };
+        // `..base` works for structs and for variants with named fields, whose base has the
+        // type of the enum (chapter 4, section 7.2; D4.22).
         let base = base.as_deref();
-        if let (Some(base), Some(Res::Def(def))) = (base, self.res(b, e.id)) {
-            if matches!(self.def_kind(def), Some(DefKind::Variant { .. })) {
-                self.report(
-                    Diagnostic::new(
-                        codes::E0434,
-                        "the update syntax `..base` is for structs only",
-                    )
-                    .primary(base.span, "a variant cannot be built from another value")
-                    .help("write every field of the variant"),
-                );
-            }
-        }
         let res = self.res(b, e.id);
         let Some(Res::Def(mut def)) = res else {
             self.not_a_struct(res, path, false);

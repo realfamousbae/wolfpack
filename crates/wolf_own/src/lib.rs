@@ -851,6 +851,7 @@ impl<'p> Checker<'p> {
                 self.expr(message, Use::Read);
                 self.state.unreachable = true;
             }
+            ExprKind::Fail(_) => self.state.unreachable = true,
             ExprKind::Assert { cond, .. } => self.expr(cond, Use::Read),
         }
         if matches!(e.ty, Type::Never) {

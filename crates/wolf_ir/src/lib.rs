@@ -662,7 +662,8 @@ pub enum ExprKind {
         /// `..=`
         inclusive: bool,
     },
-    /// A struct literal, fields in declaration order.
+    /// A struct literal, fields in declaration order. The update syntax of a variant,
+    /// `Shape.Rect { width: 10, ..old }` (D4.22), is lowered to a `match` on the base.
     Struct {
         /// The struct.
         def: DefRef,
@@ -781,6 +782,10 @@ pub enum ExprKind {
     },
     /// `value.copy()`
     Copy(Box<Expr>),
+    /// A panic of the language itself with a fixed message, printed `panic: message` without
+    /// a location (spec chapter 7, section 3), such as the update of a variant from a value of
+    /// another variant (spec chapter 4, section 7.2; D4.22).
+    Fail(String),
     /// `panic(message)` with the source location of the call.
     Panic {
         /// The message.
