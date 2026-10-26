@@ -1,0 +1,155 @@
+//! Inherent blocks for one instantiation of a generic type (spec chapter 4, section 8.3, rule 8;
+//! D4.21): the methods of `Stack<Int>` exist for a `Stack<Int>` only, next to the methods of
+//! every `Stack<T>`; a head may mix type arguments and parameters.
+
+module main
+
+imports {
+    std.string
+    units.{Meter}
+}
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+
+    struct Pair<A, B> {
+        first: A
+        second: B
+    }
+
+    enum Slot<T> {
+        Empty
+        Full(T)
+    }
+}
+
+impl {
+    Stack<T> {
+        fn size(self) -> Int {
+            self.items.len()
+        }
+
+        fn push(mut self, own item: T) {
+            self.items.push(own item)
+        }
+
+        /// A generic method that changes the stack: in Go, a function of the package that
+        /// takes a pointer.
+        fn push_all<U>(mut self, values: List<U>, f: fn(U) -> T) {
+            for v in values {
+                self.items.push(f(v))
+            }
+        }
+    }
+
+    Stack<Int> {
+        /// A stack of numbers to start from.
+        fn zero() -> Stack<Int> {
+            Stack { items: [0] }
+        }
+
+        fn sum(self) -> Int {
+            var total = 0
+            for x in self.items {
+                total += x
+            }
+            total
+        }
+
+        fn double(mut self) {
+            for x in mut self.items {
+                x *= 2
+            }
+        }
+
+        fn scaled<U>(self, f: fn(Int) -> U) -> List<U> {
+            self.items.map(f)
+        }
+    }
+
+    Stack<String> {
+        fn joined(self, separator: String) -> String {
+            string.join(self.items, separator)
+        }
+    }
+
+    Stack<List<Int>> {
+        fn total(self) -> Int {
+            var n = 0
+            for row in self.items {
+                n += row.len()
+            }
+            n
+        }
+    }
+
+    Stack<Meter> {
+        fn length(self) -> Int {
+            var total = 0
+            for m in self.items {
+                total += m.value
+            }
+            total
+        }
+    }
+
+    Pair<Int, fn(Int) -> Int> {
+        fn apply(self) -> Int {
+            (self.second)(self.first)
+        }
+    }
+
+    Pair<String, T> {
+        fn label(self) -> String where T: Display {
+            f"{self.first}={self.second}"
+        }
+
+        fn key(self) -> String {
+            self.first.copy()
+        }
+    }
+
+    Slot<String> {
+        fn shout(self) -> String {
+            match self {
+                Slot.Empty => "(empty)"
+                Slot.Full(s) => s.to_upper_ascii() + "!"
+            }
+        }
+    }
+}
+
+main {
+    var numbers = Stack.zero()
+    numbers.push(4)
+    numbers.push(5)
+    print(f"{numbers.size()} numbers, sum {numbers.sum()}")
+    numbers.double()
+    print(f"doubled: sum {numbers.sum()}")
+    numbers.push_all(["1", "22"], |t: String| t.len())
+    print(f"{numbers.size()} numbers, sum {numbers.sum()}")
+    print(string.join(numbers.scaled(|x| f"<{x}>"), " "))
+
+    var words = Stack { items: ["a", "b"] }
+    words.push("c")
+    print(f"{words.size()} words: {words.joined("-")}")
+
+    let grid = Stack { items: [[1, 2], [3], []] }
+    print(f"{grid.size()} rows, {grid.total()} cells")
+
+    let path = Stack { items: [Meter { value: 3 }, Meter { value: 4 }] }
+    print(f"{path.length()} m")
+    let twice = Pair { first: 21, second: |x: Int| x * 2 }
+    print(f"applied: {twice.apply()}")
+
+    let p = Pair { first: "x", second: 42 }
+    let q = Pair { first: "flag", second: true }
+    print(f"{p.label()} {q.label()} {p.key()}")
+
+    let slots = [Slot.Full("hi"), Slot.Empty]
+    for s in slots {
+        print(s.shout())
+    }
+}

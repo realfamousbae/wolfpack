@@ -1,0 +1,8 @@
+module units
+
+types {
+    /// A length in meters.
+    pub struct Meter {
+        pub value: Int
+    }
+}
