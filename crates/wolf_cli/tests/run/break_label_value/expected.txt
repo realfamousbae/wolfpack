@@ -1,0 +1,9 @@
+found d
+first odd square above 10: 25
+first odd square above 100: 121
+biggest 8
+empty
+total 114 after 2 tries
+steps 3
+BANANA SHORT
+an argument

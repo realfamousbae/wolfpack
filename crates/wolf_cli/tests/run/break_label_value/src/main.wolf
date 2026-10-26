@@ -1,0 +1,113 @@
+//! `break label: value` ends a labelled `loop` with a value, also from loops inside it, and a
+//! labelled `loop` may stand where an expression is expected (spec chapter 3, section 4, rule 5;
+//! D3.11).
+
+module main
+
+types {
+    struct Cell {
+        name: String
+        marked: Bool
+    }
+}
+
+main {
+    let rows = [
+        [Cell { name: "a", marked: false }, Cell { name: "b", marked: false }],
+        [Cell { name: "c", marked: false }, Cell { name: "d", marked: true }],
+    ]
+    let found = search: loop {
+        for row in rows {
+            for cell in row {
+                if cell.marked {
+                    break search: cell.name.copy()
+                }
+            }
+        }
+        break search: "none"
+    }
+    print(f"found {found}")
+    print(f"first odd square above 10: {first_odd_square(10)}")
+    print(f"first odd square above 100: {first_odd_square(100)}")
+    print(describe([3, 8, 5]))
+    print(describe([]))
+
+    // A labelled `loop` in the middle of an expression, and `break label: value` from a `while`.
+    var tries = 0
+    let total = 100 +
+        outer: loop {
+            tries += 1
+            var i = 0
+            while i < 10 {
+                i += 1
+                if i * tries > 12 {
+                    break outer: i * tries
+                }
+            }
+        }
+    print(f"total {total} after {tries} tries")
+
+    // `break label` without a value still ends the labelled `loop` with `()`.
+    var steps = 0
+    done: loop {
+        loop {
+            steps += 1
+            if steps == 3 {
+                break done
+            }
+        }
+    }
+    print(f"steps {steps}")
+
+    // The value of a labelled `loop` as an argument, inside a closure.
+    let pick = |limit: Int| -> String {
+        let word = scan: loop {
+            for w in ["kiwi", "banana", "fig"] {
+                if w.len() > limit {
+                    break scan: w.copy()
+                }
+            }
+            break scan: "short"
+        }
+        word.to_upper_ascii()
+    }
+    print(f"{pick(4)} {pick(9)}")
+    print(arg: loop {
+        break arg: "an argument"
+    })
+}
+
+functions {
+    /// A labelled `loop` at the end of a function gives the result.
+    fn first_odd_square(limit: Int) -> Int {
+        var n = 1
+        squares: loop {
+            for k in 0..3 {
+                let x = n + k
+                if x % 2 == 1 && x * x > limit {
+                    break squares: x * x
+                }
+            }
+            n += 3
+        }
+    }
+
+    fn describe(items: List<Int>) -> String {
+        let biggest: Option<Int> = best: loop {
+            if items.is_empty() {
+                break best: None
+            }
+            var top = items[0]
+            for x in items {
+                if x > top {
+                    top = x
+                }
+            }
+            break best: Some(top)
+        }
+        match biggest {
+            Some(b) => f"biggest {b}"
+            None => "empty"
+        }
+    }
+}
