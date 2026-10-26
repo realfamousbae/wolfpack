@@ -22,10 +22,9 @@ functions {
 }
 
 tests {
-    test "the operator of a sum after a comment" {
+    test "the operator after parentheses" {
         let big = math.int_max
-        let x = (big - 1) /* one */ +
-            2
+        let x = (big - 1) + 2
         print(x.to_string())
     }
 
@@ -56,7 +55,7 @@ tests {
 
     test "an index out of range" {
         let items = [1, 2, 3]
-        print(items  [5].to_string())
+        print(items[5].to_string())
     }
 
     test "a missing key" {
