@@ -1,0 +1,30 @@
+test src/main.wolf: a function that calls itself ... FAILED
+test src/main.wolf: two functions that call each other ... FAILED
+test src/main.wolf: a method called through an interface value ... FAILED
+test src/main.wolf: a function called through a function value ... FAILED
+test src/main.wolf: a closure called by std ... FAILED
+test src/main.wolf: a generic wrapper of interface values, as deep as the data ... FAILED
+test src/main.wolf: recursion still works after a stack overflow ... ok
+
+failures:
+
+  src/main.wolf: a function that calls itself
+    panic: stack overflow
+
+  src/main.wolf: two functions that call each other
+    panic: stack overflow
+
+  src/main.wolf: a method called through an interface value
+    panic: stack overflow
+
+  src/main.wolf: a function called through a function value
+    panic: stack overflow
+
+  src/main.wolf: a closure called by std
+    panic: stack overflow
+
+  src/main.wolf: a generic wrapper of interface values, as deep as the data
+    panic: stack overflow
+
+test result: FAILED. 1 passed; 6 failed
+exit code: 1

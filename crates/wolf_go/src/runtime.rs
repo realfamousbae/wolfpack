@@ -352,6 +352,31 @@ func message(r any) string {
 }"#,
     },
     Piece {
+        name: "depth",
+        deps: &["Panic"],
+        imports: &[],
+        code: r#"// maxDepth is the deepest nesting of calls of functions that can call themselves, the limit of
+// the VM (spec chapter 8, section 4.3).
+const maxDepth = 100_000
+
+// depth is the number of calls of functions that can call themselves that have not returned.
+var depth int
+
+// Enter starts a call of a function that can call itself: past maxDepth nested calls it is a
+// stack overflow, which Go itself cannot recover from.
+func Enter() {
+	if depth >= maxDepth {
+		Fail("stack overflow")
+	}
+	depth++
+}
+
+// Leave ends a call that Enter started; it is deferred, so a panic runs it too.
+func Leave() {
+	depth--
+}"#,
+    },
+    Piece {
         name: "deepStacks",
         deps: &[],
         imports: &["math", "runtime/debug"],

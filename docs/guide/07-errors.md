@@ -254,8 +254,9 @@ exit with code 1.
 ## Panics
 
 A panic stops the program at once. It is for bugs, not for errors that a correct program has to
-expect. The language panics on integer overflow, division by zero and an index outside a list.
-Your code panics with `panic("message")`, or with `assert(condition)` when the condition is false:
+expect. The language panics on integer overflow, division by zero, an index outside a list and
+recursion that never ends (`panic: stack overflow`). Your code panics with `panic("message")`, or
+with `assert(condition)` when the condition is false:
 
 ```wolf fragment
 fn average(values: List<Int>) -> Int {

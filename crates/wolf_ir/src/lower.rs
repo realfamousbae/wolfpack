@@ -91,6 +91,7 @@ pub fn lower(
             },
         );
     }
+    crate::recursion::mark(&mut program);
     Ok(program)
 }
 
@@ -780,6 +781,7 @@ impl<'a> Lowerer<'a> {
                         body,
                         interface: Some(Lowerer::dref(def)),
                         in_tests: false,
+                        recursive: false,
                     });
                 }
                 let supers = self
@@ -823,6 +825,7 @@ impl<'a> Lowerer<'a> {
                     body,
                     interface: None,
                     in_tests,
+                    recursive: false,
                 }));
             }
             ItemKind::Config(entry) => {
@@ -994,6 +997,7 @@ impl<'a> Lowerer<'a> {
             body,
             interface: m.interface.map(Lowerer::dref),
             in_tests: false,
+            recursive: false,
         }))
     }
 
@@ -1377,6 +1381,7 @@ impl<'a> Lowerer<'a> {
                 ExprKind::Closure {
                     params: list,
                     body: self.expr_block(ctx, body, ret_void)?,
+                    recursive: false,
                 }
             }
             AstExpr::Block(block) => {

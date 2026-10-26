@@ -73,7 +73,9 @@ fn every_example_runs_and_prints_expected_output() {
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
-/// Programs under `tests/run/` with their standard output, standard error and exit code.
+/// Programs under `tests/run/` with their standard output, standard error and exit code. A
+/// program with a `skip-ts.txt` needs what Node.js cannot give, such as recursion 50,000 calls
+/// deep; the file says what.
 #[test]
 fn run_programs_match_expected_output() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run");
@@ -87,7 +89,7 @@ fn run_programs_match_expected_output() {
     dirs.sort();
     for dir in dirs {
         let name = dir.file_name().unwrap().to_string_lossy().into_owned();
-        if name.starts_with("E08") {
+        if name.starts_with("E08") || dir.join("skip-ts.txt").is_file() {
             continue;
         }
         let output = wolf_run(&dir, &tmp(&name), &[], None);

@@ -31,6 +31,21 @@ All notable changes are recorded here at the end of each milestone.
 - Fixed in the Rust backend: `print("")` was printed as `println!("")`, which clippy rejects, and
   a test whose body is only `assert_eq` got an extra block that `rustfmt --check` removes. The
   test project `rust_style` checks both with clippy and rustfmt.
+- Recursion that never ends is `panic: stack overflow` with exit code 101 on Go and Rust too, as
+  on TypeScript and in the VM (spec chapter 8, section 4.3; D8.16). Go stopped with its own fatal
+  error and exit code 2, and Rust aborted. The IR marks the functions, methods and closures that
+  can call themselves, directly or through others, through function values, interface methods
+  and calls from std back into the program; only those count their nested calls
+  (`wolfrt.Enter()` with `defer wolfrt.Leave()` on Go, `let _depth = wolf_rt::enter();` on Rust)
+  and panic past 100,000, the limit of the VM, so code without recursion is generated as before.
+  A cycle of calls through a type parameter of a generic type (`Holder<T>` calling `T`) and
+  through `Self` is not counted, since its types cannot grow, unless the program uses the type
+  with an interface value or from generic code (ADR 0018). The report of
+  `wolf test` on TypeScript says `panic: stack overflow` for a test that overflows the stack of
+  Node.js, instead of Node's own message. New tests: `tests/run/stack_overflow`,
+  `tests/run/deep_recursion` (50,000 calls deep on Go, Rust and in the VM; not on TypeScript,
+  whose stack holds about 10,000 calls, which a new `skip-ts.txt` says) and
+  `tests/test/stack_overflow`; `tests/vm/stack_overflow` is part of the first.
 
 ## 0.5.1 (2026-10-26)
 

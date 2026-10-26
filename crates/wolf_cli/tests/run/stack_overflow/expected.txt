@@ -1,0 +1,3 @@
+sum 12502500
+even false
+start

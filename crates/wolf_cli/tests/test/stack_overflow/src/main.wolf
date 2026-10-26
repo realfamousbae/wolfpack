@@ -1,0 +1,145 @@
+//! Recursion that never ends fails a test with `panic: stack overflow` on every target and in the
+//! VM, whichever way the functions call each other (spec chapter 8, section 4.3, D8.16), also
+//! recursion as deep as data that a generic wrapper of interface values builds. The tests run in
+//! order: the last one recurses again after the others overflowed.
+
+module main
+
+types {
+    struct Countdown {
+        step: Int
+    }
+
+    struct Holder<T: Named> {
+        inner: T
+    }
+
+    struct Leaf {
+        label: String
+    }
+}
+
+interfaces {
+    interface Counter {
+        fn count(self, n: Int) -> Int
+    }
+
+    interface Named {
+        fn name(self) -> String
+    }
+}
+
+impl {
+    Countdown: Counter {
+        fn count(self, n: Int) -> Int {
+            if n < 0 {
+                return n
+            }
+            let next: Counter = Countdown { step: self.step }
+            next.count(n + self.step) + 1
+        }
+    }
+
+    Leaf: Named {
+        fn name(self) -> String {
+            self.label.copy()
+        }
+    }
+
+    Holder<T>: Named {
+        fn name(self) -> String {
+            self.inner.name()
+        }
+    }
+}
+
+main {
+    print(sum(10).to_string())
+}
+
+functions {
+    fn sum(n: Int) -> Int {
+        if n == 0 {
+            return 0
+        }
+        n + sum(n - 1)
+    }
+
+    fn down(n: Int) -> Int {
+        if n < 0 {
+            return n
+        }
+        down(n + 1) + 1
+    }
+
+    fn ping(n: Int) -> Int {
+        if n < 0 {
+            return n
+        }
+        pong(n + 1) + 1
+    }
+
+    fn pong(n: Int) -> Int {
+        if n < 0 {
+            return n
+        }
+        ping(n + 1) + 1
+    }
+
+    fn apply(f: fn(Int) -> Int, n: Int) -> Int {
+        f(n)
+    }
+
+    fn again(n: Int) -> Int {
+        if n < 0 {
+            return n
+        }
+        apply(again, n + 1) + 1
+    }
+
+    fn through_std(n: Int) -> Int {
+        if n < 0 {
+            return n
+        }
+        let parts = [n + 1].map(|k| through_std(k))
+        parts[0] + 1
+    }
+}
+
+tests {
+    test "a function that calls itself" {
+        let _ = down(0)
+    }
+
+    test "two functions that call each other" {
+        let _ = ping(0)
+    }
+
+    test "a method called through an interface value" {
+        let c: Counter = Countdown { step: 1 }
+        let _ = c.count(0)
+    }
+
+    test "a function called through a function value" {
+        let _ = again(0)
+    }
+
+    test "a closure called by std" {
+        let _ = through_std(0)
+    }
+
+    test "a generic wrapper of interface values, as deep as the data" {
+        var n: Named = Leaf { label: "x" }
+        var i = 0
+        while i < 200000 {
+            let h: Holder<Named> = Holder { inner: n }
+            n = h
+            i += 1
+        }
+        let _ = n.name()
+    }
+
+    test "recursion still works after a stack overflow" {
+        assert(sum(3000) == 4501500)
+    }
+}

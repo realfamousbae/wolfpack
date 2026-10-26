@@ -4204,6 +4204,9 @@ impl<'p> Emitter<'p> {
         }
         let results = self.results(&f.ret)?;
         let mut body = Vec::new();
+        if f.recursive {
+            self.count_depth(&mut body);
+        }
         if let Some(b) = &f.body {
             let target = if results.is_empty() {
                 Target::Discard
@@ -4228,6 +4231,14 @@ impl<'p> Emitter<'p> {
             results,
             body,
         })
+    }
+
+    /// The start of a function that can call itself (spec chapter 8, section 4.3): its nested
+    /// calls are counted, so that recursion that never ends is `panic: stack overflow` and not
+    /// a fatal error of Go.
+    fn count_depth(&mut self, out: &mut Vec<Stmt>) {
+        out.push(Stmt::Expr(self.rt_call("depth", "Enter", Vec::new())));
+        out.push(Stmt::Defer(self.rt_call("depth", "Leave", Vec::new())));
     }
 
     // ----- statements -------------------------------------------------------------------------
@@ -5231,12 +5242,16 @@ impl<'p> Emitter<'p> {
                 })
             }
             ExprKind::Binary { op, lhs, rhs } => data(self.binary(*op, lhs, rhs, out)?),
-            ExprKind::Closure { params, body } => {
+            ExprKind::Closure {
+                params,
+                body,
+                recursive,
+            } => {
                 let ret = match &e.ty {
                     IrType::Fn(_, r) => (**r).clone(),
                     _ => IrType::Void,
                 };
-                data(self.closure(params, body, &ret)?)
+                data(self.closure(params, body, &ret, *recursive)?)
             }
             ExprKind::If { .. }
             | ExprKind::IfChain { .. }
@@ -5402,6 +5417,7 @@ impl<'p> Emitter<'p> {
         params: &'p [ir::Param],
         body: &'p Block,
         ret: &IrType,
+        recursive: bool,
     ) -> Result<Expr, Error> {
         self.f.rets.push((ret.clone(), Form::Data));
         let loops = std::mem::take(&mut self.f.loops);
@@ -5428,6 +5444,9 @@ impl<'p> Emitter<'p> {
             Target::Return
         };
         let mut stmts = Vec::new();
+        if recursive {
+            self.count_depth(&mut stmts);
+        }
         let r = self.block(body, target, &mut stmts);
         self.f.rets.pop();
         self.f.loops = loops;

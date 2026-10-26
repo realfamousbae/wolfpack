@@ -1,0 +1,73 @@
+//! Recursion 50,000 calls deep works on Go and Rust and in the VM: the limit is 100,000 nested
+//! calls (spec chapter 8, section 4.3, D8.16), whether a function calls itself, two functions
+//! call each other, or the calls go through an interface value or a function value.
+
+module main
+
+types {
+    struct Countdown {
+        step: Int
+    }
+}
+
+interfaces {
+    interface Counter {
+        fn count(self, n: Int) -> Int
+    }
+}
+
+impl {
+    Countdown: Counter {
+        fn count(self, n: Int) -> Int {
+            if n <= 0 {
+                return 0
+            }
+            let next: Counter = Countdown { step: self.step }
+            next.count(n - self.step) + 1
+        }
+    }
+}
+
+main {
+    let levels = 50000
+    print(f"sum {sum(levels)}")
+    print(f"even {is_even(levels + 1)}")
+    let counter: Counter = Countdown { step: 1 }
+    print(f"interface {counter.count(levels)}")
+    // Two nested calls a level: `countdown` and `apply`.
+    print(f"function value {countdown(levels / 2)}")
+}
+
+functions {
+    fn sum(n: Int) -> Int {
+        if n == 0 {
+            return 0
+        }
+        n + sum(n - 1)
+    }
+
+    fn is_even(n: Int) -> Bool {
+        if n == 0 {
+            return true
+        }
+        is_odd(n - 1)
+    }
+
+    fn is_odd(n: Int) -> Bool {
+        if n == 0 {
+            return false
+        }
+        is_even(n - 1)
+    }
+
+    fn apply(f: fn(Int) -> Int, n: Int) -> Int {
+        f(n)
+    }
+
+    fn countdown(n: Int) -> Int {
+        if n == 0 {
+            return 0
+        }
+        apply(countdown, n - 1) + 1
+    }
+}
