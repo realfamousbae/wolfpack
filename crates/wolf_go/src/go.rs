@@ -106,6 +106,8 @@ pub enum Stmt {
     Continue(Option<String>),
     /// `label:` before a statement.
     Labeled(String, Box<Stmt>),
+    /// `defer f(x)`
+    Defer(Expr),
 }
 
 /// A field of a struct.
@@ -615,6 +617,7 @@ impl Printer<'_> {
             Stmt::Break(Some(l)) => format!("break {l}"),
             Stmt::Continue(None) => "continue".to_string(),
             Stmt::Continue(Some(l)) => format!("continue {l}"),
+            Stmt::Defer(e) => format!("defer {}", self.expr0(e, 1, ind)),
             _ => String::new(),
         }
     }
