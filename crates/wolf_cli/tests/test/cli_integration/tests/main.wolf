@@ -1,0 +1,19 @@
+module tests.main
+
+imports {
+    main.{Point, greet}
+    util.{twice}
+}
+
+functions {
+    fn helper() -> Int {
+        2
+    }
+}
+
+tests {
+    test "greet" {
+        let p = Point { x: helper() }
+        assert(greet(twice(p.x)) == "hi 4")
+    }
+}

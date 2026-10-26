@@ -1,0 +1,17 @@
+module tests.deep.inner
+
+imports {
+    main.{greet}
+}
+
+functions {
+    fn helper() -> Int {
+        3
+    }
+}
+
+tests {
+    test "greet in a directory" {
+        assert(greet(helper()) == "hi 3")
+    }
+}

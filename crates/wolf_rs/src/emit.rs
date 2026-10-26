@@ -148,6 +148,9 @@ pub(crate) struct Emitter<'p> {
     in_iface_decl: bool,
     pub(crate) rt: BTreeSet<&'static str>,
     pub(crate) test_list: Vec<TestEntry>,
+    /// The modules of `tests/` that the `mod tests` of `src/main.rs` declares, when that file is
+    /// emitted.
+    test_mods: BTreeSet<String>,
     // State of the module being emitted.
     module: usize,
     uses: BTreeMap<String, BTreeSet<String>>,
@@ -550,6 +553,7 @@ impl<'p> Emitter<'p> {
             in_iface_decl: false,
             rt: BTreeSet::new(),
             test_list: Vec::new(),
+            test_mods: BTreeSet::new(),
             module: 0,
             uses: BTreeMap::new(),
             f: FnState::default(),
@@ -572,6 +576,12 @@ impl<'p> Emitter<'p> {
         for m in &p.modules {
             let path = match m.role {
                 ModuleRole::Std => None,
+                // A program is not a library that Cargo's integration tests could use: its tests
+                // of `tests/` are modules of the program, `crate::tests::<path>` (spec chapter 8,
+                // section 2.1).
+                ModuleRole::Test if p.kind == ProgramKind::Cli => {
+                    Some(m.path.iter().map(|s| value(s)).collect())
+                }
                 ModuleRole::Entry | ModuleRole::Example | ModuleRole::Test => Some(Vec::new()),
                 ModuleRole::Src => Some(m.path.iter().map(|s| value(s)).collect()),
                 // `native.slug` is `crate::native::wolf::slug`, next to the native code.
@@ -985,7 +995,16 @@ impl<'p> Emitter<'p> {
     /// Whether the current file is a crate of its own (an example or an integration test of a
     /// library).
     fn outside(&self) -> bool {
-        matches!(self.role(), ModuleRole::Example | ModuleRole::Test)
+        match self.role() {
+            ModuleRole::Example => true,
+            ModuleRole::Test => self.p.kind == ProgramKind::Lib,
+            _ => false,
+        }
+    }
+
+    /// Whether the current file is a module of `tests/` compiled into a program.
+    fn test_in_program(&self) -> bool {
+        self.role() == ModuleRole::Test && self.p.kind == ProgramKind::Cli
     }
 
     /// The path of the runtime from the current file.
@@ -1306,6 +1325,25 @@ impl<'p> Emitter<'p> {
                 }
             }
         }
+        // The modules of `tests/` in a program: `crate::tests::<path>`, declared inside the
+        // `#[cfg(test)] mod tests` of `src/main.rs`.
+        let mut test_children: BTreeMap<Vec<String>, BTreeSet<String>> = BTreeMap::new();
+        if self.tests && self.p.kind == ProgramKind::Cli {
+            for (i, m) in self.p.modules.iter().enumerate() {
+                if m.role != ModuleRole::Test {
+                    continue;
+                }
+                let Some(Some(mp)) = self.mod_paths.get(i).cloned() else {
+                    continue;
+                };
+                for k in 1..mp.len() {
+                    let parent = mp.get(..k).map(<[String]>::to_vec).unwrap_or_default();
+                    if let Some(c) = mp.get(k) {
+                        test_children.entry(parent).or_default().insert(c.clone());
+                    }
+                }
+            }
+        }
         let mut written: BTreeSet<Vec<String>> = BTreeSet::new();
         for (i, m) in self.p.modules.iter().enumerate() {
             let wanted = match m.role {
@@ -1320,23 +1358,34 @@ impl<'p> Emitter<'p> {
             let Some(Some(mp)) = self.mod_paths.get(i).cloned() else {
                 continue;
             };
+            let in_program = m.role == ModuleRole::Test && self.p.kind == ProgramKind::Cli;
             let file = match m.role {
                 ModuleRole::Entry => match self.p.kind {
                     ProgramKind::Cli => "src/main.rs".to_string(),
                     ProgramKind::Lib => "src/lib.rs".to_string(),
                 },
                 ModuleRole::Example => format!("{}.rs", m.path.join("/")),
-                ModuleRole::Test => format!("{}.rs", m.path.join("/")),
+                ModuleRole::Test if !in_program => format!("{}.rs", m.path.join("/")),
                 _ => format!("src/{}.rs", mp.join("/")),
             };
             let kids = if matches!(m.role, ModuleRole::Entry | ModuleRole::Src) {
                 children.get(&mp).cloned().unwrap_or_default()
+            } else if in_program {
+                test_children.get(&mp).cloned().unwrap_or_default()
             } else {
                 BTreeSet::new()
             };
-            if m.role == ModuleRole::Src {
+            if m.role == ModuleRole::Src || in_program {
                 written.insert(mp.clone());
             }
+            self.test_mods = if m.role == ModuleRole::Entry {
+                test_children
+                    .get(&["tests".to_string()][..])
+                    .cloned()
+                    .unwrap_or_default()
+            } else {
+                BTreeSet::new()
+            };
             let text = self.module(i, &kids)?;
             out.push((file, text));
         }
@@ -1352,6 +1401,17 @@ impl<'p> Emitter<'p> {
             }
             out.push((format!("src/{}.rs", parent.join("/")), text));
         }
+        // The same for the directories of `tests/`; `src/main.rs` declares the first level.
+        for (parent, kids) in &test_children {
+            if parent.len() < 2 || written.contains(parent) {
+                continue;
+            }
+            let mut text = String::from("// Generated by wolf. Do not edit.\n\n");
+            for k in kids {
+                text.push_str(&format!("mod {k};\n"));
+            }
+            out.push((format!("src/{}.rs", parent.join("/")), text));
+        }
         Ok(out)
     }
 
@@ -1360,6 +1420,7 @@ impl<'p> Emitter<'p> {
         let m = p.modules.get(index).ok_or("module")?;
         self.module = index;
         self.uses.clear();
+        let first_test = self.test_list.len();
         let mut items = Vec::new();
         let mut tests = Vec::new();
         for item in &m.items {
@@ -1377,6 +1438,7 @@ impl<'p> Emitter<'p> {
                 _ => self.item(item, &mut items)?,
             }
         }
+        self.rename_tests(&items, &mut tests, first_test);
         let entry = m.role == ModuleRole::Entry;
         let runnable = matches!(m.role, ModuleRole::Entry | ModuleRole::Example)
             && (m.role == ModuleRole::Example || p.kind == ProgramKind::Cli)
@@ -1441,11 +1503,16 @@ impl<'p> Emitter<'p> {
                 });
             }
         }
+        let test_mods: Vec<String> = std::mem::take(&mut self.test_mods).into_iter().collect();
         if m.role == ModuleRole::Test {
-            // An integration test of Cargo is a crate of tests of its own.
+            // An integration test of Cargo is a crate of tests of its own; in a program, a
+            // module of `crate::tests`.
             items.extend(tests);
-        } else if !tests.is_empty() {
-            items.push(Item::Tests(tests));
+        } else if !tests.is_empty() || !test_mods.is_empty() {
+            items.push(Item::Tests {
+                mods: test_mods,
+                items: tests,
+            });
         }
         // Head: module declarations, then imports.
         let mut head = Vec::new();
@@ -1467,8 +1534,10 @@ impl<'p> Emitter<'p> {
                 head.push(Item::Mod(String::new(), "wolf_rt".to_string()));
             }
         } else {
+            // The directories of `tests/` in a program are private: only the tests use them.
+            let vis = if self.test_in_program() { "" } else { "pub " };
             for k in kids {
-                head.push(Item::Mod("pub ".to_string(), k.clone()));
+                head.push(Item::Mod(vis.to_string(), k.clone()));
             }
         }
         let mut uses: Vec<String> = Vec::new();
@@ -1512,7 +1581,8 @@ impl<'p> Emitter<'p> {
         let attrs = if matches!(
             m.role,
             ModuleRole::Entry | ModuleRole::Example | ModuleRole::Test
-        ) {
+        ) && !self.test_in_program()
+        {
             vec![
                 "#![allow(arithmetic_overflow, unconditional_panic, unknown_lints)]".to_string(),
                 "#![allow(clippy::type_complexity, clippy::single_match, clippy::manual_contains)]"
@@ -1709,11 +1779,70 @@ impl<'p> Emitter<'p> {
         })
     }
 
+    /// Gives a test function whose name another function, constant or import of its scope has
+    /// (`test "twice"` calling the imported `twice`), or an earlier test, a `_` suffix, as Go
+    /// does for clashing names (spec chapter 8, section 3, rule 4). `first` is the index in
+    /// `test_list` of the first test of the module.
+    fn rename_tests(&mut self, items: &[Item], tests: &mut [Item], first: usize) {
+        let mut taken: BTreeSet<String> = BTreeSet::new();
+        for item in items {
+            match item {
+                Item::Fn(f) => {
+                    taken.insert(f.name.clone());
+                }
+                Item::Const { name, .. } => {
+                    taken.insert(name.clone());
+                }
+                _ => {}
+            }
+        }
+        for names in self.uses.values() {
+            taken.extend(names.iter().cloned());
+        }
+        if self.role() == ModuleRole::Entry {
+            // `use super::*` also brings the names that a library exports again.
+            taken.extend(self.reexported.values().cloned());
+            taken.insert("main".to_string());
+        }
+        // Helpers first: they keep their names.
+        for item in tests.iter() {
+            if let Item::Fn(f) = item {
+                if !f.attrs.iter().any(|a| a == "#[test]") {
+                    taken.insert(f.name.clone());
+                }
+            }
+        }
+        let mut n = first;
+        for item in tests.iter_mut() {
+            let Item::Fn(f) = item else {
+                continue;
+            };
+            if !f.attrs.iter().any(|a| a == "#[test]") {
+                continue;
+            }
+            let old = f.name.clone();
+            while taken.contains(&f.name) {
+                f.name.push('_');
+            }
+            taken.insert(f.name.clone());
+            if let Some(entry) = self.test_list.get_mut(n) {
+                if f.name != old {
+                    if let Some(prefix) = entry.path.strip_suffix(old.as_str()) {
+                        entry.path = format!("{prefix}{}", f.name);
+                    }
+                }
+            }
+            n += 1;
+        }
+    }
+
     /// A test function.
     fn test_fn(&mut self, m: &'p ir::Module, t: &'p ir::Test) -> Result<Item, Error> {
         let name = test_name(&t.name);
         let target = match m.role {
-            ModuleRole::Test => m.path.iter().skip(1).cloned().collect::<Vec<_>>().join("_"),
+            ModuleRole::Test if self.p.kind == ProgramKind::Lib => {
+                m.path.iter().skip(1).cloned().collect::<Vec<_>>().join("_")
+            }
             _ => match self.p.kind {
                 ProgramKind::Cli => "bin".to_string(),
                 ProgramKind::Lib => "lib".to_string(),
@@ -1726,7 +1855,10 @@ impl<'p> Emitter<'p> {
             .flatten()
             .unwrap_or_default();
         let path_in_crate = if m.role == ModuleRole::Test {
-            name.clone()
+            // `tests::<path>::<name>` in a program, `<name>` in a test crate of a library.
+            let mut parts = mp.clone();
+            parts.push(name.clone());
+            parts.join("::")
         } else {
             let mut parts = mp.clone();
             parts.push("tests".to_string());

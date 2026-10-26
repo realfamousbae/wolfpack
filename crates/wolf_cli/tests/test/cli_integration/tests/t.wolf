@@ -1,0 +1,21 @@
+module tests.t
+
+imports {
+    util.{twice}
+}
+
+functions {
+    fn helper() -> Int {
+        5
+    }
+}
+
+tests {
+    test "twice" {
+        assert(twice(2) == 4)
+    }
+
+    test "a wrong expectation" {
+        assert(twice(2) == helper())
+    }
+}

@@ -1,0 +1,7 @@
+module util
+
+functions {
+    pub fn twice(x: Int) -> Int {
+        x * 2
+    }
+}

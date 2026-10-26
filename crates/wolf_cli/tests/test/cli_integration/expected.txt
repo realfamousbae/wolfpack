@@ -1,0 +1,13 @@
+test src/main.wolf: greet ... ok
+test tests/deep/inner.wolf: greet in a directory ... ok
+test tests/main.wolf: greet ... ok
+test tests/t.wolf: twice ... ok
+test tests/t.wolf: a wrong expectation ... FAILED
+
+failures:
+
+  tests/t.wolf: a wrong expectation
+    panic at tests/t.wolf:19:9: assertion failed: twice(2) == helper()
+
+test result: FAILED. 4 passed; 1 failed
+exit code: 1

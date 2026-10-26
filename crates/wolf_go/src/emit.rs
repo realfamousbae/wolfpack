@@ -911,7 +911,14 @@ impl<'p> Emitter<'p> {
             self_mode: f.self_mode,
             interface: f.interface,
         };
-        // Packages.
+        // Packages. The files of `tests/` are an external test package of the root package
+        // (`mylib_test`, or `main_test` for a program) in the root directory, next to the root
+        // package's own test file.
+        let root_name = match p.kind {
+            ProgramKind::Cli => "main".to_string(),
+            ProgramKind::Lib => self.root_pkg.clone(),
+        };
+        let mut root_files: BTreeSet<String> = BTreeSet::from([format!("{root_name}_test.go")]);
         for m in &p.modules {
             let pkg = match m.role {
                 ModuleRole::Std => None,
@@ -969,12 +976,18 @@ impl<'p> Emitter<'p> {
                     })
                 }
                 ModuleRole::Test => {
-                    let rest: Vec<&str> = m.path.iter().skip(1).map(String::as_str).collect();
-                    let name = format!("{}_test", self.root_pkg);
+                    // `tests/a/b.wolf` is `tests_a_b_test.go`; a name already taken gets `_`.
+                    let mut stem = m.path.join("_");
+                    while root_files.contains(&format!("{stem}_test.go")) {
+                        stem.push('_');
+                    }
+                    let file = format!("{stem}_test.go");
+                    root_files.insert(file.clone());
+                    let name = format!("{root_name}_test");
                     Some(Pkg {
                         path: format!("{}_test", self.module_path),
-                        file: format!("{}_test.go", rest.join("_")),
-                        test_file: format!("{}_test.go", rest.join("_")),
+                        file: file.clone(),
+                        test_file: file,
                         test_package: name.clone(),
                         name,
                     })
@@ -984,13 +997,15 @@ impl<'p> Emitter<'p> {
         }
         // Declarations, with user names first and derived names after them.
         let mut derived: Vec<(DefRef, usize, String)> = Vec::new();
+        // The names taken in each Go package, by the first module of the package.
         let mut taken: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
         for (index, m) in p.modules.iter().enumerate() {
             let std = m.role == ModuleRole::Std;
+            let group = self.pkg_group(index);
             // A private type `Chain` and a private function `chain` are both `chain` in Go: the
             // declaration that comes later gets a `_` suffix (spec chapter 8, section 3, rule 4).
             let mut put = |names: &mut BTreeMap<DefRef, String>, def: DefRef, mut n: String| {
-                let set = taken.entry(index).or_default();
+                let set = taken.entry(group).or_default();
                 while set.contains(&n) {
                     n.push('_');
                 }
@@ -1166,7 +1181,7 @@ impl<'p> Emitter<'p> {
         }
         self.runtime_bounds = runtime_bounds;
         for (def, index, name) in derived {
-            let set = taken.entry(index).or_default();
+            let set = taken.entry(self.pkg_group(index)).or_default();
             let mut n = name;
             while set.contains(&n) {
                 n.push('_');
@@ -1185,7 +1200,7 @@ impl<'p> Emitter<'p> {
             })
             .collect();
         for (def, index, name) in with_refs {
-            let set = taken.entry(index).or_default();
+            let set = taken.entry(self.pkg_group(index)).or_default();
             let mut n = name;
             while set.contains(&n) {
                 n.push('_');
@@ -1259,6 +1274,22 @@ impl<'p> Emitter<'p> {
 
     fn def_module(&self, def: DefRef) -> Option<usize> {
         self.p.def(def).map(|d| d.module)
+    }
+
+    /// The module that stands for the Go package of a module in the tables of names: the files
+    /// of `tests/` share one package, so their names must differ from each other.
+    fn pkg_group(&self, module: usize) -> usize {
+        let is_test = |i: usize| {
+            self.p
+                .modules
+                .get(i)
+                .is_some_and(|m| m.role == ModuleRole::Test)
+        };
+        if is_test(module) {
+            (0..module).find(|i| is_test(*i)).unwrap_or(module)
+        } else {
+            module
+        }
     }
 
     fn pkg_path(&self, module: usize) -> Option<String> {
@@ -2227,10 +2258,11 @@ impl<'p> Emitter<'p> {
             return Ok(Vec::new());
         };
         self.module = index;
+        let group = self.pkg_group(index);
         self.taken = self
             .names
             .iter()
-            .filter(|(d, _)| self.def_module(**d) == Some(index))
+            .filter(|(d, _)| self.def_module(**d).map(|m| self.pkg_group(m)) == Some(group))
             .map(|(_, n)| n.clone())
             .collect();
         let mut out = Vec::new();

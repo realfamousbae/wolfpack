@@ -269,8 +269,14 @@ pub enum Item {
         /// Its value.
         value: Expr,
     },
-    /// `#[cfg(test)] mod tests { use super::*; ... }`
-    Tests(Vec<Item>),
+    /// `#[cfg(test)] mod tests { use super::*; mod a; ... }`: the tests of a module, and in a
+    /// program the modules of `tests/` (files under `src/tests/`).
+    Tests {
+        /// The modules declared inside, `src/tests/<name>.rs`.
+        mods: Vec<String>,
+        /// The tests and test helpers; `use super::*;` only comes with them.
+        items: Vec<Item>,
+    },
     /// Source text copied as it is.
     Raw(String),
 }
@@ -1511,9 +1517,20 @@ impl Printer {
                 let rhs = self.rhs(value, ind, width(&head) + 1, 1);
                 out.push_str(&format!("{head}{rhs};\n"));
             }
-            Item::Tests(items) => {
+            Item::Tests { mods, items } => {
                 out.push_str(&format!("{pad}#[cfg(test)]\n{pad}mod tests {{\n"));
-                out.push_str(&format!("{}use super::*;\n", spaces(ind + 1)));
+                let inner = spaces(ind + 1);
+                if !items.is_empty() {
+                    out.push_str(&format!("{inner}use super::*;\n"));
+                }
+                if !mods.is_empty() {
+                    if !items.is_empty() {
+                        out.push('\n');
+                    }
+                    for m in mods {
+                        out.push_str(&format!("{inner}mod {m};\n"));
+                    }
+                }
                 for i in items {
                     out.push('\n');
                     self.item(out, i, ind + 1);

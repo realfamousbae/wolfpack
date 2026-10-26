@@ -1,0 +1,34 @@
+//! A program with tests in `tests/`: they see the `pub` names of `src/util.wolf` and of
+//! `src/main.wolf` itself.
+
+module main
+
+imports {
+    util.{twice}
+}
+
+types {
+    pub struct Point {
+        pub x: Int
+    }
+}
+
+main {
+    print(greet(twice(2)))
+}
+
+functions {
+    pub fn greet(n: Int) -> String {
+        "hi " + n.to_string()
+    }
+
+    fn helper() -> Int {
+        1
+    }
+}
+
+tests {
+    test "greet" {
+        assert(greet(helper()) == "hi 1")
+    }
+}
