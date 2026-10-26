@@ -379,7 +379,7 @@ the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`).
    type argument; a single name that names no type declares a parameter, as before. Arguments and
    parameters may be mixed: `Pair<String, T> { ... }`.
    - The methods of such a block exist only for that instantiation: `s.sum()` on a `Stack<Int>`,
-     and E0420 (no such method) on a `Stack<String>`, with a note naming the block.
+     and E0424 (unknown method) on a `Stack<String>`, with a note naming the block.
    - Rule 4 holds across all the blocks of the type: a method name appears once among the generic
      block and every block of an instantiation (E0415). So `Stack<Int>` and `Stack<String>` cannot
      both have `describe`.
