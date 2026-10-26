@@ -573,6 +573,33 @@ copy defensively.
    `iter_mut`, `into_iter` for `mut` and `own`).
 6. String length, positions and slices use scalar-value helpers in TS and Go; Rust uses `chars()`
    (G1). String comparison uses a helper in TS only (chapter 4).
+7. **[DRAFT]** (2026-10-26, D8.26) **Case mapping** (chapter 7, section 4.3a). `to_upper` and
+   `to_lower` never call `toUpperCase`, `strings.ToUpper` or `str::to_uppercase` on text that is
+   not ASCII: the runtime piece of each target, and the VM, carry tables of the fixed Unicode
+   version. **[INTERNAL]**
+   - **Source.** A generator in the repository, a small Rust program run by hand when the version
+     moves, reads three files of the Unicode Character Database of that version:
+     `UnicodeData.txt` (the simple mappings, fields 12 and 13), `SpecialCasing.txt` (the
+     unconditional entries and the condition Final_Sigma) and `DerivedCoreProperties.txt`
+     (`Cased` and `Case_Ignorable`, which Final_Sigma needs). It downloads them from
+     `https://www.unicode.org/Public/<version>/ucd/` and checks them against SHA-256 sums written
+     into the generator, as `wolf setup` checks the tools (section 2a, rule 2). The tables it
+     writes, as TypeScript, Go and Rust source, are checked into the repository; the Rust ones
+     serve both the Rust runtime piece and the VM, so these two cannot differ.
+   - **Size** (Unicode 17.0.0): about 1,580 upper-case and 1,490 lower-case mappings, which fall
+     into about 200 runs each of the form (first, last, distance, step of 1 or 2); 103 mappings to
+     several scalar values (102 upper-case, 1 lower-case); and for Final_Sigma about 150 ranges of
+     `Cased` and 450 of `Case_Ignorable`. Together some 3,000 numbers: 10 to 15 KB of source in
+     each runtime piece, written into `out/` only when a program calls `to_upper` or `to_lower`
+     (section 2, rule 2), and about 50 KB in `wolf` and in the playground for the three pieces
+     and the VM.
+   - **Speed.** ASCII text takes the path of `to_upper_ascii`; other text is mapped scalar value by
+     scalar value, with a binary search in the runs.
+   - **Tests.** The generated tables against the files of the database, value by value; the tables
+     against Rust's `char::to_uppercase` and `char::to_lowercase`, and Node.js's `toUpperCase` and
+     `toLowerCase`, wherever the tool has the same Unicode version; and a differential test that
+     maps every scalar value that has a mapping, and a list of Final_Sigma contexts, on every
+     target and in the VM, and compares the outputs (chapter 10, section 5).
 
 ## 8. `extern`
 
@@ -742,3 +769,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.19 | `Char` on the targets (section 4; section 8, rule 2): TS `string` of one scalar value, compared with the scalar-value helper of strings; Go `wolfrt.Char`, a type defined as `rune`, so that it is never the Go type `int32` of an `Int32`, should sized integers come (D4.24), in the type switches of the runtime; Rust `char`; at the extern boundary `string`, `rune` and `char`, with values that come back checked in TS and Go (panic `invalid character from extern code`). Alternatives: TS `number`, the code (faster comparisons, but the generated code shows `97` for `'a'` and every text needs `String.fromCodePoint`); Go plain `rune` (reads better, but every place of the runtime that dispatches on the Go type would need a dictionary instead) | **proposed** (2026-10-26), waiting for the author |
 | D8.20 | The sized integer types on the targets (section 4; section 4.3; section 8, rule 2): TS `bigint` as `Int` (ADR 0001), with range-checking helpers per width and `BigInt.asIntN`/`asUintN` for the bitwise operators and shifts, so the runtime's `typeof` fallbacks need no change; Go `int8` to `uint32` with checked helpers as for `Int`; Rust `i8` to `u32` with `overflow-checks`; at the extern boundary a TS `number` (exact for every value), the Go and Rust type of the width, and results of any integer type checked against the declared range. Alternative for TS: `number` (idiomatic and faster, and what typed arrays hold; but a `number` is a `Float` to the runtime's fallbacks, so every `Display` and `compare` of a sized value in generic code would need a dictionary, and every conversion to and from `Int` a `BigInt()` or `Number()`) | **proposed** (2026-10-26), waiting for the author |
 | D8.25 | **[DRAFT]** The target forms of `Bytes` (section 4, section 4.2a, section 4.3, section 8): a `Uint8Array` in TypeScript, with room in its buffer for `push` and `append` and stored back into its place, so a `mut` parameter gets a `Ref`; `[]byte` in Go; `Vec<u8>` and `&[u8]` in Rust; UTF-8, hex and base64 written in each runtime, since Node.js decodes hex and base64 leniently and Rust's standard library has neither; at the `extern` boundary parameters without a copy (Go's capacity cut to the length) and results copied in TypeScript and Go. Alternatives for TypeScript: a small class around a `Uint8Array` and a length, changed in place like a list (no `Ref`, but every boundary crossing and every helper unwraps it); a resizable `ArrayBuffer` (ES2024, needs a maximum size given in advance). Recommendation: the plain `Uint8Array`, which is what TypeScript code expects at the boundary | **proposed** (2026-10-26), waiting for the author |
+| D8.26 | **[DRAFT]** **[INTERNAL]** How the tables of case mapping are made (section 7, rule 7; chapter 7, D7.34): one generator in the repository reads `UnicodeData.txt`, `SpecialCasing.txt` and `DerivedCoreProperties.txt` of the fixed version, downloaded with SHA-256 sums, and writes TypeScript, Go and Rust source that is checked in, the Rust source shared by the Rust runtime piece and the VM; runs of (first, last, distance, step) with a binary search and an ASCII path; some 3,000 numbers, 10 to 15 KB of source per runtime piece, written only into programs that call `to_upper` or `to_lower`; tests against the database, against the targets' own functions where their Unicode version is the same, and a differential test over every mapped scalar value. Alternatives: commit the three files of the database (about 4 MB) instead of downloading them when the version moves; call the targets' own functions when `process.versions.unicode` or `char::UNICODE_VERSION` is the fixed version (faster, but a second path to test); Go's `golang.org/x/text/cases` (a dependency of every generated Go project, with a Unicode version of its own) | **proposed** (2026-10-26), waiting for the author |

@@ -236,6 +236,7 @@ All positions and lengths count Unicode scalar values (G1).
 | `replace(self, from: String, to: String) -> String` | all occurrences; empty `from` panics |
 | `repeat(self, times: Int) -> String` | negative `times` panics |
 | `to_upper_ascii(self) -> String`, `to_lower_ascii(self) -> String` | ASCII letters only, see D7.3 |
+| `to_upper(self) -> String`, `to_lower(self) -> String` | **[DRAFT]** (D7.34) full Unicode case mapping, section 4.3a |
 | `to_utf8(self) -> Bytes` | **[DRAFT]** (D7.31) the UTF-8 form of the string (section 6a, rule 2) |
 | `String.from_utf8(data: Bytes) -> Result<String, DecodeError>` | **[DRAFT]** (D7.31) the text of valid UTF-8, else an error at the first bad byte (section 6a, rule 2) |
 
@@ -292,7 +293,51 @@ fn caesar(text: String, shift: Int) -> String {
 ```
 
 Full Unicode case mapping is not in v1, because Go, Rust and JS disagree on it (for example `ß`).
-**[PROPOSAL]** (see D7.3)
+**[PROPOSAL]** (see D7.3) **[DRAFT]** (2026-10-26, D7.34): section 4.3a adds it, with tables of
+its own in every runtime, so that the targets agree.
+
+### 4.3a Case mapping
+
+**[DRAFT]** (2026-10-26, D7.34 and D7.35)
+
+1. `s.to_upper()` and `s.to_lower()` give the full case conversion of the Unicode Standard,
+   toUppercase and toLowercase of its section 3.13 ("Default Case Conversion"), with the data of
+   **Unicode 17.0.0**, on every target and in the VM, whatever version of Unicode the tools of the
+   target have:
+   - each scalar value becomes its full mapping: the unconditional mapping of `SpecialCasing.txt`
+     where it has one (`ß` upper-cases to `SS`, `ﬁ` to `FI`, and `İ` lower-cases to `i` followed by
+     U+0307), otherwise its simple mapping of `UnicodeData.txt`, otherwise itself;
+   - `to_lower` writes `Σ` (U+03A3) as `ς` (U+03C2) where the condition Final_Sigma of the standard
+     holds, and as `σ` elsewhere. Final_Sigma holds when a cased letter comes before the `Σ` and no
+     cased letter comes after it, not counting the case-ignorable characters between them (`'`,
+     `.`, combining marks and others): `"ΟΔΟΣ ΟΔΟΣ"` becomes `"οδος οδος"` and `"Α.Σ"` becomes
+     `"α.ς"`, but `"Σ"` becomes `"σ"` and `"ΑΣ'Β"` becomes `"ασ'β"`;
+   - the other conditional mappings of `SpecialCasing.txt` are not applied: they belong to
+     languages (Lithuanian, Turkish, Azeri). There is no locale, so `"i".to_upper()` is `"I"` in
+     Turkish text too.
+2. The result may be longer than the text: `"straße".to_upper()` is `"STRASSE"`, whose `len()` is
+   7 against 6. It is not normalized: `"İ".to_lower().len()` is 2.
+3. Case mapping cannot always be undone: `"straße".to_upper().to_lower()` is `"strasse"`.
+4. `to_upper_ascii` and `to_lower_ascii` stay as they are, for the text of protocols and file
+   formats, where only ASCII letters may change: `"straße".to_upper_ascii()` is `"STRAßE"`.
+5. The Unicode version belongs to the version of `wolf`, as the versions of the tools do
+   (chapter 8, section 2a, rule 2). A newer version of Unicode changes the result for the
+   characters whose mapping it adds or changes: between Unicode 13.0 and 17.0 that happened to 190
+   scalar values, among them the old letters `ƛ` (U+019B) and `ɤ` (U+0264), which gained
+   upper-case forms. When the version moves is D7.35.
+6. Left out: title case (`to_title`, which needs word boundaries), case folding for comparisons
+   that ignore case (from `CaseFolding.txt`), the mappings of a language, and normalization (NFC,
+   NFD). They could use the same kind of tables later.
+
+| Expression | Result | Go's `strings.ToUpper` or `ToLower` alone |
+| --- | --- | --- |
+| `"straße".to_upper()` | `"STRASSE"` | `"STRAßE"` |
+| `"ﬁx".to_upper()` | `"FIX"` | `"ﬁX"` |
+| `"ŉ".to_upper()` | `"ʼN"` | `"ŉ"` |
+| `"ᾳ".to_upper()` | `"ΑΙ"` | `"ᾼ"` |
+| `"ΟΔΟΣ".to_lower()` | `"οδος"` | `"οδοσ"` |
+| `"İstanbul".to_lower()` | `"i̇stanbul"`: `i`, U+0307, `stanbul` | `"istanbul"` |
+| `"ǅ".to_upper()`, `"ǅ".to_lower()` | `"Ǆ"`, `"ǆ"` | the same |
 
 ### 4.4 Format specifications (author, 2026-10-23, D4.18)
 
@@ -956,3 +1001,5 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.31 | **[DRAFT]** Text and encodings of `Bytes` (section 6a, rules 2 to 7; section 4.1; section 4.3): `s.to_utf8()` and `String.from_utf8(data)` (an error at the first bad byte, no lossy form, a byte order mark kept); `to_hex` and `Bytes.from_hex` (lower case out, either case in, nothing else allowed); `to_base64` and `Bytes.from_base64` (RFC 4648 standard alphabet with padding, strict: no spaces or line breaks, unused bits must be zero); one error type `DecodeError` whose message names the position (`invalid UTF-8 at byte 7`, `invalid hex at position 3`, `invalid base64 at position 12`); `Display` writes the bytes as a `List<Int>` is written, `[104, 105]`. Recommendation: as written; the encodings are methods of `Bytes` (no module `std.encoding`), and every runtime decodes by itself, since Node.js accepts invalid hex and base64 silently (`Buffer.from("zz", "hex")` is empty) and Rust's standard library has neither. Alternatives: `Display` as hex (`6869`: shorter for hashes, but an empty value shows as nothing and it differs from `List<Int>`, so a later `type Bytes = List<Byte>` would change the text); `data.to_string()` decoding UTF-8 (not possible: `to_string` is the method of `Display`); `ParseError` instead of `DecodeError` (its message repeats the whole input, which for base64 may be a file); lenient base64 that skips line breaks, as Go and Node.js do. Left out (section 6a, rule 7): cryptographic hashes, which Rust's standard library lacks and which `extern` and native modules now reach; a literal `b"..."` (the prefix stays reserved); URL-safe and unpadded base64; lossy UTF-8; searching; integers of several bytes at an offset; `for` over `Bytes`; `Bytes` as a map key | **proposed** (2026-10-26), waiting for the author |
 | D7.32 | **[DRAFT]** Binary files and streams (section 7): `fs.read_bytes(path)`, `fs.write_bytes(path, content)` with the errors of `read_text` and `write_text`; `io.write_bytes(data)` to standard output in order with `print`, and `io.read_bytes()` for the rest of standard input after the lines `read_line` took. Recommendation: all four; the two of `std.io` are the smallest part and may wait. **Open question**: `read_text` does not follow its rule "invalid UTF-8 is an error" on every target today (Rust and the VM: `FsError.Other` with the text of the system; Go: a string that is not valid UTF-8; TypeScript: U+FFFD in place of the bad bytes). Recommendation: fix it with the UTF-8 check of `String.from_utf8`, so that every target returns `FsError.Other("<path>: invalid UTF-8 at byte 7")`, as a separate change | **proposed** (2026-10-26), waiting for the author |
 | D7.33 | **[DRAFT]** `Bytes` at the `extern` boundary (section 8.4, rules 1 and 7; section 8.4a): as a parameter, a result, inside `List`, `Option` and `Map` values, as a record field and in a callback; the target forms are D8.25. Native modules read `&[u8]`, `Vec<u8>`, `&Vec<u8>` (Rust), `[]byte` (Go) and `Uint8Array` (TypeScript) as `Bytes` (section 8.7, rules 3, 9 and 13). This **changes the signatures** of native modules that use `u8` slices today, which the readers map to `List<Int>`; TypeScript's `Uint8Array` goes from not available to `Bytes`. Recommendation: accept the change, since bytes are what such code means and a list of `Int` costs eight bytes or a `bigint` for each byte. Alternative: keep `List<Int>` for them and read `Bytes` only from written `extern` blocks, which breaks nothing but leaves native modules without bytes | **proposed** (2026-10-26), waiting for the author |
+| D7.34 | **[DRAFT]** Full Unicode case mapping (section 4.3; section 4.3a): `to_upper` and `to_lower` of `String`, the default full case conversion of the Unicode Standard (the unconditional entries of `SpecialCasing.txt`, then the simple mappings of `UnicodeData.txt`, and Final_Sigma), with the data of Unicode 17.0.0 on every target and in the VM; no locale, no title case, no case folding; the result may be longer than the text; `to_upper_ascii` and `to_lower_ascii` stay. What the targets do, measured on 2026-10-26 with Node.js 26.12, Go 1.27.2 and Rust 1.99.1, which all have Unicode 17.0: TypeScript and Rust agree on every scalar value and on every Final_Sigma context tried; Go maps one scalar value to one, so it differs on 103 of them (`ß`, `ﬁ`, `ŉ`, `İ` and 99 more), and has no Final_Sigma (`"ΟΔΟΣ"` gives `"οδοσ"`). The oldest tools of chapter 8 do not share a Unicode version (Go 1.24 has 15.0 and Rust 1.85 has 16.0, by their release notes, not checked here; Node.js 22 has that of the ICU it bundles); `wolf` also runs tools found on `PATH` (chapter 8, section 2a, rule 1), and the VM would use the Unicode of the Rust that compiled `wolf`. So the version of the native functions is not under the control of `wolf`. Recommendation: **tables of their own** in every runtime piece and in the VM (D8.26), so that a program gives the same text everywhere and the result changes only with a release of `wolf`. Alternatives: (a) **the targets' own functions**, with the Go runtime adding the 103 mappings and Final_Sigma: much less code and the same results while all tools have one Unicode version, but otherwise a program prints different text on different machines, also for old letters (`"ƛ".to_upper()` is `"ƛ"` with the data of Unicode 13.0 and `"Ƛ"` with that of 17.0); (b) **simple case mapping**, one scalar value for one, as Go does: keeps `len()`, but needs tables in TypeScript and Rust as well, and gives `"STRAßE"`, which surprises users of JavaScript, Rust, Python and Java; (c) ASCII only, as today (D7.3) | **proposed** (2026-10-26), waiting for the author |
+| D7.35 | **[DRAFT]** When the Unicode version of section 4.3a moves (rule 5). A new version can change what a program prints, so recommendation: only in a minor release of `wolf` (0.x.0), to the version of the Rust that `wolf setup` of that release installs, so that the tables can be tested against `char::to_uppercase` (D8.26), announced in the CHANGELOG with the number of scalar values whose mapping changes. The first version: 17.0.0, which Rust 1.99.1 and Go 1.27.2 of `wolf setup` have (chapter 8, section 2a, rule 2; with tables of its own, the version of Node.js does not matter). Alternatives: in any release, as the versions of the tools move; or only with the author's word each time | **proposed** (2026-10-26), waiting for the author |
