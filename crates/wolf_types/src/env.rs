@@ -1308,11 +1308,15 @@ impl<'a> Checker<'a> {
             }
         }
         // The parameter declared at each position of the head, for `where` (section 8.6).
+        // A type argument, even one written as a single name, is no parameter (E0442).
         let head_names: Vec<Option<String>> = block
             .args
             .iter()
-            .zip(&impl_generics)
-            .map(|(a, s)| a.name().filter(|n| n.span == *s).map(|n| n.name.clone()))
+            .enumerate()
+            .map(|(i, a)| match instance.get(i) {
+                Some(Some(_)) => None,
+                _ => a.name().map(|n| n.name.clone()),
+            })
             .collect();
         let mut implemented: Vec<(String, Span, Sig, bool)> = Vec::new();
         for method in &block.methods {
