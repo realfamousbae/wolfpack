@@ -1059,10 +1059,16 @@ impl<'p> Emitter<'p> {
         let Some(Some(mp)) = self.mod_paths.get(module).cloned() else {
             return name;
         };
-        let base = if mp.is_empty() {
-            "crate".to_string()
+        // An example or an integration test is a crate of its own: it names the library.
+        let root = if self.outside() {
+            self.crate_name.clone()
         } else {
-            format!("crate::{}", mp.join("::"))
+            "crate".to_string()
+        };
+        let base = if mp.is_empty() {
+            root
+        } else {
+            format!("{root}::{}", mp.join("::"))
         };
         self.uses.entry(base).or_default().insert(name.clone());
         name
