@@ -1,5 +1,6 @@
 //! End-to-end tests of the TypeScript backend: `wolf run` builds with `tsc --strict` and runs
-//! with Node.js, and the output must match exactly. These tests need `node` and `tsc` on `PATH`.
+//! with Node.js, and the output must match exactly. These tests need `node` and `tsc` on `PATH`;
+//! the few that compare every target also need `go` and `cargo`.
 
 // Test helpers may fail loudly.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
