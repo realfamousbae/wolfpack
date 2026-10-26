@@ -268,3 +268,298 @@ fn check_bytecode_lists_the_functions() {
     assert!(unknown.stdout.is_empty());
     assert!(String::from_utf8_lossy(&unknown.stderr).contains("error[E0002]"));
 }
+
+// ----- bytecode files (spec chapter 10, section 1b) --------------------------------------------
+
+/// A new empty directory for the files of a test.
+fn scratch(name: &str) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join("bytecode")
+        .join(name);
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// Copies a directory with everything in it.
+fn copy_dir(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for entry in fs::read_dir(from).unwrap().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            copy_dir(&path, &to.join(entry.file_name()));
+        } else {
+            fs::copy(&path, to.join(entry.file_name())).unwrap();
+        }
+    }
+}
+
+/// `wolf build --vm` of a project (with these extra arguments) into `out`; the one file written.
+fn build_file(project: &Path, extra: &[&str], out: &Path) -> PathBuf {
+    let mut args = vec!["build", "--vm", "--out", out.to_str().unwrap()];
+    args.extend(extra);
+    let built = wolf(project, &args, "");
+    assert_eq!(
+        built.status.code(),
+        Some(0),
+        "{}: {}",
+        project.display(),
+        String::from_utf8_lossy(&built.stderr)
+    );
+    assert!(built.stdout.is_empty() && built.stderr.is_empty());
+    let files: Vec<PathBuf> = fs::read_dir(out)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .collect();
+    assert_eq!(files.len(), 1, "{files:?}");
+    files.into_iter().next().unwrap()
+}
+
+/// The same output, error output and exit code.
+fn same(a: &Output, b: &Output) -> bool {
+    a.stdout == b.stdout && a.stderr == b.stderr && a.status.code() == b.status.code()
+}
+
+/// Every example built with `wolf build --vm` runs from its file as with `wolf run --vm`, from a
+/// directory without a project; the examples that call code of the targets cannot be built
+/// (E0807).
+#[test]
+fn examples_run_from_bytecode_files() {
+    let examples = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
+    let elsewhere = scratch("examples");
+    let mut failures = Vec::new();
+    for project in dirs(&examples) {
+        let name = name(&project);
+        if matches!(name.as_str(), "fuzzy" | "textkit" | "native-slug") {
+            let out = elsewhere.join(&name);
+            let built = wolf(
+                &project,
+                &["build", "--vm", "--out", out.to_str().unwrap()],
+                "",
+            );
+            let stderr = String::from_utf8_lossy(&built.stderr);
+            if built.status.code() != Some(1) || !stderr.contains("error[E0807]") || out.exists() {
+                failures.push(format!("--- {name}: built\n{stderr}"));
+            }
+            continue;
+        }
+        let file = build_file(&project, &[], &elsewhere.join(&name));
+        let in_memory = wolf(&project, &["run", "--vm", "--", "x"], "");
+        let from_file = wolf(&elsewhere, &["run", file.to_str().unwrap(), "--", "x"], "");
+        if !same(&in_memory, &from_file) {
+            failures.push(format!(
+                "--- {name}\nwolf run --vm (exit {:?}):\n{}{}\nfrom the file (exit {:?}):\n{}{}",
+                in_memory.status.code(),
+                String::from_utf8_lossy(&in_memory.stdout),
+                String::from_utf8_lossy(&in_memory.stderr),
+                from_file.status.code(),
+                String::from_utf8_lossy(&from_file.stdout),
+                String::from_utf8_lossy(&from_file.stderr),
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// The programs of `tests/run/` and `tests/vm/` give from their bytecode files what they give in
+/// `wolf run --vm`: output, error output and exit code, with standard input and arguments, run
+/// from a directory without a project.
+#[test]
+fn run_programs_match_expected_output_from_bytecode_files() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let elsewhere = scratch("run");
+    let mut failures = Vec::new();
+    let mut projects = dirs(&manifest.join("tests/run"));
+    projects.extend(dirs(&manifest.join("tests/vm")));
+    for dir in projects {
+        let name = name(&dir);
+        // Errors of the build and programs that cannot run in the VM have tests of their own.
+        if name.starts_with("E0")
+            || uses_extern(&name)
+            || matches!(name.as_str(), "extern_go_only" | "lib_project")
+        {
+            continue;
+        }
+        let input = fs::read_to_string(dir.join("input.txt")).unwrap_or_default();
+        let extra = fs::read_to_string(dir.join("args.txt")).unwrap_or_default();
+        let file = build_file(&dir, &[], &elsewhere.join(&name));
+        let mut args = vec!["run", file.to_str().unwrap(), "--"];
+        args.extend(extra.split_whitespace());
+        // Outside the project, whose `out.txt` the test of `wolf run --vm` writes at this time.
+        let output = wolf(file.parent().unwrap(), &args, &input);
+        failures.extend(compare(&dir, &output));
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// `wolf build --vm` writes `out/vm/<package name>.wbc` and puts the overrides of
+/// `[config.<module>]` into it: the file does not read `wolfpack.toml` again.
+#[test]
+fn a_bytecode_file_keeps_the_config_of_its_build() {
+    let project = scratch("config");
+    copy_dir(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/run/names_and_config"),
+        &project,
+    );
+    let built = wolf(&project, &["build", "--vm"], "");
+    assert_eq!(built.status.code(), Some(0));
+    assert!(project.join("out/vm/names-and-config.wbc").is_file());
+    let toml = fs::read_to_string(project.join("wolfpack.toml")).unwrap();
+    fs::write(
+        project.join("wolfpack.toml"),
+        toml.replace("hi from wolfpack.toml", "changed after the build"),
+    )
+    .unwrap();
+    let ran = wolf(&project, &["run", "out/vm/names-and-config.wbc"], "");
+    assert_eq!(ran.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&ran.stdout),
+        "HI FROM WOLFPACK.TOML!\ninner\nhi from wolfpack.toml\n"
+    );
+    let in_memory = wolf(&project, &["run", "--vm"], "");
+    assert!(String::from_utf8_lossy(&in_memory.stdout).contains("changed after the build"));
+}
+
+/// The error output of `wolf run <file>` that is E0809, after checking that it ran nothing.
+fn e0809(file: &Path) -> String {
+    let dir = file.parent().unwrap();
+    let output = wolf(dir, &["run", file.to_str().unwrap()], "");
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+/// A file of another version of `wolf`, a file that is not a bytecode file and a damaged file
+/// run nothing (E0809); a file that does not exist is E0001.
+#[test]
+fn a_bytecode_file_of_another_version_is_e0809() {
+    let hello = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/hello");
+    let dir = scratch("e0809");
+    let file = build_file(&hello, &[], &dir.join("built"));
+    let bytes = fs::read(&file).unwrap();
+    let version = env!("CARGO_PKG_VERSION");
+    let header = format!("wolfpack bytecode {version}\n");
+    assert!(bytes.starts_with(header.as_bytes()));
+
+    let old = dir.join("old.wbc");
+    let mut other = b"wolfpack bytecode 0.0.1\n".to_vec();
+    other.extend(&bytes[header.len()..]);
+    fs::write(&old, other).unwrap();
+    assert_eq!(
+        e0809(&old),
+        format!(
+            "error[E0809]: `{}` was built by wolf 0.0.1, and this is wolf {version}\n \
+             = help: build it again with this `wolf`: `wolf build --vm`\n \
+             = note: a bytecode file runs only with the version of `wolf` that built it\n\n\
+             error: aborting due to 1 error\n",
+            old.to_str().unwrap().replace('\\', "/")
+        )
+    );
+
+    let text = dir.join("main.wolf");
+    fs::copy(hello.join("src/main.wolf"), &text).unwrap();
+    let stderr = e0809(&text);
+    assert!(stderr.contains("` is not a bytecode file\n"), "{stderr}");
+    assert!(
+        stderr.contains(&format!("this is wolf {version}")),
+        "{stderr}"
+    );
+
+    let cut = dir.join("cut.wbc");
+    fs::write(&cut, &bytes[..bytes.len() / 2]).unwrap();
+    let stderr = e0809(&cut);
+    assert!(stderr.contains("` is damaged: "), "{stderr}");
+    assert!(
+        stderr.contains("build it again with `wolf build --vm`"),
+        "{stderr}"
+    );
+
+    let changed = dir.join("changed.wbc");
+    let mut damaged = bytes.clone();
+    let last = damaged.len() - 1;
+    damaged[last] ^= 1;
+    fs::write(&changed, damaged).unwrap();
+    assert!(e0809(&changed).contains("` is damaged: "));
+
+    let missing = wolf(&dir, &["run", "missing.wbc"], "");
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&missing.stderr)
+            .starts_with("error[E0001]: cannot read `missing.wbc`")
+    );
+}
+
+/// A library has no bytecode file of its own, but its examples do; a program that calls code of
+/// the targets cannot be built for the VM (E0807).
+#[test]
+fn wolf_build_vm_refuses_a_library_and_extern() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let lib = manifest.join("tests/vm/lib_project");
+    let dir = scratch("refused");
+    let out = dir.join("lib");
+    let built = wolf(&lib, &["build", "--vm", "--out", out.to_str().unwrap()], "");
+    assert_eq!(built.status.code(), Some(2));
+    assert_eq!(
+        String::from_utf8_lossy(&built.stderr),
+        "error[E0002]: a library cannot be built into a bytecode file\n \
+         = help: build one of its examples: `wolf build --vm --example <name>`\n\n\
+         error: aborting due to 1 error\n"
+    );
+    assert!(!out.exists());
+    let file = build_file(&lib, &["--example", "show"], &out);
+    assert_eq!(file.file_name().unwrap(), "show.wbc");
+    let ran = wolf(&dir, &["run", file.to_str().unwrap()], "");
+    assert_eq!(ran.status.code(), Some(0));
+    assert_eq!(String::from_utf8_lossy(&ran.stdout), "42\n");
+    let unknown = wolf(&lib, &["build", "--vm", "--example", "nope"], "");
+    assert_eq!(unknown.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("there is no example `nope`"));
+
+    let out = dir.join("extern");
+    let ext = manifest.join("tests/run/E0807_vm_extern");
+    let built = wolf(&ext, &["build", "--vm", "--out", out.to_str().unwrap()], "");
+    let stderr = String::from_utf8_lossy(&built.stderr);
+    assert_eq!(built.status.code(), Some(1));
+    assert!(stderr.starts_with("error[E0807]: module "), "{stderr}");
+    assert!(
+        stderr.contains("= help: build it for a target: `wolf build --target "),
+        "{stderr}"
+    );
+    assert!(!out.exists());
+}
+
+/// A bytecode file runs as it was built: `--vm`, `--target` and `--example` do not apply to it,
+/// and `wolf build --example` needs `--vm` (E0002).
+#[test]
+fn bytecode_files_take_no_target_options() {
+    let dir = scratch("usage");
+    for (flag, args) in [
+        ("--vm", vec!["run", "--vm", "app.wbc"]),
+        ("--target", vec!["run", "--target", "go", "app.wbc"]),
+        ("--example", vec!["run", "--example", "demo", "app.wbc"]),
+    ] {
+        let output = wolf(&dir, &args, "");
+        assert_eq!(output.status.code(), Some(2), "{flag}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stderr),
+            format!(
+                "error[E0002]: `{flag}` does not apply to a bytecode file, which runs in the VM \
+                 as it was built\n"
+            )
+        );
+    }
+    let hello = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/hello");
+    let output = wolf(&hello, &["build", "--example", "demo"], "");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .starts_with("error[E0002]: `--example` works only with `--vm`")
+    );
+    let output = wolf(&hello, &["build", "--vm", "--target", "go"], "");
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "error[E0002]: `--vm` and `--target` exclude each other; pass one of them\n"
+    );
+}
