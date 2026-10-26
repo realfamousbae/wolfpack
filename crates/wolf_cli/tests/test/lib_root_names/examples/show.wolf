@@ -1,0 +1,11 @@
+module examples.show
+
+imports {
+    lib.{Pair, Side, pick, sum}
+}
+
+main {
+    let p = Pair { left: 3, right: 4 }
+    print(sum(p).to_string())
+    print(pick(p, Side.Left).to_string())
+}

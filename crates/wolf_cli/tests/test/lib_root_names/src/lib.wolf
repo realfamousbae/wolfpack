@@ -1,0 +1,29 @@
+//! A library whose API is declared in `src/lib.wolf` itself: its tests in `tests/` and its
+//! examples import these names from `lib`.
+
+module lib
+
+types {
+    pub struct Pair {
+        pub left: Int
+        pub right: Int
+    }
+
+    pub enum Side {
+        Left
+        Right
+    }
+}
+
+functions {
+    pub fn sum(p: Pair) -> Int {
+        p.left + p.right
+    }
+
+    pub fn pick(p: Pair, side: Side) -> Int {
+        match side {
+            Side.Left => p.left
+            Side.Right => p.right
+        }
+    }
+}

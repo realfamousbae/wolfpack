@@ -1,0 +1,5 @@
+test tests/root.wolf: sum ... ok
+test tests/root.wolf: pick ... ok
+
+test result: ok. 2 passed; 0 failed
+exit code: 0

@@ -1,0 +1,4 @@
+[package]
+name = "root-names"
+version = "0.1.0"
+kind = "lib"

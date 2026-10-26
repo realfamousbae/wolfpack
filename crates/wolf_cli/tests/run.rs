@@ -344,6 +344,47 @@ fn tests_are_not_in_the_normal_build() {
     assert!(!out.join("src/main.test.ts").exists());
 }
 
+/// The examples of the projects under `tests/test/` print `expected_example_<name>.txt` on every
+/// target and in the VM; `wolf test` does not build them.
+#[test]
+fn examples_of_test_projects_run_on_every_target() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/test");
+    let mut failures = Vec::new();
+    let mut runs = 0;
+    for project in fs::read_dir(&root).unwrap().flatten().map(|e| e.path()) {
+        let Ok(examples) = fs::read_dir(project.join("examples")) else {
+            continue;
+        };
+        let name = project.file_name().unwrap().to_string_lossy().into_owned();
+        for example in examples.flatten().map(|e| e.path()) {
+            let stem = example.file_stem().unwrap().to_string_lossy().into_owned();
+            let expected =
+                fs::read_to_string(project.join(format!("expected_example_{stem}.txt"))).unwrap();
+            for target in ["ts", "go", "rust", "vm"] {
+                let mut cmd = Command::new(env!("CARGO_BIN_EXE_wolf"));
+                cmd.arg("run").current_dir(&project);
+                if target == "vm" {
+                    cmd.arg("--vm");
+                } else {
+                    cmd.args(["--target", target, "--out"])
+                        .arg(tmp(&format!("example-{name}-{target}")));
+                }
+                let output = cmd.args(["--example", &stem]).output().unwrap();
+                runs += 1;
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if stdout != expected || !output.status.success() {
+                    failures.push(format!(
+                        "--- {name}, example {stem} on {target}:\n{stdout}{}",
+                        String::from_utf8_lossy(&output.stderr)
+                    ));
+                }
+            }
+        }
+    }
+    assert!(runs > 0);
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
 /// A file of `tests/` that is renamed leaves no test file of the earlier build behind, on any
 /// target: the stale one would import a function that no longer exists.
 #[test]

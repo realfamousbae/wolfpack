@@ -1,0 +1,21 @@
+module tests.root
+
+imports {
+    lib.{Pair, Side, pick, sum}
+}
+
+functions {
+    fn pair() -> Pair {
+        Pair { left: 1, right: 2 }
+    }
+}
+
+tests {
+    test "sum" {
+        assert(sum(pair()) == 3)
+    }
+
+    test "pick" {
+        assert(pick(pair(), Side.Right) == 2)
+    }
+}
