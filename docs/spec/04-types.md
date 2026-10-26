@@ -362,6 +362,26 @@ the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`).
    `Bag<T>: Greeter` is E0446 and `Bag<T: Named>: Greeter` is fine. A missing implementation is
    E0446 at the block of `Greeter`, naming the super-interface.
 
+8. **Blocks for one instantiation** (D4.21) **[PROPOSAL]**. The head of an inherent block may give
+   a type argument instead of declaring a parameter: `Stack<Int> { fn sum(self) -> Int { ... } }`.
+   An argument of the head that names a type in scope (`Int`, `User`, an imported type), or that
+   is a type with arguments of its own or a function type (`List<String>`, `fn(Int) -> Int`), is a
+   type argument; a single name that names no type declares a parameter, as before. Arguments and
+   parameters may be mixed: `Pair<String, T> { ... }`.
+   - The methods of such a block exist only for that instantiation: `s.sum()` on a `Stack<Int>`,
+     and E0420 (no such method) on a `Stack<String>`, with a note naming the block.
+   - Rule 4 holds across all the blocks of the type: a method name appears once among the generic
+     block and every block of an instantiation (E0415). So `Stack<Int>` and `Stack<String>` cannot
+     both have `describe`.
+   - Only inherent blocks: an interface implementation for one instantiation
+     (`Stack<Int>: Display`) is **E0448**, because Go cannot give one instantiation of a generic
+     type a method that the others lack, so the type could not satisfy a Go interface.
+   - Such a block is the same as a generic block whose methods all have `where T == Int`, which the
+     language does not have; the backends treat its methods like the methods of section 8.6
+     **[INTERNAL]**: Rust `impl Stack<i64> { ... }`; Go package functions
+     (`StackIntSum(s Stack[int64]) int64`), as for methods with `where` bounds; TypeScript methods on
+     the class, typed with `this: Stack<bigint>`.
+
 ### 8.4 Method calls
 
 `x.m(args)` looks up `m` among the methods of the type of `x` (inherent or from an implemented
@@ -541,6 +561,7 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 | E0445 | A super-interface that is not allowed: not an interface, `Equatable`, `Copyable` or `Hashable`, the interface itself directly or through others, or one named twice (section 8.2, rule 6; D4.20) |
 | E0446 | An interface implementation for a type that does not implement a super-interface of the interface (section 8.3, rule 7; D4.20) |
 | E0447 | A method of an interface with the name of a method of one of its super-interfaces (section 8.2, rule 6; D4.20) |
+| E0448 | An interface implementation block for one instantiation of a generic type, `Stack<Int>: Display` (section 8.3, rule 8) (0.6) |
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
@@ -573,5 +594,6 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.18 | Format specifications in interpolations (chapter 1, section 5.3a; chapter 7, section 4.4): `[[fill] align] ["0"] [width] ["." precision]`; numbers align to the right by default, other values to the left; width counts Unicode scalar values; precision only for `Float`, rounded to the nearest with ties to even; `0` only for numbers and never with a fill or an alignment; width at most 1000, precision at most 100; codes E0117 and E0441 | **answered** (author, 2026-10-23): ties to even; `0` with an alignment forbidden; limits 1000 and 100 |
 | D4.19 | Default methods in interfaces (section 8.2, rules 4 and 5; section 8.3, rules 1 and 4): a body after the signature is the default, checked once over `Self: I`; a replacement is written `override fn` (E0443); `I.m(x)` calls the default also when it is replaced (E0444 for a method without one); inherited defaults count for E0415 and E0432. Targets: the default is a function of its own that the implementing types and `I.m(x)` call (in Rust too, which cannot call a replaced trait default) | **answered** (author, 2026-10-23): replacements marked with `override`; `Named.greeting(self)` calls the default |
 | D4.20 | Super-interfaces (section 8.2, rule 6; section 8.3, rule 7; section 8.5, rule 1; chapter 8, section 5.3): `interface Greeter: Named + Display`; a type implements each super-interface in its own block (E0446 otherwise); a bound by `Greeter` gives the methods of the super-interfaces, also to its defaults; super-interfaces are interfaces of the program, `Error`, `Comparable` and `Display`, not `Equatable`, `Copyable` or `Hashable`; cycles and repeats are E0445, a method name taken from a super-interface E0447; no coercion of a `Greeter` value to a `Named` value (Rust 1.85). Reverses "no super-interfaces" of D3.3. Targets: Rust super-traits, TS `extends`, Go embedded interfaces; the dictionaries of TS and Go bounds carry those of the super-interfaces | **answered** (author, 2026-10-25): yes |
+| D4.21 | Inherent blocks for one instantiation, `Stack<Int> { ... }` (section 8.3, rule 8): a head argument that names a type is a type argument, a name that names no type is a parameter; method names stay unique across all blocks of the type (E0415); interface implementations for one instantiation are E0448. Alternatives: an explicit marker for parameters (`Stack<Int>` vs `<T> Stack<T>`, as in Rust), at the cost of changing every existing head; or `where T == Int` on single methods | **proposed** (2026-10-26), waiting for the author |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |
