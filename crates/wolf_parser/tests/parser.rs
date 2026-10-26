@@ -113,6 +113,30 @@ fn conditions_and_chains() {
     );
 }
 
+/// The head of an `impl` block may give type arguments; name resolution tells them from
+/// parameters, and a type that is not a single name takes no bounds (chapter 4, section 8.3,
+/// rule 8; D4.21).
+#[test]
+fn impl_heads_with_type_arguments() {
+    let dump = ok(
+        "module main\n\nimpl {\n    Stack<Int> {\n        fn f(self) {}\n    }\n    Pair<String, T: Display> {\n        fn g(self) {}\n    }\n    Stack<List<Int>> {\n        fn h(self) {}\n    }\n    Stack<fn(Int) -> Int>: Shown {\n        fn s(self) {}\n    }\n}\n",
+    );
+    assert!(dump.contains("(impl Stack (generics Int)"), "{dump}");
+    assert!(
+        dump.contains("(impl Pair (generics String (T Display))"),
+        "{dump}"
+    );
+    assert!(dump.contains("(impl Stack (generics (List Int))"), "{dump}");
+    assert!(
+        dump.contains("(impl Stack (generics (fn Int (-> Int))) (for Shown)"),
+        "{dump}"
+    );
+    assert_eq!(
+        parse("module main\n\nimpl {\n    Stack<List<Int>: Display> {\n        fn f(self) {}\n    }\n}\n").codes,
+        ["E0301"]
+    );
+}
+
 /// `interface Greeter: Named + Display` names its super-interfaces (chapter 4, section 8.2).
 #[test]
 fn super_interfaces() {
@@ -239,6 +263,28 @@ fn ranges_slices_and_loops() {
     assert!(dump.contains("(slice.. s 1 i)"), "{dump}");
     assert!(dump.contains("(mut users)"), "{dump}");
     assert!(dump.contains("(slice.. s _ 3)"), "{dump}");
+}
+
+/// `break label: value`, and a labelled `loop` where an expression is expected; in the key of a
+/// map literal the name before `:` stays the key (chapter 3, section 4, rule 5; D3.11).
+#[test]
+fn break_label_with_a_value() {
+    let dump = ok(&body(
+        "        let found = search: loop {\n            for x in xs {\n                break search: x + 1\n            }\n            break search:\n                0\n        }\n        f(\n            inner: loop {\n                break inner: 2\n            },\n        )\n        let m = [k: loop {\n            break 1\n        }]\n        let n = [(k: loop {\n            break k: 1\n        }): 2]\n        outer: loop {\n            break outer\n        }",
+    ));
+    assert!(dump.contains("found\n          (search: (loop"), "{dump}");
+    assert!(dump.contains("(break search: (+ x 1))"), "{dump}");
+    assert!(dump.contains("(break search: 0)"), "{dump}");
+    assert!(dump.contains("(call f (inner: (loop"), "{dump}");
+    assert!(
+        dump.contains("(map (: k (loop (block (break 1))))"),
+        "{dump}"
+    );
+    assert!(dump.contains("(map (: (paren (k: (loop"), "{dump}");
+    assert!(
+        dump.contains("(outer: (loop (block (break outer:))))"),
+        "{dump}"
+    );
 }
 
 #[test]

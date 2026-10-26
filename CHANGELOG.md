@@ -72,6 +72,42 @@ All notable changes are recorded here at the end of each milestone.
   one run nothing and are the new error E0809. A library without `--example` cannot be built this
   way (E0002), nor a program with code of the targets (E0807); `--vm`, `--target` and `--example`
   do not apply to `wolf run <file>` (E0002).
+- `break label: value` (spec chapter 3, section 4, rule 5; D3.11) ends the labelled `loop` with
+  the value, also from a `for` or a `while` inside it, and a labelled `loop` may stand where an
+  expression is expected: `let found = search: loop { ... }`. The `:` makes the name a label
+  without name resolution; an unknown label is E0436, a label of a `while` or a `for` E0435, and
+  a label with the name of a variable in scope E0437, as for `continue label`. In the key of a
+  map literal the name before `:` stays the key. The IR already had a `break` with a label and a
+  value: Rust writes `break 'search value`, and TypeScript and Go now send the value to the
+  variable of the labelled loop (they used to take the innermost loop, and Go dropped the value).
+  `wolf fmt` writes `break search: value`.
+- Inherent blocks for one instantiation of a generic type (spec chapter 4, section 8.3, rule 8;
+  D4.21): `Stack<Int> { fn sum(self) -> Int { ... } }`. An argument of the head that names a type,
+  or that is more than a single name (`List<String>`, `fn(Int) -> Int`), is a type argument; a
+  single name that names no type declares a parameter, and heads may mix both (`Pair<String, T>`).
+  The methods of such a block exist only for that instantiation: on another one they are E0424,
+  with a note naming the block, and a receiver whose type arguments are not known yet takes those
+  of the block. Method names stay unique across all the blocks of a type (E0415), a second block
+  with the head of an earlier one is E0210, an interface implementation for one instantiation is
+  the new error E0448, bounds after a type argument are E0301, and a type argument cannot use the
+  parameters of the head (E0402). The IR marks such a method with the head (`Function::instance`):
+  Rust writes `impl Stack<i64> { ... }` and calls its functions `Stack::<i64>::zero()`, Go makes
+  its functions functions of the package (`stackSum(self stack[int64])`), as for methods with
+  `where` bounds, and TypeScript types `this`: `sum(this: Stack<bigint>)`. Fixed on the way in
+  Go: a generic `mut self` method, a function of the package, now gets a pointer to its receiver.
+- The update syntax for enum variants with named fields (spec chapter 4, section 7.2; D4.22):
+  `Shape.Rect { width: 10, ..old }`. The base has the type of the enum with the same type
+  arguments (E0401) and is moved as the base of a struct is; the listed fields are evaluated
+  first, then the base. A base of another variant is a panic of the language,
+  `panic: update of Shape.Rect from Shape.Circle`, without a location and with exit code 101, on
+  every target and in the VM. E0434 is retired: `wolf explain E0434` says that it is no longer
+  used. The IR lowers the update into a `match` on the base, with an arm for the variant and one
+  for each other variant, and a new node `Fail` for the panic, which each target writes with its
+  runtime's `fail` (the VM with `Fail`). Fixed on the way: TypeScript narrowed a variable that
+  holds a new variant to that variant's class and rejected a `match` on it (the value is now
+  written `new ShapeRect(...) as Shape`), and the Rust printer wrote struct patterns wider than
+  `struct_lit_width` and the struct variants of an enum with a long one on one line, which
+  `rustfmt` breaks.
 
 ## 0.5.1 (2026-10-26)
 

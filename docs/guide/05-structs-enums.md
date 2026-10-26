@@ -128,8 +128,9 @@ takes `mut self`, and after `clicks.finish()` the variable is moved, because `fi
 `own self`. `finish` may use `self.name` in its result because it owns `self`; a method with a
 plain `self` only borrows the value, so to return a field it would return `self.name.copy()`.
 
-Each type has one such block, in the module that declares the type. Methods cannot be added to
-types of other modules or to built-in types; write a function instead.
+Each type has one such block, in the module that declares the type (a generic type may add a block
+for one instantiation, chapter 9). Methods cannot be added to types of other modules or to built-in
+types; write a function instead.
 
 A method also cannot have the name of a field of its struct: TypeScript and Go keep fields and
 methods in one namespace. That is why the field above is `name` and the method `label`.
@@ -179,6 +180,34 @@ functions {
 fields: `Shape.Rect { w, .. }`. Patterns nest, so `Some(Shape.Circle(r))` is a pattern too. The
 `match` must cover every variant; when a new variant is added, the compiler lists every `match` that
 misses it.
+
+A variant with named fields is built from another value with the update syntax too. The base has
+the type of the enum, and when the program runs it must hold the same variant: a base of another
+variant stops the program with `panic: update of Shape.Rect from Shape.Circle`.
+
+```wolf
+module main
+
+types {
+    enum Shape {
+        Circle(Float)
+        Rect { w: Float, h: Float }
+    }
+}
+
+main {
+    let square = Shape.Rect { w: 2.0, h: 2.0 }
+    let wide = Shape.Rect { w: 5.0, ..square }
+    match wide {
+        Shape.Rect { w, h } => print(f"{w} x {h}")
+        Shape.Circle(r) => print(f"circle {r}")
+    }
+}
+```
+
+```output
+5.0 x 2.0
+```
 
 An enum whose variants carry no data is a simple set of names. Its values are copied like numbers:
 

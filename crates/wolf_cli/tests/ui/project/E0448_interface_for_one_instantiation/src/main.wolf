@@ -1,0 +1,30 @@
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+
+    struct Pair<A, B> {
+        first: A
+        second: B
+    }
+}
+
+impl {
+    Stack<Int>: Display {
+        fn to_string(self) -> String {
+            f"{self.items.len()} numbers"
+        }
+    }
+
+    Pair<String, T>: Display {
+        fn to_string(self) -> String {
+            self.first.copy()
+        }
+    }
+}
+
+main {
+    print(Stack { items: [1] }.items.len().to_string())
+}

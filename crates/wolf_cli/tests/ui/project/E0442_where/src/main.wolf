@@ -28,6 +28,12 @@ impl {
         }
     }
 
+    Shelf<Int> {
+        fn total(self) -> Int where Int: Display {
+            0
+        }
+    }
+
     Shelf<T>: Sized {
         fn size(self) -> Int where T: Copyable {
             self.items.len()

@@ -19,25 +19,31 @@ error[E0442]: `where` that is not allowed here
    |                                                                ^ `V` is not a type parameter of the `impl` block
 
 error[E0442]: `where` that is not allowed here
-   --> src/main.wolf:32:36
+   --> src/main.wolf:32:37
    |
-32 |         fn size(self) -> Int where T: Copyable {
+32 |         fn total(self) -> Int where Int: Display {
+   |                                     ^^^ `Int` is not a type parameter of the `impl` block
+
+error[E0442]: `where` that is not allowed here
+   --> src/main.wolf:38:36
+   |
+38 |         fn size(self) -> Int where T: Copyable {
    |                                    ^ an interface implementation adds no bounds; the interface decides
 
 error[E0406]: `fn() -> Int` is not `Equatable`
-   --> src/main.wolf:40:17
+   --> src/main.wolf:46:17
    |
-40 |     print(tasks.has(|| 2).to_string())
+46 |     print(tasks.has(|| 2).to_string())
    |                 ^^^ required by `has`
    |
    = note: `fn() -> Int` is not `Equatable` because functions cannot be compared
 
 error[E0442]: `where` that is not allowed here
-   --> src/main.wolf:45:42
+   --> src/main.wolf:51:42
    |
-45 |     fn same<T>(a: T, b: T) -> Bool where T: Equatable {
+51 |     fn same<T>(a: T, b: T) -> Bool where T: Equatable {
    |                                          ^ a free function has no `where`
    |
    = help: put the bounds in `<T: ...>` after the name
 
-error: aborting due to 6 errors
+error: aborting due to 7 errors

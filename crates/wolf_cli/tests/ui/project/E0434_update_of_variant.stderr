@@ -1,9 +1,0 @@
-error[E0434]: the update syntax `..base` is for structs only
-   --> src/main.wolf:12:34
-   |
-12 |     let b = Shape.Rect { w: 3, ..a }
-   |                                  ^ a variant cannot be built from another value
-   |
-   = help: write every field of the variant
-
-error: aborting due to 1 error

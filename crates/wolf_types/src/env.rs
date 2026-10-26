@@ -135,6 +135,12 @@ pub struct Method {
     pub impl_bounds: Vec<Vec<Ty>>,
     /// The bounds that the method's `where` adds to them, in the same order (chapter 4, 8.6).
     pub where_bounds: Vec<Vec<Ty>>,
+    /// For a block of one instantiation (chapter 4, section 8.3, rule 8; D4.21): the type
+    /// arguments of its head in the order of the type's parameters, `None` where the head
+    /// declares a parameter. Empty for a block that declares every parameter.
+    pub instance: Vec<Option<Ty>>,
+    /// The span of the type name in the head of the block.
+    pub block: Span,
     /// The signature.
     pub sig: Sig,
     /// Visible outside its module.
@@ -159,6 +165,10 @@ pub struct ImplOf {
     /// for the type arguments that have them (chapter 3, section 2, rule 6).
     pub bounds: Vec<Vec<Ty>>,
 }
+
+/// The head of an inherent block: its type arguments, `None` for a parameter, and the span of
+/// the type name (E0210; D4.21).
+type InherentHead = (Vec<Option<Ty>>, Span);
 
 /// A body to check.
 #[derive(Clone)]
@@ -228,6 +238,9 @@ pub(crate) struct Checker<'a> {
     pub(crate) method_table: BTreeMap<DefId, BTreeMap<String, usize>>,
     /// The [`Method`] of each inherent function declaration.
     pub(crate) member_method: BTreeMap<DefId, usize>,
+    /// The heads of the inherent blocks of each type that has a head: the type arguments
+    /// (`None` for a parameter) and the span of the type name (E0210; D4.21).
+    inherent_heads: BTreeMap<DefId, Vec<InherentHead>>,
     /// The method signatures of each interface.
     pub(crate) interface_methods: BTreeMap<DefId, BTreeMap<String, Sig>>,
     /// The methods of each interface that have a default (chapter 4, section 8.2, rule 4).
@@ -300,6 +313,7 @@ impl<'a> Checker<'a> {
             methods: Vec::new(),
             method_table: BTreeMap::new(),
             member_method: BTreeMap::new(),
+            inherent_heads: BTreeMap::new(),
             interface_methods: BTreeMap::new(),
             interface_defaults: BTreeMap::new(),
             interface_supers: BTreeMap::new(),
@@ -642,14 +656,16 @@ impl<'a> Checker<'a> {
     pub(crate) fn lower_where(
         &mut self,
         sig: &ast::FnSig,
-        block_generics: &[ast::GenericParam],
+        block_generics: &[Option<String>],
         in_interface_impl: bool,
         scope: &Scope,
     ) -> Vec<Vec<Ty>> {
         let mut out: Vec<Vec<Ty>> = vec![Vec::new(); block_generics.len()];
         for param in &sig.where_bounds {
             let name = &param.name.name;
-            let index = block_generics.iter().position(|g| g.name.name == *name);
+            let index = block_generics
+                .iter()
+                .position(|g| g.as_deref() == Some(name.as_str()));
             let why = if in_interface_impl {
                 Some(
                     "an interface implementation adds no bounds; the interface decides".to_string(),
@@ -1088,7 +1104,7 @@ impl<'a> Checker<'a> {
         }
         let file = self.file_of(m);
         let expected = self.type_generics.get(&owner).map_or(0, Vec::len);
-        if block.generics.len() != expected {
+        if block.args.len() != expected {
             self.report(
                 Diagnostic::new(
                     codes::E0403,
@@ -1096,7 +1112,7 @@ impl<'a> Checker<'a> {
                         "`{}` takes {}, but the `impl` block declares {}",
                         owner_def.name,
                         count(expected, "type parameter"),
-                        block.generics.len()
+                        block.args.len()
                     ),
                 )
                 .primary(
@@ -1110,14 +1126,53 @@ impl<'a> Checker<'a> {
             file,
             self_ty: None,
         };
-        let mut generics = self.lower_generics(&block.generics, &scope0);
+        // The head (chapter 4, section 8.3, rule 8; D4.21): name resolution made the argument
+        // of a parameter refer to the parameter itself; every other argument is a type
+        // argument. A position with a type argument keeps the span of the argument, which no
+        // type refers to, so that the positions stay those of the type's parameters.
+        let mut generics: Vec<Generic> = Vec::new();
+        let mut instance: Vec<Option<Ty>> = Vec::new();
+        let mut arg_spans: Vec<Span> = Vec::new();
+        for arg in &block.args {
+            let param = match (arg.name(), self.resolved.res.get(&(file, arg.ty.id))) {
+                (Some(name), Some(Res::TypeParam(span))) if *span == name.span => Some(name),
+                _ => None,
+            };
+            match param {
+                Some(name) => {
+                    let decl = ast::GenericParam {
+                        name: name.clone(),
+                        bounds: arg.bounds.clone(),
+                    };
+                    generics.extend(self.lower_generics(std::slice::from_ref(&decl), &scope0));
+                    instance.push(None);
+                }
+                None => {
+                    let t = self.lower(&arg.ty, &scope0);
+                    generics.push(Generic {
+                        span: arg.ty.span,
+                        bounds: Vec::new(),
+                    });
+                    instance.push(Some(t));
+                }
+            }
+            arg_spans.push(arg.ty.span);
+        }
         let impl_generics: Vec<Span> = generics.iter().map(|g| g.span).collect();
+        let head: Vec<Ty> = instance
+            .iter()
+            .zip(&impl_generics)
+            .map(|(t, s)| t.clone().unwrap_or(Ty::Param(ParamId::Decl(*s))))
+            .collect();
+        if instance.iter().all(Option::is_none) {
+            instance.clear();
+        }
         // The bounds of the type's declaration apply without being repeated (chapter 3, 5.6).
         let declared = self.type_generics.get(&owner).cloned().unwrap_or_default();
         let to_impl: BTreeMap<ParamId, Ty> = declared
             .iter()
-            .zip(&impl_generics)
-            .map(|(d, s)| (ParamId::Decl(d.span), Ty::Param(ParamId::Decl(*s))))
+            .zip(&head)
+            .map(|(d, t)| (ParamId::Decl(d.span), t.clone()))
             .collect();
         let head_bounds: Vec<Vec<Ty>> = generics
             .iter()
@@ -1131,22 +1186,53 @@ impl<'a> Checker<'a> {
                     .collect()
             })
             .collect();
-        for (g, d) in generics.iter_mut().zip(&declared) {
-            for bound in &d.bounds {
-                let bound = bound.subst(&to_impl);
-                if !g.bounds.contains(&bound) {
-                    g.bounds.push(bound);
+        for (i, (g, d)) in generics.iter_mut().zip(&declared).enumerate() {
+            match instance.get(i).cloned().flatten() {
+                // A type argument meets the bounds of the type's parameter.
+                Some(t) => {
+                    let span = arg_spans.get(i).copied().unwrap_or(block.type_name.span);
+                    for bound in &d.bounds {
+                        if let Ty::Named(interface, _) = bound.subst(&to_impl) {
+                            self.pending_bounds.push((t.clone(), interface, span));
+                        }
+                    }
+                }
+                None => {
+                    for bound in &d.bounds {
+                        let bound = bound.subst(&to_impl);
+                        if !g.bounds.contains(&bound) {
+                            g.bounds.push(bound);
+                        }
+                    }
+                    self.param_bounds.insert(g.span, g.bounds.clone());
                 }
             }
-            self.param_bounds.insert(g.span, g.bounds.clone());
         }
-        let self_ty = Ty::Named(
-            owner,
-            impl_generics
+        if !instance.is_empty() && block.interface.is_some() {
+            let first = instance
                 .iter()
-                .map(|s| Ty::Param(ParamId::Decl(*s)))
-                .collect(),
-        );
+                .position(Option::is_some)
+                .and_then(|i| arg_spans.get(i).copied())
+                .unwrap_or(block.type_name.span);
+            let shown = self.show(&Ty::Named(owner, head.clone()));
+            self.report(
+                Diagnostic::new(
+                    codes::E0448,
+                    format!("an interface implementation for one instantiation, `{shown}`"),
+                )
+                .primary(first, "a type argument in the head of an interface implementation")
+                .note("Go cannot give one instantiation of a generic type a method that the others lack, so the type could not meet a Go interface")
+                .help(format!(
+                    "implement the interface for every `{}` with a parameter, or put the methods into an inherent block `{shown} {{ ... }}`",
+                    owner_def.name
+                )),
+            );
+            return;
+        }
+        if block.interface.is_none() && !block.args.is_empty() {
+            self.second_inherent_block(owner, &owner_def.name, &head, &instance, block);
+        }
+        let self_ty = Ty::Named(owner, head);
         let scope = Scope {
             file,
             self_ty: Some(self_ty.clone()),
@@ -1221,6 +1307,17 @@ impl<'a> Checker<'a> {
                 }
             }
         }
+        // The parameter declared at each position of the head, for `where` (section 8.6).
+        // A type argument, even one written as a single name, is no parameter (E0442).
+        let head_names: Vec<Option<String>> = block
+            .args
+            .iter()
+            .enumerate()
+            .map(|(i, a)| match instance.get(i) {
+                Some(Some(_)) => None,
+                _ => a.name().map(|n| n.name.clone()),
+            })
+            .collect();
         let mut implemented: Vec<(String, Span, Sig, bool)> = Vec::new();
         for method in &block.methods {
             let sig = self.lower_sig(&method.decl.sig, &scope);
@@ -1229,12 +1326,8 @@ impl<'a> Checker<'a> {
             if let (Some(span), None) = (method.decl.overrides, interface) {
                 self.misplaced_override(span, "a method of an inherent block");
             }
-            let where_bounds = self.lower_where(
-                &method.decl.sig,
-                &block.generics,
-                interface.is_some(),
-                &scope,
-            );
+            let where_bounds =
+                self.lower_where(&method.decl.sig, &head_names, interface.is_some(), &scope);
             implemented.push((
                 name.name.clone(),
                 name.span,
@@ -1250,6 +1343,8 @@ impl<'a> Checker<'a> {
                 impl_generics: impl_generics.clone(),
                 impl_bounds: generics.iter().map(|g| g.bounds.clone()).collect(),
                 where_bounds,
+                instance: instance.clone(),
+                block: block.type_name.span,
                 sig,
                 public: public_methods.unwrap_or(method.decl.public),
                 interface,
@@ -1267,7 +1362,7 @@ impl<'a> Checker<'a> {
                         ),
                     )
                     .primary(name.span, "second definition")
-                    .note("a type has at most one function with a given name, across its inherent block and all its interface implementations");
+                    .note("a type has at most one function with a given name, across its inherent blocks and all its interface implementations");
                     if let Some(span) = first_span {
                         d = d.secondary(span, "first definition");
                     }
@@ -1331,6 +1426,8 @@ impl<'a> Checker<'a> {
                     impl_generics: impl_generics.clone(),
                     impl_bounds: generics.iter().map(|g| g.bounds.clone()).collect(),
                     where_bounds: Vec::new(),
+                    instance: Vec::new(),
+                    block: block.type_name.span,
                     sig: Sig {
                         generics: Vec::new(),
                         self_mode: None,
@@ -1343,6 +1440,49 @@ impl<'a> Checker<'a> {
                 },
             );
         }
+    }
+
+    /// E0210 for a second inherent block with the head of an earlier one: two blocks that
+    /// declare every parameter, or two blocks of the same instantiation (chapter 2, section 4,
+    /// rule 2; chapter 4, section 8.3, rule 8). Blocks without a head are compared by the parser.
+    fn second_inherent_block(
+        &mut self,
+        owner: DefId,
+        name: &str,
+        head: &[Ty],
+        instance: &[Option<Ty>],
+        block: &ast::ImplBlock,
+    ) {
+        let shape: Vec<Option<Ty>> = if instance.is_empty() {
+            vec![None; head.len()]
+        } else {
+            instance.to_vec()
+        };
+        let list = self.inherent_heads.entry(owner).or_default();
+        let first = list
+            .iter()
+            .find(|(s, _)| *s == shape)
+            .map(|(_, span)| *span);
+        if first.is_none() {
+            list.push((shape, block.type_name.span));
+        }
+        let Some(first) = first else {
+            return;
+        };
+        let shown = if instance.is_empty() {
+            name.to_string()
+        } else {
+            self.show(&Ty::Named(owner, head.to_vec()))
+        };
+        self.report(
+            Diagnostic::new(
+                codes::E0210,
+                format!("second inherent `impl` block for `{shown}`"),
+            )
+            .primary(block.type_name.span, "second block")
+            .secondary(first, "first block")
+            .help(format!("put all methods of `{shown}` into one block")),
+        );
     }
 
     /// E0443 for `override` where nothing can be replaced.

@@ -6,4 +6,12 @@ error[E0435]: `break` with a value in a `while` or a `for`
   |
   = help: use `loop { ... }`, or store the value in a variable before `break`
 
-error: aborting due to 1 error
+error[E0435]: `break` with a value in a `while` or a `for`
+   --> src/main.wolf:13:25
+   |
+13 |             break rows: r * 2
+   |                         ^^^^^ only a `loop` ends with a value
+   |
+   = help: use `loop { ... }`, or store the value in a variable before `break`
+
+error: aborting due to 2 errors

@@ -1,0 +1,4 @@
+[package]
+name = "break-label-value"
+version = "0.1.0"
+kind = "cli"

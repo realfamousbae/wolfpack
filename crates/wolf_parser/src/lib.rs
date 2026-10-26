@@ -124,6 +124,14 @@ impl<'a> Parser<'a> {
         self.lines.last() == Some(&Lines::Ignored)
     }
 
+    /// The kind of the raw token `k` places after the next visible token (newlines count).
+    pub(crate) fn after_next(&self, k: usize) -> &TokenKind {
+        match self.tokens.get(self.visible_index(0) + k) {
+            Some(token) => &token.kind,
+            None => &EOF_TOKEN.kind,
+        }
+    }
+
     /// Index of the `n`-th next token that is visible in the current newline mode.
     fn visible_index(&self, n: usize) -> usize {
         let mut index = self.pos;

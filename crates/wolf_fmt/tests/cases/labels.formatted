@@ -1,0 +1,12 @@
+module main
+
+main {
+    let found = search: loop {
+        for row in rows { for cell in row { if cell.marked { break search: cell.copy() } } }
+        break search: default_cell()
+    }
+    outer: while true { break outer }
+    print(arg: loop { break arg: "x" })
+    let m = [k: loop { break 1 }]
+    let n = [(k: loop { break k: 1 }): 2]
+}

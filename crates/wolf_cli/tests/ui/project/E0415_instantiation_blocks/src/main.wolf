@@ -1,0 +1,35 @@
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Stack<T> {
+        fn size(self) -> Int {
+            self.items.len()
+        }
+    }
+
+    Stack<Int> {
+        fn describe(self) -> String {
+            "numbers"
+        }
+
+        fn size(self) -> Int {
+            0
+        }
+    }
+
+    Stack<String> {
+        fn describe(self) -> String {
+            "words"
+        }
+    }
+}
+
+main {
+    print(Stack { items: [1] }.describe())
+}

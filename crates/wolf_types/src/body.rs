@@ -13,7 +13,7 @@ use wolf_resolve::{DefId, DefKind, LocalId, ModuleId, Res};
 use wolf_span::{FileId, Span};
 
 use crate::MethodCall;
-use crate::env::{BodyRef, Checker, Scope, Shape, Sig, count, given};
+use crate::env::{BodyRef, Checker, Method, Scope, Shape, Sig, count, given};
 use crate::ty::{ParamId, Ty};
 
 /// Where the code being checked is.
@@ -393,13 +393,13 @@ impl<'a> Checker<'a> {
                 return;
             }
             let shown = self.show(&recv);
-            self.report(
-                Diagnostic::new(
-                    codes::E0424,
-                    format!("`{shown}` has no method `{}`", m.name.name),
-                )
-                .primary(m.name.span, "unknown method"),
-            );
+            let d = Diagnostic::new(
+                codes::E0424,
+                format!("`{shown}` has no method `{}`", m.name.name),
+            )
+            .primary(m.name.span, "unknown method");
+            let d = self.note_other_instance(d, &recv, &m.name.name, "methods");
+            self.report(d);
             self.infer.poison(&m.ty);
             return;
         };
@@ -1066,17 +1066,33 @@ impl<'a> Checker<'a> {
                         }
                         // The impl block's parameters are those of the type, in its order.
                         let written = self.written_args(b, head, owner).unwrap_or_default();
+                        let args: Vec<Ty> = (0..m.impl_generics.len())
+                            .map(|i| {
+                                written
+                                    .get(i)
+                                    .cloned()
+                                    .unwrap_or_else(|| self.infer.fresh())
+                            })
+                            .collect();
+                        // A function of a block for one instantiation (chapter 4, section 8.3,
+                        // rule 8): `Stack.zero()` is a `Stack<Int>`.
+                        if !self.instance_matches(&m, &args) {
+                            let recv = Ty::Named(owner, args);
+                            let shown = self.show(&recv);
+                            let diag = Diagnostic::new(
+                                codes::E0424,
+                                format!("`{shown}` has no associated function `{}`", d.name),
+                            )
+                            .primary(span, "not found");
+                            let diag = self.note_other_instance(diag, &recv, &d.name, "functions");
+                            self.report(diag);
+                            return Ty::Error;
+                        }
                         let map: BTreeMap<ParamId, Ty> = m
                             .impl_generics
                             .iter()
-                            .enumerate()
-                            .map(|(i, s)| {
-                                let ty = written
-                                    .get(i)
-                                    .cloned()
-                                    .unwrap_or_else(|| self.infer.fresh());
-                                (ParamId::Decl(*s), ty)
-                            })
+                            .map(|s| ParamId::Decl(*s))
+                            .zip(args)
                             .collect();
                         // `Map.new()`: the bounds of the impl block apply to the new arguments.
                         for (s, bounds) in m.impl_generics.iter().zip(&m.impl_bounds) {
@@ -1307,19 +1323,9 @@ impl<'a> Checker<'a> {
         else {
             return Ty::Error;
         };
+        // `..base` works for structs and for variants with named fields, whose base has the
+        // type of the enum (chapter 4, section 7.2; D4.22).
         let base = base.as_deref();
-        if let (Some(base), Some(Res::Def(def))) = (base, self.res(b, e.id)) {
-            if matches!(self.def_kind(def), Some(DefKind::Variant { .. })) {
-                self.report(
-                    Diagnostic::new(
-                        codes::E0434,
-                        "the update syntax `..base` is for structs only",
-                    )
-                    .primary(base.span, "a variant cannot be built from another value")
-                    .help("write every field of the variant"),
-                );
-            }
-        }
         let res = self.res(b, e.id);
         let Some(Res::Def(mut def)) = res else {
             self.not_a_struct(res, path, false);
@@ -2087,6 +2093,11 @@ impl<'a> Checker<'a> {
         }
         let index = *self.method_table.get(&def)?.get(name)?;
         let m = self.methods.get(index)?.clone();
+        // The methods of a block for one instantiation exist only for it (chapter 4,
+        // section 8.3, rule 8).
+        if !self.instance_matches(&m, &args) {
+            return None;
+        }
         // Only what the head adds: the bounds of the type's own declaration are checked where
         // the type is used.
         let own: Vec<Vec<DefId>> = self
@@ -2161,6 +2172,56 @@ impl<'a> Checker<'a> {
             ret: found.ret.clone(),
         };
         Some((found, sig))
+    }
+
+    /// Whether type arguments are those of the block of a method for one instantiation
+    /// (chapter 4, section 8.3, rule 8); variables among them take the types of the block.
+    fn instance_matches(&mut self, m: &Method, args: &[Ty]) -> bool {
+        let pairs: Vec<(Ty, Ty)> = m
+            .instance
+            .iter()
+            .zip(args)
+            .filter_map(|(fixed, arg)| fixed.clone().map(|f| (arg.clone(), f)))
+            .collect();
+        pairs.is_empty() || self.infer.try_unify_all(&pairs)
+    }
+
+    /// For E0424: the head of the block for one instantiation that defines `name` for another
+    /// instantiation of the type of `recv`, and the span of the block.
+    pub(crate) fn other_instance(&self, recv: &Ty, name: &str) -> Option<(String, Span)> {
+        let Ty::Named(def, _) = self.infer.resolve(recv) else {
+            return None;
+        };
+        let index = *self.method_table.get(&def)?.get(name)?;
+        let m = self.methods.get(index)?;
+        if m.instance.is_empty() {
+            return None;
+        }
+        let head: Vec<Ty> = m
+            .instance
+            .iter()
+            .zip(&m.impl_generics)
+            .map(|(t, s)| t.clone().unwrap_or(Ty::Param(ParamId::Decl(*s))))
+            .collect();
+        Some((self.show(&Ty::Named(def, head)), m.block))
+    }
+
+    /// E0424 with what names the block that defines the member for another instantiation.
+    pub(crate) fn note_other_instance(
+        &self,
+        d: Diagnostic,
+        recv: &Ty,
+        name: &str,
+        what: &str,
+    ) -> Diagnostic {
+        match self.other_instance(recv, name) {
+            Some((head, span)) => d
+                .secondary(span, format!("`{name}` is defined in the block `{head}`"))
+                .note(format!(
+                    "the {what} of the block `{head} {{ ... }}` exist only for `{head}`"
+                )),
+            None => d,
+        }
     }
 
     /// A method of a type parameter, from the interfaces of its bounds (chapter 4, 8.4).
@@ -2300,11 +2361,12 @@ impl<'a> Checker<'a> {
                 check_args(self, b);
                 return Ty::Error;
             }
-            let mut d = Diagnostic::new(
+            let d = Diagnostic::new(
                 codes::E0424,
                 format!("`{shown}` has no method `{}`", name.name),
             )
             .primary(name.span, "unknown method");
+            let mut d = self.note_other_instance(d, &recv, &name.name, "methods");
             let field_fn = match &recv {
                 Ty::Named(def, _) => self
                     .fields

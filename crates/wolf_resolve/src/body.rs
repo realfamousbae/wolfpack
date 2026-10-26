@@ -141,7 +141,8 @@ impl Resolver<'_> {
                 }
             }
             ItemKind::Impl(block) => {
-                let mut ctx = self.with_generics(ctx, &block.generics);
+                let params = self.impl_head(ctx, block);
+                let mut ctx = self.with_generics(ctx, &params);
                 if impl_owner.is_none() {
                     self.unknown_type(&ctx, &block.type_name);
                 }
@@ -170,6 +171,55 @@ impl Resolver<'_> {
                 self.block(ctx, &test.body, &mut locals, false);
             }
             ItemKind::Import(_) => {}
+        }
+    }
+
+    /// The head of an `impl` block (spec chapter 4, section 8.3, rule 8; D4.21): a single name
+    /// that names no type declares a parameter, which its argument refers to; every other
+    /// argument is a type argument, resolved without the parameters of the block. Returns the
+    /// parameters.
+    fn impl_head(&mut self, ctx: &Ctx, block: &ImplBlock) -> Vec<GenericParam> {
+        let file = self.file(ctx);
+        let mut params = Vec::new();
+        for arg in &block.args {
+            let name = arg.name().filter(|n| !self.names_type(ctx, &n.name));
+            match name {
+                Some(name) => {
+                    self.record((file, arg.ty.id), arg.ty.span, Res::TypeParam(name.span));
+                    params.push(GenericParam {
+                        name: name.clone(),
+                        bounds: arg.bounds.clone(),
+                    });
+                }
+                None => {
+                    self.ty(ctx, &arg.ty);
+                    // A type argument that is a single name with bounds; the parser reports the
+                    // others.
+                    if let (Some(name), Some(first), Some(last)) =
+                        (arg.name(), arg.bounds.first(), arg.bounds.last())
+                    {
+                        self.report(
+                            Diagnostic::new(codes::E0301, "unexpected bounds after a type argument")
+                                .primary(first.span.to(last.span), "only a type parameter takes bounds")
+                                .secondary(name.span, format!("`{}` names a type, so it is a type argument", name.name))
+                                .help("a parameter is a name that names no type, as in `Stack<T: Display>`"),
+                        );
+                    }
+                }
+            }
+        }
+        params
+    }
+
+    /// Whether a single name in a type position names a type in scope (a declaration, an
+    /// import or a prelude type); nothing is marked as used.
+    fn names_type(&mut self, ctx: &Ctx, name: &str) -> bool {
+        if ctx.generics.iter().any(|(n, _)| n == name) {
+            return false;
+        }
+        match self.lookup_module_level(ctx.module, name, ctx.in_tests, false) {
+            Some(Binding::Def(def)) => self.def(def).is_some_and(|d| d.kind.is_type()),
+            _ => false,
         }
     }
 
@@ -754,9 +804,10 @@ impl Resolver<'_> {
                     self.jump_label(label, locals);
                 }
                 if let Some(value) = value {
-                    // `break name` with an unknown name: a label was most likely meant.
+                    // `break name` with an unknown name: a label was most likely meant. After
+                    // `break label:` the value is always a value (D3.11).
                     let unknown = match &value.kind {
-                        ExprKind::Name(name) => {
+                        ExprKind::Name(name) if label.is_none() => {
                             self.lookup_local(&name.name, locals).is_none()
                                 && self
                                     .lookup_module_level(

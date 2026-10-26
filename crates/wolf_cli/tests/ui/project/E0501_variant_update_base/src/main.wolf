@@ -1,0 +1,24 @@
+module main
+
+types {
+    enum Shape {
+        Circle { radius: Int }
+        Rect { width: Int, height: Int }
+    }
+}
+
+main {
+    let r = Shape.Rect { width: 1, height: 1 }
+    let wider = Shape.Rect { width: 2, ..r }
+    print(describe(r))
+    print(describe(wider))
+}
+
+functions {
+    fn describe(s: Shape) -> String {
+        match s {
+            Shape.Circle { radius } => f"circle {radius}"
+            Shape.Rect { width, height } => f"{width}x{height}"
+        }
+    }
+}

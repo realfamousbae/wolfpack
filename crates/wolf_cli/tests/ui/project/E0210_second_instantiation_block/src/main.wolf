@@ -1,0 +1,37 @@
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Stack<T> {
+        fn size(self) -> Int {
+            self.items.len()
+        }
+    }
+
+    Stack<U> {
+        fn count(self) -> Int {
+            self.items.len()
+        }
+    }
+
+    Stack<Int> {
+        fn sum(self) -> Int {
+            0
+        }
+    }
+
+    Stack<Int> {
+        fn product(self) -> Int {
+            1
+        }
+    }
+}
+
+main {
+    print(Stack { items: [1] }.size().to_string())
+}

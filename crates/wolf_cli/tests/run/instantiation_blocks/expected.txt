@@ -1,0 +1,11 @@
+3 numbers, sum 9
+doubled: sum 18
+5 numbers, sum 21
+<0> <8> <10> <1> <2>
+3 words: a-b-c
+3 rows, 3 cells
+7 m
+applied: 42
+x=42 flag=true x
+HI!
+(empty)

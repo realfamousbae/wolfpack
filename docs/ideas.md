@@ -10,11 +10,7 @@ Do not implement anything listed here without an approved spec change.
 
 ## Syntax (from chapter 3)
 
-- `break label value`: leaving a labelled outer `loop` with a value (0.2 has `break label` and
-  `break value` separately).
 - Variants with a payload as function values: `names.map(Some)` (declined for v1, 2026-10-09).
-- The update syntax `..base` for enum variants with named fields (E0434 in 0.2).
-- `impl` blocks for a concrete instantiation of a generic type (`Stack<Int> { }`).
 
 ## Standard library (from chapter 7)
 

@@ -1,0 +1,26 @@
+module main
+
+types {
+    enum Shape {
+        Circle { radius: Int }
+        Rect { width: Int, height: Int }
+    }
+
+    enum Tagged<T> {
+        Named { name: String, value: T }
+    }
+
+    struct Size {
+        width: Int
+        height: Int
+    }
+}
+
+main {
+    let size = Size { width: 1, height: 2 }
+    let a = Shape.Rect { width: 3, ..size }
+    let t = Tagged.Named { name: "n", value: 1 }
+    let u = Tagged.Named { value: "x", ..t }
+    print((a == Shape.Circle { radius: 1 }).to_string())
+    print((u == Tagged.Named { name: "m", value: "y" }).to_string())
+}

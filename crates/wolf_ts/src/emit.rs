@@ -1755,10 +1755,16 @@ impl<'p> Emitter<'p> {
                 continue;
             }
             let this = f.self_mode.map(|_| Expr::This);
-            let (mut g, params, ret, body) = self.function(f, this)?;
+            let (mut g, mut params, ret, body) = self.function(f, this)?;
+            // A method of a block for one instantiation (spec chapter 4, section 8.3, rule 8)
+            // says which instantiation `this` is: `sum(this: Stack<bigint>)`.
+            if let (Some(args), Some(_)) = (&f.instance, f.self_mode) {
+                let t = self.ty(&IrType::Named(s.def, args.clone()));
+                params.insert(0, ("this".to_string(), t));
+            }
             // Static members cannot use the class's type parameters: they get their own.
             if f.self_mode.is_none() {
-                let mut all = generics.clone();
+                let mut all = instance_generics(&generics, &f.instance);
                 all.append(&mut g);
                 g = all;
             }
@@ -2160,9 +2166,13 @@ impl<'p> Emitter<'p> {
                 continue;
             }
             let name = self.names.get(&f.def).cloned().unwrap_or_default();
+            // A method of a block for one instantiation takes that instantiation (spec chapter
+            // 4, section 8.3, rule 8).
             let self_ty = IrType::Named(
                 e.def,
-                gnames.iter().map(|n| IrType::Param(n.clone())).collect(),
+                f.instance
+                    .clone()
+                    .unwrap_or_else(|| gnames.iter().map(|n| IrType::Param(n.clone())).collect()),
             );
             let by_ref = plain && f.self_mode == Some(Mode::Mut);
             let this = f.self_mode.map(|_| {
@@ -2181,7 +2191,7 @@ impl<'p> Emitter<'p> {
                 }
                 params.insert(0, ("self".to_string(), t));
             }
-            let mut all = generics.clone();
+            let mut all = instance_generics(&generics, &f.instance);
             all.append(&mut g);
             out.push(Item::Function {
                 docs: f.docs.clone(),
@@ -2819,6 +2829,11 @@ impl<'p> Emitter<'p> {
                 out.push(Stmt::Expr(p));
                 Ok(())
             }
+            ExprKind::Fail(message) => {
+                let p = self.rt_call("fail", vec![Expr::Str(message.clone())]);
+                out.push(Stmt::Expr(p));
+                Ok(())
+            }
             _ => {
                 match target {
                     Target::Discard => {
@@ -2838,6 +2853,7 @@ impl<'p> Emitter<'p> {
                     }
                     Target::Assign(place, repr) => {
                         let v = self.value(e, out, repr)?;
+                        let v = self.widened(e, v);
                         if matches!(e.ty, IrType::Never) {
                             out.push(Stmt::Expr(v));
                         } else {
@@ -2863,8 +2879,19 @@ impl<'p> Emitter<'p> {
             },
             ExprKind::Break { label, value } => {
                 if let Some(v) = value {
-                    // `break value` leaves the innermost loop, a `loop` (chapter 3, rule 4.5).
-                    match self.f.loops.last().and_then(|(_, t)| t.clone()) {
+                    // `break value` leaves the innermost loop, a `loop`, and `break label: value`
+                    // the labelled one (chapter 3, rule 4.5; D3.11).
+                    let target = match label {
+                        Some(l) => self
+                            .f
+                            .loops
+                            .iter()
+                            .rev()
+                            .find(|(name, _)| name.as_deref() == Some(l.as_str()))
+                            .and_then(|(_, t)| t.clone()),
+                        None => self.f.loops.last().and_then(|(_, t)| t.clone()),
+                    };
+                    match target {
                         Some(Target::Return) => {
                             let want = self.ret_repr();
                             let v = self.value(v, out, want)?;
@@ -2924,6 +2951,7 @@ impl<'p> Emitter<'p> {
                     self.tail(value, Target::Assign(ident(&name), Repr::Tagged), out)?;
                 } else {
                     let v = self.value(value, out, Repr::Tagged)?;
+                    let v = self.widened(value, v);
                     if *mutable {
                         out.push(Stmt::Let(name.clone(), Some(t), Some(v)));
                     } else {
@@ -3109,6 +3137,18 @@ impl<'p> Emitter<'p> {
         ident(&t)
     }
 
+    /// A new variant of an enum with payloads stored in a variable, as a value of the whole
+    /// enum: `new ShapeRect(1n, 2n) as Shape`. TypeScript narrows a variable of a union type to
+    /// the class of the value assigned to it, and would then reject a `match` on it that tests
+    /// the other variants.
+    fn widened(&mut self, value: &IrExpr, v: Expr) -> Expr {
+        if matches!(value.kind, ExprKind::Variant { .. }) && !self.plain_enum(&value.ty) {
+            Expr::As(Box::new(v), self.ty(&value.ty))
+        } else {
+            v
+        }
+    }
+
     fn assign(
         &mut self,
         target: &'p IrExpr,
@@ -3119,6 +3159,7 @@ impl<'p> Emitter<'p> {
         let place = self.place(target, out)?;
         let v = self.expr(value, out)?;
         let v = match op {
+            None if matches!(place, PlaceKind::Simple(_)) => self.widened(value, v),
             None => v,
             Some(op) => {
                 let current = match &place {
@@ -3539,6 +3580,9 @@ impl<'p> Emitter<'p> {
             ExprKind::Panic { message, location } => {
                 let m = self.expr(message, out)?;
                 tagged(self.rt_call("panic", vec![m, Expr::Str(location.clone())]))
+            }
+            ExprKind::Fail(message) => {
+                tagged(self.rt_call("fail", vec![Expr::Str(message.clone())]))
             }
             ExprKind::Assert {
                 cond,
@@ -5143,6 +5187,23 @@ pub(crate) fn runtime_file(used: &BTreeSet<&'static str>, version: &str) -> Stri
         "// Generated by wolf {version}. Do not edit.\n// The runtime of wolfpack programs in TypeScript.\n\n{}",
         runtime::file(used)
     )
+}
+
+/// The type parameters of a type that a function of one of its blocks declares: all of them, or
+/// for a block of one instantiation those that its head keeps as parameters (spec chapter 4,
+/// section 8.3, rule 8).
+fn instance_generics<G: Clone>(
+    generics: &[(String, G)],
+    instance: &Option<Vec<IrType>>,
+) -> Vec<(String, G)> {
+    match instance {
+        Some(args) => generics
+            .iter()
+            .filter(|(n, _)| args.iter().any(|a| matches!(a, IrType::Param(p) if p == n)))
+            .cloned()
+            .collect(),
+        None => generics.to_vec(),
+    }
 }
 
 #[cfg(test)]

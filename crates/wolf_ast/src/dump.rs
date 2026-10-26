@@ -124,6 +124,23 @@ fn generics(list: &[GenericParam], kids: &mut Vec<Tree>) {
     kids.push(node("generics", params));
 }
 
+/// The head of an `impl` block: parameters as in [`generics`], type arguments as types.
+fn impl_args(list: &[ImplArg], kids: &mut Vec<Tree>) {
+    if list.is_empty() {
+        return;
+    }
+    let args = list
+        .iter()
+        .map(|a| match a.name() {
+            Some(name) if !a.bounds.is_empty() => {
+                node(name.name.clone(), a.bounds.iter().map(ty).collect())
+            }
+            _ => ty(&a.ty),
+        })
+        .collect();
+    kids.push(node("generics", args));
+}
+
 fn item(item: &Item) -> Tree {
     let mut kids = Vec::new();
     docs(&item.docs, &mut kids);
@@ -242,7 +259,7 @@ fn item(item: &Item) -> Tree {
         }
         ItemKind::Impl(block) => {
             kids.push(leaf(block.type_name.name.clone()));
-            generics(&block.generics, &mut kids);
+            impl_args(&block.args, &mut kids);
             if let Some(interface) = &block.interface {
                 kids.push(node("for", vec![ty(interface)]));
             }

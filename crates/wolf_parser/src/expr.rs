@@ -13,10 +13,23 @@ pub(crate) struct Ctx {
     /// In conditions, the `match` scrutinee and the `for` collection a struct literal needs
     /// parentheses (spec chapter 3, section 5, rule 7).
     no_struct: bool,
+    /// In the key of a map literal (and the first item of `[...]`, which may be one) a name
+    /// before `:` is the key, not the label of a `loop` (spec chapter 3, section 4, rule 5).
+    map_key: bool,
 }
 
-const NORMAL: Ctx = Ctx { no_struct: false };
-const NO_STRUCT: Ctx = Ctx { no_struct: true };
+const NORMAL: Ctx = Ctx {
+    no_struct: false,
+    map_key: false,
+};
+const NO_STRUCT: Ctx = Ctx {
+    no_struct: true,
+    map_key: false,
+};
+const MAP_KEY: Ctx = Ctx {
+    no_struct: false,
+    map_key: true,
+};
 
 /// The condition of an `if` or a `while`.
 enum Condition {
@@ -899,6 +912,17 @@ impl Parser<'_> {
                 self.bump();
                 ExprKind::Bool(false)
             }
+            // `name: loop { ... }`: a labelled `loop` whose value is used (spec chapter 3,
+            // section 4, rule 5; D3.11). In the key of a map literal the name is the key.
+            TokenKind::Ident
+                if !ctx.map_key
+                    && *self.after_next(1) == TokenKind::Colon
+                    && *self.after_next(2) == TokenKind::Loop =>
+            {
+                let label = self.ident("a label");
+                self.bump(); // `:`
+                return self.loop_expr(span, label);
+            }
             TokenKind::Ident => {
                 self.bump();
                 ExprKind::Name(Ident {
@@ -937,6 +961,22 @@ impl Parser<'_> {
                         label: None,
                         value: None,
                     }
+                } else if !ctx.map_key
+                    && self.raw(0).kind == TokenKind::Ident
+                    && self.raw(1).kind == TokenKind::Colon
+                {
+                    // `break label: value` (spec chapter 3, section 4, rule 5; D3.11): the `:`
+                    // makes the name a label, whether an enclosing loop has it or not.
+                    let label = self.ident("a label");
+                    self.bump(); // `:`
+                    self.skip_newlines();
+                    let value = self.expr_with(ctx);
+                    let full = span.to(value.span);
+                    let kind = ExprKind::Break {
+                        label,
+                        value: Some(Box::new(value)),
+                    };
+                    return self.expr_node(kind, full);
                 } else if self.at_label() {
                     let label = self.ident("a label");
                     ExprKind::Break { label, value: None }
@@ -1091,7 +1131,7 @@ impl Parser<'_> {
             if p.at(&TokenKind::RBracket) {
                 return ExprKind::List(Vec::new());
             }
-            let first = p.expr();
+            let first = p.expr_with(MAP_KEY);
             p.check_no_assignment();
             if p.eat(&TokenKind::Colon) {
                 let value = p.expr();
@@ -1101,7 +1141,7 @@ impl Parser<'_> {
                         break;
                     }
                     let before = p.pos;
-                    let key = p.expr();
+                    let key = p.expr_with(MAP_KEY);
                     if p.expect(&TokenKind::Colon, "`:` in a map literal")
                         .is_none()
                     {

@@ -1,0 +1,8 @@
+small 10x3
+square 5x5 renamed 5x5
+evaluating height
+evaluating base
+noted 1x7
+n 2 1
+circle 8
+circle 3

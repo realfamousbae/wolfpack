@@ -14,4 +14,12 @@ error[E0436]: unknown loop label `inner`
   |
   = help: labels are written before a loop: `outer: for x in xs { ... }`
 
-error: aborting due to 2 errors
+error[E0436]: unknown loop label `found`
+   --> src/main.wolf:13:15
+   |
+13 |         break found: 5
+   |               ^^^^^ no enclosing loop has this label
+   |
+   = help: labels are written before a loop: `outer: for x in xs { ... }`
+
+error: aborting due to 3 errors

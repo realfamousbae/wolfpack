@@ -474,7 +474,7 @@ impl<'a> Fmt<'a> {
                 let mut head = vec![text(format!(
                     "{}{}",
                     b.type_name.name,
-                    self.generics(&b.generics)
+                    self.impl_args(&b.args)
                 ))];
                 if let Some(i) = &b.interface {
                     head.push(text(": "));
@@ -649,6 +649,26 @@ impl<'a> Fmt<'a> {
             })
             .collect();
         Some(format!(" where {}", list.join(", ")))
+    }
+
+    /// The head of an `impl` block: parameters with their bounds and type arguments.
+    fn impl_args(&self, args: &[ast::ImplArg]) -> String {
+        if args.is_empty() {
+            return String::new();
+        }
+        let list: Vec<String> = args
+            .iter()
+            .map(|a| {
+                let t = self.ty_text(&a.ty);
+                if a.bounds.is_empty() {
+                    t
+                } else {
+                    let b: Vec<String> = a.bounds.iter().map(|t| self.ty_text(t)).collect();
+                    format!("{t}: {}", b.join(" + "))
+                }
+            })
+            .collect();
+        format!("<{}>", list.join(", "))
     }
 
     fn generics(&self, generics: &[GenericParam]) -> String {
@@ -1003,7 +1023,8 @@ impl<'a> Fmt<'a> {
                 self.block(body, true),
             ]),
             ExprKind::Break { label, value } => match (label, value) {
-                (Some(l), _) => text(format!("break {}", l.name)),
+                (Some(l), Some(v)) => cat(vec![text(format!("break {}: ", l.name)), self.expr(v)]),
+                (Some(l), None) => text(format!("break {}", l.name)),
                 (None, Some(v)) => cat(vec![text("break "), self.expr(v)]),
                 (None, None) => text("break"),
             },

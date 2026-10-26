@@ -518,6 +518,44 @@ impl Printer {
 
     // ----- patterns ---------------------------------------------------------------------------
 
+    /// A pattern that starts at the indentation `ind`: a struct pattern whose fields are wider
+    /// than `struct_lit_width` takes a line for each field, as `rustfmt` writes it.
+    fn pat_at(&self, p: &Pat, ind: usize) -> String {
+        let Pat::Struct(path, fields, rest) = p else {
+            return self.pat(p);
+        };
+        let mut list: Vec<String> = fields
+            .iter()
+            .map(|(n, p)| match p {
+                Pat::Bind(b, false) if b == n => n.clone(),
+                p => format!("{n}: {}", self.pat(p)),
+            })
+            .collect();
+        if width(&list.join(", ")) + if *rest { 4 } else { 0 } <= STRUCT_LIT_WIDTH {
+            return self.pat(p);
+        }
+        let mut s = format!(
+            "{path} {{
+"
+        );
+        for f in list.drain(..) {
+            s.push_str(&format!(
+                "{}{f},
+",
+                spaces(ind + 1)
+            ));
+        }
+        if *rest {
+            s.push_str(&format!(
+                "{}..
+",
+                spaces(ind + 1)
+            ));
+        }
+        s.push_str(&format!("{}}}", spaces(ind)));
+        s
+    }
+
     fn pat(&self, p: &Pat) -> String {
         match p {
             Pat::Wild => "_".to_string(),
@@ -1170,14 +1208,14 @@ impl Printer {
     }
 
     fn arm(&self, arm: &Arm, ind: usize) -> String {
-        let mut head = self.pat(&arm.pat);
+        let mut head = self.pat_at(&arm.pat, ind);
         if let Some(g) = &arm.guard {
             head.push_str(&format!(
                 " if {}",
-                self.expr(g, ind, ind * 4 + width(&head) + 4, 3)
+                self.expr(g, ind, ind * 4 + width(last_line(&head)) + 4, 3)
             ));
         }
-        let start = ind * 4 + width(&head) + 4;
+        let start = ind * 4 + width(last_line(&head)) + 4;
         // A block with only a value is written as that value.
         let body = match &arm.body {
             Expr::Block(b)
@@ -1440,6 +1478,17 @@ impl Printer {
                     "{pad}{vis}enum {name}{} {{\n",
                     self.generics(generics)
                 ));
+                // As `rustfmt`: when one struct variant takes several lines and another variant
+                // one line, every struct variant takes a line for each field.
+                let body = |fs: &[(String, Type)]| {
+                    fs.iter()
+                        .map(|(f, t)| format!("{f}: {}", self.ty(t)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+                let tall = |v: &Variant| matches!(v, Variant::Struct(fs) if width(&body(fs)) > STRUCT_VARIANT_WIDTH);
+                let vertical = variants.iter().any(|(_, _, v)| tall(v))
+                    && variants.iter().any(|(_, _, v)| !tall(v));
                 for (d, n, v) in variants {
                     self.docs(out, d, ind + 1);
                     let p = spaces(ind + 1);
@@ -1454,7 +1503,7 @@ impl Printer {
                                 .map(|(f, t)| format!("{f}: {}", self.ty(t)))
                                 .collect();
                             let body = list.join(", ");
-                            if width(&body) <= STRUCT_VARIANT_WIDTH {
+                            if width(&body) <= STRUCT_VARIANT_WIDTH && !vertical {
                                 out.push_str(&format!("{p}{n} {{ {body} }},\n"));
                             } else {
                                 out.push_str(&format!("{p}{n} {{\n"));
@@ -1552,6 +1601,11 @@ impl Printer {
             }
         }
     }
+}
+
+/// A type as Rust writes it, for paths such as `Stack::<i64>::zero`.
+pub fn type_text(t: &Type) -> String {
+    Printer.ty(t)
 }
 
 fn last_line(s: &str) -> &str {

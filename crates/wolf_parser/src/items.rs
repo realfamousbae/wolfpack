@@ -620,7 +620,9 @@ impl Parser<'_> {
             );
         }
         match &item.kind {
-            ItemKind::Impl(block) if block.interface.is_none() => {
+            // Blocks with a head are compared once name resolution tells parameters from type
+            // arguments (spec chapter 4, section 8.3, rule 8; D4.21).
+            ItemKind::Impl(block) if block.interface.is_none() && block.args.is_empty() => {
                 let name = block.type_name.name.clone();
                 if let Some(first) = inherent_impls.get(&name) {
                     self.report(
@@ -1001,6 +1003,50 @@ impl Parser<'_> {
         params
     }
 
+    /// The head of an `impl` block: `<T: Bound, U>`, `<Int>`, `<String, T>` (spec chapter 4,
+    /// section 8.3, rule 8). Each argument is read as a type; bounds may follow a single name.
+    fn impl_args(&mut self) -> Vec<ImplArg> {
+        if !self.at(&TokenKind::Lt) {
+            return Vec::new();
+        }
+        self.bump();
+        self.ignore_lines(|p| {
+            let mut args = Vec::new();
+            while !p.at(&TokenKind::Gt) && !p.at(&TokenKind::Shr) && !p.at(&TokenKind::Eof) {
+                let before = p.pos;
+                let ty = p.ty();
+                let mut bounds = Vec::new();
+                if p.at(&TokenKind::Colon) {
+                    let colon = p.bump().span;
+                    p.skip_newlines();
+                    bounds.push(p.ty());
+                    while p.eat(&TokenKind::Plus) {
+                        bounds.push(p.ty());
+                    }
+                    let single = matches!(
+                        &ty.kind,
+                        TyKind::Path { path, args } if args.is_empty() && path.segments.len() == 1
+                    );
+                    if !single {
+                        p.report(
+                            Diagnostic::new(codes::E0301, "unexpected `:` after a type argument")
+                                .primary(colon, "only a type parameter takes bounds")
+                                .help("a parameter is a single name, as in `Stack<T: Display>`"),
+                        );
+                    }
+                }
+                args.push(ImplArg { ty, bounds });
+                if !p.eat(&TokenKind::Comma) || p.pos == before {
+                    break;
+                }
+            }
+            if !p.eat_gt() {
+                p.unexpected("`>`");
+            }
+            args
+        })
+    }
+
     pub(crate) fn generics(&mut self) -> Vec<GenericParam> {
         if !self.at(&TokenKind::Lt) {
             return Vec::new();
@@ -1243,7 +1289,7 @@ impl Parser<'_> {
 
     fn impl_block(&mut self) -> Option<ImplBlock> {
         let type_name = self.ident("a type name")?;
-        let generics = self.generics();
+        let args = self.impl_args();
         let interface = if self.eat_then_lines(&TokenKind::Colon) {
             Some(self.ty())
         } else {
@@ -1297,7 +1343,7 @@ impl Parser<'_> {
         }
         Some(ImplBlock {
             type_name,
-            generics,
+            args,
             interface,
             methods,
         })

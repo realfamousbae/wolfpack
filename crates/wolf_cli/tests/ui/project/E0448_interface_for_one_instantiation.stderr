@@ -1,0 +1,19 @@
+error[E0448]: an interface implementation for one instantiation, `Stack<Int>`
+   --> src/main.wolf:15:11
+   |
+15 |     Stack<Int>: Display {
+   |           ^^^ a type argument in the head of an interface implementation
+   |
+   = help: implement the interface for every `Stack` with a parameter, or put the methods into an inherent block `Stack<Int> { ... }`
+   = note: Go cannot give one instantiation of a generic type a method that the others lack, so the type could not meet a Go interface
+
+error[E0448]: an interface implementation for one instantiation, `Pair<String, T>`
+   --> src/main.wolf:21:10
+   |
+21 |     Pair<String, T>: Display {
+   |          ^^^^^^ a type argument in the head of an interface implementation
+   |
+   = help: implement the interface for every `Pair` with a parameter, or put the methods into an inherent block `Pair<String, T> { ... }`
+   = note: Go cannot give one instantiation of a generic type a method that the others lack, so the type could not meet a Go interface
+
+error: aborting due to 2 errors

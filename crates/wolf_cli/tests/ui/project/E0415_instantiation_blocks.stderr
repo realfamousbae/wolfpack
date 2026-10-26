@@ -1,0 +1,23 @@
+error[E0415]: `Stack` has two functions named `size`
+   --> src/main.wolf:21:12
+   |
+11 |         fn size(self) -> Int {
+   |            ---- first definition
+   .
+21 |         fn size(self) -> Int {
+   |            ^^^^ second definition
+   |
+   = note: a type has at most one function with a given name, across its inherent blocks and all its interface implementations
+
+error[E0415]: `Stack` has two functions named `describe`
+   --> src/main.wolf:27:12
+   |
+17 |         fn describe(self) -> String {
+   |            -------- first definition
+   .
+27 |         fn describe(self) -> String {
+   |            ^^^^^^^^ second definition
+   |
+   = note: a type has at most one function with a given name, across its inherent blocks and all its interface implementations
+
+error: aborting due to 2 errors

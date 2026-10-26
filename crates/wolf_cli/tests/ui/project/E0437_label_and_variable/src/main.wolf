@@ -7,4 +7,8 @@ main {
             break found
         }
     }
+    let x = found: loop {
+        break found: 4
+    }
+    print(x.to_string())
 }

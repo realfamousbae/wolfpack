@@ -514,6 +514,7 @@ impl<'d> Walk<'d> {
             | ExprKind::Const(_)
             | ExprKind::SelfValue
             | ExprKind::None
+            | ExprKind::Fail(_)
             | ExprKind::Continue { .. } => {}
             ExprKind::FnValue(def) => {
                 if self.collecting() {

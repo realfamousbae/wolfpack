@@ -1,0 +1,11 @@
+error[E0501]: use of moved value `r`
+   --> src/main.wolf:13:20
+   |
+12 |     let wider = Shape.Rect { width: 2, ..r }
+   |                                          - value moved here
+13 |     print(describe(r))
+   |                    ^ value used here after the move
+   |
+   = help: pass a copy instead of moving it: `r.copy()`
+
+error: aborting due to 1 error

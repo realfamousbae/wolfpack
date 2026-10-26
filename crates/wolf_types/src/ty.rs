@@ -149,6 +149,20 @@ impl Infer {
         }
     }
 
+    /// Makes each pair of types equal, like [`Infer::unify`], but binds nothing when one pair
+    /// cannot be equal.
+    pub(crate) fn try_unify_all(&mut self, pairs: &[(Ty, Ty)]) -> bool {
+        let saved = self.vars.clone();
+        let mut ok = true;
+        for (a, b) in pairs {
+            ok &= self.unify(a, b);
+        }
+        if !ok {
+            self.vars = saved;
+        }
+        ok
+    }
+
     /// Makes two types equal, binding variables. Returns `false` if they cannot be equal.
     pub(crate) fn unify(&mut self, a: &Ty, b: &Ty) -> bool {
         let a = self.shallow(a);

@@ -1,0 +1,25 @@
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Stack<Int: Display> {
+        fn sum(self) -> Int {
+            0
+        }
+    }
+
+    Stack<List<Int>: Display> {
+        fn rows(self) -> Int {
+            self.items.len()
+        }
+    }
+}
+
+main {
+    print(Stack { items: [1] }.items.len().to_string())
+}

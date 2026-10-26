@@ -1,0 +1,19 @@
+module main
+
+impl {
+    Stack<T: Display + Equatable> {
+        fn size(self) -> Int { self.items.len() }
+    }
+    Stack<Int> {
+        fn sum(self) -> Int { 0 }
+    }
+    Pair<String, T> {
+        fn key(self) -> String { self.first.copy() }
+    }
+    Stack<List<Int>> {
+        fn rows(self) -> Int { 0 }
+    }
+    Stack<fn(Int) -> Int> {
+        fn first(self) -> Int { 0 }
+    }
+}

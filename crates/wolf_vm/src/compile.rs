@@ -1345,6 +1345,10 @@ impl FnC {
                 let k = self.constant(Value::str(location));
                 self.emit(Op::Panic(k));
             }
+            ExprKind::Fail(message) => {
+                let k = self.constant(Value::str(&format!("panic: {message}")));
+                self.emit(Op::Fail(k));
+            }
             ExprKind::Assert {
                 cond,
                 text,
@@ -1932,6 +1936,7 @@ fn walk_expr(e: &Expr, used: &mut BTreeSet<Var>, bound: &mut BTreeSet<Var>) {
         | ExprKind::FnValue(_)
         | ExprKind::Const(_)
         | ExprKind::None
+        | ExprKind::Fail(_)
         | ExprKind::Continue { .. } => {}
     }
 }
