@@ -31,6 +31,15 @@ All notable changes are recorded here at the end of each milestone.
 - Fixed in the Rust backend: `print("")` was printed as `println!("")`, which clippy rejects, and
   a test whose body is only `assert_eq` got an extra block that `rustfmt --check` removes. The
   test project `rust_style` checks both with clippy and rustfmt.
+- `break label: value` (spec chapter 3, section 4, rule 5; D3.11) ends the labelled `loop` with
+  the value, also from a `for` or a `while` inside it, and a labelled `loop` may stand where an
+  expression is expected: `let found = search: loop { ... }`. The `:` makes the name a label
+  without name resolution; an unknown label is E0436, a label of a `while` or a `for` E0435, and
+  a label with the name of a variable in scope E0437, as for `continue label`. In the key of a
+  map literal the name before `:` stays the key. The IR already had a `break` with a label and a
+  value: Rust writes `break 'search value`, and TypeScript and Go now send the value to the
+  variable of the labelled loop (they used to take the innermost loop, and Go dropped the value).
+  `wolf fmt` writes `break search: value`.
 
 ## 0.5.1 (2026-10-26)
 
