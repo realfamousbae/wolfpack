@@ -148,6 +148,36 @@ found 3
 1,1
 ```
 
+`break value` always ends the innermost loop. To end an outer `loop` with a value, write its label
+and a `:` before the value: `break label: value`. A labelled `loop` is then an expression like any
+other `loop`, so its value can be kept:
+
+```wolf
+module main
+
+main {
+    let rows = [[3, 8], [12, 5], [7, 20]]
+    let found = search: loop {
+        for row in rows {
+            for x in row {
+                if x > 10 {
+                    break search: x
+                }
+            }
+        }
+        break search: 0
+    }
+    print(f"first above 10: {found}")
+}
+```
+
+```output
+first above 10: 12
+```
+
+The labelled loop must be a `loop`: a `while` or a `for` has no value (E0435). In a map literal
+the name before `:` is a key, so a labelled `loop` there goes in parentheses.
+
 Ranges are not values: they are written only in a `for` and inside the brackets of a slice
 (`text[1..3]`, chapter 2). To get a list of numbers, use `list.range(from, to)` (chapter 6).
 
