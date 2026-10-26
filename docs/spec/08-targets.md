@@ -794,6 +794,91 @@ Added in 0.2 (author, 2026-10-21, D8.13).
    not, and fetches it first if needed (section 2d). A module path that names neither a native
    module nor a package module is E0716.
 
+## 8c. Comparing written `extern` with the target code (`wolf check --extern`)
+
+Proposed on 2026-10-26 (D8.31), waiting for the author. **[PROPOSAL]** for the whole section.
+
+A written `extern` declaration (chapter 7, sections 8.1 to 8.4a) is checked against the target
+code only by `tsc`, `go build` or `cargo`, when the project is built and run. `wolf check --extern`
+compares the declarations with the target code that the readers of chapter 7, section 8.7 can
+read, before any tool of the targets runs.
+
+1. `wolf check --extern` checks the project as `wolf check` does, and also compares each
+   declaration of the written `extern` blocks of the modules of `src/` and `examples/` (modules
+   of `tests/` have no `extern` section, chapter 6, section 7, rule 3) with the item that its path
+   names. `wolf check --extern text.shout` compares those of one
+   module; a module path that names no module of the project is E0002, as an unknown name of
+   `wolf check --bytecode` is (chapter 10, section 1a). Native modules and package modules are
+   read from the code itself and have nothing to compare.
+2. **What can be read.**
+   - `native:` paths (chapter 7, section 8.2a): the files of `native/<target>/`, with the readers
+     of chapter 7, section 8.7, also files that no module imports as a native module.
+   - Paths to the packages of `[extern.<target>.dependencies]`, once package modules exist
+     (chapter 7, section 8.8; proposed, D7.42): the fetched package, read as that section says.
+     `--extern` then fetches as `wolf check` does (section 2d) and accepts `--offline`.
+   - Not the standard libraries of the targets (`"Math.max"`, `"strings.ToUpper"`,
+     `"std::cmp::max"`), nor the globals and built-in modules of Node.js (`"console.error"`,
+     `"node:path#join"`).
+3. **Results.** Each declaration gets one of four results:
+
+   | Result | When | Error |
+   | --- | --- | --- |
+   | matches | the item exists, and each parameter and the result have target types that fit the declared ones (rule 4); for a record bound with `struct Name from`, each field too | none |
+   | not found | the code was read and has no item of that name and kind: no function for `fn`, no type for `type`, no struct type for `struct`, no method of that name for a method path. A target block that names an item which the code of that target lacks shows this way | E0717 |
+   | differs | the item exists and the reader maps it, but the number of parameters, a parameter type, the result type, or a field of a record does not fit | E0718 |
+   | not checked | the path cannot be read (rule 2); the reader does not map the item (a generic Rust function, an overloaded TS function, a type outside the tables of chapter 7, section 8.7, rules 3, 9 and 13); or the name is declared only where the reader does not look (under `#[cfg(...)]`, in a Go file with build constraints, in a `.tsx` file) | none |
+
+   What the reader cannot judge is never an error: the tool of the target may accept the call,
+   and `--extern` must not reject a program that builds. For the same reason a name declared only
+   where the reader does not look is "not checked", never "not found".
+4. **Fit.** A declaration fits when the code that `wolf` generates for it (sections 4 and 8)
+   passes the type check of the target. These are the rules of written declarations, narrower
+   than those of native modules, which take the types the reader found (section 8a). The
+   differences that users meet most:
+
+   | Declared | Fits in TS | Fits in Go | Fits in Rust |
+   | --- | --- | --- | --- |
+   | `Int` parameter | `number`; a `bigint` differs | `int64` only; `int` differs | any integer type |
+   | `Int` result | `number` | any integer type | any integer type |
+   | `Float` | `number` | `float64` only; `float32` differs | `f64` only; `f32` differs |
+   | read `String` parameter | `string` | `string` | `&str` only; `String` and `&String` differ |
+   | read `List<T>` parameter | `T[]`, `readonly T[]` | `[]T` of the Go type of `T` | `&[T]` only; `Vec<T>` and `&Vec<T>` differ |
+
+   Where no written declaration can fit (an `int` parameter in Go, a `bigint` in TS, an `f32` in
+   Rust), the help of E0718 proposes to import the code as a native module (chapter 6, section
+   1a), which passes these types as they are.
+5. **Output.** On stdout, one line per declaration, in the order of the files and of the
+   declarations in them, then a summary:
+
+   ```
+   src/main.wolf:7: ts fn slugify from "native:slug#slugify": matches
+   src/main.wolf:10: go fn slugify from "native:slug.Slugify": differs (E0718)
+   src/main.wolf:13: rust fn slugify from "native:slug::slugify": matches
+   src/text.wolf:5: ts fn max from "Math.max": not checked: the standard library of TypeScript is not read
+   4 extern declarations: 2 match, 1 differs, 0 not found, 1 not checked
+   ```
+
+   The errors go to stderr with the other diagnostics. E0717 points at the path string and lists
+   the names of that kind that the code has. E0718 points at the declared type that does not fit;
+   a note shows the item as the target declares it, with its file and line, and, when the reader
+   can write a declaration that fits, the help shows it as `wolf check --native` would write it:
+
+   ```
+   error[E0718]: `slugify` does not match the Go function `Slugify`
+     --> src/main.wolf:10:40
+      |
+   10 |         pub fn slugify(s: String, max: Int) -> String from "native:slug.Slugify"
+      |                                        ^^^ passed as `int64`
+      |
+      = note: `native/go/slug/slug.go:7`: `func Slugify(s string, max int) string`
+      = help: an `Int` parameter of a written declaration is always `int64` in Go; change the Go parameter, or import `native.slug` as a native module, which passes `int`
+   ```
+
+6. **Exit code.** That of `wolf check`: 1 when there is any error, E0717 and E0718 included, since
+   there are no warnings (chapter 9). A declaration that is not checked does not change it.
+7. `wolf check` without `--extern` reads no target code for written declarations and never reports
+   E0717 or E0718. The helps of E0806 and E0810 (section 9) name `wolf check --extern`.
+
 ## 9. Diagnostics
 
 Added in M6 (author, 2026-10-09). Like driver errors, these have no source range.
@@ -802,11 +887,12 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | --- | --- |
 | E0801 | A tool of the target is not installed (`node`, `tsc`, `go`, `cargo`); the hint names `wolf setup` |
 | E0804 | `wolf setup` could not download or install a tool (section 2a); the tool, the URL and the reason are shown (author, 2026-10-16) |
-| E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it |
+| E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it. Proposed (D8.32): a project with written `extern` declarations for that target gets E0810 instead |
 | E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16). Proposed (D8.30): also when `go` or `cargo` cannot fetch them for package modules, and when they are missing with `--offline` or in the language server (section 2d) |
 | E0805 | `wolf self update` could not download, check or install a release (section 2b); the URL or the file and the reason are shown (0.2) |
 | E0806 | A tool of the target rejected a project that has code in `native/<target>/` (section 8a); the output of the tool is shown. The error is usually in a native file or in an `extern` declaration that does not match it, so unlike E0802 it is reported for every rejection of such a project (author, 2026-10-19) (0.2) |
 | E0808 | `wolf self uninstall` could not remove a file or a directory (section 2c), or the directory of `wolf` cannot be written; the file and the reason, or the commands that remove it, are shown (D8.15) |
+| E0810 | A tool of the target rejected a project whose modules have written `extern` declarations for that target and that has no code in `native/<target>/` (which is E0806); the output of the tool is shown, and the help says to check the declarations, names `wolf check --extern` (section 8c), and asks for a report if they are right (proposed, D8.32) |
 
 ## 10. Decisions for the author
 
@@ -838,3 +924,5 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.17 | `exit(code)` inside a test (section 2, rule 7): the test fails with `the test exited with code <code>`, also for 0, and the other tests run, on every target as in the VM. Alternatives: `exit(0)` passes the test; or `exit` ends the whole run with its code, as Go and Rust do today, and the VM changes to match | **proposed** (2026-10-26), waiting for the author (author agreed on 2026-10-22 that one rule is needed) |
 | D8.18 | The AUR package `wolfpack-bin` (section 2a, rule 2): the glibc archives of the release and the license files, built and installed in a clean Arch Linux container for each release and pushed to the AUR by the workflow `aur.yml`; `wolf self update` treats its `/usr/bin/wolf` like a `.deb` or `.rpm` | **proposed** (2026-10-26), waiting for the author, who needs an AUR account and the secret `AUR_SSH_KEY` |
 | D8.30 | Fetching packages for package modules (section 2d): `wolf fetch [--target]`; `wolf check`, `build`, `run` and `test` fetch first when a package module is imported and its packages are missing or the dependencies changed; `--offline` forbids it (E0803); the language server never fetches; `npm install`, `go mod download` with `go list -m -json`, and `cargo metadata` say where the files are, so no cache path is guessed (the Rust of `wolf setup` has its own `CARGO_HOME`); projects without package modules still need no tool to be checked; E0803 for `go` and `cargo` too. Alternatives: fetch only with `wolf fetch`, never in `wolf check` (as `npm` works); fetch and unpack packages with `wolf`'s own downloader from the registries, without the tools (it would have to resolve versions as npm, Go and Cargo do) | **proposed** (2026-10-26), waiting for the author |
+| D8.31 | `wolf check --extern [module]` (section 8c): compares written `extern` declarations with the target code that the readers can read, `native:` paths first and package paths once package modules exist; each declaration matches, is not found (E0717), differs (E0718) or is not checked with the reason, and only what the reader fully understands can be an error; the fit is that of written declarations (Go `Int` parameters `int64`, TS `number`, Rust `&str` and `&[T]`), with the native module as the fix where no declaration can fit; a listing on stdout, the errors on stderr, the exit code of `wolf check`; an unknown module is E0002. Alternatives: always compare `native:` paths in `wolf check`, without a flag (no flag to learn, but every check reads target code and the reader's gaps would have to be free of false errors first); report differences only, without the listing; E0716-like code of its own for an unknown module | **proposed** (2026-10-26), waiting for the author |
+| D8.32 | E0810 for a rejection by the target's tool of a project with written `extern` declarations for that target and no native code (section 9): today it is E0802, "always a compiler bug", although a wrong path or signature is the usual cause (`"a.b.c.d"` or a misspelt export passes `wolf check` and fails `tsc`); E0802 keeps its meaning for projects without `extern`. Alternatives: widen E0806 to every project with `extern` declarations (one code fewer, but its meaning and title, "rejected the native code", change); keep E0802 | **proposed** (2026-10-26), waiting for the author |

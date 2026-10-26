@@ -663,7 +663,9 @@ extern {
    `native/<target>/` (E0709, at the path string). Whether the function exists and has the declared
    signature is checked by `tsc`, `go build` or `cargo`. An error that their tool reports in a
    native file, or in a generated call that does not match the native function, is not a bug of
-   `wolf`: it is E0806 (chapter 8), with the output of the tool.
+   `wolf`: it is E0806 (chapter 8), with the output of the tool. **[PROPOSAL]** (D8.31)
+   `wolf check --extern` compares the declarations with the native code before any tool runs,
+   as far as the readers of section 8.7 understand it (chapter 8, section 8c; E0717, E0718).
 3. Native code may use the dependencies of `[extern.<target>.dependencies]` and the standard
    library of its language, but not the runtime of the generated code, whose contents are
    internal.
@@ -717,7 +719,8 @@ exists and has the declared types is checked by `tsc`.
    (`"node:path#join"`) or to a global that only Node.js has (`"console.error"`, `"process.cwd"`,
    `"setTimeout"`) passes `wolf check`, but `tsc` rejects the generated code unless
    `"@types/node"` is listed in `[extern.ts.dependencies]`. `wolf` reports that rejection as
-   E0802, as if `wolf` had generated wrong code (chapter 8, section 9).
+   E0802, as if `wolf` had generated wrong code (chapter 8, section 9); D8.32 proposes E0810 for
+   such projects.
 6. **[PROPOSAL]** (D7.41) **Members of every export.** After `#`, the export of any module (not only
    of `native:` code) may be followed by members, in the forms of rule 4 and with any number of
    names before the last one:
@@ -1144,6 +1147,8 @@ Proposed range E07xx (confirmed in chapter 9).
 | E0715 | A name of a native module that maps to different wolfpack signatures in different targets (0.2) |
 | E0711 | `struct Name from "path"` in an extern block does not name a non-generic struct of the module (0.2) |
 | E0716 | `wolf check --native <module>` names no native module of the project (0.2; chapter 8, section 8b), or no package module either (proposed, D7.42) |
+| E0717 | `wolf check --extern`: the target code that the path of an extern declaration names was read and has no item of that name and kind (proposed, D8.31; chapter 8, section 8c) |
+| E0718 | `wolf check --extern`: an extern declaration does not fit the item of the target code: the number of parameters, a parameter or result type, or a field of a record (proposed, D8.31; chapter 8, section 8c) |
 
 ## 10. Decisions for the author
 
