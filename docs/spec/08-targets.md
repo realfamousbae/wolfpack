@@ -260,7 +260,7 @@ rule 5 did, so that no command has to be looked up.
 
 ## 2d. Fetching packages (`wolf fetch`)
 
-Proposed on 2026-10-26 (D8.30), waiting for the author. **[PROPOSAL]** for the whole section,
+Proposed on 2026-10-26 (D8.30), waiting for the author. **[DRAFT]** for the whole section,
 except where marked **[INTERNAL]**.
 
 Package modules (chapter 6, section 1b; chapter 7, section 8.8) are read from fetched packages, so
@@ -787,7 +787,7 @@ Added in 0.2 (author, 2026-10-21, D8.13).
    a module as a written `extern` block, to rename or change what the reader chose.
 3. The diagnostics of the check go to stderr as usual, and the exit code is that of `wolf check`.
    A module path that names no native module of the project is E0716, without a source range.
-4. **[PROPOSAL]** (D7.42) Package modules (chapter 7, section 8.8) are listed the same way, after
+4. **[DRAFT]** (D7.42) Package modules (chapter 7, section 8.8) are listed the same way, after
    the native modules, with the paths of chapter 7, section 8.2 instead of `native:` paths and a
    first comment that names the package and the version read:
    `wolf check --native go.levenshtein` prints one package module of the project, imported or
@@ -796,7 +796,7 @@ Added in 0.2 (author, 2026-10-21, D8.13).
 
 ## 8c. Comparing written `extern` with the target code (`wolf check --extern`)
 
-Proposed on 2026-10-26 (D8.31), waiting for the author. **[PROPOSAL]** for the whole section.
+Proposed on 2026-10-26 (D8.31), waiting for the author. **[DRAFT]** for the whole section.
 
 A written `extern` declaration (chapter 7, sections 8.1 to 8.4a) is checked against the target
 code only by `tsc`, `go build` or `cargo`, when the project is built and run. `wolf check --extern`

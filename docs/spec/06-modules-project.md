@@ -29,7 +29,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
 6. The root segment `std` is reserved for the standard library. The root segments `tests` and
    `examples` are reserved for the directories of the same names (section 7), and `native` for
    native modules (section 1a; 0.2): `src/native.wolf` and `src/native/` are E0612.
-   **[PROPOSAL]** (D6.10): `ts`, `go` and `rust` are reserved for package modules (section 1b), so
+   **[DRAFT]** (D6.10): `ts`, `go` and `rust` are reserved for package modules (section 1b), so
    `src/ts.wolf`, `src/go/` and the like are E0612 too.
 
 ## 1a. Native modules
@@ -51,7 +51,7 @@ Added in 0.2 (author, 2026-10-20, D6.9).
 
 ## 1b. Package modules
 
-Proposed on 2026-10-26 (D6.10, D6.11), waiting for the author. **[PROPOSAL]** for the whole
+Proposed on 2026-10-26 (D6.10, D6.11), waiting for the author. **[DRAFT]** for the whole
 section.
 
 1. A module path whose root segment is `ts`, `go` or `rust` names a **package module**: the public
@@ -284,7 +284,7 @@ max_users = 200
 4. `[extern.<target>.dependencies]` lists packages of the target language **[PLAN]**. Their meaning
    is in chapter 7.
 
-   **Module names** **[PROPOSAL]** (D6.11). The value of a dependency is its version, as before,
+   **Module names** **[DRAFT]** (D6.11). The value of a dependency is its version, as before,
    or a table with the version and the **module name** of its package module (section 1b):
    `"gopkg.in/yaml.v3" = { version = "v3.0.1", name = "yaml" }`. Without `name`, the module name
    comes from the package: for npm the package name without its scope (`fastest-levenshtein`, and

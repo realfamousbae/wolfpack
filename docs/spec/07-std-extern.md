@@ -663,7 +663,7 @@ extern {
    `native/<target>/` (E0709, at the path string). Whether the function exists and has the declared
    signature is checked by `tsc`, `go build` or `cargo`. An error that their tool reports in a
    native file, or in a generated call that does not match the native function, is not a bug of
-   `wolf`: it is E0806 (chapter 8), with the output of the tool. **[PROPOSAL]** (D8.31)
+   `wolf`: it is E0806 (chapter 8), with the output of the tool. **[DRAFT]** (D8.31)
    `wolf check --extern` compares the declarations with the native code before any tool runs,
    as far as the readers of section 8.7 understand it (chapter 8, section 8c; E0717, E0718).
 3. Native code may use the dependencies of `[extern.<target>.dependencies]` and the standard
@@ -677,7 +677,7 @@ extern {
 ### 8.2b TypeScript paths in detail
 
 Written down on 2026-10-26 (D7.40). Rules 1 to 5 describe what `wolf` 0.5.1 does; they fill a gap
-of section 8.2 and change nothing. Rules 6 and 7 are **[PROPOSAL]** (D7.41), waiting for the author.
+of section 8.2 and change nothing. Rules 6 and 7 are **[DRAFT]** (D7.41), waiting for the author.
 
 A TypeScript path names a **global** (a path without `#`) or an **export of a module**
 (`module#...`). The part after `#`, or the whole path of a global, is a **member path**: names
@@ -721,7 +721,7 @@ exists and has the declared types is checked by `tsc`.
    `"@types/node"` is listed in `[extern.ts.dependencies]`. `wolf` reports that rejection as
    E0802, as if `wolf` had generated wrong code (chapter 8, section 9); D8.32 proposes E0810 for
    such projects.
-6. **[PROPOSAL]** (D7.41) **Members of every export.** After `#`, the export of any module (not only
+6. **[DRAFT]** (D7.41) **Members of every export.** After `#`, the export of any module (not only
    of `native:` code) may be followed by members, in the forms of rule 4 and with any number of
    names before the last one:
 
@@ -735,7 +735,7 @@ exists and has the declared types is checked by `tsc`.
 
    The export, the first name after `#`, is imported once per module; the rest is a member path on
    it. A type path after `#` stays one name.
-7. **[PROPOSAL]** (D7.41) **One meaning of `prototype` and `constructor`** in every path, global,
+7. **[DRAFT]** (D7.41) **One meaning of `prototype` and `constructor`** in every path, global,
    export or native:
    - `prototype` may only be the name before the last one: `"String.prototype.toUpperCase"`,
      `"Intl.Collator.prototype.compare"`. Elsewhere it is E0705 (`"String.prototype.trim.call"`,
@@ -857,7 +857,7 @@ extern {
 3. Building a project for a target checks every module reachable from the entry module. A module not
    available for that target is an error that names the module, its `extern` section and the import
    chain from the entry (E0704).
-4. **[PROPOSAL]** (D6.10) A module that imports a package module (chapter 6, section 1b; section
+4. **[DRAFT]** (D6.10) A module that imports a package module (chapter 6, section 1b; section
    8.8) is bound to the target of the package, as if it declared the names it uses in that
    target's block only. E0704 then points at the import.
 
@@ -866,7 +866,7 @@ extern {
 `[extern.<target>.dependencies]` in the manifest **[PLAN]** lists target packages and versions. They
 are copied verbatim into `package.json`, `go.mod` or `Cargo.toml` (chapter 8); `wolf` does not check
 them. Packages of a target's own standard library need no entry.
-**[PROPOSAL]** (D7.42) The same packages can be imported as package modules (section 8.8); then
+**[DRAFT]** (D7.42) The same packages can be imported as package modules (section 8.8); then
 `wolf` fetches them before it checks the project (chapter 8, section 2d), and reads them.
 
 ### 8.7 Native modules: declarations read from the target code
@@ -1027,7 +1027,7 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
 
 ### 8.8 Package modules: declarations read from fetched packages
 
-Proposed on 2026-10-26 (D7.42, D7.43), waiting for the author. **[PROPOSAL]** for the whole
+Proposed on 2026-10-26 (D7.42, D7.43), waiting for the author. **[DRAFT]** for the whole
 section.
 
 A package module (chapter 6, section 1b) is read like a native module: the compiler reads the
