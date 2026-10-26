@@ -339,7 +339,7 @@ fn needs_stmts(e: &IrExpr) -> bool {
         | ExprKind::Break { .. }
         | ExprKind::Continue { .. } => true,
         ExprKind::Interpolate(parts) => parts.iter().any(needs_stmts),
-        ExprKind::Call { callee, args } => {
+        ExprKind::Call { callee, args, .. } => {
             let c = match callee {
                 Callee::Method { recv, .. }
                 | Callee::Interface { recv, .. }
@@ -350,7 +350,7 @@ fn needs_stmts(e: &IrExpr) -> bool {
             c || args.iter().any(|a| needs_stmts(&a.value))
         }
         ExprKind::Field { base, .. } | ExprKind::Copy(base) => needs_stmts(base),
-        ExprKind::Index { base, index } => needs_stmts(base) || needs_stmts(index),
+        ExprKind::Index { base, index, .. } => needs_stmts(base) || needs_stmts(index),
         ExprKind::Slice {
             base, start, end, ..
         } => {
@@ -396,6 +396,7 @@ fn plain_text<'e>(p: &Program, e: &'e IrExpr) -> Option<&'e IrExpr> {
         ExprKind::Call {
             callee: Callee::Method { recv, method },
             args,
+            ..
         } if args.is_empty()
             && matches!(recv.ty, IrType::Int | IrType::Bool | IrType::String)
             && p.def(*method).is_some_and(|d| d.name == "to_string") =>
@@ -2960,7 +2961,9 @@ impl<'p> Emitter<'p> {
                     self.f.locals.insert(local, Local::Plain(name));
                 }
             }
-            IrStmt::Assign { target, op, value } => self.assign(target, *op, value, out)?,
+            IrStmt::Assign {
+                target, op, value, ..
+            } => self.assign(target, *op, value, out)?,
             IrStmt::While { label, cond, body } => {
                 let mut pre = Vec::new();
                 let c = self.expr(cond, &mut pre)?;
@@ -3079,7 +3082,7 @@ impl<'p> Emitter<'p> {
                 let b = self.expr(base, out)?;
                 PlaceKind::Simple(member(b, &camel(name)))
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let b = self.expr(base, out)?;
                 let b = self.stable(b, "base", out);
                 let i = self.expr(index, out)?;
@@ -3304,12 +3307,12 @@ impl<'p> Emitter<'p> {
                 }
             }
             ExprKind::Const(def) => tagged(ident(&self.def_name(*def))),
-            ExprKind::Call { callee, args } => self.call(callee, args, &e.ty, out),
+            ExprKind::Call { callee, args, .. } => self.call(callee, args, &e.ty, out),
             ExprKind::Field { base, name } => {
                 let b = self.expr(base, out)?;
                 tagged(member(b, &camel(name)))
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let v = self.seq(&[(base, Repr::Tagged), (index, Repr::Tagged)], out)?;
                 let mut it = v.into_iter();
                 let (b, i) = (
@@ -3326,6 +3329,7 @@ impl<'p> Emitter<'p> {
                 start,
                 end,
                 inclusive,
+                ..
             } => {
                 let b = self.expr(base, out)?;
                 let s = match start {
@@ -3444,7 +3448,7 @@ impl<'p> Emitter<'p> {
                     args,
                 ))
             }
-            ExprKind::Unary { op, operand } => {
+            ExprKind::Unary { op, operand, .. } => {
                 let v = self.expr(operand, out)?;
                 tagged(match op {
                     UnaryOp::Not => not(v),
@@ -3458,7 +3462,7 @@ impl<'p> Emitter<'p> {
                     }
                 })
             }
-            ExprKind::Binary { op, lhs, rhs } => tagged(self.binary(*op, lhs, rhs, out)?),
+            ExprKind::Binary { op, lhs, rhs, .. } => tagged(self.binary(*op, lhs, rhs, out)?),
             ExprKind::Closure { params, body, .. } => {
                 let ret = match &e.ty {
                     IrType::Fn(_, r) => (**r).clone(),
@@ -4378,7 +4382,7 @@ impl<'p> Emitter<'p> {
                 let b = self.stable(b, "base", out);
                 Ok(self.ref_of(member(b, &camel(name)), out))
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let b = self.expr(base, out)?;
                 let i = self.expr(index, out)?;
                 let f = if matches!(base.ty, IrType::Map(..)) {

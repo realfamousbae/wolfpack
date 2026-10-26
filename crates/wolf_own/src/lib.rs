@@ -376,7 +376,9 @@ impl<'p> Checker<'p> {
                     self.declare(l, f);
                 }
             }
-            Stmt::Assign { target, op, value } => {
+            Stmt::Assign {
+                target, op, value, ..
+            } => {
                 self.expr(value, if op.is_some() { Use::Read } else { Use::Own });
                 self.assign(target, op.is_none());
             }
@@ -552,7 +554,7 @@ impl<'p> Checker<'p> {
     fn place_parts(&mut self, e: &Expr) {
         match &e.kind {
             ExprKind::Field { base, .. } => self.place_parts(base),
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 self.place_parts(base);
                 self.expr(index, Use::Read);
             }
@@ -757,7 +759,7 @@ impl<'p> Checker<'p> {
                     self.expr(p, Use::Read);
                 }
             }
-            ExprKind::Call { callee, args } => self.call(e, callee, args),
+            ExprKind::Call { callee, args, .. } => self.call(e, callee, args),
             ExprKind::Slice {
                 base, start, end, ..
             } => {
@@ -874,7 +876,7 @@ impl<'p> Checker<'p> {
     fn subexprs(&mut self, e: &Expr) {
         match &e.kind {
             ExprKind::Field { base, .. } => self.expr(base, Use::Read),
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 self.expr(base, Use::Read);
                 self.expr(index, Use::Read);
             }
@@ -1422,7 +1424,7 @@ impl Free {
                 self.used.insert(*l);
             }
             ExprKind::SelfValue => self.self_used = true,
-            ExprKind::Call { callee, args } => {
+            ExprKind::Call { callee, args, .. } => {
                 match callee {
                     Callee::Method { recv, .. }
                     | Callee::Interface { recv, .. }
@@ -1435,7 +1437,7 @@ impl Free {
                 }
             }
             ExprKind::Field { base, .. } | ExprKind::Copy(base) => self.expr(base),
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 self.expr(base);
                 self.expr(index);
             }

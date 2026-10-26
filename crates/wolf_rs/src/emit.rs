@@ -394,7 +394,7 @@ impl Scan<'_> {
                     self.captured.insert(*l);
                 }
             }
-            ExprKind::Call { callee, args } => {
+            ExprKind::Call { callee, args, .. } => {
                 match callee {
                     Callee::Method { recv, method } => {
                         // A method that takes `mut self` changes its receiver.
@@ -435,7 +435,7 @@ impl Scan<'_> {
             | ExprKind::Some(base)
             | ExprKind::Ok(base)
             | ExprKind::Err(base) => self.expr(base),
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 self.expr(base);
                 self.expr(index);
             }
@@ -3086,7 +3086,9 @@ impl<'p> Emitter<'p> {
                 self.f.locals.insert(*local, Local::Val(name.clone()));
                 out.push(Stmt::Let(Pat::Bind(name, mutable), t, Some(v)));
             }
-            IrStmt::Assign { target, op, value } => {
+            IrStmt::Assign {
+                target, op, value, ..
+            } => {
                 let s = self.assign(target, *op, value)?;
                 out.push(Stmt::Expr(s));
             }
@@ -3246,7 +3248,7 @@ impl<'p> Emitter<'p> {
     fn has_effect(&self, e: &IrExpr) -> bool {
         let intrinsic = |def: &DefRef| self.p.def(*def).is_some_and(|d| d.intrinsic.is_some());
         match &e.kind {
-            ExprKind::Call { callee, args } => {
+            ExprKind::Call { callee, args, .. } => {
                 args.iter().any(|a| a.mode == Mode::Mut)
                     || match callee {
                         Callee::Fn(def) => !intrinsic(def),
@@ -3422,7 +3424,7 @@ impl<'p> Emitter<'p> {
                     f
                 }
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let b = self.place_base(base)?;
                 if matches!(base.ty, IrType::Map(..)) {
                     let k = self.key(index)?;
@@ -3566,7 +3568,7 @@ impl<'p> Emitter<'p> {
                     _ => call(path("Box::new"), vec![f]),
                 }
             }
-            ExprKind::Call { callee, args } => {
+            ExprKind::Call { callee, args, .. } => {
                 let c = self.call(callee, args, t)?;
                 self.shape(c, t, want, false)
             }
@@ -3596,7 +3598,7 @@ impl<'p> Emitter<'p> {
                     self.shape(f, t, want, true)
                 }
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let b = self.expr(base, Want::Op)?;
                 let at = if matches!(base.ty, IrType::Map(..)) {
                     let k = self.key(index)?;
@@ -3624,6 +3626,7 @@ impl<'p> Emitter<'p> {
                 start,
                 end,
                 inclusive,
+                ..
             } => {
                 let b = self.expr(base, Want::Read(true))?;
                 let s = match start {
@@ -3800,7 +3803,7 @@ impl<'p> Emitter<'p> {
                 };
                 self.shape(m, t, want, false)
             }
-            ExprKind::Unary { op, operand } => {
+            ExprKind::Unary { op, operand, .. } => {
                 let v = self.expr(operand, Want::Op)?;
                 let x = match op {
                     UnaryOp::Not | UnaryOp::BitNot => not(v),
@@ -3811,7 +3814,7 @@ impl<'p> Emitter<'p> {
                 };
                 self.shape(x, t, want, false)
             }
-            ExprKind::Binary { op, lhs, rhs } => {
+            ExprKind::Binary { op, lhs, rhs, .. } => {
                 let x = self.binary(*op, lhs, rhs)?;
                 self.shape(x, t, want, false)
             }
@@ -4182,6 +4185,7 @@ impl<'p> Emitter<'p> {
                     op: BinaryOp::Add,
                     lhs,
                     rhs,
+                    ..
                 } if matches!(e.ty, IrType::String) => {
                     flatten(lhs, out);
                     flatten(rhs, out);
@@ -5495,7 +5499,7 @@ fn displayed(e: &IrExpr) -> Option<&IrExpr> {
 }
 
 fn is_to_string(e: &IrExpr) -> bool {
-    matches!(&e.kind, ExprKind::Call { callee: Callee::Method { .. }, args } if args.is_empty())
+    matches!(&e.kind, ExprKind::Call { callee: Callee::Method { .. }, args, .. } if args.is_empty())
         && matches!(e.ty, IrType::String)
 }
 

@@ -42,6 +42,9 @@ pub struct Program {
     pub locals: BTreeMap<LocalRef, LocalInfo>,
     /// The packages of each target from the manifest: name and version.
     pub dependencies: BTreeMap<String, Vec<(String, String)>>,
+    /// A debug build (spec chapter 7, section 3, rule 1): the operations of the program that can
+    /// panic carry the location that the panic prints.
+    pub debug: bool,
 }
 
 impl Program {
@@ -505,6 +508,9 @@ pub enum Stmt {
         op: Option<BinaryOp>,
         /// The value.
         value: Expr,
+        /// In a debug build, the location of the operator of a compound assignment that can
+        /// panic (see [`Program::debug`]).
+        location: Option<String>,
     },
     /// `while cond { ... }`
     While {
@@ -634,6 +640,9 @@ pub enum ExprKind {
         callee: Callee,
         /// The arguments.
         args: Vec<Arg>,
+        /// In a debug build, the location of a call of a std function that can panic (see
+        /// [`Program::debug`] and [`intrinsic_panics`]).
+        location: Option<String>,
     },
     /// `base.name`
     Field {
@@ -648,6 +657,8 @@ pub enum ExprKind {
         base: Box<Expr>,
         /// The index or key.
         index: Box<Expr>,
+        /// In a debug build, the location of the `[` (see [`Program::debug`]).
+        location: Option<String>,
     },
     /// `base[start..end]` on a list or a string.
     Slice {
@@ -659,6 +670,8 @@ pub enum ExprKind {
         end: Option<Box<Expr>>,
         /// `..=`
         inclusive: bool,
+        /// In a debug build, the location of the `[` (see [`Program::debug`]).
+        location: Option<String>,
     },
     /// A struct literal, fields in declaration order.
     Struct {
@@ -694,6 +707,9 @@ pub enum ExprKind {
         op: UnaryOp,
         /// The operand.
         operand: Box<Expr>,
+        /// In a debug build, the location of an operator that can panic (see
+        /// [`Program::debug`]).
+        location: Option<String>,
     },
     /// A binary operator; both operands have the same type, except for `&&` and `||`.
     Binary {
@@ -703,6 +719,9 @@ pub enum ExprKind {
         lhs: Box<Expr>,
         /// The right operand.
         rhs: Box<Expr>,
+        /// In a debug build, the location of an operator that can panic (see
+        /// [`Program::debug`]).
+        location: Option<String>,
     },
     /// A closure.
     Closure {
@@ -798,6 +817,25 @@ pub enum ExprKind {
         /// `file:line:column`.
         location: String,
     },
+}
+
+/// The intrinsic functions of std that can panic (spec chapter 7), by qualified name: in a debug
+/// build a call of one of them carries its location.
+pub fn intrinsic_panics(name: &str) -> bool {
+    matches!(
+        name,
+        "std.process.exit"
+            | "std.math.Int.abs"
+            | "std.math.Int.pow"
+            | "std.math.Float.to_int"
+            | "std.string.String.split"
+            | "std.string.String.replace"
+            | "std.string.String.repeat"
+            | "std.list.List.insert"
+            | "std.list.List.remove"
+            | "std.list.List.swap"
+            | "std.list.sum"
+    )
 }
 
 /// An item of an [`ExprKind::IfChain`].

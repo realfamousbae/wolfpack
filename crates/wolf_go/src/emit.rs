@@ -506,7 +506,7 @@ fn needs_stmts(e: &IrExpr) -> bool {
         | ExprKind::Continue { .. }
         | ExprKind::Panic { .. } => true,
         ExprKind::Interpolate(parts) => parts.iter().any(needs_stmts),
-        ExprKind::Call { callee, args } => {
+        ExprKind::Call { callee, args, .. } => {
             let c = match callee {
                 Callee::Method { recv, .. }
                 | Callee::Interface { recv, .. }
@@ -517,7 +517,7 @@ fn needs_stmts(e: &IrExpr) -> bool {
             c || args.iter().any(|a| needs_stmts(&a.value))
         }
         ExprKind::Field { base, .. } | ExprKind::Copy(base) => needs_stmts(base),
-        ExprKind::Index { base, index } => needs_stmts(base) || needs_stmts(index),
+        ExprKind::Index { base, index, .. } => needs_stmts(base) || needs_stmts(index),
         ExprKind::Slice {
             base, start, end, ..
         } => {
@@ -609,7 +609,7 @@ impl Scan {
             ExprKind::Local(l) => {
                 self.reads.insert(*l);
             }
-            ExprKind::Call { callee, args } => {
+            ExprKind::Call { callee, args, .. } => {
                 match callee {
                     Callee::Method { recv, .. }
                     | Callee::Interface { recv, .. }
@@ -626,7 +626,7 @@ impl Scan {
             | ExprKind::Some(base)
             | ExprKind::Ok(base)
             | ExprKind::Err(base) => self.expr(base),
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 self.expr(base);
                 self.expr(index);
             }
@@ -4352,7 +4352,7 @@ impl<'p> Emitter<'p> {
 
     /// An expression whose value is discarded, as a statement (if it does anything).
     fn discard(&mut self, e: &'p IrExpr, out: &mut Vec<Stmt>) -> Result<Option<Stmt>, Error> {
-        let v = if let ExprKind::Call { callee, args } = &e.kind {
+        let v = if let ExprKind::Call { callee, args, .. } = &e.kind {
             self.call(callee, args, &e.ty, out)?.0
         } else {
             self.expr(e, out)?
@@ -4506,7 +4506,7 @@ impl<'p> Emitter<'p> {
             (ExprKind::Err(v), Form::ResErr) => return Ok(vec![self.expr(v, out)?]),
             _ => {}
         }
-        if let ExprKind::Call { callee, args } = &e.kind {
+        if let ExprKind::Call { callee, args, .. } = &e.kind {
             let (v, from) = self.call(callee, args, &e.ty, out)?;
             return Ok(vec![self.convert(v, from, form, &e.ty)?]);
         }
@@ -4582,7 +4582,9 @@ impl<'p> Emitter<'p> {
                 self.test(pattern, subject, &value.ty, &mut conds, &mut bindings)?;
                 self.bind(&bindings, Mode::Own, out)
             }
-            IrStmt::Assign { target, op, value } => self.assign(target, *op, value, out),
+            IrStmt::Assign {
+                target, op, value, ..
+            } => self.assign(target, *op, value, out),
             IrStmt::While { label, cond, body } => {
                 let mut pre = Vec::new();
                 let c = self.expr(cond, &mut pre)?;
@@ -4746,7 +4748,7 @@ impl<'p> Emitter<'p> {
             coerce_error,
         } = &value.kind
         {
-            if let ExprKind::Call { callee, args } = &inner.kind {
+            if let ExprKind::Call { callee, args, .. } = &inner.kind {
                 let (v, form) = self.call(callee, args, &inner.ty, out)?;
                 if matches!(form, Form::OptPair | Form::ResPair) {
                     let name = self.local_name(local);
@@ -4835,7 +4837,7 @@ impl<'p> Emitter<'p> {
                     sel(unstar(b), &f)
                 }
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let b = self.place_expr(base, out)?;
                 let b = self.stable(b, "base", out);
                 let i = self.expr(index, out)?;
@@ -4875,7 +4877,7 @@ impl<'p> Emitter<'p> {
         out: &mut Vec<Stmt>,
     ) -> Result<(), Error> {
         // `list[i] = v` and `map[k] = v` check the index or the key.
-        if let ExprKind::Index { base, index } = &target.kind {
+        if let ExprKind::Index { base, index, .. } = &target.kind {
             let b = self.place_expr(base, out)?;
             let b = self.stable(b, "base", out);
             let i = self.expr(index, out)?;
@@ -4950,7 +4952,7 @@ impl<'p> Emitter<'p> {
 
     /// The argument for a `mut` parameter: a pointer to the place.
     fn mut_arg(&mut self, e: &'p IrExpr, out: &mut Vec<Stmt>) -> Result<Expr, Error> {
-        if let ExprKind::Index { base, index } = &e.kind {
+        if let ExprKind::Index { base, index, .. } = &e.kind {
             let b = self.place_expr(base, out)?;
             let i = self.expr(index, out)?;
             return Ok(match &base.ty {
@@ -5017,7 +5019,7 @@ impl<'p> Emitter<'p> {
             },
             ExprKind::FnValue(def) => data(self.fn_value(*def, &e.ty)?),
             ExprKind::Const(def) => data(self.def_expr(*def)),
-            ExprKind::Call { callee, args } => self.call(callee, args, &e.ty, out),
+            ExprKind::Call { callee, args, .. } => self.call(callee, args, &e.ty, out),
             ExprKind::Field { base, name } => {
                 let b = self.expr(base, out)?;
                 let f = self.field_name(&base.ty, name);
@@ -5027,7 +5029,7 @@ impl<'p> Emitter<'p> {
                     data(sel(unstar(b), &f))
                 }
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let v = self.seq(&[base, index], out)?;
                 let mut it = v.into_iter();
                 let (b, i) = (
@@ -5044,6 +5046,7 @@ impl<'p> Emitter<'p> {
                 start,
                 end,
                 inclusive,
+                ..
             } => {
                 let b = self.expr(base, out)?;
                 let s = match start {
@@ -5217,7 +5220,7 @@ impl<'p> Emitter<'p> {
                 }
                 data(self.rt_call("Map", "MapOf", elems))
             }
-            ExprKind::Unary { op, operand } => {
+            ExprKind::Unary { op, operand, .. } => {
                 let v = self.expr(operand, out)?;
                 data(match op {
                     UnaryOp::Not => not(v),
@@ -5241,7 +5244,7 @@ impl<'p> Emitter<'p> {
                     }
                 })
             }
-            ExprKind::Binary { op, lhs, rhs } => data(self.binary(*op, lhs, rhs, out)?),
+            ExprKind::Binary { op, lhs, rhs, .. } => data(self.binary(*op, lhs, rhs, out)?),
             ExprKind::Closure {
                 params,
                 body,
@@ -6594,7 +6597,7 @@ impl<'p> Emitter<'p> {
                 // `let Some(x) = f()` on an idiomatic result: `if x, ok := f(); ok { ... }`.
                 let mut computed = None;
                 if let (
-                    ExprKind::Call { callee, args },
+                    ExprKind::Call { callee, args, .. },
                     Pattern::Some(inner) | Pattern::Ok(inner),
                 ) = (&value.kind, pattern)
                 {
@@ -6735,7 +6738,7 @@ impl<'p> Emitter<'p> {
         out: &mut Vec<Stmt>,
     ) -> Result<(), Error> {
         // `match f() { Some(x) => ..., None => ... }` on an idiomatic result.
-        if let ExprKind::Call { callee, args } = &scrutinee.kind {
+        if let ExprKind::Call { callee, args, .. } = &scrutinee.kind {
             if arms
                 .iter()
                 .all(|a| a.guard.is_none() && simple_arm(&a.pattern))

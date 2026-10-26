@@ -524,9 +524,9 @@ impl<'d> Walk<'d> {
                 items.iter_mut().for_each(|x| self.expr(x));
             }
             ExprKind::Variant { values, .. } => values.iter_mut().for_each(|x| self.expr(x)),
-            ExprKind::Call { callee, args } => self.call(callee, args),
+            ExprKind::Call { callee, args, .. } => self.call(callee, args),
             ExprKind::Field { base, .. } => self.expr(base),
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 self.expr(base);
                 self.expr(index);
             }

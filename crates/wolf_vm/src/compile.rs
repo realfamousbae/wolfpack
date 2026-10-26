@@ -742,7 +742,9 @@ impl FnC {
                     self.patch(skip);
                 }
             }
-            Stmt::Assign { target, op, value } => self.assign(c, target, *op, value)?,
+            Stmt::Assign {
+                target, op, value, ..
+            } => self.assign(c, target, *op, value)?,
             Stmt::While { label, cond, body } => {
                 let top = self.here();
                 self.loops.push(Loop {
@@ -922,7 +924,7 @@ impl FnC {
                 }
                 self.emit(Op::SetField(i));
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 let map = matches!(base.ty, Type::Map(..));
                 self.expr(c, base)?;
                 self.expr(c, index)?;
@@ -1003,13 +1005,13 @@ impl FnC {
                 let k = self.constant(v);
                 self.emit(Op::Const(k));
             }
-            ExprKind::Call { callee, args } => self.call(c, callee, args)?,
+            ExprKind::Call { callee, args, .. } => self.call(c, callee, args)?,
             ExprKind::Field { base, name } => {
                 let i = c.field_index(&base.ty, name)?;
                 self.expr(c, base)?;
                 self.emit(Op::Field(i));
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 self.expr(c, base)?;
                 self.expr(c, index)?;
                 self.emit(if matches!(base.ty, Type::Map(..)) {
@@ -1023,6 +1025,7 @@ impl FnC {
                 start,
                 end,
                 inclusive,
+                ..
             } => {
                 self.expr(c, base)?;
                 if let Some(s) = start {
@@ -1106,7 +1109,7 @@ impl FnC {
                 }
                 self.emit(Op::Map(count(pairs.len())?));
             }
-            ExprKind::Unary { op, operand } => {
+            ExprKind::Unary { op, operand, .. } => {
                 self.expr(c, operand)?;
                 let u = match op {
                     UnaryOp::Neg if operand.ty == Type::Float => UnOp::FNeg,
@@ -1116,7 +1119,7 @@ impl FnC {
                 };
                 self.emit(Op::Unary(u));
             }
-            ExprKind::Binary { op, lhs, rhs } => match op {
+            ExprKind::Binary { op, lhs, rhs, .. } => match op {
                 BinaryOp::And | BinaryOp::Or => {
                     self.expr(c, lhs)?;
                     let start = self.depth;
@@ -1423,7 +1426,7 @@ impl FnC {
                 self.expr(c, base)?;
                 self.emit(Op::RefField(i));
             }
-            ExprKind::Index { base, index } => {
+            ExprKind::Index { base, index, .. } => {
                 self.expr(c, base)?;
                 self.expr(c, index)?;
                 self.emit(if matches!(base.ty, Type::Map(..)) {
@@ -1810,7 +1813,7 @@ fn walk_expr(e: &Expr, used: &mut BTreeSet<Var>, bound: &mut BTreeSet<Var>) {
             used.insert(Var::SelfValue);
         }
         ExprKind::Interpolate(parts) | ExprKind::List(parts) => parts.iter().for_each(go),
-        ExprKind::Call { callee, args } => {
+        ExprKind::Call { callee, args, .. } => {
             match callee {
                 Callee::Fn(_) => {}
                 Callee::Method { recv, .. }
@@ -1823,7 +1826,7 @@ fn walk_expr(e: &Expr, used: &mut BTreeSet<Var>, bound: &mut BTreeSet<Var>) {
             }
         }
         ExprKind::Field { base, .. } => go(base),
-        ExprKind::Index { base, index } => {
+        ExprKind::Index { base, index, .. } => {
             go(base);
             go(index);
         }
