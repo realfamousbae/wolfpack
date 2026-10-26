@@ -854,12 +854,17 @@ extern {
 3. Building a project for a target checks every module reachable from the entry module. A module not
    available for that target is an error that names the module, its `extern` section and the import
    chain from the entry (E0704).
+4. **[PROPOSAL]** (D6.10) A module that imports a package module (chapter 6, section 1b; section
+   8.8) is bound to the target of the package, as if it declared the names it uses in that
+   target's block only. E0704 then points at the import.
 
 ### 8.6 Dependencies
 
 `[extern.<target>.dependencies]` in the manifest **[PLAN]** lists target packages and versions. They
 are copied verbatim into `package.json`, `go.mod` or `Cargo.toml` (chapter 8); `wolf` does not check
 them. Packages of a target's own standard library need no entry.
+**[PROPOSAL]** (D7.42) The same packages can be imported as package modules (section 8.8); then
+`wolf` fetches them before it checks the project (chapter 8, section 2d), and reads them.
 
 ### 8.7 Native modules: declarations read from the target code
 
@@ -1017,6 +1022,106 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
     no syntax for methods in 0.2: the method form of a target function there stays a function
     whose first parameter is the receiver (section 8.2).
 
+### 8.8 Package modules: declarations read from fetched packages
+
+Proposed on 2026-10-26 (D7.42, D7.43), waiting for the author. **[PROPOSAL]** for the whole
+section.
+
+A package module (chapter 6, section 1b) is read like a native module: the compiler reads the
+declarations of the package, never its bodies, and each item it can map becomes a name of the
+module. The rules of section 8.7 apply, with the differences below.
+
+1. **Fetched first.** The files are those of the package as the tool of its target fetched it
+   (chapter 8, section 2d). Unlike a native module, a package module therefore needs `npm`, `go` or
+   `cargo` the first time it is checked and whenever the dependencies change; once fetched, it is
+   read without them.
+2. **One target.** A package module has one target (chapter 6, section 1b, rule 4). The agreement
+   of targets (section 8.7, rule 10) does not apply, and the `number` rule (rule 14) has no other
+   target to ask: every TypeScript `number` is `Float`. Code that needs an `Int` from a `number`
+   writes an `extern` line with the path of the package (section 8.2), or converts the `Float`.
+3. **Nothing in a package is an error by itself.** The user cannot fix the files of a package, so
+   a file that cannot be parsed is not E0714: its items are not available, with the message of the
+   parser as the reason. As for native modules, using a name that is not available is E0713 with
+   the reason, and `wolf check --native ts.fastest_levenshtein` lists what was read and what was
+   left out (chapter 8, section 8b); a module path that names no native or package module there is
+   E0716.
+4. **Calls.** A function of a package module is generated as an extern function with the path of
+   section 8.2 (not a `native:` path), with the types the reader found, as for native modules
+   (chapter 8, section 8a): `"fastest-levenshtein#distance"`,
+   `"github.com/agnivade/levenshtein.ComputeDistance"`, `"strsim::levenshtein"`.
+5. The playground has no package modules, and the VM cannot run a module that imports one (E0807,
+   chapter 10, section 3).
+
+What is read of each ecosystem (D7.43):
+
+6. **npm packages.** The declaration file of the package in `out/ts/node_modules/`: for the module
+   itself, the `types` condition of the `"."` entry of `exports` in its `package.json`, else its
+   `types` or `typings` field, else `index.d.ts`; for a part (`ts.date_fns.locale`), the entry of
+   `exports` for that subpath. A package without declarations is read from `@types/<name>`
+   (`@types/scope__name` for `@scope/name`) when that package is listed too; otherwise the module
+   has no names, and E0713 says to add `@types/<name>`. In the declaration file, in addition to
+   rule 12 (`.d.ts` files are read here, unlike rule 16 for `native/ts/`):
+   - `export declare function`, and a constant of a function type
+     (`export declare const distance: (a: string, b: string) => number`) become functions;
+   - an export list `export { closest, distance }` or `export { a as b }` exports the declarations
+     of the file that it names, under the names it gives;
+   - `export * from "./x"` and `export { a } from "./x"` are followed into the files of the same
+     package; re-exports from another package are not;
+   - `export =`, `declare namespace`, `declare module`, `export default`, a function with
+     overloads, generic functions and types, and the types that rule 13 does not map make the
+     items not available.
+7. **Go modules.** The package directory in the module cache of Go: the `.go` files directly in
+   it, except `_test.go` files and files with build constraints: a `//go:build` or `// +build`
+   line, or a name that ends in `_<os>.go`, `_<arch>.go` or `_<os>_<arch>.go` (`_linux.go`,
+   `_arm64.go`). An item declared only in such files is not available ("it is declared only for
+   some platforms"), so what is read is the same on every system. Rules 8, 9 and 17 apply
+   unchanged; types of other packages (`io.Reader`, `time.Duration`) make an item not available.
+8. **Crates.** The library of the crate, found through Cargo (its `src/lib.rs` or the `path` of
+   `[lib]` in its `Cargo.toml`):
+   - the crate root is the module `rust.<name>`, and a `pub mod m` (in its own file or written
+     inline) is the module `rust.<name>.m`;
+   - a `pub use` of an item of the same crate (`pub use crate::error::Error;`,
+     `pub use self::a::*;`, `pub use a::B as C;`) makes the item a name of the module that has the
+     `pub use`; a `pub use` of another crate is not followed;
+   - an item under `#[cfg(feature = "...")]`, also inside `all`, `any` and `not`, is read when Cargo
+     enables that feature of the crate; an item under any other `cfg` (`test`, `unix`, `windows`,
+     `target_os`, `doc`) is not read, as in rule 2;
+   - a type declared in another module of the same crate may appear in a signature: it is the
+     opaque type or record of that module, the same wolfpack type wherever the crate re-exports
+     it. Types of other crates, including `std` types outside the table of rule 3, make an item
+     not available;
+   - items made by macros are not seen.
+9. **Standard libraries** of the targets (`strings`, `std::cmp`, `Math`) are not package modules:
+   they keep their `extern` declarations (section 8.2).
+
+Example: a program for Go only, with `"github.com/agnivade/levenshtein" = "v1.2.0"` in
+`[extern.go.dependencies]` and `enabled = ["go"]` in `[targets]`:
+
+```
+module main
+
+imports {
+    go.levenshtein
+}
+
+main {
+    print(levenshtein.compute_distance("kitten", "sitting").to_string())
+}
+```
+
+`wolf check --native go.levenshtein` prints:
+
+```
+// go.levenshtein, read from the Go module `github.com/agnivade/levenshtein` v1.2.0
+module go.levenshtein
+
+extern {
+    go {
+        pub fn compute_distance(a: String, b: String) -> Int from "github.com/agnivade/levenshtein.ComputeDistance"
+    }
+}
+```
+
 ## 9. Diagnostics
 
 Proposed range E07xx (confirmed in chapter 9).
@@ -1034,11 +1139,11 @@ Proposed range E07xx (confirmed in chapter 9).
 | E0709 | A `native:` path names a file, a package or a module that `native/<target>/` does not have (0.2) |
 | E0710 | A native file or package takes a path of the generated project (0.2) |
 | E0712 | `pub` import of a native module (0.2; chapter 6, section 1a) |
-| E0713 | A name of a native module that the compiler could not map; the reason is shown (0.2) |
-| E0714 | A native file that the compiler cannot read: a syntax error in the target language (0.2) |
+| E0713 | A name of a native module that the compiler could not map; the reason is shown (0.2). Also a name of a package module (proposed, D7.42) |
+| E0714 | A native file that the compiler cannot read: a syntax error in the target language (0.2). Never for a file of a package (proposed, D7.42) |
 | E0715 | A name of a native module that maps to different wolfpack signatures in different targets (0.2) |
 | E0711 | `struct Name from "path"` in an extern block does not name a non-generic struct of the module (0.2) |
-| E0716 | `wolf check --native <module>` names no native module of the project (0.2; chapter 8, section 8b) |
+| E0716 | `wolf check --native <module>` names no native module of the project (0.2; chapter 8, section 8b), or no package module either (proposed, D7.42) |
 
 ## 10. Decisions for the author
 
@@ -1076,3 +1181,5 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.21 | Debug builds (section 3, rule 1): `--debug` for `wolf build`, `wolf run` and `wolf test` (and with `--vm`) adds the location of the failing operation to the panics of the language, `panic at <file>:<line>:<column>: <message>`; stack overflow stays without one; builds without the flag do not change. Alternatives: a setting in `wolfpack.toml` (`[build] debug = true`); locations always in the VM only | **proposed** (2026-10-26), waiting for the author |
 | D7.40 | TypeScript paths as `wolf` 0.5.1 builds them (section 8.2b, rules 1 to 5; chapter 8, section 8, rule 1): globals with any number of names, called as written; methods through `.prototype.`; `module#export` with exactly one name after `#`; the member forms `#X.name`, `#X.prototype.name` and `#X.constructor` only for `native:` paths; Node.js modules and globals need `"@types/node"` in `[extern.ts.dependencies]`, else `tsc` rejects the project (E0802) | **proposed** (2026-10-26), waiting for the author: this only writes down existing behaviour and changes nothing |
 | D7.41 | Member paths of TypeScript (section 8.2b, rules 6 and 7): every export may have members, as `native:` exports already do (`"node:path#posix.join"`, `"some-lib#Parser.parse"`, `"some-lib#Parser.prototype.parse"`, `"some-lib#Parser.constructor"`); `prototype` only before the last name and `constructor` only as the last name, else E0705; a global `.constructor` is `new` (`"RegExp.constructor"` gives `new RegExp(p0)`, where 0.5.1 calls `Function`). Alternatives: keep one name after `#` and call members through a `native/` wrapper; constructors written as `"new RegExp"` instead of `.constructor` | **proposed** (2026-10-26), waiting for the author |
+| D7.42 | Package modules (section 8.8, rules 1 to 5; section 8.5, rule 4): the declarations of a fetched package are read by the readers of section 8.7; one target, so no agreement and every TS `number` is `Float`; nothing in a package is an error until a name that is not available is used (E0713 with the reason, never E0714); calls with the ordinary paths of section 8.2 and the types the reader found; `wolf check --native` lists package modules too (E0716); not in the playground or the VM (E0807). Alternatives: a TS `number` read as `Int` when a setting of the dependency says so; E0714 for package files as for native files | **proposed** (2026-10-26), waiting for the author |
+| D7.43 | What is read of each ecosystem (section 8.8, rules 6 to 9): the `.d.ts` entry of an npm package (`exports` `types`, `types`/`typings`, `index.d.ts`, else a listed `@types/<name>`) with `declare const` functions, export lists and re-exports inside the package, without `export =`, namespaces, overloads and generics; the files of a Go package without build constraints, so the result is the same on every system; the library of a crate with its `pub mod` modules, `pub use` of its own items and `cfg(feature)` as Cargo enables it, without other `cfg`s and macros. Standard libraries stay with `extern`. Alternatives: Go files chosen by `go list` for the host (more items, but a different result per system); reading Rust through rustdoc JSON (complete, but nightly only); TypeScript through `tsc` itself (complete, but needs Node.js for every check and a bridge from JS) | **proposed** (2026-10-26), waiting for the author |

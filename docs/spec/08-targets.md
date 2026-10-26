@@ -258,6 +258,56 @@ rule 5 did, so that no command has to be looked up.
    terminal no longer finds it. The question of section 2b, rule 5 is never asked before
    `wolf self uninstall` (section 2b, rule 6).
 
+## 2d. Fetching packages (`wolf fetch`)
+
+Proposed on 2026-10-26 (D8.30), waiting for the author. **[PROPOSAL]** for the whole section,
+except where marked **[INTERNAL]**.
+
+Package modules (chapter 6, section 1b; chapter 7, section 8.8) are read from fetched packages, so
+the packages must be there before the project is checked, not only before it runs (section 2,
+rule 5).
+
+1. **Only for package modules.** A project that imports no package module is checked as before,
+   without any tool of the targets. A project that imports one needs the tool of its target to
+   fetch it: `npm` for `ts`, `go` for `go`, `cargo` for `rust`, found as in section 2a, rule 1
+   (E0801 when it is missing).
+2. **`wolf fetch [--target <ts|go|rust>]`** fetches the packages of
+   `[extern.<target>.dependencies]` of every enabled target, or of one, whether or not a module
+   imports them. It writes the manifest of the generated project as `wolf build` does (section 2),
+   then:
+
+   | Target | Runs, in `out/<target>/` | The files read are then in |
+   | --- | --- | --- |
+   | TS | `npm install` | `out/ts/node_modules/` |
+   | Go | `go mod download`, then `go list -m -json all`, which says where each module is | the module cache of Go (`go env GOMODCACHE`) |
+   | Rust | `cargo metadata --format-version 1`, which downloads the crates and says where the source of each is and which of its features Cargo enables | the registry of Cargo, under the `CARGO_HOME` of the Rust that runs: `<home>/toolchains/` for the Rust of `wolf setup` (section 2a, rule 1), usually `~/.cargo` otherwise |
+
+   It prints one line per target, such as `fetched 1 package for go`.
+3. **Automatically.** `wolf check`, `wolf build`, `wolf run` and `wolf test` first fetch the
+   packages of a target when the project imports a package module of that target and its
+   packages were never fetched, or `[extern.<target>.dependencies]` changed since they were. As
+   with `cargo check` or `go vet`, the first check of such a project may download; the next ones
+   read from disk. So `wolf check` of such a project writes `out/<target>/` (the manifest of rule
+   2 and the fetched packages), which it never did before; a project without package modules is
+   still checked without writing anything.
+4. **`--offline`** for `wolf check`, `wolf build`, `wolf run` and `wolf test`: nothing is fetched,
+   and packages that are missing are E0803 with the help `run wolf fetch`.
+5. **The language server** never fetches. For missing packages it reports E0803 with the same
+   help, and reads the packages after `wolf fetch` has run.
+6. A fetch that fails is E0803 with the output of the tool, now for `go` and `cargo` as for `npm`.
+   The modules that import the packages of that target are then not checked further, so the
+   failure is not followed by an E0713 for every name.
+7. **Versions.** What is read is what the tool resolved from the versions of
+   `[extern.<target>.dependencies]`, recorded in `out/<target>/` (`package-lock.json`, `go.sum`,
+   `Cargo.lock`). `out/` is not in git and wolfpack has no lock file, so a range such as
+   `^1.0.16` may resolve to another version on another machine, and the declarations read may
+   differ with it. Go versions are exact already.
+8. **[INTERNAL]** After a fetch, `wolf` writes `out/<target>/wolf-fetched.json`: the dependencies
+   it fetched and, for each package, the directory that the reader needs (the entry of
+   `node_modules`, the `Dir` of `go list`, the `manifest_path` and the enabled features of
+   `cargo metadata`). Rule 3 compares it with the manifest, and the readers take their
+   directories from it, so `wolf` never guesses where a cache is.
+
 ## 3. Names
 
 | Wolfpack | TS | Go | Rust |
@@ -737,6 +787,12 @@ Added in 0.2 (author, 2026-10-21, D8.13).
    a module as a written `extern` block, to rename or change what the reader chose.
 3. The diagnostics of the check go to stderr as usual, and the exit code is that of `wolf check`.
    A module path that names no native module of the project is E0716, without a source range.
+4. **[PROPOSAL]** (D7.42) Package modules (chapter 7, section 8.8) are listed the same way, after
+   the native modules, with the paths of chapter 7, section 8.2 instead of `native:` paths and a
+   first comment that names the package and the version read:
+   `wolf check --native go.levenshtein` prints one package module of the project, imported or
+   not, and fetches it first if needed (section 2d). A module path that names neither a native
+   module nor a package module is E0716.
 
 ## 9. Diagnostics
 
@@ -747,7 +803,7 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | E0801 | A tool of the target is not installed (`node`, `tsc`, `go`, `cargo`); the hint names `wolf setup` |
 | E0804 | `wolf setup` could not download or install a tool (section 2a); the tool, the URL and the reason are shown (author, 2026-10-16) |
 | E0802 | A tool of the target rejected the generated code. This is always a compiler bug: the output of the tool is shown with a request to report it |
-| E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16) |
+| E0803 | The packages of `[extern.<target>.dependencies]` could not be fetched (`npm install` failed); the output of the tool is shown (author, 2026-10-16). Proposed (D8.30): also when `go` or `cargo` cannot fetch them for package modules, and when they are missing with `--offline` or in the language server (section 2d) |
 | E0805 | `wolf self update` could not download, check or install a release (section 2b); the URL or the file and the reason are shown (0.2) |
 | E0806 | A tool of the target rejected a project that has code in `native/<target>/` (section 8a); the output of the tool is shown. The error is usually in a native file or in an `extern` declaration that does not match it, so unlike E0802 it is reported for every rejection of such a project (author, 2026-10-19) (0.2) |
 | E0808 | `wolf self uninstall` could not remove a file or a directory (section 2c), or the directory of `wolf` cannot be written; the file and the reason, or the commands that remove it, are shown (D8.15) |
@@ -778,3 +834,7 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.20 | The sized integer types on the targets (section 4; section 4.3; section 8, rule 2): TS `bigint` as `Int` (ADR 0001), with range-checking helpers per width and `BigInt.asIntN`/`asUintN` for the bitwise operators and shifts, so the runtime's `typeof` fallbacks need no change; Go `int8` to `uint32` with checked helpers as for `Int`; Rust `i8` to `u32` with `overflow-checks`; at the extern boundary a TS `number` (exact for every value), the Go and Rust type of the width, and results of any integer type checked against the declared range. Alternative for TS: `number` (idiomatic and faster, and what typed arrays hold; but a `number` is a `Float` to the runtime's fallbacks, so every `Display` and `compare` of a sized value in generic code would need a dictionary, and every conversion to and from `Int` a `BigInt()` or `Number()`) | **proposed** (2026-10-26), waiting for the author |
 | D8.25 | **[DRAFT]** The target forms of `Bytes` (section 4, section 4.2a, section 4.3, section 8): a `Uint8Array` in TypeScript, with room in its buffer for `push` and `append` and stored back into its place, so a `mut` parameter gets a `Ref`; `[]byte` in Go; `Vec<u8>` and `&[u8]` in Rust; UTF-8, hex and base64 written in each runtime, since Node.js decodes hex and base64 leniently and Rust's standard library has neither; at the `extern` boundary parameters without a copy (Go's capacity cut to the length) and results copied in TypeScript and Go. Alternatives for TypeScript: a small class around a `Uint8Array` and a length, changed in place like a list (no `Ref`, but every boundary crossing and every helper unwraps it); a resizable `ArrayBuffer` (ES2024, needs a maximum size given in advance). Recommendation: the plain `Uint8Array`, which is what TypeScript code expects at the boundary | **proposed** (2026-10-26), waiting for the author |
 | D8.26 | **[DRAFT]** **[INTERNAL]** How the tables of case mapping are made (section 7, rule 7; chapter 7, D7.34): one generator in the repository reads `UnicodeData.txt`, `SpecialCasing.txt` and `DerivedCoreProperties.txt` of the fixed version, downloaded with SHA-256 sums, and writes TypeScript, Go and Rust source that is checked in, the Rust source shared by the Rust runtime piece and the VM; runs of (first, last, distance, step) with a binary search and an ASCII path; some 3,000 numbers, 10 to 15 KB of source per runtime piece, written only into programs that call `to_upper` or `to_lower`; tests against the database, against the targets' own functions where their Unicode version is the same, and a differential test over every mapped scalar value. Alternatives: commit the three files of the database (about 4 MB) instead of downloading them when the version moves; call the targets' own functions when `process.versions.unicode` or `char::UNICODE_VERSION` is the fixed version (faster, but a second path to test); Go's `golang.org/x/text/cases` (a dependency of every generated Go project, with a Unicode version of its own) | **proposed** (2026-10-26), waiting for the author |
+| D8.16 | Stack overflow on Go and Rust as on TypeScript and in the VM (section 4.3): `panic: stack overflow`, exit code 101; Go and Rust count the nested calls of functions that can call themselves and stop past 100,000, the limit of the VM | **proposed** (2026-10-26); the alignment itself was agreed in D10.5 |
+| D8.17 | `exit(code)` inside a test (section 2, rule 7): the test fails with `the test exited with code <code>`, also for 0, and the other tests run, on every target as in the VM. Alternatives: `exit(0)` passes the test; or `exit` ends the whole run with its code, as Go and Rust do today, and the VM changes to match | **proposed** (2026-10-26), waiting for the author (author agreed on 2026-10-22 that one rule is needed) |
+| D8.18 | The AUR package `wolfpack-bin` (section 2a, rule 2): the glibc archives of the release and the license files, built and installed in a clean Arch Linux container for each release and pushed to the AUR by the workflow `aur.yml`; `wolf self update` treats its `/usr/bin/wolf` like a `.deb` or `.rpm` | **proposed** (2026-10-26), waiting for the author, who needs an AUR account and the secret `AUR_SSH_KEY` |
+| D8.30 | Fetching packages for package modules (section 2d): `wolf fetch [--target]`; `wolf check`, `build`, `run` and `test` fetch first when a package module is imported and its packages are missing or the dependencies changed; `--offline` forbids it (E0803); the language server never fetches; `npm install`, `go mod download` with `go list -m -json`, and `cargo metadata` say where the files are, so no cache path is guessed (the Rust of `wolf setup` has its own `CARGO_HOME`); projects without package modules still need no tool to be checked; E0803 for `go` and `cargo` too. Alternatives: fetch only with `wolf fetch`, never in `wolf check` (as `npm` works); fetch and unpack packages with `wolf`'s own downloader from the registries, without the tools (it would have to resolve versions as npm, Go and Cargo do) | **proposed** (2026-10-26), waiting for the author |

@@ -29,6 +29,8 @@ Decisions already taken by the author for this chapter (2026-10-07):
 6. The root segment `std` is reserved for the standard library. The root segments `tests` and
    `examples` are reserved for the directories of the same names (section 7), and `native` for
    native modules (section 1a; 0.2): `src/native.wolf` and `src/native/` are E0612.
+   **[PROPOSAL]** (D6.10): `ts`, `go` and `rust` are reserved for package modules (section 1b), so
+   `src/ts.wolf`, `src/go/` and the like are E0612 too.
 
 ## 1a. Native modules
 
@@ -46,6 +48,56 @@ Added in 0.2 (author, 2026-10-20, D6.9).
    targets whose files declare the name, as an extern declaration of only these targets does
    (chapter 7, section 8.5, E0704).
 4. A native module cannot be re-exported with a `pub` import (E0712).
+
+## 1b. Package modules
+
+Proposed on 2026-10-26 (D6.10, D6.11), waiting for the author. **[PROPOSAL]** for the whole
+section.
+
+1. A module path whose root segment is `ts`, `go` or `rust` names a **package module**: the public
+   declarations of a package of that target listed in `[extern.<target>.dependencies]` (section 6,
+   rule 4), which the compiler reads from the fetched package (chapter 7, section 8.8; chapter 8,
+   section 2d). No `extern` line is written for it.
+2. The second segment is the **module name** of the dependency (section 6, rule 4):
+   `ts.fastest_levenshtein` for the npm package `fastest-levenshtein`, `go.levenshtein` for the Go
+   module `github.com/agnivade/levenshtein`, `rust.strsim` for the crate `strsim`. Further
+   segments name a part of the package, each written in `snake_case` as the names of native
+   modules are (chapter 7, section 8.7, rules 8 and 12): `-` and `.` become `_`, and `addDays`
+   becomes `add_days`. A part that cannot be written so (its name is a reserved keyword, or two
+   parts give the same name) cannot be imported:
+
+   | Path | Names |
+   | --- | --- |
+   | `ts.date_fns.locale` | the subpath export `date-fns/locale` of the npm package `date-fns` |
+   | `go.text.unicode.norm` | the package `golang.org/x/text/unicode/norm` of the Go module `golang.org/x/text` |
+   | `rust.regex.bytes` | the module `regex::bytes` of the crate `regex` |
+
+3. A package module is imported like any module, in both forms of section 2.1:
+
+   ```
+   module main
+
+   imports {
+       go.levenshtein
+   }
+
+   main {
+       print(levenshtein.compute_distance("kitten", "sitting").to_string())
+   }
+   ```
+
+   A path whose dependency is not listed is E0602, with a help that names the table of the
+   manifest. A part that the package does not have is E0602 too.
+4. **One target.** A package module belongs to the target of its root segment, and a module that
+   imports it, directly or through other modules, is bound to that target (chapter 7, section 8.5,
+   E0704). The names of packages of different ecosystems do not agree (`distance`,
+   `ComputeDistance`, `levenshtein`), so there is no agreement of targets as for native modules.
+   A program for several targets calls packages through `extern` declarations (chapter 7,
+   section 8.1), or through a native module (section 1a) whose file for each target calls the
+   package of that target.
+5. A package module cannot be re-exported with a `pub` import (E0712), as a native module.
+6. A program of 0.5 with `src/ts.wolf`, `src/go/` or `src/rust.wolf` must rename it (section 1,
+   rule 6).
 
 ## 2. Imports
 
@@ -231,6 +283,20 @@ max_users = 200
    - both `pub` and private constants can be overridden.
 4. `[extern.<target>.dependencies]` lists packages of the target language **[PLAN]**. Their meaning
    is in chapter 7.
+
+   **Module names** **[PROPOSAL]** (D6.11). The value of a dependency is its version, as before,
+   or a table with the version and the **module name** of its package module (section 1b):
+   `"gopkg.in/yaml.v3" = { version = "v3.0.1", name = "yaml" }`. Without `name`, the module name
+   comes from the package: for npm the package name without its scope (`fastest-levenshtein`, and
+   `slugify` for `@sindresorhus/slugify`); for Go the last element of the module path that is not
+   a major version, without a `.v<N>` suffix (`levenshtein` for `github.com/agnivade/levenshtein`,
+   `pgx` for `github.com/jackc/pgx/v5`, `yaml` for `gopkg.in/yaml.v3`); for Rust the crate name.
+   Then it is written in `snake_case` as in section 1b, rule 2 (`-` and `.` become `_`, and an
+   upper-case letter starts a new word: `GoLib` gives `go_lib`). A module name that is still not
+   `snake_case` (it starts with a digit) or is a reserved keyword, and two dependencies of one
+   target with the same module name, are E0611 at the key of the dependency; `name` resolves both.
+   Only the version is written into the manifest of the generated project (chapter 8, section 2,
+   rule 5), and the table has no other keys (E0611).
 5. Unknown tables or keys are an error (E0611), so typos are not silently ignored. **[PROPOSAL]**
 6. `wolf` finds the project by looking for `wolfpack.toml` in the current directory and then in its
    parents. **[PROPOSAL]**
@@ -308,7 +374,7 @@ Proposed range E06xx (confirmed in chapter 9).
 | E0618 | Unused local variable (added by chapter 9; discard with `let _ = expr`) |
 | E0619 | Section not allowed in a module of `tests/` (added in M3) |
 | E0620 | `pub` import outside `src/lib.wolf` (added in M3) |
-| E0712 | `pub` import of a native module (0.2) |
+| E0712 | `pub` import of a native module (0.2), or of a package module (proposed, D6.10) |
 
 ## 10. Decisions for the author
 
@@ -323,3 +389,5 @@ Proposed range E06xx (confirmed in chapter 9).
 | D6.7 | Rest: scopes and conflicts, no private types in public signatures, panic exit code 101, `assert` usable outside tests, prelude names cannot be redeclared, diagnostics | **answered**: yes |
 | D6.8 | 0.2: the directory `native/` with `ts/`, `go/` and `rust/` (section 7, rule 7) | **answered** (author, 2026-10-18): yes |
 | D6.9 | 0.2: native modules `native.<path>`, imported like modules; the root segment `native` reserved in `src/`; no re-export (section 1a, E0712) | **answered** (author, 2026-10-20): yes |
+| D6.10 | Package modules (section 1b): `imports { go.levenshtein }`, `ts.fastest_levenshtein`, `rust.strsim`, `rust.regex.bytes`: a module path whose root segment is a target names a package of `[extern.<target>.dependencies]`, read without `extern` lines; the module that imports it is bound to that target; no `pub` import (E0712); `ts`, `go` and `rust` become reserved root segments in `src/` (E0612), which breaks a program with `src/go.wolf` or the like, as `native` did in 0.2. Alternatives: roots named after the registries (`npm.x`, `go.x`, `crates.x`); one root `pkg.x` with the target taken from the manifest; a string import (`imports { "npm:fastest-levenshtein" as lev }`), which changes the grammar | **proposed** (2026-10-26), waiting for the author |
+| D6.11 | The module name of a dependency (section 6, rule 4): derived from the package name (npm without the scope, the last element of a Go module path without `/vN` or `.vN`, the crate name; `-` and `.` become `_`), or given with `{ version = "...", name = "..." }`; E0611 for a name that is not valid or is taken twice. Alternatives: for Go the name of the `package` clause (`sqlite3` for `github.com/mattn/go-sqlite3` instead of `go_sqlite3`), known only after the package is fetched; a required `name` for every dependency used as a module | **proposed** (2026-10-26), waiting for the author |
