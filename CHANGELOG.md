@@ -54,6 +54,19 @@ All notable changes are recorded here at the end of each milestone.
   its functions functions of the package (`stackSum(self stack[int64])`), as for methods with
   `where` bounds, and TypeScript types `this`: `sum(this: Stack<bigint>)`. Fixed on the way in
   Go: a generic `mut self` method, a function of the package, now gets a pointer to its receiver.
+- The update syntax for enum variants with named fields (spec chapter 4, section 7.2; D4.22):
+  `Shape.Rect { width: 10, ..old }`. The base has the type of the enum with the same type
+  arguments (E0401) and is moved as the base of a struct is; the listed fields are evaluated
+  first, then the base. A base of another variant is a panic of the language,
+  `panic: update of Shape.Rect from Shape.Circle`, without a location and with exit code 101, on
+  every target and in the VM. E0434 is retired: `wolf explain E0434` says that it is no longer
+  used. The IR lowers the update into a `match` on the base, with an arm for the variant and one
+  for each other variant, and a new node `Fail` for the panic, which each target writes with its
+  runtime's `fail` (the VM with `Fail`). Fixed on the way: TypeScript narrowed a variable that
+  holds a new variant to that variant's class and rejected a `match` on it (the value is now
+  written `new ShapeRect(...) as Shape`), and the Rust printer wrote struct patterns wider than
+  `struct_lit_width` and the struct variants of an enum with a long one on one line, which
+  `rustfmt` breaks.
 
 ## 0.5.1 (2026-10-26)
 
