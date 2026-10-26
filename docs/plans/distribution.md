@@ -52,6 +52,7 @@ Ordered by how many users each one reaches and how little it costs to keep.
 | Debian/Ubuntu, Fedora | done: `.deb` and `.rpm` of the static builds, made with nfpm (`release/linux/nfpm.yaml`) | built in the release workflow, tried on Ubuntu and Fedora |
 | Arch Linux | prepared: the AUR package `wolfpack-bin`, `PKGBUILD` and `.SRCINFO` written by `release/aur/package.sh` from the glibc archives of the release | `aur.yml` builds and installs the package in a clean Arch Linux container, then pushes it to the AUR (`AUR_SSH_KEY`) |
 | Cargo | done: `cargo install --locked wolfpack-lang` | `cargo publish` of every crate in order |
+| VS Code extension | prepared: `editors/vscode` packaged as `wolfpack-<version>.vsix` (publisher `realfamousbae`) | `vscode.yml` attaches the `.vsix` to the release and publishes it to the Visual Studio Marketplace (`VSCE_PAT`) and Open VSX (`OVSX_PAT`) |
 
 Answers of the author (2026-10-23): separate repositories for the tap and the bucket are
 acceptable, and winget is wanted with its pull request for every release.
@@ -66,6 +67,12 @@ into the account (**My Account, SSH Public Key**), the private key into the secr
 of `realfamousbae/wolfpack`. The first push of `aur.yml` creates the package `wolfpack-bin`; until
 the secret exists, the workflow only checks the package. To publish the current release after
 adding the secret, run the workflow **AUR** by hand with its tag.
+
+The VS Code extension needs the publisher `realfamousbae` on marketplace.visualstudio.com (made
+with a Microsoft account) and a personal access token of Azure DevOps with the scope
+**Marketplace: Manage**, added as the secret `VSCE_PAT`; Open VSX needs an account on open-vsx.org
+(signed in with GitHub, with its publisher agreement) and its token as `OVSX_PAT`. With the
+secrets, run the workflow **VS Code** by hand with the tag of the current release.
 
 The tokens are fine-grained personal access tokens of the owner, added under **Settings, Secrets
 and variables, Actions** of `realfamousbae/wolfpack`: `PACKAGES_TOKEN` with **Contents: read and

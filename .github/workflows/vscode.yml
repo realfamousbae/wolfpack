@@ -1,0 +1,80 @@
+name: VS Code
+
+# The VS Code extension of editors/vscode. For a published release the job packages it as
+# wolfpack-<version>.vsix, attaches the file to the release, and publishes it to the Visual Studio
+# Marketplace and to Open VSX. Publishing needs secrets that the owner adds: VSCE_PAT, a token of
+# the Marketplace publisher `realfamousbae`, and OVSX_PAT, a token of open-vsx.org. A step without
+# its token says so and publishes nothing. A push to night that changes the extension only packages
+# it.
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [night]
+    paths:
+      - editors/vscode/**
+      - .github/workflows/vscode.yml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release tag, such as v0.5.1"
+        required: true
+
+jobs:
+  extension:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: editors/vscode
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The package
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ -n "$TAG" ] && [ "v$version" != "$TAG" ]; then
+            echo "::error::package.json has $version, the release is $TAG"
+            exit 1
+          fi
+          npm ci
+          cp ../../LICENSE-MIT LICENSE
+          npx --yes @vscode/vsce package -o "wolfpack-$version.vsix"
+          echo "VSIX=wolfpack-$version.vsix" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: editors/vscode/*.vsix
+      - name: Attach to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$VSIX" --clobber -R "$GITHUB_REPOSITORY"
+      - name: The Visual Studio Marketplace
+        if: env.TAG != ''
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::warning::VSCE_PAT is not set: the extension is not published to the Marketplace"
+            exit 0
+          fi
+          npx --yes @vscode/vsce publish --packagePath "$VSIX"
+      - name: Open VSX
+        if: env.TAG != ''
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::warning::OVSX_PAT is not set: the extension is not published to Open VSX"
+            exit 0
+          fi
+          npx --yes ovsx publish "$VSIX"
