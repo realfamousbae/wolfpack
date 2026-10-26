@@ -60,3 +60,15 @@ below are [INTERNAL] choices recorded so that the author can object.
    shows a field of type `T`) got a counter, in about a dozen end-to-end programs.
 3. Where the graph cannot be precise it says too much: a counter where none is needed costs a few
    instructions, a missing one lets Go stop with its fatal error and Rust abort.
+
+## Limits
+
+1. The limit protects programs and tests, which run on the large stacks of ADR 0016. Code of a
+   Rust library (`kind = "lib"`) called from other Rust code runs on that code's thread, whose
+   stack (8 MiB for the main thread, 2 MiB for others) can end before 100,000 counted calls; the
+   same holds when the system gives none of the large stacks and the program runs on its own
+   thread.
+2. Go counts in a package variable, since a wolfpack program has one goroutine. Extern Go code
+   that calls wolfpack callbacks from several goroutines at once would share the count; Rust
+   counts per thread.
+3. A Go function with a counter has a `defer`, so Go does not inline it.
