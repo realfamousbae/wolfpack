@@ -1,0 +1,7 @@
+module main
+
+main {
+    var items = [1, 2]
+    print(items.remove(0).to_string())
+    print(items.remove(4).to_string())
+}
