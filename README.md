@@ -415,8 +415,8 @@ hello/
 | --- | --- |
 | `wolf new <name>` | create a project (`--kind lib` for a library) |
 | `wolf check` | check the project without generating code; `--bytecode` prints what the VM runs |
-| `wolf build` | generate the target project in `out/<target>/` |
-| `wolf run` | build and run the program (`--target ts\|go\|rust`, `--example <name>`); `--vm` runs it in the VM of `wolf` |
+| `wolf build` | generate the target project in `out/<target>/`; `--vm` writes a bytecode file to `out/vm/` |
+| `wolf run` | build and run the program (`--target ts\|go\|rust`, `--example <name>`); `--vm` runs it in the VM of `wolf`, and `wolf run <file>.wbc` runs a bytecode file |
 | `wolf test` | run the tests of the project (`--vm` in the VM) |
 | `wolf fmt` | format the source files (`--check` only reports) |
 | `wolf explain <code>` | explain an error code with a wrong and a fixed example |
