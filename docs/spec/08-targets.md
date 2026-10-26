@@ -319,6 +319,21 @@ The panic hook (Rust) and `recover` (Go) translate the target's own panic messag
 message of chapter 7, for example Rust's `attempt to add with overflow` becomes
 `panic: integer overflow`. **[INTERNAL]**
 
+**Stack overflow** (D8.16). Recursion that never ends prints `panic: stack overflow` without a
+location and ends the program with exit code 101 on every target, as in the VM (chapter 10, section
+2, rule 7). The depth at which this happens is not specified; a program must not rely on it.
+
+1. TypeScript: the runtime catches Node's `RangeError` at the top of the program or of a test.
+2. Go and Rust: their own stack overflow cannot be caught (Go stops with a fatal error and exit
+   code 2, Rust aborts), so the generated code counts calls. Each function or method that can call
+   itself, directly or through other functions, enters a counter at its start and leaves it at
+   its end; past 100,000 nested calls, the limit of the VM, it panics with `stack overflow`. Other
+   functions are not counted, so code without recursion stays as it was. A call through a function
+   value or an interface value counts as a call of every function that could be behind it.
+   **[INTERNAL]**
+3. Deep data never reaches this limit: copies, equality and freeing are not calls of wolfpack
+   functions (chapter 4, section 7.4).
+
 ## 5. Declarations
 
 ### 5.1 Structs
@@ -585,3 +600,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.13 | 0.2: `wolf check --native [module]` prints what the compiler read from the native code as pasteable wolfpack source, with the items left out and why (section 8b); code E0716 | **answered** (author, 2026-10-21): yes |
 | D8.14 | Homebrew, Scoop, winget, `.deb` and `.rpm` packages and static Linux builds (section 2a, rule 5), and the package managers that `wolf self update` leaves alone (section 2b, rule 4) | **answered** (author, 2026-10-23): yes, all of them; the exact list of rule 4 is proposed |
 | D8.15 | `wolf self uninstall [--yes]` (section 2c): removes `wolf`, the `PATH` lines that the terminal scripts marked with their comment (never other lines) and the `Path` entry on Windows; asks `[y/N]` before removing the wolfpack home, which `--yes` removes without asking and a script keeps; prints the command of a package manager instead of removing a `wolf` it installed; starts `unins000.exe` of the Windows setup program; E0808 for a step that fails or a directory that cannot be written (`/usr/local/bin` of the macOS package); on Windows the renamed `wolf.old.exe` is removed by a hidden command after `wolf` exits | **answered** (author, 2026-10-25): yes |
+| D8.16 | Stack overflow on Go and Rust as on TypeScript and in the VM (section 4.3): `panic: stack overflow`, exit code 101; Go and Rust count the nested calls of functions that can call themselves and stop past 100,000, the limit of the VM | **proposed** (2026-10-26); the alignment itself was agreed in D10.5 |
