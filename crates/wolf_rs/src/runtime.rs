@@ -151,10 +151,17 @@ pub fn run_main_args_result(main: fn(&[String]) -> Result<(), Box<dyn Error>>) {
     Piece {
         name: "test",
         deps: &["message", "big_stack"],
-        code: r#"/// Runs the body of a test; a panic fails the test with its message.
+        code: r#"/// The value of the panic that stops a test which calls `exit` (spec chapter 8, section 2,
+/// rule 7).
+pub struct Exited(pub i64);
+
+/// Runs the body of a test; a panic fails the test with its message, and `exit` with its code.
 pub fn test(body: impl FnOnce() + Copy + Send + 'static) {
     if let Err(payload) = on_big_stack(body) {
-        println!("--- wolf failure: {}", message(&*payload));
+        match payload.downcast_ref::<Exited>() {
+            Some(Exited(code)) => println!("--- wolf failure: the test exited with code {code}"),
+            None => println!("--- wolf failure: {}", message(&*payload)),
+        }
         std::panic::resume_unwind(payload);
     }
 }"#,
@@ -169,6 +176,18 @@ pub fn exit(code: i64) -> ! {
     }
     flush();
     std::process::exit(code as i32)
+}"#,
+    },
+    Piece {
+        name: "exit_in_test",
+        deps: &["Panic", "test"],
+        code: r#"/// `std.process.exit` in the code built for tests: it stops the test, which fails with the code,
+/// and the other tests run (spec chapter 8, section 2, rule 7).
+pub fn exit(code: i64) -> ! {
+    if !(0..=255).contains(&code) {
+        fail(&format!("exit code {code} out of range"));
+    }
+    std::panic::panic_any(Exited(code))
 }"#,
     },
     Piece {
