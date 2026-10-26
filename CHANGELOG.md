@@ -40,6 +40,20 @@ All notable changes are recorded here at the end of each milestone.
   value: Rust writes `break 'search value`, and TypeScript and Go now send the value to the
   variable of the labelled loop (they used to take the innermost loop, and Go dropped the value).
   `wolf fmt` writes `break search: value`.
+- Inherent blocks for one instantiation of a generic type (spec chapter 4, section 8.3, rule 8;
+  D4.21): `Stack<Int> { fn sum(self) -> Int { ... } }`. An argument of the head that names a type,
+  or that is more than a single name (`List<String>`, `fn(Int) -> Int`), is a type argument; a
+  single name that names no type declares a parameter, and heads may mix both (`Pair<String, T>`).
+  The methods of such a block exist only for that instantiation: on another one they are E0424,
+  with a note naming the block, and a receiver whose type arguments are not known yet takes those
+  of the block. Method names stay unique across all the blocks of a type (E0415), a second block
+  with the head of an earlier one is E0210, an interface implementation for one instantiation is
+  the new error E0448, bounds after a type argument are E0301, and a type argument cannot use the
+  parameters of the head (E0402). The IR marks such a method with the head (`Function::instance`):
+  Rust writes `impl Stack<i64> { ... }` and calls its functions `Stack::<i64>::zero()`, Go makes
+  its functions functions of the package (`stackSum(self stack[int64])`), as for methods with
+  `where` bounds, and TypeScript types `this`: `sum(this: Stack<bigint>)`. Fixed on the way in
+  Go: a generic `mut self` method, a function of the package, now gets a pointer to its receiver.
 
 ## 0.5.1 (2026-10-26)
 
