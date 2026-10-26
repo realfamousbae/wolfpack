@@ -3,9 +3,13 @@
 //! The IR of a checked program is compiled into a bytecode of its own ([`code`]) and run by a
 //! stack machine ([`vm`]), with the intrinsic functions of std written in Rust. The VM behaves
 //! like the three targets: the same output, the same panic messages, the same exit codes.
+//!
+//! `wolf build --vm` writes the compiled image to a bytecode file ([`write_file`]), which
+//! `wolf run <file>.wbc` reads back ([`read_file`]) and runs without a project.
 
 mod code;
 mod compile;
+mod file;
 mod intrinsics;
 mod text;
 mod value;
@@ -15,6 +19,7 @@ use std::io::Write as _;
 
 pub use code::Chunk;
 pub use compile::{Func, Image, compile};
+pub use file::{Executable, HEADER, ReadError, read_file, write_file};
 
 use vm::Vm;
 
@@ -146,10 +151,17 @@ impl Io for StdIo {
 /// a bug of the VM, with its description.
 pub fn run_main(program: &wolf_ir::Program, module: usize, io: &mut dyn Io) -> Result<i32, String> {
     let image = compile(program)?;
-    let (func, takes_args, result) = image
+    let main = image
         .main_of(module)
         .ok_or_else(|| "the module has no `main`".to_string())?;
-    let mut vm = Vm::new(&image, io);
+    run_image(&image, main, io)
+}
+
+/// Runs the `main` of a compiled image: its function, whether it takes the arguments and whether
+/// it returns a `Result`.
+fn run_image(image: &Image, main: (u32, bool, bool), io: &mut dyn Io) -> Result<i32, String> {
+    let (func, takes_args, result) = main;
+    let mut vm = Vm::new(image, io);
     let outcome = vm.main(func, takes_args, result);
     let code = match outcome {
         Ok(None) => 0,

@@ -262,6 +262,23 @@ The VM runs only wolfpack code and std. A program that calls code of the targets
 module and the chain of imports that reaches it. [Chapter 10 of the
 specification](../spec/10-vm.md) has the rules.
 
+`wolf build --vm` writes the bytecode to the file `out/vm/<package name>.wbc` (or
+`out/vm/<example>.wbc` with `--example <example>`), and `wolf run <file>` runs that file without
+the project: where `wolf` is installed, the file alone is enough, and nothing is checked again.
+The arguments after `--`, standard input and the files the program opens are those of the run;
+the values of `[config.<module>]` in `wolfpack.toml` are those of the build, kept in the file.
+
+```text
+$ wolf build --vm
+$ wolf run out/vm/shapes.wbc
+9.0
+```
+
+The bytecode may change in any release of `wolf`, so a file runs only with the version that built
+it. A file of another version, a file that is not a bytecode file, and a damaged one run nothing:
+`wolf run` reports E0809 and asks to build the file again. A library has no file of its own, only
+its examples, and a program that cannot run in the VM cannot be built for it either (E0807).
+
 `wolf check --bytecode` shows the bytecode that the VM runs, to see how a program works inside:
 every function of `src/`, or only the one named, as `area`, `Shape.area` or `shapes.area`. Each
 instruction works on a stack of values; `Load` and `Store` read and write the numbered slots of

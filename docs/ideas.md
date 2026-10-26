@@ -45,4 +45,3 @@ Scoop, winget, `.deb`/`.rpm` packages and static Linux builds after 0.3.
 
 ## The virtual machine (from 2026-10-22, chapter 10, D10.5 and D10.7)
 
-- A bytecode file and a `wolf build` form for it.

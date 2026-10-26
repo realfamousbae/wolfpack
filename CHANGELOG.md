@@ -62,6 +62,16 @@ All notable changes are recorded here at the end of each milestone.
   `WolfExit` of `exit` into the failure, and on Go and Rust `exit` panics with a value of its
   own, `Exited`, which the runner of a test reports. `wolf build` and `wolf run` give the same
   code as before, and `exit` there still ends the program with its code.
+- A bytecode file (spec chapter 10, section 1b; D10.10): `wolf build --vm [--example <name>]`
+  checks the project, compiles it as `wolf run --vm` does and writes `out/vm/<package name>.wbc`
+  (`<example>.wbc` for an example), and `wolf run <file> [-- <args>]` runs that file in the VM
+  without the project, with the values of `[config.<module>]` of the build kept in it. The file is
+  the header line `wolfpack bytecode <version>`, a checksum and the compiled program in a binary
+  encoding of `wolf_vm`; reading it checks the version, the checksum and every number the VM
+  relies on. A file of another version of `wolf`, a file that is not a bytecode file and a damaged
+  one run nothing and are the new error E0809. A library without `--example` cannot be built this
+  way (E0002), nor a program with code of the targets (E0807); `--vm`, `--target` and `--example`
+  do not apply to `wolf run <file>` (E0002).
 
 ## 0.5.1 (2026-10-26)
 

@@ -1,8 +1,9 @@
 //! The `wolf` command-line tool.
 //!
-//! `wolf check` checks a project, `wolf build` generates the target project in `out/<target>/`,
-//! `wolf run` builds and runs it with the tools of the target, `wolf new` creates a project,
-//! `wolf explain` describes an error code, and `wolf setup` installs the tools of the targets.
+//! `wolf check` checks a project, `wolf build` generates the target project in `out/<target>/`
+//! (or a bytecode file for the VM in `out/vm/`), `wolf run` builds and runs it with the tools of
+//! the target (or runs a bytecode file), `wolf new` creates a project, `wolf explain` describes an
+//! error code, and `wolf setup` installs the tools of the targets.
 
 mod build;
 mod check;
@@ -43,9 +44,9 @@ enum Command {
     Check(CheckArgs),
     /// Create a new project with the standard layout.
     New(NewArgs),
-    /// Generate the project for a target in `out/<target>/`.
+    /// Generate the project for a target in `out/<target>/`, or a bytecode file with `--vm`.
     Build(BuildArgs),
-    /// Build the project and run it with the tools of the target.
+    /// Build the project and run it with the tools of the target, or run a bytecode file.
     Run(RunArgs),
     /// Run the tests of the project: `tests` sections and the modules under `tests/`.
     Test(TestArgs),
@@ -165,6 +166,15 @@ struct BuildArgs {
     #[arg(long, value_enum)]
     target: Option<TargetArg>,
 
+    /// Write a bytecode file for the virtual machine of `wolf`, `out/vm/<name>.wbc`, which
+    /// `wolf run <file>` runs without the project.
+    #[arg(long)]
+    vm: bool,
+
+    /// With `--vm`: write the bytecode file of the example `examples/<name>.wolf`.
+    #[arg(long)]
+    example: Option<String>,
+
     /// Write the generated project here instead of `out/<target>/` (for tests).
     #[arg(long, hide = true)]
     out: Option<PathBuf>,
@@ -173,6 +183,9 @@ struct BuildArgs {
 /// Options of `wolf run`.
 #[derive(clap::Args)]
 struct RunArgs {
+    /// A bytecode file written by `wolf build --vm`, to run in the VM without a project.
+    file: Option<PathBuf>,
+
     /// The target; the default target of `wolfpack.toml` if absent.
     #[arg(long, value_enum)]
     target: Option<TargetArg>,
@@ -331,15 +344,30 @@ fn run() -> ExitCode {
         },
         Command::New(args) => new_project(&args),
         Command::Build(args) => {
-            let target = match target(args.target, true, false) {
+            if args.example.is_some() && !args.vm {
+                let _ = writeln!(
+                    io::stderr(),
+                    "error[{}]: `--example` works only with `--vm` in `wolf build`; a target's project has every example",
+                    codes::E0002.id()
+                );
+                return ExitCode::from(EXIT_USAGE);
+            }
+            let target = match target(args.target, true, args.vm) {
                 Ok(t) => t,
                 Err(code) => return code,
             };
             let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let then = if args.vm {
+                build::Then::Bytecode {
+                    example: args.example.clone(),
+                }
+            } else {
+                build::Then::Nothing
+            };
             finish(build::build(
                 &cwd,
                 out_dir(&cwd, args.out.as_deref()).as_deref(),
-                build::Then::Nothing,
+                then,
                 target,
             ))
         }
@@ -360,6 +388,27 @@ fn run() -> ExitCode {
             ))
         }
         Command::Run(args) => {
+            if let Some(file) = &args.file {
+                // A bytecode file runs as it was built (spec chapter 10, section 1b).
+                let flag = if args.vm {
+                    Some("--vm")
+                } else if args.target.is_some() {
+                    Some("--target")
+                } else if args.example.is_some() {
+                    Some("--example")
+                } else {
+                    None
+                };
+                if let Some(flag) = flag {
+                    let _ = writeln!(
+                        io::stderr(),
+                        "error[{}]: `{flag}` does not apply to a bytecode file, which runs in the VM as it was built",
+                        codes::E0002.id()
+                    );
+                    return ExitCode::from(EXIT_USAGE);
+                }
+                return finish(build::run_file(file, args.args.clone()));
+            }
             let target = match target(args.target, false, args.vm) {
                 Ok(t) => t,
                 Err(code) => return code,
