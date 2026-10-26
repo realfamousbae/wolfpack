@@ -242,6 +242,23 @@ fn tests_are_not_in_the_normal_rust_build() {
     assert!(!out.join("tests").exists());
 }
 
+/// `exit` fails only the test under `wolf test` (spec chapter 8, section 2, rule 7); in the code
+/// built by `wolf build --target rust` it still ends the program.
+#[test]
+fn exit_ends_the_program_in_the_normal_rust_build() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/test/exit_in_test");
+    let out = tmp("build-exit_in_test");
+    let _ = fs::remove_dir_all(&out);
+    let output = wolf("build", &dir, &out, &[], None);
+    assert_eq!(output.status.code(), Some(0));
+    let rt = fs::read_to_string(out.join("src/wolf_rt.rs")).unwrap();
+    assert!(rt.contains("std::process::exit(code as i32)"), "{rt}");
+    assert!(
+        !rt.contains("Exited") && !rt.contains("the test exited"),
+        "{rt}"
+    );
+}
+
 /// The `.rs` files and `Cargo.toml` of a generated project, without the build directory.
 fn collect_sources(dir: &Path, sources: &mut Vec<(String, String)>) {
     let mut entries: Vec<PathBuf> = fs::read_dir(dir)

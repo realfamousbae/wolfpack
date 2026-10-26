@@ -1,0 +1,7 @@
+//! A library whose function `stop` calls `exit`: its tests and the tests of `tests/` stop there.
+
+module lib
+
+imports {
+    pub util.{double, stop}
+}

@@ -1,0 +1,15 @@
+module tests.cli
+
+imports {
+    lib.{double, stop}
+}
+
+tests {
+    test "stops on a bad flag" {
+        stop(2)
+    }
+
+    test "doubles after a stop" {
+        assert(double(5) == 10)
+    }
+}

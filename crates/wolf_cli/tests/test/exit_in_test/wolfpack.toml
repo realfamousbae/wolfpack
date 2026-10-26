@@ -1,0 +1,4 @@
+[package]
+name = "exit-in-test"
+version = "0.1.0"
+kind = "lib"
