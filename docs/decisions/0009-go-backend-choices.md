@@ -93,3 +93,5 @@ on 2026-10-24, item 12 on 2026-10-25, also [INTERNAL].
 - The generated code is idiomatic Go where the language allows it: `(T, error)` results,
   `if v, ok := f(); ok`, type switches, methods with pointer receivers, `for i := range` loops.
 - A stack overflow is fatal in Go and cannot be turned into a panic with the canonical message.
+  Since 0.6 the functions that can call themselves count their nested calls and panic first
+  (D8.16, ADR 0018).

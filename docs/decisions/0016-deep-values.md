@@ -41,4 +41,5 @@ can object.
 4. The cost: only the part of a stack that a program reaches takes memory, but a program whose own
    recursion never ends now takes up to 2 GiB on Go and Rust before it stops (Go also copies its
    stack as it grows), where it took at most 1 GB on Go and 8 MiB on Rust. TypeScript and the VM
-   stop it early as before.
+   stop it early as before. Since 0.6 Go and Rust stop it too, after 100,000 nested calls of the
+   functions that can call themselves (D8.16, ADR 0018).
