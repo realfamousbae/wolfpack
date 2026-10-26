@@ -840,7 +840,16 @@ impl Printer {
                 let head = format!("{m}|{}| ", self.closure_params(params));
                 let c = col + width(&head);
                 let b = match body.as_ref() {
-                    Expr::Block(b) => self.block(b, ind),
+                    // rustfmt drops a block that is the only content of a closure's block.
+                    Expr::Block(b) => match (b.stmts.as_slice(), &b.tail) {
+                        ([Stmt::Expr(Expr::Block(inner))], None) if inner.tail.is_none() => {
+                            self.block(inner, ind)
+                        }
+                        ([], Some(t)) if matches!(t.as_ref(), Expr::Block(_)) => {
+                            self.expr(t, ind, c, reserve)
+                        }
+                        _ => self.block(b, ind),
+                    },
                     // rustfmt puts an `if` that does not fit on one line into a block.
                     other @ (Expr::If(..) | Expr::IfLet(..)) => {
                         let one = self.expr(other, ind, c, reserve);
