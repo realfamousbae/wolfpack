@@ -5,6 +5,9 @@
 //!   be formatted as `wolf fmt` writes it, and build for every target.
 //! - An ```` ```output ```` block belongs to the `wolf` block before it: that program is run on
 //!   TypeScript, Go and Rust and must print exactly this text on each.
+//! - A ```` ```test output ```` block belongs to the `wolf` block before it: `wolf test` of that
+//!   project must print exactly this text on TypeScript, Go and Rust and in the VM, and exit with
+//!   0 if it ends with `test result: ok.`, with 1 otherwise.
 //! - A ```` ```ts generated src/main.ts ```` block (or `go`, `rust`) belongs to the `wolf` block
 //!   before it: the build of that program for the target must produce exactly this file.
 //! - A ```` ```wolf error E0501 ```` block must report that code first.
@@ -27,6 +30,8 @@ enum Block {
     Program {
         source: String,
         output: Option<String>,
+        /// The report of `wolf test`.
+        tests: Option<String>,
         /// Generated files shown in the guide: target, path in `out/<target>/`, text.
         generated: Vec<(String, String, String)>,
     },
@@ -53,6 +58,7 @@ fn blocks(text: &str, failures: &mut Vec<String>, file: &str) -> Vec<Block> {
                     "wolf" => found.push(Block::Program {
                         source: body,
                         output: None,
+                        tests: None,
                         generated: Vec::new(),
                     }),
                     "output" => match found.last_mut() {
@@ -60,6 +66,13 @@ fn blocks(text: &str, failures: &mut Vec<String>, file: &str) -> Vec<Block> {
                             output: o @ None, ..
                         }) => *o = Some(body),
                         _ => failures.push(format!("{file}: `output` without a program before it")),
+                    },
+                    "test output" => match found.last_mut() {
+                        Some(Block::Program {
+                            tests: t @ None, ..
+                        }) => *t = Some(body),
+                        _ => failures
+                            .push(format!("{file}: `test output` without a program before it")),
                     },
                     "wolf fragment" => {}
                     _ if generated(&info).is_some() => {
@@ -134,6 +147,7 @@ fn program(
     dir: &Path,
     source: &str,
     output: Option<&str>,
+    tests: Option<&str>,
     generated: &[(String, String, String)],
 ) -> Vec<String> {
     let (codes, stderr) = check(dir, source);
@@ -188,6 +202,35 @@ fn program(
             }
         }
     }
+    if let Some(expected) = tests {
+        let code = if expected.contains("test result: ok.") {
+            0
+        } else {
+            1
+        };
+        for target in ["ts", "go", "rust", "vm"] {
+            let test_out = dir.with_extension(format!("test-{target}"));
+            let args: Vec<&str> = if target == "vm" {
+                vec!["test", "--vm"]
+            } else {
+                vec![
+                    "test",
+                    "--target",
+                    target,
+                    "--out",
+                    test_out.to_str().unwrap(),
+                ]
+            };
+            let run = wolf(dir, &args);
+            let stdout = String::from_utf8_lossy(&run.stdout);
+            if stdout != expected || run.status.code() != Some(code) {
+                problems.push(format!(
+                    "`wolf test` prints on {target}\n{stdout}\nexpected\n{expected}\n{}",
+                    String::from_utf8_lossy(&run.stderr)
+                ));
+            }
+        }
+    }
     problems
 }
 
@@ -202,9 +245,11 @@ fn check_file(path: &Path) -> Vec<String> {
             Block::Program {
                 source,
                 output,
+                tests,
                 generated,
             } => {
-                for problem in program(&dir, source, output.as_deref(), generated) {
+                for problem in program(&dir, source, output.as_deref(), tests.as_deref(), generated)
+                {
                     failures.push(format!("{name}, block {n}: {problem}"));
                 }
             }
@@ -257,7 +302,7 @@ fn playground_examples_check_build_and_run() {
         let name = path.file_stem().unwrap().to_string_lossy().into_owned();
         let source = fs::read_to_string(&path).unwrap();
         let project = tmp(&format!("playground-{name}"));
-        for problem in program(&project, &source, None, &[]) {
+        for problem in program(&project, &source, None, None, &[]) {
             failures.push(format!("playground example {name}: {problem}"));
         }
         let run_out = project.with_extension("run");

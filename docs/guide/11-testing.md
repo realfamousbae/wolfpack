@@ -124,6 +124,12 @@ version = "0.1.0"
 kind = "lib"
 ```
 
+```test output
+test tests/shouting.wolf: shouts ... ok
+
+test result: ok. 1 passed; 0 failed
+```
+
 `wolf test` runs the tests of `src/` and `tests/` together. A library is tested through its API,
 the names of `src/lib.wolf`; for a program, integration tests see the `pub` names of the modules in
 `src/`.
