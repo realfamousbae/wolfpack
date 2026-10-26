@@ -154,7 +154,8 @@ and `tsc` for TypeScript, `go` for Go, `cargo` for Rust (author, 2026-10-16).
    - **Linux**: the terminal script `install.sh`, the archives `wolfpack-linux-x64.tar.gz` and
      `wolfpack-linux-arm64.tar.gz`, their static builds `...-musl.tar.gz` for systems without
      glibc 2.35 (`install.sh` picks them there), the packages `wolfpack-linux-x64.deb`,
-     `...-arm64.deb`, `...-x64.rpm` and `...-arm64.rpm` (of the static builds), or Homebrew;
+     `...-arm64.deb`, `...-x64.rpm` and `...-arm64.rpm` (of the static builds), Homebrew, or on
+     Arch Linux the AUR package `wolfpack-bin` (D8.18), which installs `/usr/bin/wolf`;
    - **Windows**: the terminal script `install.ps1` (`irm ... | iex`), the setup program
      `...-windows-x64-setup.exe`, the archive `wolfpack-windows-x64.zip`, Scoop (`scoop bucket add
      wolfpack https://github.com/realfamousbae/scoop-wolfpack`, `scoop install wolfpack`) or winget
@@ -188,7 +189,7 @@ and after a question at start.
    `cargo install --locked wolfpack-lang`, under a Homebrew prefix (`/opt/homebrew`,
    `/usr/local/Cellar`, `linuxbrew`) `brew upgrade wolfpack`, under `scoop\apps\`
    `scoop update wolfpack`, under `Microsoft\WinGet\` `winget upgrade realfamousbae.wolfpack`, and
-   as `/usr/bin/wolf` (a `.deb` or `.rpm` package) the package manager of the system, and it
+   as `/usr/bin/wolf` (a `.deb`, `.rpm` or AUR package) the package manager of the system, and it
    changes nothing. A `wolf` whose directory cannot be written is not replaced either; the error
    names the directory and the installer command.
 5. **The question at start.** At most once a day `wolf` asks GitHub for the latest release in the
@@ -626,3 +627,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.15 | `wolf self uninstall [--yes]` (section 2c): removes `wolf`, the `PATH` lines that the terminal scripts marked with their comment (never other lines) and the `Path` entry on Windows; asks `[y/N]` before removing the wolfpack home, which `--yes` removes without asking and a script keeps; prints the command of a package manager instead of removing a `wolf` it installed; starts `unins000.exe` of the Windows setup program; E0808 for a step that fails or a directory that cannot be written (`/usr/local/bin` of the macOS package); on Windows the renamed `wolf.old.exe` is removed by a hidden command after `wolf` exits | **answered** (author, 2026-10-25): yes |
 | D8.16 | Stack overflow on Go and Rust as on TypeScript and in the VM (section 4.3): `panic: stack overflow`, exit code 101; Go and Rust count the nested calls of functions that can call themselves and stop past 100,000, the limit of the VM | **proposed** (2026-10-26); the alignment itself was agreed in D10.5 |
 | D8.17 | `exit(code)` inside a test (section 2, rule 7): the test fails with `the test exited with code <code>`, also for 0, and the other tests run, on every target as in the VM. Alternatives: `exit(0)` passes the test; or `exit` ends the whole run with its code, as Go and Rust do today, and the VM changes to match | **proposed** (2026-10-26), waiting for the author (author agreed on 2026-10-22 that one rule is needed) |
+| D8.18 | The AUR package `wolfpack-bin` (section 2a, rule 2): the glibc archives of the release and the license files, built and installed in a clean Arch Linux container for each release and pushed to the AUR by the workflow `aur.yml`; `wolf self update` treats its `/usr/bin/wolf` like a `.deb` or `.rpm` | **proposed** (2026-10-26), waiting for the author, who needs an AUR account and the secret `AUR_SSH_KEY` |
