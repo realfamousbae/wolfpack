@@ -344,6 +344,71 @@ fn tests_are_not_in_the_normal_build() {
     assert!(!out.join("src/main.test.ts").exists());
 }
 
+/// A file of `tests/` that is renamed leaves no test file of the earlier build behind, on any
+/// target: the stale one would import a function that no longer exists.
+#[test]
+fn renamed_test_files_leave_nothing_behind() {
+    let dir = tmp("renamed_tests");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(dir.join("src")).unwrap();
+    fs::create_dir_all(dir.join("tests")).unwrap();
+    fs::write(
+        dir.join("wolfpack.toml"),
+        "[package]\nname = \"renamed\"\nversion = \"0.1.0\"\nkind = \"cli\"\n",
+    )
+    .unwrap();
+    let util = |name: &str| {
+        format!(
+            "module util\n\nfunctions {{\n    pub fn {name}(n: Int) -> Int {{\n        n + 1\n    }}\n}}\n"
+        )
+    };
+    let main = |name: &str| {
+        format!(
+            "module main\n\nimports {{\n    util.{{{name}}}\n}}\n\nmain {{\n    print({name}(1).to_string())\n}}\n"
+        )
+    };
+    let test = |file: &str, name: &str| {
+        format!(
+            "module tests.{file}\n\nimports {{\n    util.{{{name}}}\n}}\n\ntests {{\n    test \"adds one\" {{\n        assert({name}(1) == 2)\n    }}\n}}\n"
+        )
+    };
+    let stale = [
+        ("ts", "test/before.test.ts"),
+        ("go", "tests_before_test.go"),
+        ("rust", "src/tests/before.rs"),
+    ];
+    for (target, stale_file) in stale {
+        let out = dir.join("out").join(target);
+        let run = || wolf_test(&dir, &out, &["--target", target]);
+        fs::write(dir.join("src/util.wolf"), util("inc")).unwrap();
+        fs::write(dir.join("src/main.wolf"), main("inc")).unwrap();
+        let _ = fs::remove_file(dir.join("tests/after.wolf"));
+        fs::write(dir.join("tests/before.wolf"), test("before", "inc")).unwrap();
+        let first = run();
+        assert_eq!(
+            String::from_utf8_lossy(&first.stdout),
+            "test tests/before.wolf: adds one ... ok\n\ntest result: ok. 1 passed; 0 failed\n",
+            "{target}: {}",
+            String::from_utf8_lossy(&first.stderr)
+        );
+        assert!(out.join(stale_file).is_file(), "{target}");
+        // The file and the function it tests are renamed.
+        fs::remove_file(dir.join("tests/before.wolf")).unwrap();
+        fs::write(dir.join("tests/after.wolf"), test("after", "add_one")).unwrap();
+        fs::write(dir.join("src/util.wolf"), util("add_one")).unwrap();
+        fs::write(dir.join("src/main.wolf"), main("add_one")).unwrap();
+        let second = run();
+        assert_eq!(
+            String::from_utf8_lossy(&second.stdout),
+            "test tests/after.wolf: adds one ... ok\n\ntest result: ok. 1 passed; 0 failed\n",
+            "{target}: {}",
+            String::from_utf8_lossy(&second.stderr)
+        );
+        assert_eq!(second.status.code(), Some(0), "{target}");
+        assert!(!out.join(stale_file).exists(), "{target}");
+    }
+}
+
 /// `wolf fmt --check` lists the unformatted files and changes nothing; `wolf fmt` formats them.
 #[test]
 fn fmt_checks_and_formats_a_project() {

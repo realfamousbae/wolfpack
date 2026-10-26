@@ -416,7 +416,9 @@ fn ts(
         .iter()
         .map(|f| (f.path.clone(), f.contents.as_str()))
         .collect();
-    if let Err(e) = write(out, &["src", "examples", "dist"], &list)
+    // `test/` too: a test file of an earlier build whose `.wolf` file is gone would still be
+    // compiled by `tsc`.
+    if let Err(e) = write(out, &["src", "examples", "test", "dist"], &list)
         .and_then(|()| copy_native(native, root, Target::Ts, out, "src/native"))
     {
         return write_failed(result, out, &e);
