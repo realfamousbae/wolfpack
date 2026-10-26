@@ -4,6 +4,13 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Fixed in the Rust backend: an example of a `cli` program did not build, since Cargo's examples
+  cannot use a binary crate (`use my_app::util::twice;` named a crate that did not exist). A
+  build of a program with examples now also writes `src/lib.rs`, which declares the modules of
+  `src/` and the runtime for the examples (spec chapter 8, section 2.1, rule 3); a program
+  without examples is built as before. Examples that import modules of `src/` other than `main`
+  already ran on TypeScript and Go; the test project `cli_integration` now runs such an example
+  on every target and in the VM.
 - Fixed: the tests of `tests/` of a `cli` program did not build on Go and Rust (spec chapter 8,
   section 2.1, rule 2). On Go they are now the external test package `main_test` in the root
   directory (`mylib_test` for a library), which may import the package `main`, in files named

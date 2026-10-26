@@ -331,6 +331,10 @@ my-app/
    small program with its own `main` section, seeing the same names as integration tests.
    `wolf run --example <name>` runs one (a new flag of `wolf run`, PLAN section 10).
    **[PROPOSAL]**
+   **[DRAFT]** (2026-10-27, D6.12): an example of a `cli` cannot import the module `main`; it
+   imports the other modules of `src/`. Such an import is E0616, as for a module of `src/`, with
+   the help "move the shared declarations into a module of `src/` and import that". The tests of
+   `tests/` may still import `main`.
 5. `out/` is generated and is not part of the source; `wolf new` adds it to `.gitignore`.
 6. `wolf new <name> --kind cli|lib` creates `wolfpack.toml`, the entry file with a minimal valid
    program, empty `tests/` and `examples/`, and `.gitignore` **[PLAN]**.
@@ -369,7 +373,7 @@ Proposed range E06xx (confirmed in chapter 9).
 | E0613 | Config override for an unknown constant or with a wrong type |
 | E0614 | Missing `main` section or a wrong parameter or result type in its header |
 | E0615 | Unused import |
-| E0616 | Import of an entry module, or of the module itself |
+| E0616 | Import of an entry module, or of the module itself; **[DRAFT]** (D6.12) also an import of `main` in an example |
 | E0617 | Redeclaration of a prelude name |
 | E0618 | Unused local variable (added by chapter 9; discard with `let _ = expr`) |
 | E0619 | Section not allowed in a module of `tests/` (added in M3) |
@@ -391,3 +395,4 @@ Proposed range E06xx (confirmed in chapter 9).
 | D6.9 | 0.2: native modules `native.<path>`, imported like modules; the root segment `native` reserved in `src/`; no re-export (section 1a, E0712) | **answered** (author, 2026-10-20): yes |
 | D6.10 | Package modules (section 1b): `imports { go.levenshtein }`, `ts.fastest_levenshtein`, `rust.strsim`, `rust.regex.bytes`: a module path whose root segment is a target names a package of `[extern.<target>.dependencies]`, read without `extern` lines; the module that imports it is bound to that target; no `pub` import (E0712); `ts`, `go` and `rust` become reserved root segments in `src/` (E0612), which breaks a program with `src/go.wolf` or the like, as `native` did in 0.2. Alternatives: roots named after the registries (`npm.x`, `go.x`, `crates.x`); one root `pkg.x` with the target taken from the manifest; a string import (`imports { "npm:fastest-levenshtein" as lev }`), which changes the grammar | **proposed** (2026-10-26), waiting for the author |
 | D6.11 | The module name of a dependency (section 6, rule 4): derived from the package name (npm without the scope, the last element of a Go module path without `/vN` or `.vN`, the crate name; `-` and `.` become `_`), or given with `{ version = "...", name = "..." }`; E0611 for a name that is not valid or is taken twice. Alternatives: for Go the name of the `package` clause (`sqlite3` for `github.com/mattn/go-sqlite3` instead of `go_sqlite3`), known only after the package is fetched; a required `name` for every dependency used as a module | **proposed** (2026-10-26), waiting for the author |
+| D6.12 | An example of a `cli` cannot import the module `main` (section 7, rule 4; E0616, whose text already names entry modules). The reason is Go: `main.go` is the package `main`, which no other program can import (`import "my-app" is a program, not an importable package`), so such an example cannot be built at all; on TypeScript it ran the program's own `main` first, since `src/main.ts` calls it when it is loaded. Tests of `tests/` keep importing `main`: Go's external test package `main_test` may import it. Alternatives: a new code E0621 instead of a wider E0616; allow the import and move the declarations of `src/main.wolf` into a package of their own in Go (and guard the entry call in TypeScript) for programs whose examples import `main`, which changes the layout of those programs only | **proposed** (2026-10-27), waiting for the author |

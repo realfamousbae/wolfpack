@@ -131,7 +131,14 @@ Added after approval, while writing the examples. **[INTERNAL]**
    `cargo test --bin`. On Rust, a test function whose name a function, constant or import of its
    scope already has (`test "twice"` next to the imported `twice`) gets a `_` suffix.
 3. **`examples/`**: TS `examples/<path>.ts` compiled as separate entry points; Go one `main` package
-   per example in `examples/<path>/main.go`; Rust the native `examples/<path>.rs` of Cargo.
+   per example in `examples/<path>/main.go`, which imports the packages of `src/` as any other
+   package does; Rust the native `examples/<path>.rs` of Cargo, which use the crate by its name
+   (`use my_app::util::twice;`). A library is such a crate already. For a program, whose binary
+   crate Cargo's examples cannot use, a build with examples also writes `src/lib.rs`, a second
+   root of the same module files: it declares the top-level modules of `src/` (and `native`) and
+   the runtime `pub`, with the attributes of `src/main.rs`. `src/main.rs` is unchanged and
+   declares the modules itself, so a program without examples, and every test build, gets no
+   `src/lib.rs`.
 
 ## 2a. The tools of the targets and `wolf setup`
 

@@ -1,0 +1,11 @@
+//! An example of a program: it sees the `pub` names of the modules of `src/` other than `main`.
+
+module examples.show
+
+imports {
+    util.{twice}
+}
+
+main {
+    print("twice 21 is " + twice(21).to_string())
+}
