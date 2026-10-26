@@ -1,0 +1,15 @@
+module tests.deep_inner
+
+imports {
+    lib.{double}
+}
+
+tests {
+    test "a file next to the directory" {
+        assert(double(0) == 0)
+    }
+
+    test "a wrong expectation" {
+        assert(double(2) == 5)
+    }
+}

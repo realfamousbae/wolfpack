@@ -1,0 +1,16 @@
+//! A library with tests in a directory of `tests/`, and a file whose test target or test file
+//! would have the same name as theirs.
+
+module lib
+
+functions {
+    pub fn double(n: Int) -> Int {
+        n * 2
+    }
+}
+
+tests {
+    test "doubles" {
+        assert(double(4) == 8)
+    }
+}

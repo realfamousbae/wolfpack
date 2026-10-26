@@ -1,0 +1,17 @@
+module tests.deep.inner
+
+imports {
+    lib.{double}
+}
+
+functions {
+    fn helper() -> Int {
+        3
+    }
+}
+
+tests {
+    test "nested doubles" {
+        assert(double(helper()) == 6)
+    }
+}

@@ -151,6 +151,11 @@ pub(crate) struct Emitter<'p> {
     /// The modules of `tests/` that the `mod tests` of `src/main.rs` declares, when that file is
     /// emitted.
     test_mods: BTreeSet<String>,
+    /// The Cargo test target of each file of `tests/` of a library, by module.
+    test_targets: BTreeMap<usize, String>,
+    /// The test targets that Cargo does not find by itself (files in directories of `tests/`):
+    /// name and path, for `[[test]]` in `Cargo.toml`.
+    pub(crate) extra_test_targets: Vec<(String, String)>,
     // State of the module being emitted.
     module: usize,
     uses: BTreeMap<String, BTreeSet<String>>,
@@ -554,6 +559,8 @@ impl<'p> Emitter<'p> {
             rt: BTreeSet::new(),
             test_list: Vec::new(),
             test_mods: BTreeSet::new(),
+            test_targets: BTreeMap::new(),
+            extra_test_targets: Vec::new(),
             module: 0,
             uses: BTreeMap::new(),
             f: FnState::default(),
@@ -573,6 +580,7 @@ impl<'p> Emitter<'p> {
             self_mode: f.self_mode,
             boxed_self: f.self_mode == Some(Mode::Own) && f.interface.is_some(),
         };
+        self.test_target_names();
         for m in &p.modules {
             let path = match m.role {
                 ModuleRole::Std => None,
@@ -999,6 +1007,42 @@ impl<'p> Emitter<'p> {
             ModuleRole::Example => true,
             ModuleRole::Test => self.p.kind == ProgramKind::Lib,
             _ => false,
+        }
+    }
+
+    /// Names the Cargo test targets of the files of `tests/` of a library: `tests/a.wolf` is the
+    /// target `a`, which Cargo finds by itself; `tests/a/b.wolf` is `a_b`, declared in
+    /// `Cargo.toml`, with a `_` suffix if another target has that name.
+    fn test_target_names(&mut self) {
+        if self.p.kind != ProgramKind::Lib {
+            return;
+        }
+        let tests: Vec<(usize, &Vec<String>)> = self
+            .p
+            .modules
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.role == ModuleRole::Test)
+            .map(|(i, m)| (i, &m.path))
+            .collect();
+        let mut taken: BTreeSet<String> = BTreeSet::new();
+        for (i, path) in &tests {
+            if let [_, name] = path.as_slice() {
+                taken.insert(name.clone());
+                self.test_targets.insert(*i, name.clone());
+            }
+        }
+        for (i, path) in &tests {
+            if path.len() > 2 {
+                let mut name = path.get(1..).unwrap_or_default().join("_");
+                while taken.contains(&name) {
+                    name.push('_');
+                }
+                taken.insert(name.clone());
+                self.extra_test_targets
+                    .push((name.clone(), format!("{}.rs", path.join("/"))));
+                self.test_targets.insert(*i, name);
+            }
         }
     }
 
@@ -1840,9 +1884,11 @@ impl<'p> Emitter<'p> {
     fn test_fn(&mut self, m: &'p ir::Module, t: &'p ir::Test) -> Result<Item, Error> {
         let name = test_name(&t.name);
         let target = match m.role {
-            ModuleRole::Test if self.p.kind == ProgramKind::Lib => {
-                m.path.iter().skip(1).cloned().collect::<Vec<_>>().join("_")
-            }
+            ModuleRole::Test if self.p.kind == ProgramKind::Lib => self
+                .test_targets
+                .get(&self.module)
+                .cloned()
+                .unwrap_or_default(),
             _ => match self.p.kind {
                 ProgramKind::Cli => "bin".to_string(),
                 ProgramKind::Lib => "lib".to_string(),

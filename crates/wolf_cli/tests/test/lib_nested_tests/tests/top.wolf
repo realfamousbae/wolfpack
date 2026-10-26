@@ -1,0 +1,17 @@
+module tests.top
+
+imports {
+    lib.{double}
+}
+
+functions {
+    fn helper() -> Int {
+        4
+    }
+}
+
+tests {
+    test "double" {
+        assert(double(helper()) == 8)
+    }
+}

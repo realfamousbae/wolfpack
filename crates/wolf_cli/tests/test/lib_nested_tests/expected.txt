@@ -1,0 +1,13 @@
+test src/lib.wolf: doubles ... ok
+test tests/deep/inner.wolf: nested doubles ... ok
+test tests/deep_inner.wolf: a file next to the directory ... ok
+test tests/deep_inner.wolf: a wrong expectation ... FAILED
+test tests/top.wolf: double ... ok
+
+failures:
+
+  tests/deep_inner.wolf: a wrong expectation
+    panic at tests/deep_inner.wolf:13:9: assertion failed: double(2) == 5
+
+test result: FAILED. 4 passed; 1 failed
+exit code: 1

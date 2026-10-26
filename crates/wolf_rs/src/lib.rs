@@ -47,7 +47,12 @@ pub fn generate(program: &Program, wolf_version: &str, tests: bool) -> Result<Pr
     });
     files.push(OutFile {
         path: "Cargo.toml".to_string(),
-        contents: cargo_toml(program, wolf_version),
+        // A `[[test]]` whose file is missing would break `cargo build`.
+        contents: cargo_toml(
+            program,
+            wolf_version,
+            if tests { &e.extra_test_targets } else { &[] },
+        ),
     });
     files.sort_by(|a, b| a.path.cmp(&b.path));
     let mut list = e.test_list.clone();
@@ -58,16 +63,23 @@ pub fn generate(program: &Program, wolf_version: &str, tests: bool) -> Result<Pr
     Ok(Project { files, tests: list })
 }
 
-fn cargo_toml(program: &Program, version: &str) -> String {
+/// `Cargo.toml`; `tests` are the test targets that Cargo does not find by itself (spec chapter
+/// 8, section 2.1).
+fn cargo_toml(program: &Program, version: &str, tests: &[(String, String)]) -> String {
     // `panic` is not a setting of the test profile.
     let profiles = "\n[profile.dev]\noverflow-checks = true\npanic = \"unwind\"\n\n[profile.release]\noverflow-checks = true\npanic = \"unwind\"\n\n[profile.test]\noverflow-checks = true\n";
     let bin = bin_name(program);
-    let kind = match program.kind {
+    let mut kind = match program.kind {
         ProgramKind::Cli if bin != program.name => {
             format!("\n[[bin]]\nname = \"{bin}\"\npath = \"src/main.rs\"\n")
         }
         _ => String::new(),
     };
+    for (name, path) in tests {
+        kind.push_str(&format!(
+            "\n[[test]]\nname = \"{name}\"\npath = \"{path}\"\n"
+        ));
+    }
     // `[extern.rust.dependencies]`, copied verbatim.
     let dependencies: String = program
         .dependencies
