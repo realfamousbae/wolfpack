@@ -30,10 +30,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
    without exceptions. Like `intrinsic` functions, `intrinsic type` is allowed only in std
    (E0701). **[DRAFT]** (2026-10-26, D7.22): `std.string` also declares `Char`.
    **[DRAFT]** (2026-10-26, D7.23): `std.math` also declares the sized integer types.
-   declared in the prelude module. **[DRAFT]** (2026-10-26, D7.30): `std.bytes` declares `Bytes`.
-   Each of these modules holds the inherent `impl` block of its types, so the coherence rule of
-   chapter 4 (an `impl` lives in the module of its type) holds without exceptions. Like
-   `intrinsic` functions, `intrinsic type` is allowed only in std (E0701).
+   **[DRAFT]** (2026-10-26, D7.30): `std.bytes` declares `Bytes`.
 5. **Methods of built-in types are available everywhere without an import**: a method is found
    through the type of the receiver (chapter 4, section 8.4). Importing `std.list` is needed only for
    its free functions.
