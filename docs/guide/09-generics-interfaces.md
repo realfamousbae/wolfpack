@@ -183,6 +183,59 @@ functions are not `Equatable`. Lists work the same way: `items.contains(x)`, `it
 `items.max()` exist for the lists whose elements can do it. `where` names only the type
 parameters of the `impl` block; a free function puts its bounds after its name, `<T: Equatable>`.
 
+### Methods for one instantiation
+
+A block may also be written for one instantiation of a generic type: its head gives a type
+instead of declaring a parameter. Its methods exist only for that instantiation, next to the
+methods of every `Shelf<T>`:
+
+```wolf
+module main
+
+types {
+    struct Shelf<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Shelf<T> {
+        fn size(self) -> Int {
+            self.items.len()
+        }
+    }
+
+    Shelf<Int> {
+        fn total(self) -> Int {
+            var sum = 0
+            for x in self.items {
+                sum += x
+            }
+            sum
+        }
+    }
+}
+
+main {
+    let numbers = Shelf { items: [3, 4, 5] }
+    print(f"{numbers.size()} {numbers.total()}")
+    let books = Shelf { items: ["Dune"] }
+    print(books.size().to_string())
+}
+```
+
+```output
+3 12
+1
+```
+
+`books.total()` would be an error (E0424): `total` is a method of `Shelf<Int>` only. An argument of
+the head that names a type (`Int`, a type of your program or an imported one) or that is more than a
+single name (`List<String>`, `fn(Int) -> Int`) is a type argument; a single name that names no type
+declares a parameter, so a head may mix both: `Pair<String, T> { ... }`. A method name is used once
+across all the blocks of a type, and only inherent blocks can be written for one instantiation: an
+interface is implemented for every instantiation (`Shelf<Int>: Display` is E0448).
+
 ## Interfaces
 
 An **interface** is a set of method signatures. A type implements it in the `impl` section with a
