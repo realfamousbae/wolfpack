@@ -146,6 +146,10 @@ The names added in 0.2 cannot be declared again at the top level (E0617), so a 0
 top-level `fn error` or `type Display` must rename it. Local variables named `error` are fine: they
 shadow the prelude function (section 3.2).
 
+**[DRAFT]** (2026-10-26, chapter 4, D4.23): the built-in type `Char` joins the prelude. Like the
+names of 0.2 it cannot be declared again at the top level (E0617), so a program with a top-level
+type `Char` must rename it.
+
 `assert` is usable everywhere, not only in tests **[PROPOSAL]**. Its exact signature and the
 behaviour of a failed assertion are in chapter 7.
 

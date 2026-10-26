@@ -15,7 +15,8 @@ index brackets, with an inclusive form `..=`; a `Map` literal is `["a": 1]`.
 EBNF with these conventions: `"x"` is a token, `a?` optional, `a*` zero or more, `a+` one or more,
 `a | b` alternatives, `( )` grouping. `IDENT`, `INT`, `FLOAT`, `STRING` are literal tokens from
 chapter 1. `NL` is the `Newline` token. `sep(x, s)` means `x ( s x )* s?`: a list with an optional
-trailing separator.
+trailing separator. **[DRAFT]** (2026-10-26, D1.13): `CHAR`, a character literal (chapter 1,
+section 5.3b), is a literal token too.
 
 **Separators** **[PROPOSAL]**: inside `( )`, `[ ]` and brace-delimited *literals* newlines are
 ignored and `,` separates items. Inside brace-delimited *declarations* (struct fields, enum variants,
@@ -220,7 +221,7 @@ call_args  = "(" sep(arg, ",")? ")"
 arg        = mode? expr
 slice      = expr? ( ".." | "..=" ) expr?
 
-primary    = INT | FLOAT | STRING | "true" | "false"
+primary    = INT | FLOAT | STRING | CHAR | "true" | "false"     // CHAR: [DRAFT] D1.13
            | FSTRING
            | IDENT | "self" | "Self"
            | "(" expr ")" | "(" ")"
@@ -354,7 +355,7 @@ Notes:
 pattern     = alt ( "|" alt )*
 alt         = "_"
             | IDENT                                   // binding
-            | "-"? INT | FLOAT | STRING | "true" | "false"
+            | "-"? INT | FLOAT | STRING | CHAR | "true" | "false"   // CHAR: [DRAFT] D1.13
             | path ( "(" sep(pattern, ",") ")"
                    | "{" sep(field_pat, ",") ( "," ".." )? "}" )?
 field_pat   = IDENT ( ":" pattern )?

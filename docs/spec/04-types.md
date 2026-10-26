@@ -35,6 +35,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
 | `Float` | IEEE 754 binary64 | **[PLAN]** |
 | `Bool` | `true`, `false` | |
 | `String` | immutable sequences of Unicode scalar values, stored as UTF-8 | **[PLAN]**, G1 |
+| `Char` | one Unicode scalar value | **[DRAFT]** (2026-10-26, D4.23), section 3.7 |
 | `Void` | exactly one value, `()` | **[PLAN]** |
 | `List<T>` | ordered, growable sequence | **[PLAN]** |
 | `Map<K, V>` | finite map from keys to values, `K: Hashable` | **[PLAN]**, G3 |
@@ -96,16 +97,74 @@ Decisions already taken by the author for this chapter (2026-10-07):
 3. Length, positions and slices count scalar values (G1). `s[a..b]` is a new `String`; a bound
    outside `0..=len` or `a > b` panics.
 4. There is no `s[i]` on `String` (there is no `Char` type); use `s[i..=i]`. **[PROPOSAL]**
+   **[DRAFT]** (2026-10-26, D4.23): with `Char` (section 3.7) this stays: `s[i]` does not exist,
+   and `s.char_at(i)` gives the `Char` at a position (chapter 7, section 4.3).
 
 ### 3.5 Comparison operators in general
 
 1. `==` and `!=` work on any type that is `Equatable` (section 9), both sides of the same type.
 2. `<`, `<=`, `>`, `>=` work only on `Int`, `Float` and `String` (author). Generic code and user
-   types use `a.compare(b)`, which returns `Ordering`.
+   types use `a.compare(b)`, which returns `Ordering`. **[DRAFT]** (2026-10-26, D4.23): and on
+   `Char` (section 3.7).
 
 ### 3.6 Compound assignment
 
 `x op= y` has exactly the typing and the panics of `x = x op y`; `x` is evaluated once.
+
+### 3.7 `Char` **[DRAFT]** (2026-10-26, D4.23)
+
+Proposed, waiting for the author.
+
+1. `Char` is one **Unicode scalar value**: a code in U+0000 to U+D7FF or U+E000 to U+10FFFF,
+   never a surrogate. It is the unit that `String` is made of (G1): `s.chars()` gives the `Char`s
+   of `s`, and `s.len()` counts them. It is not what a reader sees as one character (a grapheme
+   cluster): `é` written as `e` followed by U+0301 is two `Char`s.
+2. Its literals are `'a'` (chapter 1, section 5.3b). `Char` is declared in `std.string` and is
+   part of the prelude (chapter 6, section 3.3; chapter 7, section 4.3a).
+3. `Char` is a **copy type**, like `Int` (chapter 5, section 2, rule 1): `let d = c` copies.
+4. `==` and `!=` compare scalar values. `<`, `<=`, `>`, `>=` compare scalar values as well, the
+   order in which `String` compares (section 3.4, rule 2): `'Z' < 'a'`, `'z' < 'é'`.
+5. There are no arithmetic or bitwise operators on `Char`: `'a' + 1`, `-c` and `c & 0x20` are
+   E0405. Arithmetic on codes goes through `c.to_int()` and `Char.from_int(n)` (chapter 7,
+   section 4.3a).
+6. `+` does not join a `Char` to a `String` (section 3.4, rule 1 stays as it is): `"a" + c` and
+   `c + c` are E0405; write `"a" + c.to_string()` or `f"a{c}"`.
+7. A `Char` is never a `String` or an `Int`, nor the reverse: `let s: String = 'a'` and
+   `let n: Int = 'a'` are E0401 (section 1, rule 2).
+8. Built-in interfaces (section 9): `Char` is `Equatable` and `Copyable` (derived), `Hashable`, so
+   it can be a `Map` key (the closed list of G3 gains one type), `Comparable` by scalar value, and
+   `Display`: its text is the one-character string.
+9. **Patterns.** A character literal is a literal pattern (section 11, rule 2):
+   `match c { 'a' | 'e' => 1, _ => 0 }`. As for `Int`, a `match` on a `Char` needs a `_` or a
+   binding arm to be exhaustive (section 11, rule 5). There are no range patterns (`'a'..='z'`);
+   a guard serves: `x if x >= 'a' && x <= 'z' => ...`.
+10. `Char` is **not** a type of `config` constants (chapter 2, D2.1 stays): TOML has no character
+    value, and a `String` constant serves.
+11. **No `s[i]`** (section 3.4, rule 4; D4.10 stays). `s.char_at(i)` gives the `Char` at a
+    position and panics out of range like `l[i]` (chapter 7, section 4.3). On every target a
+    position counted in scalar values is found by walking the string, so `s[i]` would look cheap
+    and is not; a slice `s[i..=i]` stays a `String`.
+12. No new code: a mismatch is E0401, an operator that is not defined is E0405, as for the other
+    types.
+
+```
+fn is_vowel(c: Char) -> Bool {
+    match c {
+        'a' | 'e' | 'i' | 'o' | 'u' => true
+        _ => false
+    }
+}
+
+fn count_vowels(s: String) -> Int {
+    var n = 0
+    for c in s.chars() {
+        if is_vowel(c) {
+            n += 1
+        }
+    }
+    n
+}
+```
 
 ## 4. Lists and maps
 
@@ -486,6 +545,10 @@ bounds. Associated functions are called as `Type.f(args)`.
    chapter 7, section 4.1 shows (`[1, 2, 3]`, `Some("a")`, `["Ann": 31]`, `Ok(12)`), so
    `f"{items}"` and `assert_eq` of two lists or two results work. The last sentence of rule 6 no
    longer holds.
+8. **[DRAFT]** (2026-10-26, D4.23) **`Char`** (section 3.7) is `Equatable` and `Copyable`,
+   `Hashable` (added to the closed list), `Comparable` (built in, by scalar value) and `Display`
+   (built in): each row of the table above gains `Char`. A list of `Char`s is `Display` and writes
+   its parts in single quotes, `['a', 'b']` (chapter 7, section 4.1).
 
 ## 10. Type inference
 
@@ -504,12 +567,14 @@ bounds. Associated functions are called as `Type.f(args)`.
 
 1. A pattern must have the type of the scrutinee: `Some(x)` against `Option<T>` binds `x: T`.
 2. Literal patterns are allowed for `Int`, `String` and `Bool` (chapter 3 forbids `Float`).
+   **[DRAFT]** (2026-10-26, D4.23): and for `Char`.
 3. Both sides of `A | B` must bind the same names with the same types.
 4. A guard (`if cond`) must be `Bool`. **A guarded arm never counts toward exhaustiveness.**
 5. **Exhaustiveness** **[PLAN]**: the arms must cover every value of the scrutinee type. For
    `Int` and `String` this needs a `_` or a binding arm. For enums, every variant (and every
    combination for nested patterns) must be covered. The error lists an example of a missing
-   pattern: "missing `Shape.Rect { .. }`".
+   pattern: "missing `Shape.Rect { .. }`". **[DRAFT]** (2026-10-26, D4.23): a `Char` needs a `_`
+   or a binding arm too.
 6. **Unreachable arms** (covered entirely by earlier arms) are an error. **[PROPOSAL]** (see D4.9)
 7. How a binding in a pattern relates to ownership (does `Some(x)` move or borrow) is in chapter 5.
 
@@ -607,4 +672,5 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.21 | **[DRAFT]** Inherent blocks for one instantiation, `Stack<Int> { ... }` (section 8.3, rule 8): a head argument that names a type is a type argument, a name that names no type is a parameter; method names stay unique across all blocks of the type (E0415); interface implementations for one instantiation are E0448. Alternatives: an explicit marker for parameters (`Stack<Int>` vs `<T> Stack<T>`, as in Rust), at the cost of changing every existing head; or `where T == Int` on single methods | **proposed** (2026-10-26), waiting for the author |
 | D4.22 | **[DRAFT]** `..base` for enum variants with named fields (section 7.2): the base has the enum type; a base of another variant panics at run time (`panic: update of Shape.Rect from Shape.Circle`); E0434 is retired. Alternative: keep E0434 (no compile-time check is possible without a type for one variant), which is the drafter's second choice | **proposed** (2026-10-26), waiting for the author |
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
+| D4.23 | The type `Char` (section 3.7): one Unicode scalar value (not a grapheme cluster); a copy type (chapter 5, section 2); `==` and `<` by scalar value, which adds `Char` to the author's list of section 3.5, rule 2; no arithmetic or bitwise operators, and `"a" + c` stays E0405 (section 3.4, rule 1 unchanged); `Equatable`, `Copyable`, `Hashable` (a `Map` key, one more type in the closed list of G3), `Comparable`, `Display`; literal patterns, exhaustive only with `_`; not a `config` type; declared in `std.string` and part of the prelude, so a 0.5 program with a top-level type `Char` must rename it (E0617, chapter 6, section 3.3). `s[i]` stays absent (D4.10); `s.char_at(i)` is proposed instead (chapter 7, D7.22). No new E04xx code. Alternatives: `s[i] -> Char`, reversing D4.10 (it would look O(1) but walks the string on every target); `+` of a `String` and a `Char`; `Char` as a `config` type, from a one-character TOML string; a grapheme cluster, as Swift's `Character` (the targets disagree on clusters as they do on case mapping, D7.3) | **proposed** (2026-10-26), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |

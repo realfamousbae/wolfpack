@@ -28,7 +28,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
    declared in the prelude module. Each of these modules holds the inherent `impl` block of its
    types, so the coherence rule of chapter 4 (an `impl` lives in the module of its type) holds
    without exceptions. Like `intrinsic` functions, `intrinsic type` is allowed only in std
-   (E0701).
+   (E0701). **[DRAFT]** (2026-10-26, D7.22): `std.string` also declares `Char`.
 5. **Methods of built-in types are available everywhere without an import**: a method is found
    through the type of the receiver (chapter 4, section 8.4). Importing `std.list` is needed only for
    its free functions.
@@ -154,6 +154,11 @@ list, an option, a map and a result writes it as the literal that would build it
    `["a"]` for a `List<String>` and `[a]` for a `List<Display>`; an `Err` of type `E` is written
    by its `to_string` when the type argument of `E` is `Display`, and by `message()` otherwise,
    also where the bounds of `E` name only `Error`.
+5. **[DRAFT]** (2026-10-26, D7.22) A part of type `Char` is written in single quotes, as its
+   literal: `['a', 'b']`, `Some('x')`, `['a': 1]`. Inside them `'` is `\'` and `\` is `\\`; line
+   feed, carriage return, tab, U+0000 and the other control characters are escaped as in rule 1;
+   `"` and every other character are written as they are (`['"', '\'']`). A `Char` written by
+   itself keeps no quotes: `f"{c}"` is `a`.
 
 **Canonical `Float` format** (G9) **[PROPOSAL]** (see D7.2):
 
@@ -191,13 +196,63 @@ All positions and lengths count Unicode scalar values (G1).
 | `find(self, part: String) -> Option<Int>` | position of the first occurrence |
 | `split(self, separator: String) -> List<String>` | an empty separator panics |
 | `lines(self) -> List<String>` | splits on `\n` and `\r\n`; no trailing empty line |
-| `chars(self) -> List<String>` | one string per scalar value |
+| `chars(self) -> List<String>` | one string per scalar value; **[DRAFT]** (D7.22): `List<Char>` |
 | `trim(self) -> String` | removes ASCII whitespace at both ends |
 | `replace(self, from: String, to: String) -> String` | all occurrences; empty `from` panics |
 | `repeat(self, times: Int) -> String` | negative `times` panics |
 | `to_upper_ascii(self) -> String`, `to_lower_ascii(self) -> String` | ASCII letters only, see D7.3 |
 
 Free function: `string.join(parts: List<String>, separator: String) -> String`.
+
+**[DRAFT]** (2026-10-26, D7.22), with the type `Char` (chapter 4, section 3.7):
+
+| Method | Notes |
+| --- | --- |
+| `chars(self) -> List<Char>` | one `Char` per scalar value; replaces `List<String>` (breaking) |
+| `char_at(self, index: Int) -> Char` | the scalar value at `index`; outside `0..len` it panics, `index 5 out of range for length 3` |
+| `String.from_chars(chars: List<Char>) -> String` | an associated function: the string of these characters, in order |
+
+`s.chars()` changes its result type. A 0.5 program that uses the parts as strings
+(`parts.push(c)` into a `List<String>`, `c + "x"`) gets E0401 or E0405 at that place and writes
+`c.to_string()`; `for c in s.chars()` with `c` only printed, compared to another part or passed on
+keeps working.
+
+### 4.3a Characters (module `std.string`) **[DRAFT]** (2026-10-26, D7.22)
+
+Proposed, waiting for the author. `Char` (chapter 4, section 3.7) is declared in `std.string`,
+next to `String`, and its methods are available without an import:
+
+| Method | Notes |
+| --- | --- |
+| `to_int(self) -> Int` | the scalar value: `'a'.to_int() == 97` |
+| `Char.from_int(code: Int) -> Option<Char>` | an associated function: `None` for a negative code, a surrogate (U+D800 to U+DFFF) or a code above U+10FFFF |
+| `to_string(self) -> String` | the one-character string; the implementation of `Display` |
+| `compare(self, other: Self) -> Ordering` | by scalar value; the implementation of `Comparable` |
+
+1. `Char.from_int` returns an `Option` rather than panicking: a code that is not a character is an
+   ordinary case of input, like a string that is not a number (`parse_int`), not an overflow.
+2. Not proposed: classification (`is_ascii_digit`) and case mapping (`to_upper_ascii`). The
+   comparisons of chapter 4 serve (`c >= '0' && c <= '9'`); ASCII-only forms, in the manner of
+   D7.3, can follow without changing anything here.
+3. A format specification (section 4.4) treats a `Char` as its text: it aligns to the left by
+   default, and `0` and a precision are E0441.
+
+```
+fn caesar(text: String, shift: Int) -> String {
+    let out = text.chars().map(|c| {
+        if c >= 'a' && c <= 'z' {
+            let code = (c.to_int() - 97 + shift) % 26
+            match Char.from_int(97 + (code + 26) % 26) {
+                Some(d) => d
+                None => c
+            }
+        } else {
+            c
+        }
+    })
+    String.from_chars(out)
+}
+```
 
 Full Unicode case mapping is not in v1, because Go, Rust and JS disagree on it (for example `ß`).
 **[PROPOSAL]** (see D7.3)
@@ -427,6 +482,9 @@ extern {
    `B` is again one of these and the key `K` is `Int`, `String` or `Bool` (E0702). The values of a
    `Map` contain no opaque type, since a map is copied at the boundary and opaque values cannot
    be copied (author, 2026-10-19). Structs, enums and interfaces do not cross the boundary.
+   **[DRAFT]** (2026-10-26, D7.22): `Char` is a boundary type too, also as a key `K`, as a field of
+   a record and in the parameters and result of a callback (rule 7). How it crosses is in
+   chapter 8, section 8.
 2. The error type of a `Result` at the boundary is always `Error` **[PROPOSAL]**: a Go `error`, a
    value thrown in TS, or a Rust `E: Display` becomes an `Error` whose `message()` is the target's
    text.
@@ -439,7 +497,7 @@ extern {
    built on every call (0.2). A map that extern code returns is in **increasing order of its
    keys** on every target, whatever order the target gave it: numbers by value, strings as `<`
    compares them (chapter 4), `false` before `true`. A key that comes twice keeps its last value.
-   (author, 2026-10-19, D7.13)
+   (author, 2026-10-19, D7.13) **[DRAFT]** (2026-10-26, D7.22): characters by scalar value.
 7. A **parameter** of an extern function may have a function type, a **callback**, such as
    `fn each(items: List<String>, f: fn(String) -> Void) from "..."` (0.2, author, 2026-10-19,
    D7.14):
@@ -554,6 +612,9 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
 
    A `char`, a tuple, a `&mut` reference, a lifetime parameter other than elided ones, a type from
    another module or crate, and every other type make the item not available.
+   **[DRAFT]** (2026-10-26, D7.22): with `Char` this stays as it is in a first step: the readers
+   do not map Rust `char` (not available) or Go `rune` (read as `Int`, rule 9) to `Char`, so no
+   native module changes its signatures; a `Char` crosses through a written `extern` block.
 4. **Callbacks.** A parameter of type `impl Fn(A, ..) -> R`, `&dyn Fn(A, ..) -> R`, or of a type
    parameter `F` bounded by `Fn(A, ..) -> R` is a callback `fn(A, ..) -> R` (section 8.4, rule 7).
 5. **Names.** The Rust names are kept: they already follow the wolfpack style. A name that is a
@@ -709,3 +770,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.19 | 0.2: native modules read from TypeScript (section 8.7, rules 12 to 16): exported functions, records from interfaces and object types, opaque classes; `number` is `Float` unless another target says `Int`; no `Result` results | **answered** (author, 2026-10-21): yes |
 | D7.20 | 0.2: methods of opaque types of native modules (section 8.7, rule 17): read-receiver methods become methods called `x.name()`, functions without a receiver and TS constructors become associated functions `Type.name()`; the alternative is plain functions of the module (`index_add(index, word)`), which needs no change to opaque types | **answered** (author, 2026-10-21): methods as methods |
 | D7.21 | **[DRAFT]** Debug builds (section 3, rule 1): `--debug` for `wolf build`, `wolf run` and `wolf test` (and with `--vm`) adds the location of the failing operation to the panics of the language, `panic at <file>:<line>:<column>: <message>`; stack overflow stays without one; builds without the flag do not change. Alternatives: a setting in `wolfpack.toml` (`[build] debug = true`); locations always in the VM only | **proposed** (2026-10-26), waiting for the author |
+| D7.22 | `Char` in std (sections 4.1, 4.3, 4.3a, 8.4, 8.7): declared in `std.string`, in the prelude; `c.to_int()`; `Char.from_int(n) -> Option<Char>` (`None` for negatives, surrogates and codes above U+10FFFF); `Display` and `Comparable` built in; **`s.chars()` returns `List<Char>` instead of `List<String>`** (breaking: a program that uses the parts as strings gets E0401 or E0405 and writes `c.to_string()`); new `s.char_at(i) -> Char`, which panics out of range like `l[i]`, and `String.from_chars(chars) -> String`; a `Char` inside a collection is written `'a'`, escaped like a string part, with `\'`; `Char` crosses `extern` (also as a `Map` key, a record field and in callbacks); the readers of native modules do not change. Alternatives: keep `chars() -> List<String>` and add `to_chars()` (or `scalars()`) for `List<Char>`, which breaks nothing; `Int.to_char()` in `std.math` instead of `Char.from_int` (then `std.math` must know `Char`), or a panicking form beside the `Option`; a free function `string.from_chars`; ASCII classification and case mapping on `Char` now; readers that map Rust `char` to `Char` (breaks nothing) and Go `rune` to `Char` (changes the signatures of Go native modules that use `rune`, read as `Int` since D7.17; with only the Rust change a module with both would disagree, E0715) | **proposed** (2026-10-26), waiting for the author |

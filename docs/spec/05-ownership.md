@@ -34,6 +34,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
 1. Values of the **copy types** are copied implicitly on every use: `Int`, `Float`, `Bool`
    **[PLAN]**, and also `Void`, `Ordering` and every enum whose variants have no payload
    (author, D5.1; ADR 0004). A generic enum is never a copy type.
+   **[DRAFT]** (2026-10-26, chapter 4, D4.23): `Char` is a copy type too.
 2. All other types are **move types**: `String`, `List`, `Map`, `Option`, `Result`, structs, enums,
    interface values, function values. They are copied only explicitly with `x.copy()` **[PLAN]**,
    which requires `Copyable` (chapter 4, section 9) and returns a new owned value.

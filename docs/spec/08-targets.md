@@ -299,6 +299,30 @@ rule 5 did, so that no command has to be looked up.
 | `Result<T, E>` | `{ ok: true, value: T } \| { ok: false, error: E }` | section 4.1 | `Result<T, E>` |
 | function type | arrow function type | `func(...)` | `&dyn Fn(...)` as a read parameter, `Box<dyn Fn(...)>` otherwise |
 
+**[DRAFT]** (2026-10-26, D8.19) **`Char`** (chapter 4, section 3.7):
+
+| Wolfpack | TS | Go | Rust |
+| --- | --- | --- | --- |
+| `Char` | `string` holding one scalar value (one or two UTF-16 units) | `wolfrt.Char`, a type defined as `rune` | `char` |
+| `'a'`, `'\n'` | `"a"`, `"\n"` | `'a'`, `'\n'` (`wolfrt.Char('a')` where Go needs the type) | `'a'`, `'\n'` |
+
+1. TS: `==` is `===`. `<` and `compare` use the helper that compares strings by scalar value
+   (chapter 4, section 3.4, rule 2), since JS compares UTF-16 units and puts `"\u{FFFF}"` after
+   `"\u{10000}"`. `c.to_int()` is `BigInt(c.codePointAt(0)!)`, `Char.from_int(n)` checks the range
+   and calls `String.fromCodePoint`, `s.chars()` is `Array.from(s)`. **[INTERNAL]**
+2. Go: `rune` is another name for `int32`, so a `Char` written as a plain `rune` would be the same
+   Go type as an `Int32`, should sized integers come (D4.24), and the runtime chooses the text and
+   the equality of a value by its Go type in a few places (`wolfrt.ShowAny`, `equalValues`). The
+   defined type `type Char rune` of `wolfrt` keeps them apart; it converts to `rune` and `string`
+   with a plain conversion. `s.chars()` ranges over the string. **[INTERNAL]**
+3. Rust: `char` as it is. It is `Copy`, so a read parameter takes it by value, not `&char`.
+   `s.chars()` is `s.chars().collect()`, and `char_at` walks `s.chars()` after the range check of
+   the runtime. **[INTERNAL]**
+4. Text inside collections (`'a'`, chapter 7, section 4.1, rule 5) comes from the dictionaries
+   of `Display` (section 5.4): a TS `Char` cannot be told from a `String` at run time, so the
+   call site passes the dictionary of `Char`, and the runtime's `display`, which decides by
+   `typeof`, never sees a bare `Char`. Go and Rust know the type. **[INTERNAL]**
+
 ### 4.1 `Option` and `Result` (ADR 0002)
 
 1. **In function results**, where unambiguous:
@@ -552,6 +576,12 @@ copy defensively.
      a `Map` as `Option<&HashMap<K, V>>`; an opaque type `X` as `*X` in Go and `Option<&X>` in
      Rust. `T` may not itself be an `Option` (E0702), since `T | undefined` cannot tell the two
      `None`s apart. Results keep the forms of section 4.1.
+   - **[DRAFT]** (2026-10-26, D8.19) A `Char` crosses as the character type of the target: a
+     `string` of one scalar value in TS, a `rune` in Go and a `char` in Rust, also as a map key, a
+     record field and an argument or result of a callback. A `Char` that comes from extern code
+     is checked where the target type allows other values: in TS the `string` must hold exactly
+     one scalar value, in Go the `rune` must be a scalar value (`utf8.ValidRune`). A failed
+     check is a panic `invalid character from extern code`. A Rust `char` is always valid.
 3. Opaque types are used as they are: the target type in TS and Rust, the declared type in Go.
 
 ## 8a. Code of the project (`native/`)
@@ -628,3 +658,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.16 | **[DRAFT]** Stack overflow on Go and Rust as on TypeScript and in the VM (section 4.3): `panic: stack overflow`, exit code 101; Go and Rust count the nested calls of functions that can call themselves and stop past 100,000, the limit of the VM | **proposed** (2026-10-26); the alignment itself was agreed in D10.5 |
 | D8.17 | **[DRAFT]** `exit(code)` inside a test (section 2, rule 7): the test fails with `the test exited with code <code>`, also for 0, and the other tests run, on every target as in the VM. Alternatives: `exit(0)` passes the test; or `exit` ends the whole run with its code, as Go and Rust do today, and the VM changes to match | **proposed** (2026-10-26), waiting for the author (author agreed on 2026-10-22 that one rule is needed) |
 | D8.18 | **[DRAFT]** The AUR package `wolfpack-bin` (section 2a, rule 2): the glibc archives of the release and the license files, built and installed in a clean Arch Linux container for each release and pushed to the AUR by the workflow `aur.yml`; `wolf self update` treats its `/usr/bin/wolf` like a `.deb` or `.rpm` | **proposed** (2026-10-26), waiting for the author, who needs an AUR account and the secret `AUR_SSH_KEY` |
+| D8.19 | `Char` on the targets (section 4; section 8, rule 2): TS `string` of one scalar value, compared with the scalar-value helper of strings; Go `wolfrt.Char`, a type defined as `rune`, so that it is never the Go type `int32` of an `Int32`, should sized integers come (D4.24), in the type switches of the runtime; Rust `char`; at the extern boundary `string`, `rune` and `char`, with values that come back checked in TS and Go (panic `invalid character from extern code`). Alternatives: TS `number`, the code (faster comparisons, but the generated code shows `97` for `'a'` and every text needs `String.fromCodePoint`); Go plain `rune` (reads better, but every place of the runtime that dispatches on the Go type would need a dictionary instead) | **proposed** (2026-10-26), waiting for the author |

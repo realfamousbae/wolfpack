@@ -16,6 +16,7 @@ named here are proposals for the lexical range.
 4. Whitespace is space (U+0020), horizontal tab (U+0009) and newline. Any other whitespace or
    control character outside a comment is an error (E0102). **[PROPOSAL]**
 5. Non-ASCII characters may appear only inside comments and string literals. **[PROPOSAL]**
+   **[DRAFT]** (2026-10-26, D1.13): and inside character literals (section 5.3b).
 6. Positions in diagnostics are reported as line and column, where the column counts Unicode scalar
    values (consistent with G1). Internally the compiler stores byte offsets. **[PROPOSAL]**
 
@@ -172,6 +173,7 @@ dec_digits = [0-9] ( "_"? [0-9] )*
    | `\xHH` | ASCII character, exactly 2 hex digits, at most `7F` |
    | `\\` | backslash |
    | `\"` | double quote |
+   | `\'` | single quote **[DRAFT]** (2026-10-26, D1.13; section 5.3b, rule 5) |
    | `\u{H...}` | Unicode scalar value, 1 to 6 hex digits |
 
    Any other escape is an error (E0104). A `\u{...}` that is empty, too long, a surrogate
@@ -179,12 +181,15 @@ dec_digits = [0-9] ( "_"? [0-9] )*
 3. Control characters other than tab must be escaped (E0109).
 4. Interpolated, raw and multiline strings are in section 5.3a. There is no character literal,
    because there is no `Char` type in `PLAN.md`; it is recorded in `docs/ideas.md`.
+   **[DRAFT]** (2026-10-26, D1.13): section 5.3b proposes one.
 5. **Literal prefixes.** An identifier immediately followed by `"` is a literal prefix. `f` and `r`
    are prefixes (section 5.3a); any other identifier there is an error (E0113): `b"..."`,
    `fr"..."`, `x"..."`. This is the Rust 2021 rule. It is why `{` in a plain string is an ordinary
    character and stays one, while `f"{name}"` interpolates.
 6. **Reserved for the future: `'`.** The character `'` is not used in v1 and is an error (E0102,
    with a hint that strings use `"`). It stays free for a possible `Char` literal.
+   **[DRAFT]** (2026-10-26, D1.13): `'` starts a character literal (section 5.3b) and is no
+   longer E0102.
 7. Forbidding raw newlines in strings is also deliberate: allowing them later is a compatible
    change, while forbidding them later would not be. Strings that span lines are written with
    `"""` (section 5.3a); a `"..."` string still ends at the end of its line.
@@ -220,6 +225,9 @@ Added in 0.2 (author, 2026-10-18). The forms combine as follows: `f"..."`, `r"..
      both in decimal digits. `0` cannot be combined with a fill or an alignment. Anything else
      after the `:` is an error (E0117). Chapter 7, section 4.4 says what it does.
      A `:` inside the braces belongs to the expression (`f"{[1: 2].len()}"`).
+   - **[DRAFT]** (2026-10-26, D1.13): a character literal (section 5.3b) inside an interpolation
+     counts like a string literal: its `{`, `}` and `:` belong to it, so `f"{c == '}'}"` and
+     `f"{c == ':'}"` have no format specification and close at the last `}`.
 2. **Raw string** `r"..."`. The text is taken as written: `\` is an ordinary character and there
    are no escape sequences, so `r"\d+\.\d+"` is the five-character regular expression `\d+\.\d+`.
    A raw string cannot contain `"`; write it with `r"""..."""`. Control characters other than tab
@@ -247,6 +255,44 @@ Added in 0.2 (author, 2026-10-18). The forms combine as follows: `f"..."`, `r"..
      A `"""` that is never closed is an unterminated string (E0103) at the opening quotes.
 4. All three forms have type `String`. `"""` has no other meaning: today `""` followed by `"` is
    already an error, so the form breaks no valid program.
+
+### 5.3b Character literals **[DRAFT]** (2026-10-26, D1.13)
+
+Proposed, waiting for the author. The type `Char` is in chapter 4, section 3.7.
+
+```
+char_lit    = "'" ( char_plain | char_escape ) "'"
+char_plain  = any Unicode scalar value except "'", "\", line feed, carriage return
+              and the control characters other than tab
+char_escape = an escape of section 5.3, rule 2 (which includes "\'")
+```
+
+1. A character literal is **one Unicode scalar value** between single quotes: `'a'`, `' '`, `'é'`,
+   `'Я'`, `'🐺'`. It has type `Char`.
+2. Escapes are those of strings (section 5.3, rule 2): `'\n'`, `'\t'`, `'\0'`, `'\\'`, `'\''`,
+   `'\x41'`, `'\u{1F43A}'`. The double quote needs no escape (`'"'`), and `'\"'` is allowed as in
+   a string. The errors are those of strings: an unknown escape is E0104, a bad `\u{...}` or a
+   `\x` above `7F` is E0105, a raw control character other than tab is E0109.
+3. After escapes the literal holds **exactly one** scalar value: `''` holds none and `'ab'` two;
+   both are E0118. A letter written with a combining mark, such as `é` typed as `e` followed by
+   U+0301, is two scalar values and so not a `Char` (E0118, with a note that a `String` holds
+   it). The lexer counts scalar values, not what a reader sees as one character (the rule of G1).
+4. A literal that is not closed on its line is E0118: `'a` at the end of a line, or `'` alone.
+   Recovery: the text from the opening `'` to the next `'` on the same line, or to the end of the
+   line, is one `Error` token, so `'ab'` is one error, not two (the lexer of 0.5 already does this
+   for the reserved `'`).
+5. `\'` is an escape of strings too (section 5.3, rule 2), so `"it\'s"` is `it's`: one table of
+   escapes serves both literals, as in Rust. Until now `\'` in a string was E0104, so no valid
+   program changes meaning.
+6. **Prefixes.** An identifier immediately followed by `'` is a reserved literal prefix, as one
+   followed by `"` is (section 5.3, rule 5): `b'a'` and `c'a'` are E0113. This keeps `b'a'` free
+   for a byte literal, should the `Bytes` type (`docs/ideas.md`) want one.
+7. There are no lifetimes, and labels are written without `'` (chapter 3, D3.8), so `'` has no
+   other meaning in the language.
+8. Inside an interpolation a character literal is lexed as in other source (section 5.3a,
+   rule 1): `f"{c == '}'}"`.
+9. A character literal is a literal token `CHAR` of the grammar (chapter 3), allowed in
+   expressions and in patterns.
 
 ### 5.4 Other values
 
@@ -347,6 +393,10 @@ The complete list of errors the lexer reports. This is the scope of milestone M1
 | E0115 | Empty interpolation (added in 0.2) | `f"x = {}"` |
 | E0116 | Malformed multiline string (added in 0.2) | text after the opening `"""`, closing `"""` not on its own line, a line less indented than the closing `"""` |
 | E0117 | Malformed format specification (D4.18) | `f"{x:>>>}"`, `f"{x:5.}"`, `f"{x:}"`, `f"{x:<05}"`, `f"{x:1001}"`, `f"{x:.101}"` |
+| E0118 | Malformed character literal **[DRAFT]** (D1.13): empty, more than one scalar value, or not closed on its line | `''`, `'ab'`, `'e\u{301}'`, `'a` at the end of the line |
+
+**[DRAFT]** (2026-10-26, D1.13): E0104, E0105 and E0109 apply to character literals too (section
+5.3b, rule 2), and E0113 to an identifier glued to `'` (`b'a'`, rule 6).
 
 Recovery: after an error the lexer emits an `Error` token covering the bad text and continues, so
 that all lexical errors of a file are reported at once **[PLAN]** (section 9). The lexer never
@@ -368,3 +418,4 @@ panics on any input; fuzzing in `fuzz/` checks this **[PLAN]** (section 12).
 | D1.10 | 0.2: `f"..."` with `Display`, `r"..."`, `"""..."""` with the indentation of the closing quotes (section 5.3a) | **answered** (author, 2026-10-18): yes |
 | D1.11 | 0.2: `loop` is a reserved word, not a contextual one (section 4) | **answered** (author, 2026-10-18): yes |
 | D1.12 | 0.2: the details of section 5.3a (nested strings in `{}`, no format specifications, no `fr`, no trailing `\n` in `"""`) and codes E0114 to E0116 | **answered** (author, 2026-10-18): yes |
+| D1.13 | Character literals `'a'` for the type `Char` (section 5.3b; chapter 4, D4.23), taking the `'` that rule 5.3.6 reserved: exactly one Unicode scalar value between `'`, non-ASCII allowed (rule 1.5); the escapes of strings, plus `\'`, which strings accept too; an identifier glued to `'` is a reserved prefix (`b'a'`, E0113), keeping `b'a'` for a possible byte literal; a new code **E0118** for an empty literal, more than one scalar value (also a letter with a combining mark) and a literal not closed on its line. Alternatives: `\'` only in character literals (strings keep E0104 for it); no prefix rule (`b'a'` would be a parse error instead); an unclosed literal as E0103, whose text speaks of strings. Open: whether E0118 should be split into "empty or too long" and "not closed" (recommendation: one code, the label says which) | **proposed** (2026-10-26), waiting for the author |
