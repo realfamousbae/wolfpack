@@ -1,0 +1,114 @@
+test src/main.wolf: the operator of a sum after a comment ... FAILED
+test src/main.wolf: a compound assignment to an element ... FAILED
+test src/main.wolf: division by zero ... FAILED
+test src/main.wolf: the remainder of the smallest Int by -1 ... FAILED
+test src/main.wolf: a shift out of range ... FAILED
+test src/main.wolf: the negation of the smallest Int ... FAILED
+test src/main.wolf: an index out of range ... FAILED
+test src/main.wolf: a missing key ... FAILED
+test src/main.wolf: a slice out of range ... FAILED
+test src/main.wolf: an element passed mut ... FAILED
+test src/main.wolf: list.remove ... FAILED
+test src/main.wolf: Float.to_int ... FAILED
+test src/main.wolf: exit with a code out of range ... FAILED
+test src/main.wolf: inside a function ... FAILED
+test src/main.wolf: inside a closure ... FAILED
+test src/main.wolf: a slice of a string ... FAILED
+test src/main.wolf: a compound assignment to a value of a map ... FAILED
+test src/main.wolf: a shift in a compound assignment ... FAILED
+test src/main.wolf: String.split ... FAILED
+test src/main.wolf: String.replace ... FAILED
+test src/main.wolf: String.repeat ... FAILED
+test src/main.wolf: Int.pow ... FAILED
+test src/main.wolf: Int.abs ... FAILED
+test src/main.wolf: list.sum ... FAILED
+test src/main.wolf: list.insert ... FAILED
+test src/main.wolf: list.swap ... FAILED
+test src/main.wolf: a panic keeps its own location ... FAILED
+test src/main.wolf: no panic ... ok
+
+failures:
+
+  src/main.wolf: the operator of a sum after a comment
+    panic at src/main.wolf:27:37: integer overflow
+
+  src/main.wolf: a compound assignment to an element
+    panic at src/main.wolf:34:18: integer overflow
+
+  src/main.wolf: division by zero
+    panic at src/main.wolf:39:19: division by zero
+
+  src/main.wolf: the remainder of the smallest Int by -1
+    panic at src/main.wolf:44:18: integer overflow
+
+  src/main.wolf: a shift out of range
+    panic at src/main.wolf:49:18: shift amount out of range
+
+  src/main.wolf: the negation of the smallest Int
+    panic at src/main.wolf:54:16: integer overflow
+
+  src/main.wolf: an index out of range
+    panic at src/main.wolf:59:22: index 5 out of range for length 3
+
+  src/main.wolf: a missing key
+    panic at src/main.wolf:64:19: key not found in map
+
+  src/main.wolf: a slice out of range
+    panic at src/main.wolf:69:20: slice 1..9 out of range for length 3
+
+  src/main.wolf: an element passed mut
+    panic at src/main.wolf:74:23: index 3 out of range for length 1
+
+  src/main.wolf: list.remove
+    panic at src/main.wolf:79:17: index 4 out of range for length 1
+
+  src/main.wolf: Float.to_int
+    panic at src/main.wolf:85:15: integer overflow
+
+  src/main.wolf: exit with a code out of range
+    panic at src/main.wolf:89:9: exit code 300 out of range
+
+  src/main.wolf: inside a function
+    panic at src/main.wolf:16:11: integer overflow
+
+  src/main.wolf: inside a closure
+    panic at src/main.wolf:97:46: integer overflow
+
+  src/main.wolf: a slice of a string
+    panic at src/main.wolf:103:19: slice 9..4 out of range for length 4
+
+  src/main.wolf: a compound assignment to a value of a map
+    panic at src/main.wolf:108:21: integer overflow
+
+  src/main.wolf: a shift in a compound assignment
+    panic at src/main.wolf:113:14: shift amount out of range
+
+  src/main.wolf: String.split
+    panic at src/main.wolf:118:15: empty separator
+
+  src/main.wolf: String.replace
+    panic at src/main.wolf:122:15: empty pattern
+
+  src/main.wolf: String.repeat
+    panic at src/main.wolf:126:15: negative repeat count
+
+  src/main.wolf: Int.pow
+    panic at src/main.wolf:130:15: negative exponent
+
+  src/main.wolf: Int.abs
+    panic at src/main.wolf:134:15: integer overflow
+
+  src/main.wolf: list.sum
+    panic at src/main.wolf:138:15: integer overflow
+
+  src/main.wolf: list.insert
+    panic at src/main.wolf:143:9: index 5 out of range for length 1
+
+  src/main.wolf: list.swap
+    panic at src/main.wolf:148:9: index 7 out of range for length 2
+
+  src/main.wolf: a panic keeps its own location
+    panic at src/main.wolf:152:9: stop
+
+test result: FAILED. 1 passed; 27 failed
+exit code: 1

@@ -1,0 +1,1 @@
+panic at src/main.wolf:6:16: index 2 out of range for length 2

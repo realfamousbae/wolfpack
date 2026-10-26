@@ -1,0 +1,7 @@
+module main
+
+main {
+    let names = ["ann", "bob"]
+    print(names[0])
+    print(names[2])
+}

@@ -1,0 +1,4 @@
+[package]
+name = "debug-add-overflow"
+version = "0.1.0"
+kind = "cli"

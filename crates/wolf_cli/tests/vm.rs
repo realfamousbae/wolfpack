@@ -29,6 +29,15 @@ fn wolf(project: &Path, args: &[&str], input: &str) -> Output {
     child.wait_with_output().unwrap()
 }
 
+/// `--debug` for a project with a `debug.txt`: a debug build (spec chapter 7, section 3, rule 1).
+fn debug_flag(dir: &Path) -> &'static [&'static str] {
+    if dir.join("debug.txt").is_file() {
+        &["--debug"]
+    } else {
+        &[]
+    }
+}
+
 fn dirs(root: &Path) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = fs::read_dir(root)
         .unwrap()
@@ -116,7 +125,9 @@ fn run_programs_match_expected_output_in_the_vm() {
         if (name.starts_with("E08") && !name.starts_with("E0807")) || uses_extern(&name) {
             continue;
         }
-        let output = wolf(&dir, &["run", "--vm"], "");
+        let mut args = vec!["run", "--vm"];
+        args.extend(debug_flag(&dir));
+        let output = wolf(&dir, &args, "");
         failures.extend(compare(&dir, &output));
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
@@ -154,6 +165,7 @@ fn test_reports_match_expected_output_in_the_vm() {
         }
         for (filter, file) in runs {
             let mut args = vec!["test", "--vm"];
+            args.extend(debug_flag(&dir));
             args.extend(filter.as_deref());
             let output = wolf(&dir, &args, "");
             let actual = format!(

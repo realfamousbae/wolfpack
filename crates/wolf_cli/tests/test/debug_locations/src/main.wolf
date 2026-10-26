@@ -1,0 +1,158 @@
+module main
+
+imports {
+    std.list
+    std.math
+    std.process
+}
+
+main {
+    let items = [2, 3]
+    print(twice(items[1]).to_string())
+}
+
+functions {
+    fn twice(n: Int) -> Int {
+        n * 2
+    }
+
+    fn bump(mut n: Int) {
+        n += 1
+    }
+}
+
+tests {
+    test "the operator of a sum after a comment" {
+        let big = math.int_max
+        let x = (big - 1) /* one */ +
+            2
+        print(x.to_string())
+    }
+
+    test "a compound assignment to an element" {
+        var items = [1, math.int_max]
+        items[1] *= 2
+    }
+
+    test "division by zero" {
+        let zero = 0
+        print((10 / zero).to_string())
+    }
+
+    test "the remainder of the smallest Int by -1" {
+        let m = math.int_min
+        print((m % -1).to_string())
+    }
+
+    test "a shift out of range" {
+        let n = 64
+        print((1 << n).to_string())
+    }
+
+    test "the negation of the smallest Int" {
+        let m = math.int_min
+        print((-m).to_string())
+    }
+
+    test "an index out of range" {
+        let items = [1, 2, 3]
+        print(items  [5].to_string())
+    }
+
+    test "a missing key" {
+        let ages = ["ann": 30]
+        print(ages["bob"].to_string())
+    }
+
+    test "a slice out of range" {
+        let items = [1, 2, 3]
+        print(items[1..9].len().to_string())
+    }
+
+    test "an element passed mut" {
+        var items = [1]
+        bump(mut items[3])
+    }
+
+    test "list.remove" {
+        var items = [1]
+        let x = items.remove(4)
+        print(x.to_string())
+    }
+
+    test "Float.to_int" {
+        let x = 1.0e300
+        print(x.to_int().to_string())
+    }
+
+    test "exit with a code out of range" {
+        process.exit(300)
+    }
+
+    test "inside a function" {
+        print(twice(math.int_max).to_string())
+    }
+
+    test "inside a closure" {
+        let items = [math.int_max].map(|x| x + 1)
+        print(items.len().to_string())
+    }
+
+    test "a slice of a string" {
+        let text = "wolf"
+        print(text[9..])
+    }
+
+    test "a compound assignment to a value of a map" {
+        var ages = ["ann": math.int_max]
+        ages["ann"] += 1
+    }
+
+    test "a shift in a compound assignment" {
+        var bits = 1
+        bits <<= -1
+        print(bits.to_string())
+    }
+
+    test "String.split" {
+        print("a,b".split("").len().to_string())
+    }
+
+    test "String.replace" {
+        print("abc".replace("", "x"))
+    }
+
+    test "String.repeat" {
+        print("ab".repeat(-2))
+    }
+
+    test "Int.pow" {
+        print(2.pow(-1).to_string())
+    }
+
+    test "Int.abs" {
+        print(math.int_min.abs().to_string())
+    }
+
+    test "list.sum" {
+        print(list.sum([math.int_max, 1]).to_string())
+    }
+
+    test "list.insert" {
+        var items = [1]
+        items.insert(5, 2)
+    }
+
+    test "list.swap" {
+        var items = [1, 2]
+        items.swap(0, 7)
+    }
+
+    test "a panic keeps its own location" {
+        panic("stop")
+    }
+
+    test "no panic" {
+        assert(twice(2) == 4)
+    }
+}

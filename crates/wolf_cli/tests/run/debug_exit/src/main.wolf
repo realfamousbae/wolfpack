@@ -1,0 +1,10 @@
+module main
+
+imports {
+    std.process
+}
+
+main {
+    print("exiting")
+    process.exit(300)
+}

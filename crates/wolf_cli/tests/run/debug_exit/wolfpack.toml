@@ -1,0 +1,4 @@
+[package]
+name = "debug-exit"
+version = "0.1.0"
+kind = "cli"

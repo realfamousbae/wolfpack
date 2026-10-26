@@ -1,0 +1,12 @@
+module main
+
+main {
+    print(average(10, 2).to_string())
+    print(average(10, 0).to_string())
+}
+
+functions {
+    fn average(total: Int, count: Int) -> Int {
+        total / count
+    }
+}

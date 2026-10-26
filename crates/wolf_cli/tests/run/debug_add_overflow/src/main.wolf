@@ -1,0 +1,11 @@
+module main
+
+imports {
+    std.math
+}
+
+main {
+    print("before")
+    let big = math.int_max
+    print((big + 1).to_string())
+}
