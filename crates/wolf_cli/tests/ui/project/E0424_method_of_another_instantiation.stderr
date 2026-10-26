@@ -1,0 +1,34 @@
+error[E0424]: `Stack<String>` has no method `sum`
+   --> src/main.wolf:27:17
+   |
+10 |     Stack<Int> {
+   |     ----- `sum` is defined in the block `Stack<Int>`
+   .
+27 |     print(words.sum().to_string())
+   |                 ^^^ unknown method
+   |
+   = note: the methods of the block `Stack<Int> { ... }` exist only for `Stack<Int>`
+
+error[E0424]: `Stack<String>` has no associated function `zero`
+   --> src/main.wolf:28:32
+   |
+10 |     Stack<Int> {
+   |     ----- `zero` is defined in the block `Stack<Int>`
+   .
+28 |     let empty = Stack.<String>.zero()
+   |                                ^^^^ not found
+   |
+   = note: the functions of the block `Stack<Int> { ... }` exist only for `Stack<Int>`
+
+error[E0424]: `Stack<T>` has no method `sum`
+   --> src/main.wolf:35:11
+   |
+10 |     Stack<Int> {
+   |     ----- `sum` is defined in the block `Stack<Int>`
+   .
+35 |         s.sum()
+   |           ^^^ unknown method
+   |
+   = note: the methods of the block `Stack<Int> { ... }` exist only for `Stack<Int>`
+
+error: aborting due to 3 errors

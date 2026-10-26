@@ -71,6 +71,8 @@ struct FnInfo {
     self_mode: Option<Mode>,
     /// An `own self` method of an interface: it takes `self: Box<Self>` (spec chapter 4, 8.4).
     boxed_self: bool,
+    /// For a function of a block for one instantiation: the head's arguments (D4.21).
+    instance: Option<Vec<IrType>>,
 }
 
 #[derive(Default)]
@@ -579,6 +581,7 @@ impl<'p> Emitter<'p> {
             owner,
             self_mode: f.self_mode,
             boxed_self: f.self_mode == Some(Mode::Own) && f.interface.is_some(),
+            instance: f.instance.clone(),
         };
         self.test_target_names();
         for m in &p.modules {
@@ -660,6 +663,7 @@ impl<'p> Emitter<'p> {
                                 owner: None,
                                 self_mode: None,
                                 boxed_self: false,
+                                instance: None,
                             },
                         );
                     }
@@ -2142,10 +2146,10 @@ impl<'p> Emitter<'p> {
             };
             match groups
                 .iter_mut()
-                .find(|(i, b, _)| *i == f.interface && *b == bounds)
+                .find(|(i, b, h, _)| *i == f.interface && *b == bounds && *h == f.instance)
             {
-                Some(g) => g.2.push(f),
-                None => groups.push((f.interface, bounds, vec![f])),
+                Some(g) => g.3.push(f),
+                None => groups.push((f.interface, bounds, f.instance.clone(), vec![f])),
             }
         }
         // A block that defines no method, such as one that takes every default, is an empty
@@ -2166,7 +2170,7 @@ impl<'p> Emitter<'p> {
                 .filter(|h| h.iter().any(|b| !b.is_empty()))
                 .cloned()
                 .unwrap_or_else(|| type_generics.iter().map(|g| g.bounds.clone()).collect());
-            groups.push((Some(*iface), bounds, Vec::new()));
+            groups.push((Some(*iface), bounds, None, Vec::new()));
         }
         // An error that is not `Display` is written by its message: `Error` of the runtime is a
         // subtrait of `Display` (spec chapter 7, section 4.1).
@@ -2204,7 +2208,7 @@ impl<'p> Emitter<'p> {
                 }],
             });
         }
-        for (iface, bounds, fns) in groups {
+        for (iface, bounds, instance, fns) in groups {
             if iface
                 .is_some_and(|i| [self.equatable, self.copyable, self.hashable].contains(&Some(i)))
             {
@@ -2217,8 +2221,30 @@ impl<'p> Emitter<'p> {
                     name: g.name.clone(),
                     bounds: b.clone(),
                 })
+                // A block for one instantiation declares only the parameters its head keeps:
+                // `impl Stack<i64>`, `impl<B: Display> Pair<String, B>`.
+                .filter(|g| match &instance {
+                    Some(args) => args
+                        .iter()
+                        .any(|a| matches!(a, IrType::Param(p) if *p == g.name)),
+                    None => true,
+                })
                 .collect();
             let mut generics = self.generics(&gens)?;
+            let (ty, self_ty) = match &instance {
+                Some(args) => {
+                    let mut list = Vec::new();
+                    for a in args {
+                        list.push(self.ty(a)?);
+                    }
+                    (
+                        Type::Path(self.name_of(def), list),
+                        IrType::Named(def, args.clone()),
+                    )
+                }
+                None => (ty.clone(), self_ty.clone()),
+            };
+            let self_ty = &self_ty;
             let mut items = Vec::new();
             for f in fns {
                 let mut func = self.function(f, self.name_of(f.def), Some(self_ty))?;
@@ -4240,6 +4266,7 @@ impl<'p> Emitter<'p> {
                     owner: None,
                     self_mode: None,
                     boxed_self: false,
+                    instance: None,
                 }),
                 _ => None,
             },
@@ -4266,6 +4293,21 @@ impl<'p> Emitter<'p> {
                 match d.kind {
                     DefKind::Method { owner, .. } => {
                         let o = self.def_path(owner);
+                        // A function of a block for one instantiation names it, as Rust does
+                        // not infer it from the `impl`: `Stack::<i64>::zero()`.
+                        let o = match &info.instance {
+                            Some(args) => {
+                                let mut list = Vec::new();
+                                for a in args {
+                                    list.push(match a {
+                                        IrType::Param(_) => "_".to_string(),
+                                        t => rs::type_text(&self.ty(t)?),
+                                    });
+                                }
+                                format!("{o}::<{}>", list.join(", "))
+                            }
+                            None => o,
+                        };
                         call(path(&format!("{o}::{}", self.name_of(*def))), argv)
                     }
                     _ => {
@@ -5437,4 +5479,11 @@ fn labeled(label: &Option<String>, s: Stmt) -> Stmt {
 }
 
 /// Functions of one `impl` block: the interface, the bounds and the functions.
-type ImplGroup<'p> = (Option<DefRef>, Vec<Vec<IrType>>, Vec<&'p ir::Function>);
+/// An `impl` block: the interface, the bounds of the type's parameters, the head of a block for
+/// one instantiation (spec chapter 4, section 8.3, rule 8) and the functions.
+type ImplGroup<'p> = (
+    Option<DefRef>,
+    Vec<Vec<IrType>>,
+    Option<Vec<IrType>>,
+    Vec<&'p ir::Function>,
+);

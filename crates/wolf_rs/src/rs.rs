@@ -1554,6 +1554,11 @@ impl Printer {
     }
 }
 
+/// A type as Rust writes it, for paths such as `Stack::<i64>::zero`.
+pub fn type_text(t: &Type) -> String {
+    Printer.ty(t)
+}
+
 fn last_line(s: &str) -> &str {
     s.rsplit('\n').next().unwrap_or(s)
 }

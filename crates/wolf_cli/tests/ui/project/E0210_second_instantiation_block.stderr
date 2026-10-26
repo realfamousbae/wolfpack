@@ -1,0 +1,23 @@
+error[E0210]: second inherent `impl` block for `Stack`
+   --> src/main.wolf:16:5
+   |
+10 |     Stack<T> {
+   |     ----- first block
+   .
+16 |     Stack<U> {
+   |     ^^^^^ second block
+   |
+   = help: put all methods of `Stack` into one block
+
+error[E0210]: second inherent `impl` block for `Stack<Int>`
+   --> src/main.wolf:28:5
+   |
+22 |     Stack<Int> {
+   |     ----- first block
+   .
+28 |     Stack<Int> {
+   |     ^^^^^ second block
+   |
+   = help: put all methods of `Stack<Int>` into one block
+
+error: aborting due to 2 errors

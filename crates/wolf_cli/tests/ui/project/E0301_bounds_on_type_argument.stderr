@@ -1,0 +1,19 @@
+error[E0301]: unexpected bounds after a type argument
+   --> src/main.wolf:10:16
+   |
+10 |     Stack<Int: Display> {
+   |           ---  ^^^^^^^ only a type parameter takes bounds
+   |           |     
+   |           `Int` names a type, so it is a type argument
+   |
+   = help: a parameter is a name that names no type, as in `Stack<T: Display>`
+
+error[E0301]: unexpected `:` after a type argument
+   --> src/main.wolf:16:20
+   |
+16 |     Stack<List<Int>: Display> {
+   |                    ^ only a type parameter takes bounds
+   |
+   = help: a parameter is a single name, as in `Stack<T: Display>`
+
+error: aborting due to 2 errors

@@ -104,6 +104,8 @@ struct FnInfo {
     owner: Option<DefRef>,
     self_mode: Option<Mode>,
     interface: Option<DefRef>,
+    /// For a method of a block for one instantiation: the head's arguments (D4.21).
+    instance: Option<Vec<IrType>>,
 }
 
 struct Loop {
@@ -910,6 +912,7 @@ impl<'p> Emitter<'p> {
             owner: owner.map(|(_, d)| d),
             self_mode: f.self_mode,
             interface: f.interface,
+            instance: f.instance.clone(),
         };
         // Packages. The files of `tests/` are an external test package of the root package
         // (`mylib_test`, or `main_test` for a program) in the root directory, next to the root
@@ -1022,7 +1025,10 @@ impl<'p> Emitter<'p> {
                         }
                         for f in &s.methods {
                             self.fns.insert(f.def, info(f, Some((&s.generics, s.def))));
-                            if f.self_mode.is_some() && f.generics.is_empty() {
+                            if f.self_mode.is_some()
+                                && f.generics.is_empty()
+                                && f.instance.is_none()
+                            {
                                 let exported = f.public || f.interface.is_some() || std;
                                 self.names.insert(f.def, value_name(&f.name, exported));
                             } else {
@@ -1045,7 +1051,11 @@ impl<'p> Emitter<'p> {
                         }
                         for f in &e.methods {
                             self.fns.insert(f.def, info(f, Some((&e.generics, e.def))));
-                            if plain && f.self_mode.is_some() && f.generics.is_empty() {
+                            if plain
+                                && f.self_mode.is_some()
+                                && f.generics.is_empty()
+                                && f.instance.is_none()
+                            {
                                 let exported = f.public || f.interface.is_some() || std;
                                 self.names.insert(f.def, value_name(&f.name, exported));
                             } else {
@@ -1093,6 +1103,7 @@ impl<'p> Emitter<'p> {
                                 owner: None,
                                 self_mode: None,
                                 interface: None,
+                                instance: None,
                             },
                         );
                     }
@@ -2748,8 +2759,10 @@ impl<'p> Emitter<'p> {
                 continue;
             }
             let fname = self.name_of(f.def);
-            let method =
-                f.self_mode.is_some() && f.generics.is_empty() && !self.adds_iface_bounds(f.def);
+            let method = f.self_mode.is_some()
+                && f.generics.is_empty()
+                && f.instance.is_none()
+                && !self.adds_iface_bounds(f.def);
             let func = if method {
                 // Only a `mut self` method takes a pointer: the value of the type keeps the
                 // other methods, so that it meets the bound of an interface without them.
@@ -2766,8 +2779,11 @@ impl<'p> Emitter<'p> {
                 };
                 self.function(f, fname, Some((recv.clone(), ty, local)), &[], None)?
             } else {
-                // Associated functions and generic methods are functions of the package.
-                self.function(f, fname, None, &s.generics, Some(&self_ty))?
+                // Associated functions, generic methods and the methods of a block for one
+                // instantiation (spec chapter 4, section 8.3, rule 8) are functions of the
+                // package.
+                let ty = instance_ty(s.def, f, &self_ty);
+                self.function(f, fname, None, &s.generics, Some(&ty))?
             };
             out.push(Decl::Func(func));
         }
@@ -3164,7 +3180,8 @@ impl<'p> Emitter<'p> {
                     continue;
                 }
                 let fname = self.name_of(f.def);
-                let func = if f.self_mode.is_some() && f.generics.is_empty() {
+                let func = if f.self_mode.is_some() && f.generics.is_empty() && f.instance.is_none()
+                {
                     let (ty, local) = if ptr && f.self_mode == Some(Mode::Mut) {
                         (
                             Type::Ptr(Box::new(enum_ty.clone())),
@@ -3175,7 +3192,8 @@ impl<'p> Emitter<'p> {
                     };
                     self.function(f, fname, Some((recv.clone(), ty, local)), &[], None)?
                 } else {
-                    self.function(f, fname, None, &e.generics, Some(&self_ty))?
+                    let ty = instance_ty(e.def, f, &self_ty);
+                    self.function(f, fname, None, &e.generics, Some(&ty))?
                 };
                 out.push(Decl::Func(func));
             }
@@ -3427,7 +3445,8 @@ impl<'p> Emitter<'p> {
                 continue;
             }
             let fname = self.name_of(f.def);
-            let func = self.function(f, fname, None, &e.generics, Some(&self_ty))?;
+            let ty = instance_ty(e.def, f, &self_ty);
+            let func = self.function(f, fname, None, &e.generics, Some(&ty))?;
             out.push(Decl::Func(func));
         }
         if let Some(rname) = self.refs.get(&e.def).cloned() {
@@ -4123,6 +4142,7 @@ impl<'p> Emitter<'p> {
                         .cloned()
                         .unwrap_or_else(|| g.bounds.clone()),
                 })
+                .filter(|g| kept(&f.instance, &g.name))
                 .collect()
         };
         let mut all = owner_generics.clone();
@@ -5785,6 +5805,7 @@ impl<'p> Emitter<'p> {
                     owner: None,
                     self_mode: None,
                     interface: None,
+                    instance: None,
                 }),
                 _ => None,
             },
@@ -5822,6 +5843,9 @@ impl<'p> Emitter<'p> {
             } => self.recv_view(*interface, &recv.ty),
             _ => None,
         };
+        // A method that is a function of the package takes a pointer for `mut self`.
+        let package_fn = matches!(callee, Callee::Method { method, .. }
+            if info.interface.is_none() && !self.is_go_method(*method));
         let recv_expr = match (callee, recv) {
             (_, Some(r)) => {
                 let mode = info.self_mode.unwrap_or(Mode::Read);
@@ -5829,7 +5853,7 @@ impl<'p> Emitter<'p> {
                 if let Some(v) = &view {
                     let ptr = self.mut_arg(r, out)?;
                     Some(call(v.clone(), vec![ptr]))
-                } else if mode == Mode::Mut && payload {
+                } else if mode == Mode::Mut && (payload || package_fn) {
                     Some(self.mut_arg(r, out)?)
                 } else if mode == Mode::Mut
                     || matches!(&r.ty, IrType::Named(d, _) if self.ptr_recv.contains(d))
@@ -5880,6 +5904,7 @@ impl<'p> Emitter<'p> {
             let owner = info.owner_generics.clone();
             owner
                 .into_iter()
+                .filter(|g| kept(&info.instance, &g.name))
                 .chain(info.generics.iter().cloned())
                 .collect()
         } else {
@@ -6135,7 +6160,7 @@ impl<'p> Emitter<'p> {
         let Some(owner) = info.owner else {
             return false;
         };
-        if info.self_mode.is_none() || !info.generics.is_empty() {
+        if info.self_mode.is_none() || !info.generics.is_empty() || info.instance.is_some() {
             return false;
         }
         if self.adds_iface_bounds(method) {
@@ -7404,5 +7429,26 @@ fn go_target(path: &str) -> Option<GoTarget> {
     match rest.split_once('.') {
         Some((_, method)) => Some(GoTarget::Method(method.to_string())),
         None => Some(GoTarget::Func(import.to_string(), rest.to_string())),
+    }
+}
+
+/// Whether a function of a block keeps the type's parameter `name` as a parameter of its own:
+/// always, except in a block for one instantiation whose head gives a type for it (spec chapter
+/// 4, section 8.3, rule 8).
+fn kept(instance: &Option<Vec<IrType>>, name: &str) -> bool {
+    match instance {
+        Some(args) => args
+            .iter()
+            .any(|a| matches!(a, IrType::Param(p) if p == name)),
+        None => true,
+    }
+}
+
+/// The type of `self` in a function of a block of `def`: the instantiation of its head, or the
+/// type with its own parameters.
+fn instance_ty(def: DefRef, f: &ir::Function, generic: &IrType) -> IrType {
+    match &f.instance {
+        Some(args) => IrType::Named(def, args.clone()),
+        None => generic.clone(),
     }
 }

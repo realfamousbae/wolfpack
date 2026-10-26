@@ -1,0 +1,7 @@
+error[E0402]: unknown type `T`
+   --> src/main.wolf:11:18
+   |
+11 |     Pair<T, List<T>> {
+   |                  ^ not found in this scope
+
+error: aborting due to 1 error

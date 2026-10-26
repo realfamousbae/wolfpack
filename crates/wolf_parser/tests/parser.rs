@@ -113,6 +113,30 @@ fn conditions_and_chains() {
     );
 }
 
+/// The head of an `impl` block may give type arguments; name resolution tells them from
+/// parameters, and a type that is not a single name takes no bounds (chapter 4, section 8.3,
+/// rule 8; D4.21).
+#[test]
+fn impl_heads_with_type_arguments() {
+    let dump = ok(
+        "module main\n\nimpl {\n    Stack<Int> {\n        fn f(self) {}\n    }\n    Pair<String, T: Display> {\n        fn g(self) {}\n    }\n    Stack<List<Int>> {\n        fn h(self) {}\n    }\n    Stack<fn(Int) -> Int>: Shown {\n        fn s(self) {}\n    }\n}\n",
+    );
+    assert!(dump.contains("(impl Stack (generics Int)"), "{dump}");
+    assert!(
+        dump.contains("(impl Pair (generics String (T Display))"),
+        "{dump}"
+    );
+    assert!(dump.contains("(impl Stack (generics (List Int))"), "{dump}");
+    assert!(
+        dump.contains("(impl Stack (generics (fn Int (-> Int))) (for Shown)"),
+        "{dump}"
+    );
+    assert_eq!(
+        parse("module main\n\nimpl {\n    Stack<List<Int>: Display> {\n        fn f(self) {}\n    }\n}\n").codes,
+        ["E0301"]
+    );
+}
+
 /// `interface Greeter: Named + Display` names its super-interfaces (chapter 4, section 8.2).
 #[test]
 fn super_interfaces() {

@@ -1,0 +1,37 @@
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Stack<Int> {
+        fn zero() -> Stack<Int> {
+            Stack { items: [0] }
+        }
+
+        fn sum(self) -> Int {
+            var total = 0
+            for x in self.items {
+                total += x
+            }
+            total
+        }
+    }
+}
+
+main {
+    let words = Stack { items: ["a"] }
+    print(words.sum().to_string())
+    let empty = Stack.<String>.zero()
+    print(empty.items.len().to_string())
+    print(first_sum(Stack { items: [true] }).to_string())
+}
+
+functions {
+    fn first_sum<T>(s: Stack<T>) -> Int {
+        s.sum()
+    }
+}

@@ -359,6 +359,12 @@ pub struct Function {
     /// For a method: the bounds of the `impl` block on the type's parameters, in the order of
     /// the type's parameters (they include the bounds of the type's declaration).
     pub impl_bounds: Vec<Vec<Type>>,
+    /// For a method of a block for one instantiation (spec chapter 4, section 8.3, rule 8;
+    /// D4.21): the arguments of the block's head in the order of the type's parameters, a
+    /// [`Type::Param`] with the name of the type's parameter where the head declares one, as in
+    /// `[String, Param("B")]` for `Pair<String, T>` of `struct Pair<A, B>`. Like a method with
+    /// `where` bounds (section 8.6), it exists only for some of the type's instantiations.
+    pub instance: Option<Vec<Type>>,
     /// The mode of `self`, for methods.
     pub self_mode: Option<Mode>,
     /// Parameters without `self`.

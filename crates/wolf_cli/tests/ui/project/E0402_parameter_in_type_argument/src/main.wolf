@@ -1,0 +1,20 @@
+module main
+
+types {
+    struct Pair<A, B> {
+        first: A
+        second: B
+    }
+}
+
+impl {
+    Pair<T, List<T>> {
+        fn count(self) -> Int {
+            self.second.len()
+        }
+    }
+}
+
+main {
+    print(Pair { first: 1, second: [2] }.second.len().to_string())
+}

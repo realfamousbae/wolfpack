@@ -476,17 +476,44 @@ pub struct MethodSig {
     pub decl: FnDecl,
 }
 
-/// A block in `impl`: `Stack<T: Comparable>: Container<T> { methods }`.
+/// A block in `impl`: `Stack<T: Comparable>: Container<T> { methods }`, or a block for one
+/// instantiation, `Stack<Int> { methods }` (spec chapter 4, section 8.3, rule 8; D4.21).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImplBlock {
     /// The implemented type.
     pub type_name: Ident,
-    /// Type parameters declared in the head.
-    pub generics: Vec<GenericParam>,
+    /// The arguments of the head, in the order of the type's parameters: the parameters that
+    /// the block declares and the type arguments.
+    pub args: Vec<ImplArg>,
     /// The interface after `:`, if this is an interface implementation.
     pub interface: Option<Ty>,
     /// The methods, each with its doc comments.
     pub methods: Vec<Method>,
+}
+
+/// An argument of the head of an `impl` block (spec chapter 4, section 8.3, rule 8; D4.21).
+/// A single name that names no type declares a type parameter of the block; any other argument
+/// is a type argument. Name resolution decides which, so the parser keeps both readings.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImplArg {
+    /// The argument read as a type: `T`, `Int`, `List<String>`, `fn(Int) -> Int`. For a
+    /// parameter, name resolution makes it refer to the parameter itself.
+    pub ty: Ty,
+    /// The bounds after `:`, as in `T: Display + Equatable`; only a parameter may have them.
+    pub bounds: Vec<Ty>,
+}
+
+impl ImplArg {
+    /// The name, when the argument is a single name, which declares a parameter unless it names
+    /// a type.
+    pub fn name(&self) -> Option<&Ident> {
+        match &self.ty.kind {
+            TyKind::Path { path, args } if args.is_empty() && path.segments.len() == 1 => {
+                path.segments.first()
+            }
+            _ => None,
+        }
+    }
 }
 
 /// A method inside an impl block.

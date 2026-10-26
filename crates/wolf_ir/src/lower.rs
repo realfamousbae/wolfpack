@@ -780,6 +780,7 @@ impl<'a> Lowerer<'a> {
                         body,
                         interface: Some(Lowerer::dref(def)),
                         in_tests: false,
+                        instance: None,
                     });
                 }
                 let supers = self
@@ -823,6 +824,7 @@ impl<'a> Lowerer<'a> {
                     body,
                     interface: None,
                     in_tests,
+                    instance: None,
                 }));
             }
             ItemKind::Config(entry) => {
@@ -994,6 +996,16 @@ impl<'a> Lowerer<'a> {
             body,
             interface: m.interface.map(Lowerer::dref),
             in_tests: false,
+            instance: (!m.instance.is_empty()).then(|| {
+                m.instance
+                    .iter()
+                    .zip(&m.impl_generics)
+                    .map(|(t, s)| match t {
+                        Some(t) => self.ty(t),
+                        None => self.ty(&Ty::Param(ParamId::Decl(*s))),
+                    })
+                    .collect()
+            }),
         }))
     }
 

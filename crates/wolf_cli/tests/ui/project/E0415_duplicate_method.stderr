@@ -7,6 +7,6 @@ error[E0415]: `Job` has two functions named `message`
 17 |         fn message(self) -> String {
    |            ^^^^^^^ second definition
    |
-   = note: a type has at most one function with a given name, across its inherent block and all its interface implementations
+   = note: a type has at most one function with a given name, across its inherent blocks and all its interface implementations
 
 error: aborting due to 1 error
