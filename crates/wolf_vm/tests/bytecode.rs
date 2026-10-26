@@ -10,6 +10,11 @@ const MANIFEST: &str = "[package]\nname = \"vm\"\nversion = \"0.1.0\"\nkind = \"
 
 /// The IR of a program of one module.
 fn program(source: &str) -> wolf_ir::Program {
+    program_with(source, false)
+}
+
+/// The IR of a program of one module; `debug` asks for a debug build.
+fn program_with(source: &str, debug: bool) -> wolf_ir::Program {
     let mut map = SourceMap::new();
     let mut diagnostics = Vec::new();
     let id = map.add("wolfpack.toml", MANIFEST.to_string());
@@ -38,7 +43,8 @@ fn program(source: &str) -> wolf_ir::Program {
         wolf_diag::render_human_to_string(&map, &diagnostics)
     );
     let inputs = analysis.inputs();
-    let meta = wolf_driver::meta(&manifest, false);
+    let mut meta = wolf_driver::meta(&manifest, false);
+    meta.debug = debug;
     wolf_ir::lower(&inputs, &analysis.resolved, &analysis.typed, &map, &meta).unwrap()
 }
 
@@ -93,7 +99,12 @@ impl Io for Captured {
 
 /// Runs a program and gives its exit code, output and error output.
 fn run(source: &str) -> (i32, String, String) {
-    let p = program(source);
+    run_with(source, false)
+}
+
+/// Runs a program, built for debugging if `debug`.
+fn run_with(source: &str, debug: bool) -> (i32, String, String) {
+    let p = program_with(source, debug);
     let entry = p
         .modules
         .iter()
@@ -203,4 +214,49 @@ fn overflow_and_division_panic() {
         ));
         assert_eq!((code, err), (101, format!("panic: {message}\n")), "{expr}");
     }
+}
+
+/// In a debug build the panics of the language print the location of the operation: the
+/// operator after the left operand with its parentheses, the `[`, or the start of the call.
+#[test]
+fn debug_builds_locate_the_panics_of_the_language() {
+    // The expression, the text at its location and the message.
+    for (expr, at, message) in [
+        ("(big + 0) * 2", "* 2", "integer overflow"),
+        ("big /* (+) */ + 1", "+ 1", "integer overflow"),
+        ("-(0 - big - 1)", "-(", "integer overflow"),
+        ("[big, 2]  [7]", "[7]", "index 7 out of range for length 2"),
+        (
+            "[big, 2][3..1].len()",
+            "[3",
+            "slice 3..1 out of range for length 2",
+        ),
+        ("big.pow(2)", "big", "integer overflow"),
+        ("[big].map(|x| x * x).len()", "* x", "integer overflow"),
+    ] {
+        let source = format!(
+            "module main\n\nmain {{\n    let big = 9223372036854775807\n    print(({expr}).to_string())\n}}\n"
+        );
+        // `    print((` is 11 characters.
+        let column = 12 + expr.find(at).unwrap();
+        let (code, _, err) = run_with(&source, true);
+        let expected = format!("panic at src/main.wolf:5:{column}: {message}\n");
+        assert_eq!((code, err), (101, expected), "{expr}");
+        let (code, _, err) = run(&source);
+        assert_eq!((code, err), (101, format!("panic: {message}\n")), "{expr}");
+    }
+}
+
+/// Stack overflow keeps no location in a debug build, and a panic keeps its own.
+#[test]
+fn debug_builds_keep_other_panics() {
+    let source = "module main\n\nmain {\n    print(down(1).to_string())\n}\n\nfunctions {\n    fn down(n: Int) -> Int {\n        down(n + 1)\n    }\n}\n";
+    let (code, _, err) = run_with(source, true);
+    assert_eq!((code, err.as_str()), (101, "panic: stack overflow\n"));
+    let source = "module main\n\nmain {\n    panic(\"stop\")\n}\n";
+    let (code, _, err) = run_with(source, true);
+    assert_eq!(
+        (code, err.as_str()),
+        (101, "panic at src/main.wolf:4:5: stop\n")
+    );
 }

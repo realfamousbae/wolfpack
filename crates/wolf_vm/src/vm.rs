@@ -450,6 +450,36 @@ impl<'a> Vm<'a> {
 
     /// Runs until the frame at `depth` returns, and gives its result.
     fn execute(&mut self, depth: usize) -> Result<Value, Stop> {
+        self.run(depth).map_err(|stop| self.locate(stop))
+    }
+
+    /// In a debug build, a panic of the language gets the location of the instruction that
+    /// raised it (spec chapter 7, section 3, rule 1): the frame where an error happens stays on
+    /// the stack, with its position just after the instruction. A panic of an inner frame has
+    /// its location already, and stack overflow has none.
+    fn locate(&self, stop: Stop) -> Stop {
+        let located = match &stop {
+            Stop::Panic(message) => message
+                .strip_prefix("panic: ")
+                .filter(|rest| *rest != "stack overflow")
+                .and_then(|rest| {
+                    let frame = self.frames.last()?;
+                    let chunk = self.chunk(frame.func).ok()?;
+                    match chunk.location(frame.pc.checked_sub(1)?)? {
+                        Value::Str(at) => Some(format!("panic at {at}: {rest}")),
+                        _ => None,
+                    }
+                }),
+            _ => None,
+        };
+        match located {
+            Some(message) => Stop::Panic(message),
+            None => stop,
+        }
+    }
+
+    /// The loop of [`Vm::execute`].
+    fn run(&mut self, depth: usize) -> Result<Value, Stop> {
         loop {
             let (func, pc, base, slots) = match self.frames.last() {
                 Some(f) => (f.func, f.pc, f.base, f.slots),
