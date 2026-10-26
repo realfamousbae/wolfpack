@@ -36,6 +36,3 @@ Scoop, winget, `.deb`/`.rpm` packages and static Linux builds after 0.3.
 
 - The AUR (`wolfpack-bin`).
 - Signed installers: a notarized macOS package and a signed Windows installer.
-
-## The virtual machine (from 2026-10-22, chapter 10, D10.5 and D10.7)
-
