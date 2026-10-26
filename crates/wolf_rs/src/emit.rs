@@ -4811,6 +4811,8 @@ impl<'p> Emitter<'p> {
     /// `println!("...")` for `print(text)`: a concatenation is written into the format.
     fn print_macro(&mut self, name: &str, e: &'p IrExpr) -> Result<Expr, Error> {
         let args = match &e.kind {
+            // `println!("")` is a clippy warning; `println!()` prints the same.
+            ExprKind::Str(s) if s.is_empty() && name.ends_with("ln") => Vec::new(),
             ExprKind::Str(s) => vec![Expr::Str(s.replace('{', "{{").replace('}', "}}"))],
             _ => match self.expr(displayed(e).unwrap_or(e), Want::Op)? {
                 Expr::Macro(n, args) if n == "format" => args,
