@@ -142,6 +142,36 @@ bin_lit   = "0b" [01] ( "_"? [01] )*
    `0xfg`. This keeps the door open for suffixes such as `5i32` if sized integer types are added
    later, without changing the meaning of any valid program.
 
+**[DRAFT]** (2026-10-26, D1.14) **Suffixes of the sized integer types.** Proposed, waiting for the
+author. With the types of chapter 4, section 3.1a (D4.24), rule 5 gives way to six suffixes:
+
+```
+int_lit    = ( dec_lit | hex_lit | oct_lit | bin_lit ) int_suffix?
+int_suffix = "i8" | "i16" | "i32" | "u8" | "u16" | "u32"
+```
+
+| Suffix | Type | Examples |
+| --- | --- | --- |
+| `i8`, `i16`, `i32` | `Int8`, `Int16`, `Int32` | `-128i8`, `1_000i16`, `0x7FFF_FFFFi32` |
+| `u8`, `u16`, `u32` | `UInt8`, `UInt16`, `UInt32` | `255u8`, `0xFFu8`, `0b1010_0101u8`, `0o777u16`, `4_000_000_000u32` |
+
+5a. A suffix is lower case and follows the last digit directly, in every base. `_` stays a
+    separator between two digits only (rule 2), so `1_000_u32` is E0107. No suffix starts with a
+    hex digit, so `0xffu8` reads one way only.
+5b. Everything else of rule 5 stays an error (E0107): another suffix (`5i64`, `5u64`, `5I32`,
+    `5i`), any suffix on a float (`1.0u8`, `1e3i32`, `1.0f32`), and any other letter, digit or `_`
+    glued to a literal. There is no `i64` suffix: an `Int` literal needs none.
+5c. A suffixed literal must fit its type. A value above the largest magnitude of the type is
+    E0106 (`256u8`, `0x1_0000u16`, `129i8`). The magnitude of the minimum of a signed type
+    (`128i8`, `32768i16`, `2147483648i32`) is valid only as the direct operand of a unary minus,
+    so `-128i8` is the minimum `Int8`; without the minus it is E0423 after parsing (chapter 4),
+    exactly as rule 4 has it for `Int`. A hex, octal or binary literal is a value, not a bit
+    pattern: `0xFFi8` is 255 and so E0106, and `-0x80i8` is the minimum `Int8`.
+5d. A unary minus on an unsigned literal (`-1u8`, also `-0u8`) is a type error (E0405, chapter 4):
+    the unsigned types have no unary minus.
+5e. A literal without a suffix is an `Int`, or, if the author chooses so (chapter 4, D4.25), takes
+    the sized type that its place expects (`let b: UInt8 = 255`).
+
 ### 5.2 Float literals
 
 ```
@@ -381,8 +411,8 @@ The complete list of errors the lexer reports. This is the scope of milestone M1
 | E0103 | Unterminated string literal | `"abc` at the end of the line |
 | E0104 | Unknown escape sequence | `"\q"` |
 | E0105 | Invalid Unicode escape | `"\u{D800}"`, `"\u{}"`, `"\u{110000}"` |
-| E0106 | Integer literal too large | `99999999999999999999` |
-| E0107 | Malformed number literal | `007`, `1_`, `0x`, `1.`, `1e`, `5i32` |
+| E0106 | Integer literal too large | `99999999999999999999`; **[DRAFT]** (D1.14) a suffixed literal above its type, `256u8` |
+| E0107 | Malformed number literal | `007`, `1_`, `0x`, `1.`, `1e`, `5i32` (**[DRAFT]** D1.14: `5i32` becomes valid; `5i64`, `1.0u8`, `1_000_u32` stay E0107) |
 | E0108 | Float literal out of range | `1.0e999` |
 | E0109 | Unescaped control character in string | a raw U+0007 inside `"..."` |
 | E0110 | Carriage return without line feed | lone `CR` |
@@ -419,3 +449,4 @@ panics on any input; fuzzing in `fuzz/` checks this **[PLAN]** (section 12).
 | D1.11 | 0.2: `loop` is a reserved word, not a contextual one (section 4) | **answered** (author, 2026-10-18): yes |
 | D1.12 | 0.2: the details of section 5.3a (nested strings in `{}`, no format specifications, no `fr`, no trailing `\n` in `"""`) and codes E0114 to E0116 | **answered** (author, 2026-10-18): yes |
 | D1.13 | Character literals `'a'` for the type `Char` (section 5.3b; chapter 4, D4.23), taking the `'` that rule 5.3.6 reserved: exactly one Unicode scalar value between `'`, non-ASCII allowed (rule 1.5); the escapes of strings, plus `\'`, which strings accept too; an identifier glued to `'` is a reserved prefix (`b'a'`, E0113), keeping `b'a'` for a possible byte literal; a new code **E0118** for an empty literal, more than one scalar value (also a letter with a combining mark) and a literal not closed on its line. Alternatives: `\'` only in character literals (strings keep E0104 for it); no prefix rule (`b'a'` would be a parse error instead); an unclosed literal as E0103, whose text speaks of strings. Open: whether E0118 should be split into "empty or too long" and "not closed" (recommendation: one code, the label says which) | **proposed** (2026-10-26), waiting for the author |
+| D1.14 | Integer suffixes for the sized integer types of chapter 4 (D4.24), replacing the reservation of section 5.1, rule 5 (rules 5a to 5e): `i8`, `i16`, `i32`, `u8`, `u16`, `u32`, lower case, directly after the last digit of a literal of any base (`255u8`, `0xFFu8`, `1_000i32`); no `_` before the suffix (rule 2 unchanged); another suffix, a suffix on a float and every other glued letter stay E0107 (`5i64`, `1.0u8`); a suffixed literal above its type is E0106 (`256u8`) and the magnitude of a signed minimum is valid only after a unary minus (`-128i8`; `128i8` is E0423), as for `Int`; a hex literal is a value, not a bit pattern (`0xFFi8` is E0106). No new code. No suffix starts with a hex digit, so `0xffu8` is unambiguous; a float suffix such as `f32` would not be (`0x1f32`), one more reason for no `Float32`. Alternatives: suffixes spelled as the types (`5int32`, `255uint8`), longer and harder to read; `_` allowed before the suffix as in Rust (`0xFF_u8`); an `i64` suffix for `Int`, a second spelling of one literal | **proposed** (2026-10-26), waiting for the author |

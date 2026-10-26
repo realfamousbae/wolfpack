@@ -323,6 +323,29 @@ rule 5 did, so that no command has to be looked up.
    call site passes the dictionary of `Char`, and the runtime's `display`, which decides by
    `typeof`, never sees a bare `Char`. Go and Rust know the type. **[INTERNAL]**
 
+**[DRAFT]** (2026-10-26, D8.20) **Sized integers** (chapter 4, section 3.1a):
+
+| Wolfpack | TS | Go | Rust |
+| --- | --- | --- | --- |
+| `Int8`, `Int16`, `Int32` | `bigint` | `int8`, `int16`, `int32` | `i8`, `i16`, `i32` |
+| `UInt8`, `UInt16`, `UInt32` | `bigint` | `uint8`, `uint16`, `uint32` | `u8`, `u16`, `u32` |
+| `255u8` | `255n` | `uint8(255)`, or `255` where Go knows the type | `255u8`, or `255` where Rust knows the type |
+
+1. TS: `bigint`, as `Int` (ADR 0001). Arithmetic goes through `wolf_rt` helpers that check the
+   range of the type, as for `Int` (section 4.2), with the bounds of the width; `~`, `<<` and `>>`
+   keep the width with `BigInt.asIntN` and `BigInt.asUintN`. The runtime's fallbacks that decide
+   by `typeof` (`display`, `compare`, section 5.4) already treat a `bigint` as an integer, so a
+   sized value is written and compared right with no dictionary of its own, and `to_int()` is the
+   value itself. **[INTERNAL]**
+2. Go: the Go type of the width. Go wraps silently, so `+ - *` go through checked helpers as for
+   `Int`, computed in `int64` (`uint64` for `UInt32`, whose products need 64 unsigned bits) and
+   checked against the range; `/` and `%` check zero and `MIN / -1`; shifts check the amount.
+   `uint8` is also Go's `byte`; the type switches of the runtime (`ShowAny`, `equalValues`) gain
+   a case per type, and `Char` stays apart from `int32` (D8.19). **[INTERNAL]**
+3. Rust: the Rust type of the width. `overflow-checks = true` already makes `+ - *` panic, and
+   `/` and `%` panic natively; shifts use helpers as for `Int`. The panic hook translates the
+   messages as for `Int` (section 4.3). **[INTERNAL]**
+
 ### 4.1 `Option` and `Result` (ADR 0002)
 
 1. **In function results**, where unambiguous:
@@ -382,6 +405,8 @@ location and ends the program with exit code 101 on every target, as in the VM (
    **[INTERNAL]**
 3. Deep data never reaches this limit: copies, equality and freeing are not calls of wolfpack
    functions (chapter 4, section 7.4).
+**[DRAFT]** (2026-10-26, D8.20): the sized integer types use the same column of this table as `Int`,
+each helper checking the range of its width.
 
 ## 5. Declarations
 
@@ -576,6 +601,11 @@ copy defensively.
      a `Map` as `Option<&HashMap<K, V>>`; an opaque type `X` as `*X` in Go and `Option<&X>` in
      Rust. `T` may not itself be an `Option` (E0702), since `T | undefined` cannot tell the two
      `None`s apart. Results keep the forms of section 4.1.
+   - **[DRAFT]** (2026-10-26, D8.20) A sized integer crosses as the integer type of its width
+     in Go and Rust (`uint8`, `u8`) and as a `number` in TS, which holds every value of the six
+     types exactly. What comes back from extern code is converted as for `Int`: a Go or Rust
+     result may be of any integer type and is checked against the range of the declared type, a
+     TS `number` must be an integer in that range. A failed check is a panic `integer overflow`.
    - **[DRAFT]** (2026-10-26, D8.19) A `Char` crosses as the character type of the target: a
      `string` of one scalar value in TS, a `rune` in Go and a `char` in Rust, also as a map key, a
      record field and an argument or result of a callback. A `Char` that comes from extern code
@@ -659,3 +689,4 @@ Added in M6 (author, 2026-10-09). Like driver errors, these have no source range
 | D8.17 | **[DRAFT]** `exit(code)` inside a test (section 2, rule 7): the test fails with `the test exited with code <code>`, also for 0, and the other tests run, on every target as in the VM. Alternatives: `exit(0)` passes the test; or `exit` ends the whole run with its code, as Go and Rust do today, and the VM changes to match | **proposed** (2026-10-26), waiting for the author (author agreed on 2026-10-22 that one rule is needed) |
 | D8.18 | **[DRAFT]** The AUR package `wolfpack-bin` (section 2a, rule 2): the glibc archives of the release and the license files, built and installed in a clean Arch Linux container for each release and pushed to the AUR by the workflow `aur.yml`; `wolf self update` treats its `/usr/bin/wolf` like a `.deb` or `.rpm` | **proposed** (2026-10-26), waiting for the author, who needs an AUR account and the secret `AUR_SSH_KEY` |
 | D8.19 | `Char` on the targets (section 4; section 8, rule 2): TS `string` of one scalar value, compared with the scalar-value helper of strings; Go `wolfrt.Char`, a type defined as `rune`, so that it is never the Go type `int32` of an `Int32`, should sized integers come (D4.24), in the type switches of the runtime; Rust `char`; at the extern boundary `string`, `rune` and `char`, with values that come back checked in TS and Go (panic `invalid character from extern code`). Alternatives: TS `number`, the code (faster comparisons, but the generated code shows `97` for `'a'` and every text needs `String.fromCodePoint`); Go plain `rune` (reads better, but every place of the runtime that dispatches on the Go type would need a dictionary instead) | **proposed** (2026-10-26), waiting for the author |
+| D8.20 | The sized integer types on the targets (section 4; section 4.3; section 8, rule 2): TS `bigint` as `Int` (ADR 0001), with range-checking helpers per width and `BigInt.asIntN`/`asUintN` for the bitwise operators and shifts, so the runtime's `typeof` fallbacks need no change; Go `int8` to `uint32` with checked helpers as for `Int`; Rust `i8` to `u32` with `overflow-checks`; at the extern boundary a TS `number` (exact for every value), the Go and Rust type of the width, and results of any integer type checked against the declared range. Alternative for TS: `number` (idiomatic and faster, and what typed arrays hold; but a `number` is a `Float` to the runtime's fallbacks, so every `Display` and `compare` of a sized value in generic code would need a dictionary, and every conversion to and from `Int` a `BigInt()` or `Number()`) | **proposed** (2026-10-26), waiting for the author |

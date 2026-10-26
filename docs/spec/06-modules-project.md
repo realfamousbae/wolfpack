@@ -150,6 +150,9 @@ shadow the prelude function (section 3.2).
 names of 0.2 it cannot be declared again at the top level (E0617), so a program with a top-level
 type `Char` must rename it.
 
+**[DRAFT]** (2026-10-26, chapter 4, D4.24): so do the sized integer types `Int8`, `Int16`, `Int32`,
+`UInt8`, `UInt16` and `UInt32`, under the same rule.
+
 `assert` is usable everywhere, not only in tests **[PROPOSAL]**. Its exact signature and the
 behaviour of a failed assertion are in chapter 7.
 

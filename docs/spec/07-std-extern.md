@@ -29,6 +29,7 @@ Decisions already taken by the author for this chapter (2026-10-07):
    types, so the coherence rule of chapter 4 (an `impl` lives in the module of its type) holds
    without exceptions. Like `intrinsic` functions, `intrinsic type` is allowed only in std
    (E0701). **[DRAFT]** (2026-10-26, D7.22): `std.string` also declares `Char`.
+   **[DRAFT]** (2026-10-26, D7.23): `std.math` also declares the sized integer types.
 5. **Methods of built-in types are available everywhere without an import**: a method is found
    through the type of the receiver (chapter 4, section 8.4). Importing `std.list` is needed only for
    its free functions.
@@ -160,6 +161,35 @@ list, an option, a map and a result writes it as the literal that would build it
    `"` and every other character are written as they are (`['"', '\'']`). A `Char` written by
    itself keeps no quotes: `f"{c}"` is `a`.
 
+### 4.1a Sized integers (module `std.math`) **[DRAFT]** (2026-10-26, D7.23)
+
+Proposed, waiting for the author. `Int8`, `Int16`, `Int32`, `UInt8`, `UInt16` and `UInt32`
+(chapter 4, section 3.1a) are declared in `std.math`, and their methods are available without an
+import:
+
+| Method | Notes |
+| --- | --- |
+| `to_int(self) -> Int`, on each of the six types | the same value; never fails |
+| `Int.to_int8(self) -> Int8`, `to_int16`, `to_int32`, `to_uint8`, `to_uint16`, `to_uint32` | the same value; outside the range of the type it panics, `panic: integer overflow`, as `Float.to_int` does |
+| `to_string(self) -> String`, on each type | decimal, `-` for negatives, as for `Int`; the implementation of `Display` |
+| `compare(self, other: Self) -> Ordering`, on each type | by value; the implementation of `Comparable` |
+
+1. **Conversions go through `Int`.** From `UInt8` to `UInt32` is `b.to_int().to_uint32()`: the
+   first step never fails, since every value of the six types is an `Int`, and the second panics
+   exactly when the value does not fit the target type. A `Float` goes through `Int` the same
+   way: `x.to_int().to_int32()`, `b.to_int().to_float()`. Twelve methods in all, instead of one
+   for every two integer types.
+2. A narrowing conversion panics, like `Float.to_int` and like arithmetic that overflows: a value
+   that does not fit is a mistake in the program. Input is checked first:
+   `if n >= 0 && n <= 255 { ... n.to_uint8() ... }`.
+3. Format specifications (section 4.4) treat a sized integer as an `Int`: it aligns to the right
+   by default, takes `0`, and a precision is E0441.
+4. Not proposed, and recorded as alternatives in D7.23: an `Option` form of the narrowing
+   conversions (`n.to_uint8_checked() -> Option<UInt8>`); direct conversions between every two
+   integer types; `abs`, `min`, `max` and `pow` on the sized types (`List.min` and `List.max` work
+   through `Comparable`); wrapping arithmetic; reading the bits of one type as another (`Int8`
+   from the bits of a `UInt8`). `std.list.sum` stays a function of `List<Int>`.
+
 **Canonical `Float` format** (G9) **[PROPOSAL]** (see D7.2):
 
 1. Digits: the shortest decimal that reads back as the same value (round trip).
@@ -287,6 +317,9 @@ says, on every target and in the VM:
 | `f"{"x":*>4}"` | `***x` |
 | `f"{1.5:8.3}"` | `   1.500` |
 | `f"{[1, 2]:>8}"` | `  [1, 2]` |
+
+**[DRAFT]** (2026-10-26, D7.23): what this section says of `Int` holds for the sized integer types
+(section 4.1a): `f"{b:03}"` with `b: UInt8` equal to 7 is `007`.
 
 ## 5. Lists (module `std.list`)
 
@@ -485,6 +518,8 @@ extern {
    **[DRAFT]** (2026-10-26, D7.22): `Char` is a boundary type too, also as a key `K`, as a field of
    a record and in the parameters and result of a callback (rule 7). How it crosses is in
    chapter 8, section 8.
+   **[DRAFT]** (2026-10-26, D7.23): so are the sized integer types `Int8` to `UInt32`, in the
+   same places; chapter 8, section 8 converts them.
 2. The error type of a `Result` at the boundary is always `Error` **[PROPOSAL]**: a Go `error`, a
    value thrown in TS, or a Rust `E: Display` becomes an `Error` whose `message()` is the target's
    text.
@@ -615,6 +650,10 @@ the reason (`its parameter is a &mut reference`), so nothing is left out silentl
    **[DRAFT]** (2026-10-26, D7.22): with `Char` this stays as it is in a first step: the readers
    do not map Rust `char` (not available) or Go `rune` (read as `Int`, rule 9) to `Char`, so no
    native module changes its signatures; a `Char` crosses through a written `extern` block.
+   **[DRAFT]** (2026-10-26, D7.23): the sized integer types change nothing here either: the readers
+   keep reading every integer type of a target as `Int` (`u8` and `int32` too), converted with a
+   check, so no native module changes its signatures; a sized type crosses through a written
+   `extern` block.
 4. **Callbacks.** A parameter of type `impl Fn(A, ..) -> R`, `&dyn Fn(A, ..) -> R`, or of a type
    parameter `F` bounded by `Fn(A, ..) -> R` is a callback `fn(A, ..) -> R` (section 8.4, rule 7).
 5. **Names.** The Rust names are kept: they already follow the wolfpack style. A name that is a
@@ -771,3 +810,4 @@ Proposed range E07xx (confirmed in chapter 9).
 | D7.20 | 0.2: methods of opaque types of native modules (section 8.7, rule 17): read-receiver methods become methods called `x.name()`, functions without a receiver and TS constructors become associated functions `Type.name()`; the alternative is plain functions of the module (`index_add(index, word)`), which needs no change to opaque types | **answered** (author, 2026-10-21): methods as methods |
 | D7.21 | **[DRAFT]** Debug builds (section 3, rule 1): `--debug` for `wolf build`, `wolf run` and `wolf test` (and with `--vm`) adds the location of the failing operation to the panics of the language, `panic at <file>:<line>:<column>: <message>`; stack overflow stays without one; builds without the flag do not change. Alternatives: a setting in `wolfpack.toml` (`[build] debug = true`); locations always in the VM only | **proposed** (2026-10-26), waiting for the author |
 | D7.22 | `Char` in std (sections 4.1, 4.3, 4.3a, 8.4, 8.7): declared in `std.string`, in the prelude; `c.to_int()`; `Char.from_int(n) -> Option<Char>` (`None` for negatives, surrogates and codes above U+10FFFF); `Display` and `Comparable` built in; **`s.chars()` returns `List<Char>` instead of `List<String>`** (breaking: a program that uses the parts as strings gets E0401 or E0405 and writes `c.to_string()`); new `s.char_at(i) -> Char`, which panics out of range like `l[i]`, and `String.from_chars(chars) -> String`; a `Char` inside a collection is written `'a'`, escaped like a string part, with `\'`; `Char` crosses `extern` (also as a `Map` key, a record field and in callbacks); the readers of native modules do not change. Alternatives: keep `chars() -> List<String>` and add `to_chars()` (or `scalars()`) for `List<Char>`, which breaks nothing; `Int.to_char()` in `std.math` instead of `Char.from_int` (then `std.math` must know `Char`), or a panicking form beside the `Option`; a free function `string.from_chars`; ASCII classification and case mapping on `Char` now; readers that map Rust `char` to `Char` (breaks nothing) and Go `rune` to `Char` (changes the signatures of Go native modules that use `rune`, read as `Int` since D7.17; with only the Rust change a module with both would disagree, E0715) | **proposed** (2026-10-26), waiting for the author |
+| D7.23 | The sized integer types in std (section 4.1a; sections 4.4, 8.4, 8.7): declared in `std.math`, in the prelude; conversions only through `Int`: `x.to_int()` on each sized type, which never fails, and `n.to_int8()` to `n.to_uint32()` on `Int`, which panic out of range with `integer overflow` as `Float.to_int` does; `Display` (decimal) and `Comparable` built in; format specifications as for `Int`; the six types cross `extern` (also as keys, record fields and in callbacks); the readers of native modules keep reading every integer type as `Int` (D7.18), so no native module changes. Alternatives: an `Option` form of each narrowing conversion beside the panicking one (`to_uint8_checked()`), or instead of it; direct conversions between every two integer types (42 methods instead of 12); `abs`, `min`, `max`, `pow` and wrapping arithmetic on the sized types; readers that map `u8`, `int32` and the like to the sized types (exact, but it changes the signatures of existing native modules, and a TS `number` has no width, so a module with a TS part would disagree, E0715) | **proposed** (2026-10-26), waiting for the author |

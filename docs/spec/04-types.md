@@ -32,6 +32,8 @@ Decisions already taken by the author for this chapter (2026-10-07):
 | Type | Values | Notes |
 | --- | --- | --- |
 | `Int` | signed 64-bit integers | ADR 0001 |
+| `Int8`, `Int16`, `Int32` | signed integers of 8, 16 and 32 bits | **[DRAFT]** (2026-10-26, D4.24), section 3.1a |
+| `UInt8`, `UInt16`, `UInt32` | unsigned integers of 8, 16 and 32 bits | **[DRAFT]** (2026-10-26, D4.24), section 3.1a |
 | `Float` | IEEE 754 binary64 | **[PLAN]** |
 | `Bool` | `true`, `false` | |
 | `String` | immutable sequences of Unicode scalar values, stored as UTF-8 | **[PLAN]**, G1 |
@@ -72,6 +74,121 @@ Decisions already taken by the author for this chapter (2026-10-07):
    only on negative amounts), so every backend implements exactly this rule.
 6. Literals: an integer literal has type `Int` and must fit (chapter 1, section 5.1). There are no
    untyped or polymorphic literals: `let x = 5` is `Int`, and `5` is never a `Float`.
+   **[DRAFT]** (2026-10-26): a literal with a suffix has the type of its suffix (D1.14), and one
+   without may take a sized type from its place (section 3.1a, rule 14; D4.25, open).
+
+### 3.1a Sized integer types **[DRAFT]** (2026-10-26, D4.24, D4.25)
+
+Proposed, waiting for the author.
+
+1. Besides `Int` there are six integer types of a fixed width:
+
+   | Type | Values | Suffix (chapter 1, D1.14) |
+   | --- | --- | --- |
+   | `Int8` | -128 to 127 | `i8` |
+   | `Int16` | -32,768 to 32,767 | `i16` |
+   | `Int32` | -2,147,483,648 to 2,147,483,647 | `i32` |
+   | `UInt8` | 0 to 255 | `u8` |
+   | `UInt16` | 0 to 65,535 | `u16` |
+   | `UInt32` | 0 to 4,294,967,295 | `u32` |
+
+   `Int` stays **the** integer type: literals without a suffix, lengths, indices, positions,
+   ranges, `config` constants and every std function that is not about a width use it. A sized
+   type is for the places where a width is part of the data: bytes (`UInt8`, the element type of
+   a future `Bytes`, `docs/ideas.md`), the fields of a binary format, colours, values that extern
+   code has in that width. Every value of the six types is a value of `Int`, so widening to `Int`
+   never fails. There is no `Int64` (that is `Int`), no `UInt64`, no type of the platform's width
+   (`isize`) and no `Float32`.
+2. They are declared in `std.math`, next to `Int` and `Float`, and are part of the prelude
+   (chapter 6, section 3.3; chapter 7, section 4.1a).
+3. They are **copy types** (chapter 5, section 2, rule 1).
+4. **Arithmetic** is that of `Int` (section 3.1) with the range of the type in place of 64 bits:
+   `+`, `-`, `*` and unary `-` panic on overflow (`panic: integer overflow`) and never wrap, so
+   `200u8 + 100u8` panics; `/` truncates toward zero and `%` has the sign of the dividend;
+   division and remainder by zero panic; on a signed type `MIN / -1` and `MIN % -1` panic.
+5. **Unsigned types have no unary minus** (E0405): `-x` with `x: UInt8` and `-1u8` are errors,
+   and `0u8 - 1u8` panics.
+6. **Bitwise** `&`, `|`, `^`, `~` work on the bits of the width: `~0u8 == 255u8`,
+   `~0i8 == -1i8`, `0xF0u8 | 0x0Fu8 == 255u8`.
+7. **Shifts.** The amount is always an `Int`, whatever the type on the left (`b << 3`, `b >> n`
+   with `n: Int`), and must be in `0` to the width minus one (`0..=7` for `UInt8`), else the shift
+   panics (`panic: shift amount out of range`). `<<` discards the bits shifted out of the width
+   and never panics for overflow (`1i8 << 7 == -128i8`, `0x81u8 << 1 == 2u8`), as on `Int`. `>>`
+   copies the sign bit on a signed type and shifts in zeros on an unsigned one.
+8. **No mixing.** Both operands of an arithmetic, bitwise or comparison operator have one type:
+   `a + b` with `a: UInt8` and `b: Int` is E0405, with a help that names the conversion
+   (`a.to_int() + b`). Widening is explicit too (section 1, rule 2): `b.to_int()`, and back
+   `n.to_uint8()` (chapter 7, section 4.1a).
+9. **Comparisons** `==`, `!=`, `<`, `<=`, `>`, `>=` compare values, as on `Int`: the six types
+   join the list of section 3.5, rule 2.
+10. **Indices, slices and ranges stay `Int`**: `l[b]` with `b: UInt8` is E0401 (section 4,
+    rule 1), and `for i in 0..n` iterates `Int`s; write `l[b.to_int()]`.
+11. **Built-in interfaces** (section 9): `Equatable` and `Copyable` (derived), `Hashable`, so they
+    can be `Map` keys (the closed list of G3 gains the six types), `Comparable` by value, and
+    `Display`: the decimal text, as for `Int` (`255`, `-128`, no suffix).
+12. **Patterns.** Integer literals are literal patterns of these types (section 11, rule 2). A
+    `match` on a sized value needs a `_` or a binding arm, also when its arms happen to list all
+    256 values of a `UInt8`: there is no range analysis (section 11, rule 5).
+13. **`config` constants** stay `Int`, `Float`, `Bool` or `String` (chapter 2, D2.1): a constant
+    with a width is an `Int`, converted where it is used (`limit.to_uint16()`).
+14. **Literals of a sized type** (D4.25, an open question; recommendation (b)):
+    - (a) **Only with a suffix.** Rule 6 of section 3.1 stays word for word: a literal without a
+      suffix is an `Int`, and a sized value is written with its suffix: `let b: UInt8 = 255u8`,
+      `b + 1u8`, `match b { 0u8 => ... }`.
+    - (b) **The expected type.** A literal without a suffix is an `Int`, except where a sized type
+      is **expected**: there it has that type, and its value must fit (E0423:
+      `let b: UInt8 = 256`). A sized type is expected
+      - in the positions where a value is coerced to an interface type (section 8.5, rule 2): the
+        initializer of a `let` or `var` with a written type, an argument, a field of a struct
+        literal or a payload of a variant, an element of a list or map literal whose element
+        type is known, the result of a function (`return`, the final expression of its body);
+      - on the right of an assignment or a compound assignment to a place of a sized type
+        (`b = 0`, `b += 1`);
+      - as an operand of an arithmetic, bitwise or comparison operator whose other operand has
+        a sized type (`b + 1`, `1 + b`, `b == 0`, `mask & 0xFF`), but not as the amount of a
+        shift, which is an `Int`;
+      - as a literal pattern on a scrutinee of a sized type (`match b { 0 => ..., _ => ... }`);
+      - and from these positions on: in the branches of an `if` or a `match`, in the final
+        expression of a block, in parentheses, in the operand of a unary minus, and in both
+        operands of an arithmetic or bitwise operator (not in a shift amount), so
+        `let x: UInt8 = 1 + 2` and `b + 1 * 2` are `UInt8` arithmetic.
+
+      A unary minus and its literal count as one literal (`let x: Int8 = -128`). Where no sized
+      type is expected, the literal is an `Int`, also when inference later finds a sized type:
+      `let n = 5` followed by `takes_u8(n)` is E0401. A literal never becomes a `Float`.
+
+      **Generic parameters.** A parameter whose type is a type parameter (`T` of
+      `assert_eq<T>(left: T, right: T)`) expects a sized type only once `T` is known at that
+      argument: from an earlier argument, read from left to right, or from the expected result.
+      So `assert_eq(b, 5)` with `b: UInt8` compares two `UInt8`s, while `assert_eq(5, b)` makes
+      `T` an `Int` at the `5` and is E0401 at `b`; write `assert_eq(5u8, b)`. The same holds for
+      list and map literals: `[b, 1]` is a `List<UInt8>`, `[1, b]` is E0401.
+
+    (b) changes the letter of rule 6 of section 3.1 ("no untyped or polymorphic literals") but not
+    its point: a literal gets its type from the place where it is written, never from inference
+    later in the body, and nothing is converted at run time. Rust, Swift, Kotlin and Go let
+    `let b: u8 = 255` be written without a suffix in the same way.
+15. **No new code.** A mismatch is E0401, an operator on mixed types or a unary minus on an
+    unsigned type E0405, a literal that does not fit its type E0423 (E0106 in the lexer for a
+    suffixed one, chapter 1).
+
+```
+fn pack(r: UInt8, g: UInt8, b: UInt8) -> UInt32 {
+    ((r.to_int() << 16) | (g.to_int() << 8) | b.to_int()).to_uint32()
+}
+
+fn red(color: UInt32) -> UInt8 {
+    ((color >> 16) & 0xFF).to_int().to_uint8()     // `0xFFu32` with (a)
+}
+
+fn checksum(data: List<UInt8>) -> UInt8 {
+    var sum: UInt8 = 0                              // `0u8` with (a)
+    for b in data {
+        sum = sum ^ b
+    }
+    sum
+}
+```
 
 ### 3.2 `Float`
 
@@ -105,7 +222,8 @@ Decisions already taken by the author for this chapter (2026-10-07):
 1. `==` and `!=` work on any type that is `Equatable` (section 9), both sides of the same type.
 2. `<`, `<=`, `>`, `>=` work only on `Int`, `Float` and `String` (author). Generic code and user
    types use `a.compare(b)`, which returns `Ordering`. **[DRAFT]** (2026-10-26, D4.23): and on
-   `Char` (section 3.7).
+   `Char` (section 3.7). **[DRAFT]** (2026-10-26, D4.24): and on the sized integer types
+   (section 3.1a).
 
 ### 3.6 Compound assignment
 
@@ -549,6 +667,9 @@ bounds. Associated functions are called as `Type.f(args)`.
    `Hashable` (added to the closed list), `Comparable` (built in, by scalar value) and `Display`
    (built in): each row of the table above gains `Char`. A list of `Char`s is `Display` and writes
    its parts in single quotes, `['a', 'b']` (chapter 7, section 4.1).
+9. **[DRAFT]** (2026-10-26, D4.24) **The sized integer types** (section 3.1a) are `Equatable` and
+   `Copyable`, `Hashable` (added to the closed list), `Comparable` (built in, by value) and
+   `Display` (built in, decimal): each row of the table above gains them.
 
 ## 10. Type inference
 
@@ -567,14 +688,15 @@ bounds. Associated functions are called as `Type.f(args)`.
 
 1. A pattern must have the type of the scrutinee: `Some(x)` against `Option<T>` binds `x: T`.
 2. Literal patterns are allowed for `Int`, `String` and `Bool` (chapter 3 forbids `Float`).
-   **[DRAFT]** (2026-10-26, D4.23): and for `Char`.
+   **[DRAFT]** (2026-10-26, D4.23): and for `Char`. **[DRAFT]** (2026-10-26, D4.24): and for
+   the sized integer types (section 3.1a, rule 12).
 3. Both sides of `A | B` must bind the same names with the same types.
 4. A guard (`if cond`) must be `Bool`. **A guarded arm never counts toward exhaustiveness.**
 5. **Exhaustiveness** **[PLAN]**: the arms must cover every value of the scrutinee type. For
    `Int` and `String` this needs a `_` or a binding arm. For enums, every variant (and every
    combination for nested patterns) must be covered. The error lists an example of a missing
    pattern: "missing `Shape.Rect { .. }`". **[DRAFT]** (2026-10-26, D4.23): a `Char` needs a `_`
-   or a binding arm too.
+   or a binding arm too, and so does a sized integer (D4.24).
 6. **Unreachable arms** (covered entirely by earlier arms) are an error. **[PROPOSAL]** (see D4.9)
 7. How a binding in a pattern relates to ownership (does `Some(x)` move or borrow) is in chapter 5.
 
@@ -640,6 +762,11 @@ Proposed range E04xx (confirmed in chapter 9). Main codes:
 
 Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 
+**[DRAFT]** (2026-10-26, D4.24, D4.25): the sized integer types need no new code. E0405 also covers
+an operator on two different integer types and a unary minus on an unsigned type, E0423 a literal
+that does not fit its sized type, and E0441 a precision as for `Int` (a `0` is allowed for every
+integer type).
+
 ## 14. Register items opened by this chapter
 
 | # | Item | Chapter |
@@ -674,3 +801,5 @@ Codes E0426 to E0430 were added in M4 (author, 2026-10-09).
 | D4.15 | E0439 for a struct literal or pattern of a name that is not a struct (section 7.1, rule 3), and literals and patterns through an alias of a struct (section 7.3). Before, both stopped `wolf` with an internal error | **proposed** (2026-10-23), waiting for the author |
 | D4.23 | The type `Char` (section 3.7): one Unicode scalar value (not a grapheme cluster); a copy type (chapter 5, section 2); `==` and `<` by scalar value, which adds `Char` to the author's list of section 3.5, rule 2; no arithmetic or bitwise operators, and `"a" + c` stays E0405 (section 3.4, rule 1 unchanged); `Equatable`, `Copyable`, `Hashable` (a `Map` key, one more type in the closed list of G3), `Comparable`, `Display`; literal patterns, exhaustive only with `_`; not a `config` type; declared in `std.string` and part of the prelude, so a 0.5 program with a top-level type `Char` must rename it (E0617, chapter 6, section 3.3). `s[i]` stays absent (D4.10); `s.char_at(i)` is proposed instead (chapter 7, D7.22). No new E04xx code. Alternatives: `s[i] -> Char`, reversing D4.10 (it would look O(1) but walks the string on every target); `+` of a `String` and a `Char`; `Char` as a `config` type, from a one-character TOML string; a grapheme cluster, as Swift's `Character` (the targets disagree on clusters as they do on case mapping, D7.3) | **proposed** (2026-10-26), waiting for the author |
 | D4.11 | Rest: `Ordering`, Never type, string ordering by scalar value, `?` with identical `E`, recursive types rule, object safety rule, no two methods with one name, built-in interfaces table, inference rules, diagnostics | **answered**: yes |
+| D4.24 | Sized integer types (section 3.1a): `Int8`, `Int16`, `Int32`, `UInt8`, `UInt16`, `UInt32`, named in the style of `Int` (as Swift names them); `Int` stays the default and the only 64-bit type; copy types; the arithmetic of `Int` with the range of the type, panicking on overflow and never wrapping; no unary minus on the unsigned types; bitwise operators on the bits of the width; the shift amount is always an `Int` in `0` to the width minus one, `>>` arithmetic on signed and logical on unsigned types; no mixing in an operator (E0405) and no implicit widening; indices, slices and ranges stay `Int`; `Equatable`, `Copyable`, `Hashable` (`Map` keys), `Comparable`, `Display` (decimal); literal patterns, a `match` needing `_`; not `config` types; prelude names, so a program with a top-level type of one of these names must rename it (E0617). No new E04xx code. **Open**: (1) the set: recommended these six, which all fit in `Int`, so `to_int()` never fails; alternatives a smaller set (`UInt8` for bytes, `Int32` and `UInt32` for interop) or a larger one with `UInt64` (64-bit hashes; then `to_int()` can fail) and `Int64` as a second name of `Int`; (2) the names: alternatives `I8`/`U8` (they match the suffixes, not `Int` and `Float`), or `Byte`/`Short` (signed in Java and Kotlin, unsigned in Go and C#); (3) `Byte`: recommended no second name, and the `Bytes` draft uses `UInt8` for its elements; the alternative `type Byte = UInt8` in the prelude is best decided with `Bytes`; (4) wrapping arithmetic (`wrapping_add`, `wrapping_mul`) is not proposed: 32-bit hashes such as FNV-1a work in `Int` and are masked (`((h ^ b) * 16777619) & 0xFFFF_FFFF`), 64-bit ones would need it | **proposed** (2026-10-26), waiting for the author |
+| D4.25 | Literals of the sized types (section 3.1a, rule 14). (a) only with a suffix, as section 3.1, rule 6 says today: `let b: UInt8 = 255u8`, `b + 1u8`, `match b { 0u8 => ... }`; (b) **recommended**: a literal without a suffix takes the sized type expected at its place (the positions of interface coercion, section 8.5, rule 2; the right side of an assignment; the other operand of an operator, not a shift amount; a literal pattern; the branches of an `if` or a `match`; parentheses and both operands of an arithmetic or bitwise operator, so `let x: UInt8 = 1 + 2` works) and is an `Int` everywhere else, E0423 when it does not fit; inference never changes it later (`let n = 5` stays `Int`); for a parameter of a type parameter the type must be known from an earlier argument, so `assert_eq(b, 5)` works and `assert_eq(5, b)` is E0401 (write `5u8`). (b) changes the letter of section 3.1, rule 6, not its point: no literal becomes a `Float`, nothing is converted at run time. Alternative (c): Rust's inference of integer literals with `Int` as the default (`let n = 5` becomes a `UInt8` when it is passed to a `UInt8` parameter), more convenient but a literal's type then depends on code far from it | **proposed** (2026-10-26), waiting for the author |
