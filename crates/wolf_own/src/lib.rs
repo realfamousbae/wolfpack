@@ -792,7 +792,7 @@ impl<'p> Checker<'p> {
                 self.expr(lhs, Use::Read);
                 self.expr(rhs, Use::Read);
             }
-            ExprKind::Closure { params, body } => self.closure(e, params, body),
+            ExprKind::Closure { params, body, .. } => self.closure(e, params, body),
             ExprKind::If {
                 cond,
                 then,
@@ -1469,7 +1469,7 @@ impl Free {
                 self.expr(lhs);
                 self.expr(rhs);
             }
-            ExprKind::Closure { params, body } => {
+            ExprKind::Closure { params, body, .. } => {
                 for p in params {
                     self.inner.insert(p.local);
                 }

@@ -3771,7 +3771,7 @@ impl<'p> Emitter<'p> {
                 let x = self.binary(*op, lhs, rhs)?;
                 self.shape(x, t, want, false)
             }
-            ExprKind::Closure { params, body } => {
+            ExprKind::Closure { params, body, .. } => {
                 let c = self.closure(params, body, t)?;
                 match want {
                     Want::Read(_) => reference(c),
@@ -4828,7 +4828,7 @@ impl<'p> Emitter<'p> {
     /// A function argument of an iterator adapter, which receives `&T`.
     fn fn_arg(&mut self, e: &'p IrExpr) -> Result<Expr, Error> {
         match &e.kind {
-            ExprKind::Closure { params, body } => self.closure(params, body, &e.ty),
+            ExprKind::Closure { params, body, .. } => self.closure(params, body, &e.ty),
             ExprKind::FnValue(def) => self.fn_value(*def, &e.ty),
             _ => {
                 let f = self.expr(e, Want::Op)?;

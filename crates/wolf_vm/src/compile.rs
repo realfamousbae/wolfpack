@@ -1138,7 +1138,7 @@ impl FnC {
                     self.binary(*op, &lhs.ty)?;
                 }
             },
-            ExprKind::Closure { params, body } => self.closure(c, params, body)?,
+            ExprKind::Closure { params, body, .. } => self.closure(c, params, body)?,
             ExprKind::If {
                 cond,
                 then,
@@ -1864,7 +1864,7 @@ fn walk_expr(e: &Expr, used: &mut BTreeSet<Var>, bound: &mut BTreeSet<Var>) {
             go(lhs);
             go(rhs);
         }
-        ExprKind::Closure { params, body } => {
+        ExprKind::Closure { params, body, .. } => {
             for p in params {
                 bound.insert(Var::Local(p.local));
             }

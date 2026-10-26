@@ -5231,7 +5231,7 @@ impl<'p> Emitter<'p> {
                 })
             }
             ExprKind::Binary { op, lhs, rhs } => data(self.binary(*op, lhs, rhs, out)?),
-            ExprKind::Closure { params, body } => {
+            ExprKind::Closure { params, body, .. } => {
                 let ret = match &e.ty {
                     IrType::Fn(_, r) => (**r).clone(),
                     _ => IrType::Void,

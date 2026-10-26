@@ -8,6 +8,7 @@
 //! represents it is the backend's decision.
 
 mod lower;
+mod recursion;
 
 use std::collections::BTreeMap;
 pub use wolf_ast::{NativeSig, NativeTy};
@@ -371,6 +372,9 @@ pub struct Function {
     pub interface: Option<DefRef>,
     /// A helper function of a `tests` section: part of test builds only.
     pub in_tests: bool,
+    /// Whether it can call itself, directly or through other functions (spec chapter 8, section
+    /// 4.3): Go and Rust count its nested calls, so that recursion that never ends is a panic.
+    pub recursive: bool,
 }
 
 /// A `config` constant with its value.
@@ -706,6 +710,9 @@ pub enum ExprKind {
         params: Vec<Param>,
         /// The body.
         body: Block,
+        /// Whether it can call itself through other functions, like
+        /// [`Function::recursive`].
+        recursive: bool,
     },
     /// `if`, with `else` or without.
     If {
