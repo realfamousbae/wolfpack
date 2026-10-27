@@ -118,6 +118,11 @@ All notable changes are recorded here at the end of each milestone.
   written `new ShapeRect(...) as Shape`), and the Rust printer wrote struct patterns wider than
   `struct_lit_width` and the struct variants of an enum with a long one on one line, which
   `rustfmt` breaks.
+- Fixed in the Rust backend: an explicit `return expr` in a tail position of a function (the last
+  statement, the last statement of the branches of a final `if`, the arms of a final `match`) was
+  printed as `return expr` without a semicolon, which rustfmt and Clippy (`needless_return`)
+  reject. It is now printed as the tail expression `expr`. The test project `rust_tail_return`
+  checks it.
 
 ## 0.5.1 (2026-10-26)
 

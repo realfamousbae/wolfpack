@@ -1,0 +1,38 @@
+//! A final `return expr` is the tail of a Rust function: clippy rejects `needless_return`.
+
+module main
+
+main {
+    print(plain(1).to_string())
+    print(branch(-1).to_string())
+    print(matched(2).to_string())
+}
+
+functions {
+    fn plain(x: Int) -> Int {
+        return x + 1
+    }
+
+    fn branch(x: Int) -> Int {
+        if x < 0 {
+            return 0
+        } else {
+            return x + 1
+        }
+    }
+
+    fn matched(x: Int) -> Int {
+        match x {
+            1 => return 10
+            _ => return x * 2
+        }
+    }
+}
+
+tests {
+    test "returns" {
+        assert_eq(plain(1), 2)
+        assert_eq(branch(-1), 0)
+        assert_eq(matched(2), 4)
+    }
+}

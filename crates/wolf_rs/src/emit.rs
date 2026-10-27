@@ -246,6 +246,52 @@ fn block(stmts: Vec<Stmt>, tail: Option<Expr>) -> rs::Block {
     }
 }
 
+/// Removes the `return` of every tail position of a function body: `return x` there is `x`, and
+/// Clippy rejects the `return` (`needless_return`). Only the tails of blocks, of the branches of
+/// `if` with an `else` and of the arms of `match` are tail positions; loops and labeled blocks
+/// are left alone.
+fn strip_tail_returns(b: &mut rs::Block) {
+    if b.tail.is_none() {
+        if let Some(Stmt::Expr(Expr::Return(_))) = b.stmts.last() {
+            if let Some(Stmt::Expr(Expr::Return(v))) = b.stmts.pop() {
+                b.tail = v;
+            }
+        }
+    }
+    if let Some(t) = b.tail.take() {
+        b.tail = strip_tail_return(*t).map(Box::new);
+    }
+}
+
+/// The expression that stands in a tail position for `e`; `None` for `return` without a value.
+fn strip_tail_return(e: Expr) -> Option<Expr> {
+    Some(match e {
+        Expr::Return(v) => return v.map(|v| *v),
+        Expr::Block(mut b) => {
+            strip_tail_returns(&mut b);
+            Expr::Block(b)
+        }
+        Expr::If(c, mut then, Some(otherwise)) => {
+            strip_tail_returns(&mut then);
+            let otherwise = strip_tail_return(*otherwise).unwrap_or(Expr::Tuple(Vec::new()));
+            Expr::If(c, then, Some(Box::new(otherwise)))
+        }
+        Expr::IfLet(p, s, mut then, Some(otherwise)) => {
+            strip_tail_returns(&mut then);
+            let otherwise = strip_tail_return(*otherwise).unwrap_or(Expr::Tuple(Vec::new()));
+            Expr::IfLet(p, s, then, Some(Box::new(otherwise)))
+        }
+        Expr::Match(s, mut arms) => {
+            for arm in &mut arms {
+                let body = std::mem::replace(&mut arm.body, Expr::Tuple(Vec::new()));
+                arm.body = strip_tail_return(body).unwrap_or(Expr::Tuple(Vec::new()));
+            }
+            Expr::Match(s, arms)
+        }
+        other => other,
+    })
+}
+
 fn to_string(e: Expr) -> Expr {
     method(e, "to_string", Vec::new())
 }
@@ -1912,6 +1958,7 @@ impl<'p> Emitter<'p> {
                 }
                 rebind.append(&mut b.stmts);
                 b.stmts = rebind;
+                strip_tail_returns(&mut b);
                 Some(b)
             }
             None => None,
