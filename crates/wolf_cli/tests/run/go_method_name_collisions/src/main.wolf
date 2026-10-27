@@ -102,7 +102,9 @@ main {
     print(f"{stack_total(s)} {stack_contains(s, 3)}")
     print(shadowed(s).to_string())
     let d = Dog { label: "rex" }
-    print(f"{Box { item: d.copy() }.describe()} / {Bag { items: [d.copy(), d.copy()] }.describe()} / {box_describe(d.copy())}")
+    print(
+        f"{Box { item: d.copy() }.describe()} / {Bag { items: [d.copy(), d.copy()] }.describe()} / {box_describe(d.copy())}",
+    )
 }
 
 functions {
