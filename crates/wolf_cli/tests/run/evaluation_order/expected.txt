@@ -1,0 +1,38 @@
+literal
+z
+x
+y
+1 2 3
+literal in order
+x
+y
+z
+4 5 6
+update
+z
+y
+4 8 9
+update with a noted base
+y
+x
+base
+10 20 0
+variant
+depth
+width
+height
+1x2x3
+variant update
+height
+width
+6x7x3
+variant update with a noted base
+depth
+width
+base
+10x0x30
+literals and locals
+x
+1 40 3
+update after a change of the base
+100 7 3

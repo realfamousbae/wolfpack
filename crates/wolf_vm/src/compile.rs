@@ -600,7 +600,7 @@ fn effect(op: &Op, depth: u32) -> u32 {
         Op::Make { n: k, .. } | Op::List(k) | Op::Closure { n: k, .. } | Op::Concat(k) => {
             d + 1 - n(*k)
         }
-        // `Update` pops the base and the written fields; their number is in the constant, so the
+        // `Update` pops the base and the written fields under it; their number is in the constant, so the
         // compiler sets the depth itself.
         Op::Update { .. } => d,
         Op::Map(k) => d + 1 - 2 * n(*k),
@@ -1083,37 +1083,64 @@ impl FnC {
                 });
                 self.locate(location.as_ref());
             }
-            ExprKind::Struct { def, fields, base } => match base {
-                None => {
-                    for (_, v) in fields {
-                        self.expr(c, v)?;
-                    }
-                    self.emit(Op::Make {
-                        tag: def.0,
-                        n: count(fields.len())?,
-                    });
-                }
-                Some(b) => {
-                    self.expr(c, b)?;
-                    let names = c.fields.get(def).cloned().unwrap_or_default();
-                    let mut positions = Vec::new();
-                    for (name, v) in fields {
-                        let i = names
+            ExprKind::Struct { def, fields, base } => {
+                // The fields are evaluated as written, then the base (chapter 3, section 5,
+                // rule 6).
+                let names = c.fields.get(def).cloned().unwrap_or_default();
+                let position = |name: &String| {
+                    names
+                        .iter()
+                        .position(|n| n == name)
+                        .ok_or_else(|| format!("no field `{name}`"))
+                };
+                match base {
+                    None => {
+                        let declared = fields
                             .iter()
-                            .position(|n| n == name)
-                            .ok_or_else(|| format!("no field `{name}`"))?;
-                        positions.push(Value::Int(i64::try_from(i).unwrap_or(0)));
-                        self.expr(c, v)?;
+                            .enumerate()
+                            .all(|(i, (n, _))| names.get(i) == Some(n));
+                        if declared {
+                            for (_, v) in fields {
+                                self.expr(c, v)?;
+                            }
+                        } else {
+                            // `Make` takes the fields in declaration order: the values written
+                            // in another order wait in slots.
+                            let mut slots = vec![None; names.len()];
+                            for (name, v) in fields {
+                                self.expr(c, v)?;
+                                let t = self.temp();
+                                self.emit(Op::Store(t));
+                                if let Some(s) = slots.get_mut(position(name)?) {
+                                    *s = Some(t);
+                                }
+                            }
+                            for t in slots.into_iter().flatten() {
+                                self.emit(Op::Load(t));
+                            }
+                        }
+                        self.emit(Op::Make {
+                            tag: def.0,
+                            n: count(fields.len())?,
+                        });
                     }
-                    let start = self.depth;
-                    let k = self.constant(Value::list(positions));
-                    self.emit(Op::Update {
-                        tag: def.0,
-                        fields: k,
-                    });
-                    self.depth = start.saturating_sub(count(fields.len())?);
+                    Some(b) => {
+                        let mut positions = Vec::new();
+                        for (name, v) in fields {
+                            positions.push(Value::Int(i64::try_from(position(name)?).unwrap_or(0)));
+                            self.expr(c, v)?;
+                        }
+                        self.expr(c, b)?;
+                        let start = self.depth;
+                        let k = self.constant(Value::list(positions));
+                        self.emit(Op::Update {
+                            tag: def.0,
+                            fields: k,
+                        });
+                        self.depth = start.saturating_sub(count(fields.len())?);
+                    }
                 }
-            },
+            }
             ExprKind::Variant { def, values } => {
                 for v in values {
                     self.expr(c, v)?;

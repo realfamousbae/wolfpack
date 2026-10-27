@@ -131,8 +131,8 @@ pub enum Op {
         /// The number of fields.
         n: u32,
     },
-    /// Pops written field values and a base struct and makes a struct with the base's other
-    /// fields; the constant is the list of the written field positions.
+    /// Pops a base struct and, under it, the written field values, and makes a struct with the
+    /// base's other fields; the constant is the list of the written field positions.
     Update {
         /// The struct.
         tag: u32,

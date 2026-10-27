@@ -679,12 +679,13 @@ pub enum ExprKind {
         /// In a debug build, the location of the `[` (see [`Program::debug`]).
         location: Option<String>,
     },
-    /// A struct literal, fields in declaration order. The update syntax of a variant,
+    /// A struct literal, fields as written: they are evaluated in this order, then the base
+    /// (chapter 3, section 5, rule 6). The update syntax of a variant,
     /// `Shape.Rect { width: 10, ..old }` (D4.22), is lowered to a `match` on the base.
     Struct {
         /// The struct.
         def: DefRef,
-        /// The field values, in declaration order. With a `base`, only the written fields.
+        /// The field values, as written. Without a `base`, every field once.
         fields: Vec<(String, Expr)>,
         /// `..base`: the other fields are moved out of this value (0.2).
         base: Option<Box<Expr>>,
