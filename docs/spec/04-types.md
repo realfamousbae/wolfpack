@@ -586,7 +586,11 @@ the alias as after a struct (`Same.<Int> { ... }` for `type Same<T> = Pair<T>`).
    An argument of the head that names a type in scope (`Int`, `User`, an imported type), or that
    is a type with arguments of its own or a function type (`List<String>`, `fn(Int) -> Int`), is a
    type argument; a single name that names no type declares a parameter, as before. Arguments and
-   parameters may be mixed: `Pair<String, T> { ... }`.
+   parameters may be mixed: `Pair<String, T> { ... }`. Only parameters take bounds:
+   `Stack<Int: Display>` is E0301 (a bound after a type). A type argument cannot use a parameter
+   of the same head: in `Pair<T, List<T>>` the second `T` is an unknown type (E0402).
+   A call of such a method can fix type arguments that were not known yet: `Stack.zero()` of a
+   block `Stack<Int>` is a `Stack<Int>`, as in Rust.
    - The methods of such a block exist only for that instantiation: `s.sum()` on a `Stack<Int>`,
      and E0424 (unknown method) on a `Stack<String>`, with a note naming the block.
    - Rule 4 holds across all the blocks of the type: a method name appears once among the generic

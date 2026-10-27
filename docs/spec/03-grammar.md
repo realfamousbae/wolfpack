@@ -178,7 +178,8 @@ range      = expr ( ".." | "..=" ) expr
      }
      ```
      The `:` tells the parser that the name before it is a label, so no name resolution is
-     needed to read it; the name must be the label of an enclosing loop (E0436) and that loop must
+     needed to read it; still, a label that is also a variable in scope is E0437, as for
+     `continue label`, so that one name does not mean two things in one loop; the name must be the label of an enclosing loop (E0436) and that loop must
      be a `loop` (E0435 for a `while` or a `for`). For this, a labelled `loop` may stand where an
      expression is expected, so its value can be used: `let found = search: loop { ... }`; other
      labelled loops stay statements. In a map literal `[key: loop { ... }]` the name before `:` is

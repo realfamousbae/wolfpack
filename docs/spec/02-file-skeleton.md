@@ -167,7 +167,10 @@ impl {
 
 1. Only methods may appear inside a block. **[PROPOSAL]**
 2. The same type may have one inherent block and one block per implemented interface; two inherent
-   blocks for one type in the same module are an error (E0210). **[PROPOSAL]** (see D2.3)
+   blocks for one type in the same module are an error (E0210). **[PROPOSAL]** (see D2.3) Since
+   0.6 a generic type may also have one inherent block per instantiation (chapter 4, section 8.3,
+   rule 8; D4.21): E0210 is a second block with the same head, that is a second block whose
+   arguments are all parameters, or a second block for the same instantiation.
 3. `pub` is written on methods, not on blocks. Methods of an interface implementation take the
    visibility of the interface and cannot be marked `pub` themselves. **[PROPOSAL]**
 4. Which types may be given an `impl` in which module (coherence, "orphan" rules) and the syntax for
@@ -257,7 +260,7 @@ parser, which recovers and continues so that every skeleton error of a file is s
 | E0207 | Declaration outside any section | put this `fn` into `functions` |
 | E0208 | Content after `module` on the same line, or a missing module path | |
 | E0209 | Unknown or duplicate `extern` target block | targets are `ts`, `go`, `rust` |
-| E0210 | Second inherent `impl` block for the same type | merge with the block at line N |
+| E0210 | Second inherent `impl` block for the same type, or for the same instantiation of a generic type (0.6) | merge with the block at line N |
 | E0211 | Duplicate test name | |
 | E0212 | Doc comment in a position where it documents nothing | |
 | E0213 | Retired: `fn main` is no longer a declaration of `functions` (was: not last, added in M5). The code is never reused | |
