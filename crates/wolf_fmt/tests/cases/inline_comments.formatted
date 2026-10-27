@@ -1,0 +1,51 @@
+module main
+
+functions {
+    fn add(a: Int, b: Int) -> Int { a + b }
+
+    fn run() {
+        let big = 1
+        let x = big /* (+) */ + 1
+        let y = add(1, /* two */ 2)
+        let z = /* after eq */ 3
+        let w = add(1, 2 /* last */)
+        let l = [1, /* mid */ 2, 3 /* end */]
+        let q = add(
+            1, // first
+            2,
+        )
+        let r = [
+            1, // one
+            2, // two
+        ]
+        let s = add(1, 2) // eol
+        let a = 1 + // plus
+            2
+        let b = add(/* none */ 1, 2)
+        let c = [/* nothing */]
+        let d = add(
+            1 /* one */,
+            // about two
+            2 /* two */,
+        )
+        let e = Point { x: 1, /* mid */ y: 2 /* end */ }
+        let f = Point {
+            x: 1, // the x
+            y: 2, // the y
+        }
+        let g = [
+            1: 2,
+            /* k */ 3: 4, // last
+        ]
+        let h = items
+            .map(|x| x) // first
+            .filter(|x| x) /* second */
+            .count()
+        let i = (a /* in paren */)
+        let j = items[1 /* idx */]
+        let k = // own line
+            5
+        let m = add(1, 2) /* after */ // and line
+        let n = a /* c1 */ /* c2 */ + b
+    }
+}

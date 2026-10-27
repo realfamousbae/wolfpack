@@ -4,6 +4,15 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Fixed: `wolf fmt` moved a comment written inside a line onto a line of its own, after the
+  statement (`let x = big /* (+) */ + 1` became `let x = big + 1` followed by `/* (+) */`). Block
+  comments between operands, before and after `=`, between and after the arguments of a call, the
+  items of a list or a map and the fields of a struct literal, before a closing `)`, `]` or `}`,
+  and inside empty `()` and `[]` now stay on their line, with single spaces around them; a `//`
+  comment after an element, an operator or a call in a chain stays at the end of its line (the
+  list or the chain is then broken, one item per line). Several comments at the end of a line
+  stay on it. Comments on their own line stay on their own line. Formatting is idempotent on all
+  of them.
 - Added: debug builds (D7.21 **[DRAFT]**, spec chapter 7, section 3, rule 1). `--debug` for
   `wolf build`, `wolf run` and `wolf test`, also with `--vm` and `--example`, makes the panics of
   the language print the location of the operation that failed, as `panic` does:

@@ -187,12 +187,18 @@ impl<'a> Fmt<'a> {
 
     /// A comment after `end` on the same source line.
     fn trailing(&mut self, end: u32) -> Option<Doc> {
-        let &(s, e) = self.comments.get(self.next)?;
-        if s < end || self.between(end, s).contains('\n') {
-            return None;
+        let mut out = String::new();
+        let mut prev = end;
+        while let Some(&(s, e)) = self.comments.get(self.next) {
+            if s < prev || self.between(prev, s).contains('\n') {
+                break;
+            }
+            self.next += 1;
+            out.push(' ');
+            out.push_str(&self.comment_text((s, e)));
+            prev = e;
         }
-        self.next += 1;
-        Some(text(format!(" {}", self.comment_text((s, e)))))
+        (!out.is_empty()).then(|| text(out))
     }
 
     /// Elements one per line inside braces that close at `close`, with comments and blank lines
@@ -237,6 +243,110 @@ impl<'a> Fmt<'a> {
             .map(|c| c.0)
             .filter(|s| *s < pos)
             .unwrap_or(pos)
+    }
+
+    // ----- comments inside a line --------------------------------------------------------------
+
+    /// The comments before `pos` that are not printed yet, as a prefix of the expression or
+    /// element that starts at `pos`. A block comment stays on the line, followed by one space; a
+    /// line comment, or a comment that ends its source line, is followed by a line break.
+    fn lead_prefix(&mut self, pos: u32, in_list: bool) -> Option<Doc> {
+        let mut parts = Vec::new();
+        let mut nested = None;
+        while let Some(&(s, e)) = self.comments.get(self.next) {
+            let t = self.comment_text((s, e));
+            if s >= pos || t.contains('\n') {
+                break;
+            }
+            if nested.is_none() {
+                nested = Some(!in_list);
+            }
+            self.next += 1;
+            let hard = t.starts_with("//") || self.between(e, pos).contains('\n');
+            parts.push(text(t));
+            parts.push(if hard { Doc::Hard } else { text(" ") });
+        }
+        if parts.is_empty() {
+            return None;
+        }
+        let d = cat(parts);
+        Some(if nested == Some(true) { nest(d) } else { d })
+    }
+
+    /// The block comments before `pos` that are not printed yet, each after one space.
+    fn blocks_before(&mut self, pos: u32) -> Vec<Doc> {
+        let mut out = Vec::new();
+        while let Some(&(s, e)) = self.comments.get(self.next) {
+            let t = self.comment_text((s, e));
+            if s >= pos || t.starts_with("//") || t.contains('\n') {
+                break;
+            }
+            self.next += 1;
+            out.push(text(format!(" {t}")));
+        }
+        out
+    }
+
+    /// Whether a line comment starts in `a..b` and is not printed yet.
+    fn pending_line_comment(&self, a: u32, b: u32) -> bool {
+        self.comments
+            .get(self.next..)
+            .unwrap_or(&[])
+            .iter()
+            .any(|&(s, e)| s >= a && s < b && self.comment_text((s, e)).starts_with("//"))
+    }
+
+    /// The start of the first token at or after `from`, skipping blanks and comments.
+    fn token_start(&self, from: u32) -> u32 {
+        let mut pos = from as usize;
+        loop {
+            let rest = self.src.get(pos..).unwrap_or("");
+            let trimmed = rest.trim_start();
+            pos += rest.len() - trimmed.len();
+            if trimmed.starts_with("//") {
+                pos += trimmed.find('\n').unwrap_or(trimmed.len());
+            } else if trimmed.starts_with("/*") {
+                pos += trimmed.find("*/").map_or(trimmed.len(), |i| i + 2);
+            } else {
+                return pos as u32;
+            }
+        }
+    }
+
+    /// The comments around an element of a list that are not printed yet: the ones before its
+    /// comma stay before it; a line comment on the line of the comma goes after the comma; a block
+    /// comment after the comma goes with the next element if that follows on the same line.
+    /// `next` is the start of the next element, `close` the end of the list.
+    fn item_tail(&mut self, doc: Doc, end: u32, next: Option<u32>, close: u32) -> Item {
+        let limit = next.unwrap_or(close);
+        let mut block = Vec::new();
+        let mut line = None;
+        let mut prev = end;
+        let mut comma = false;
+        while let Some(&(s, e)) = self.comments.get(self.next) {
+            let t = self.comment_text((s, e));
+            if s < prev || s >= limit || t.contains('\n') {
+                break;
+            }
+            let gap = self.between(prev, s);
+            if gap.contains('\n') {
+                break;
+            }
+            comma |= gap.contains(',');
+            if t.starts_with("//") {
+                self.next += 1;
+                line = Some(t);
+                break;
+            }
+            if !comma || next.is_none() || self.between(e, limit).contains('\n') {
+                self.next += 1;
+                block.push(t);
+                prev = e;
+            } else {
+                break;
+            }
+        }
+        Item { doc, block, line }
     }
 
     // ----- file and sections ----------------------------------------------------------------
@@ -884,6 +994,25 @@ impl<'a> Fmt<'a> {
     // ----- expressions ------------------------------------------------------------------------
 
     fn expr(&mut self, e: &ast::Expr) -> Doc {
+        let lead = self.lead_prefix(e.span.start, false);
+        let d = self.expr_inner(e);
+        match lead {
+            Some(l) => cat(vec![l, d]),
+            None => d,
+        }
+    }
+
+    /// An element of a list: the comments before it are not nested.
+    fn element_expr(&mut self, e: &ast::Expr) -> Doc {
+        let lead = self.lead_prefix(e.span.start, true);
+        let d = self.expr(e);
+        match lead {
+            Some(l) => cat(vec![l, d]),
+            None => d,
+        }
+    }
+
+    fn expr_inner(&mut self, e: &ast::Expr) -> Doc {
         match &e.kind {
             ExprKind::Int(_) | ExprKind::Float(_) | ExprKind::Error => text(self.src(e.span)),
             ExprKind::Str(_) | ExprKind::FStr(_) => self.string(e.span),
@@ -892,22 +1021,34 @@ impl<'a> Fmt<'a> {
             ExprKind::Name(n) => text(n.name.clone()),
             ExprKind::SelfValue => text("self"),
             ExprKind::SelfType => text("Self"),
-            ExprKind::Paren(x) => cat(vec![text("("), self.expr(x), text(")")]),
+            ExprKind::Paren(x) => {
+                let mut parts = vec![text("("), self.expr(x)];
+                parts.extend(self.blocks_before(e.span.end));
+                parts.push(text(")"));
+                cat(parts)
+            }
             ExprKind::List(items) => {
                 if items.is_empty() {
-                    return text("[]");
+                    return self.empty_brackets("[", "]", e.span.end);
                 }
-                let docs: Vec<Doc> = items.iter().map(|x| self.expr(x)).collect();
+                let mut docs = Vec::new();
+                for (i, x) in items.iter().enumerate() {
+                    let d = self.element_expr(x);
+                    let next = items.get(i + 1).map(|n| n.span.start);
+                    docs.push(self.item_tail(d, x.span.end, next, e.span.end));
+                }
                 delimited("[", "]", docs)
             }
             ExprKind::Map(entries) => {
                 if entries.is_empty() {
-                    return text("[:]");
+                    return self.empty_brackets("[:", "]", e.span.end);
                 }
-                let docs: Vec<Doc> = entries
-                    .iter()
-                    .map(|(k, v)| cat(vec![self.expr(k), text(": "), self.expr(v)]))
-                    .collect();
+                let mut docs = Vec::new();
+                for (i, (k, v)) in entries.iter().enumerate() {
+                    let d = cat(vec![self.element_expr(k), text(": "), self.expr(v)]);
+                    let next = entries.get(i + 1).map(|n| n.0.span.start);
+                    docs.push(self.item_tail(d, v.span.end, next, e.span.end));
+                }
                 delimited("[", "]", docs)
             }
             ExprKind::StructLit {
@@ -924,15 +1065,34 @@ impl<'a> Fmt<'a> {
                 if fields.is_empty() && base.is_none() {
                     return text(format!("{head} {{}}"));
                 }
-                let mut docs: Vec<Doc> = fields
-                    .iter()
-                    .map(|fi| match &fi.value {
-                        Some(v) => cat(vec![text(format!("{}: ", fi.name.name)), self.expr(v)]),
-                        None => text(fi.name.name.clone()),
-                    })
-                    .collect();
+                let mut docs = Vec::new();
+                for (i, fi) in fields.iter().enumerate() {
+                    let lead = self.lead_prefix(fi.name.span.start, true);
+                    let (d, end) = match &fi.value {
+                        Some(v) => (
+                            cat(vec![text(format!("{}: ", fi.name.name)), self.expr(v)]),
+                            v.span.end,
+                        ),
+                        None => (text(fi.name.name.clone()), fi.name.span.end),
+                    };
+                    let d = match lead {
+                        Some(l) => cat(vec![l, d]),
+                        None => d,
+                    };
+                    let next = fields
+                        .get(i + 1)
+                        .map(|n| n.name.span.start)
+                        .or(base.as_ref().map(|b| b.span.start));
+                    docs.push(self.item_tail(d, end, next, e.span.end));
+                }
                 if let Some(b) = base {
-                    docs.push(cat(vec![text(".."), self.expr(b)]));
+                    let lead = self.lead_prefix(b.span.start, true);
+                    let d = cat(vec![text(".."), self.expr(b)]);
+                    let d = match lead {
+                        Some(l) => cat(vec![l, d]),
+                        None => d,
+                    };
+                    docs.push(self.item_tail(d, b.span.end, None, e.span.end));
                 }
                 cat(vec![text(format!("{head} ")), spaced_braces(docs)])
             }
@@ -957,14 +1117,46 @@ impl<'a> Fmt<'a> {
                 // Each operand with the operator after it; the line breaks after operators.
                 let n = operands.len();
                 let mut items = Vec::new();
+                let mut has_line = false;
                 for (i, x) in operands.iter().enumerate() {
                     let d = self.expr(x);
                     if i + 1 < n {
                         let o = ops.get(i).map_or("", |o: &BinaryOp| o.symbol());
-                        items.push(cat(vec![d, text(format!(" {o}"))]));
+                        // A block comment before the operator stays before it; a line comment
+                        // after it stays at the end of its line.
+                        let op_start = self.token_start(x.span.end);
+                        let mut parts = vec![d];
+                        parts.extend(self.blocks_before(op_start));
+                        parts.push(text(format!(" {o}")));
+                        let op_end = op_start + o.len() as u32;
+                        let limit = operands.get(i + 1).map_or(op_end, |y| y.span.start);
+                        if let Some(&(s, ce)) = self.comments.get(self.next) {
+                            let t = self.comment_text((s, ce));
+                            if s >= op_end
+                                && s < limit
+                                && t.starts_with("//")
+                                && !self.between(op_end, s).contains('\n')
+                            {
+                                self.next += 1;
+                                parts.push(text(format!(" {t}")));
+                                parts.push(Doc::BreakParent);
+                                has_line = true;
+                            }
+                        }
+                        items.push(cat(parts));
                     } else {
                         items.push(d);
                     }
+                }
+                if has_line {
+                    let mut parts = Vec::new();
+                    for (i, d) in items.into_iter().enumerate() {
+                        if i > 0 {
+                            parts.push(Doc::Line);
+                        }
+                        parts.push(d);
+                    }
+                    return group(nest(cat(parts)));
                 }
                 group(nest(Doc::Fill(items)))
             }
@@ -1236,21 +1428,76 @@ impl<'a> Fmt<'a> {
             })
             .count();
         let base = self.expr(cur);
-        if calls < 2 {
+        // A line comment between two parts of the chain needs a line of the chain to end on.
+        let mut gaps = Vec::new();
+        let mut prev_end = cur.span.end;
+        for op in &ops {
+            if let ExprKind::Field { name, .. } = &op.kind {
+                gaps.push(Some((prev_end, name.span.start)));
+            } else {
+                gaps.push(None);
+            }
+            prev_end = op.span.end;
+        }
+        let commented = gaps
+            .iter()
+            .flatten()
+            .any(|&(a, b)| self.pending_line_comment(a, b));
+        if calls < 2 && !commented {
             let mut parts = vec![base];
-            for op in ops {
+            for (op, gap) in ops.into_iter().zip(gaps) {
+                if let Some((_, b)) = gap {
+                    parts.extend(self.blocks_before(b));
+                }
                 parts.push(self.postfix_op(op));
             }
             return cat(parts);
         }
         let mut chain = Vec::new();
-        for op in ops {
+        for (op, gap) in ops.into_iter().zip(gaps) {
+            if let Some((_, b)) = gap {
+                chain.extend(self.chain_comments(b));
+            }
             if matches!(op.kind, ExprKind::Field { .. }) {
                 chain.push(Doc::Soft);
             }
             chain.push(self.postfix_op(op));
         }
         group(cat(vec![base, nest(cat(chain))]))
+    }
+
+    /// The comments before `pos` inside a chain, each after one space; a line comment ends its
+    /// line.
+    fn chain_comments(&mut self, pos: u32) -> Vec<Doc> {
+        let mut out = Vec::new();
+        while let Some(&(s, e)) = self.comments.get(self.next) {
+            let t = self.comment_text((s, e));
+            if s >= pos || t.contains('\n') {
+                break;
+            }
+            self.next += 1;
+            let line = t.starts_with("//");
+            out.push(text(format!(" {t}")));
+            if line {
+                out.push(Doc::BreakParent);
+            }
+        }
+        out
+    }
+
+    /// `[]`, `[:]` or `()`, with the block comments inside it.
+    fn empty_brackets(&mut self, open: &str, close: &str, end: u32) -> Doc {
+        let mut parts = vec![text(open)];
+        let inside = self.blocks_before(end);
+        for (i, c) in inside.into_iter().enumerate() {
+            if let (0, Doc::Text(t)) = (i, &c) {
+                parts.push(text(t.trim_start().to_string()));
+            } else {
+                parts.push(c);
+            }
+        }
+        parts.push(text(close));
+        cat(parts)
     }
 
     fn postfix_op(&mut self, op: &ast::Expr) -> Doc {
@@ -1260,8 +1507,13 @@ impl<'a> Fmt<'a> {
                 let a: Vec<String> = args.iter().map(|t| self.ty_text(t)).collect();
                 text(format!(".<{}>", a.join(", ")))
             }
-            ExprKind::Call { args, .. } => self.args(args),
-            ExprKind::Index { index, .. } => cat(vec![text("["), self.expr(index), text("]")]),
+            ExprKind::Call { args, .. } => self.args(args, op.span.end),
+            ExprKind::Index { index, .. } => {
+                let mut parts = vec![text("["), self.expr(index)];
+                parts.extend(self.blocks_before(op.span.end));
+                parts.push(text("]"));
+                cat(parts)
+            }
             ExprKind::Slice {
                 start,
                 end,
@@ -1284,28 +1536,36 @@ impl<'a> Fmt<'a> {
         }
     }
 
-    fn args(&mut self, args: &[Arg]) -> Doc {
+    fn args(&mut self, args: &[Arg], end: u32) -> Doc {
         if args.is_empty() {
-            return text("()");
+            return self.empty_brackets("(", ")", end);
         }
-        let docs: Vec<Doc> = args
-            .iter()
-            .map(|a| cat(vec![text(mode(a.mode)), self.expr(&a.value)]))
-            .collect();
+        let mut docs = Vec::new();
+        for (i, a) in args.iter().enumerate() {
+            let lead = self.lead_prefix(a.value.span.start, true);
+            let d = cat(vec![text(mode(a.mode)), self.expr(&a.value)]);
+            let d = match lead {
+                Some(l) => cat(vec![l, d]),
+                None => d,
+            };
+            let next = args.get(i + 1).map(|n| n.value.span.start);
+            docs.push(self.item_tail(d, a.value.span.end, next, end));
+        }
         // A last argument that is a closure with a block, a `match`, an `if` or a block stays on
         // the line of the call.
         let hug = args.last().is_some_and(|a| huggable(&a.value))
-            && docs.last().is_some_and(has_hard)
-            && docs.iter().rev().skip(1).all(|d| !has_hard(d));
+            && docs.iter().all(|d| d.block.is_empty() && d.line.is_none())
+            && docs.last().is_some_and(|d| has_hard(&d.doc))
+            && docs.iter().rev().skip(1).all(|d| !has_hard(&d.doc));
         if hug {
             let mut parts = vec![text("(")];
             let n = docs.len();
             for (i, d) in docs.into_iter().enumerate() {
                 if i + 1 < n {
-                    parts.push(flat(d));
+                    parts.push(flat(d.doc));
                     parts.push(text(", "));
                 } else {
-                    parts.push(d);
+                    parts.push(d.doc);
                 }
             }
             parts.push(text(")"));
@@ -1315,18 +1575,54 @@ impl<'a> Fmt<'a> {
     }
 }
 
-/// `open items close` on one line, or one item per line with a trailing comma.
-fn delimited(open: &str, close: &str, items: Vec<Doc>) -> Doc {
-    let mut inner = vec![Doc::Soft];
+/// An element of a list with the comments around it.
+struct Item {
+    doc: Doc,
+    /// Block comments before the comma, each printed after one space.
+    block: Vec<String>,
+    /// A line comment after the comma.
+    line: Option<String>,
+}
+
+impl From<Doc> for Item {
+    fn from(doc: Doc) -> Item {
+        Item {
+            doc,
+            block: Vec::new(),
+            line: None,
+        }
+    }
+}
+
+/// The elements one after another, separated by `,` and a line, with a trailing comma when the
+/// group is broken.
+fn items_inner<I: Into<Item>>(mut inner: Vec<Doc>, items: Vec<I>) -> Vec<Doc> {
     let n = items.len();
-    for (i, d) in items.into_iter().enumerate() {
-        inner.push(d);
+    for (i, item) in items.into_iter().enumerate() {
+        let item: Item = item.into();
+        inner.push(item.doc);
+        for b in item.block {
+            inner.push(text(format!(" {b}")));
+        }
         if i + 1 < n {
             inner.push(text(","));
+        } else {
+            inner.push(Doc::IfBreak(",".to_string()));
+        }
+        if let Some(l) = item.line {
+            inner.push(text(format!(" {l}")));
+            inner.push(Doc::BreakParent);
+        }
+        if i + 1 < n {
             inner.push(Doc::Line);
         }
     }
-    inner.push(Doc::IfBreak(",".to_string()));
+    inner
+}
+
+/// `open items close` on one line, or one item per line with a trailing comma.
+fn delimited<I: Into<Item>>(open: &str, close: &str, items: Vec<I>) -> Doc {
+    let inner = items_inner(vec![Doc::Soft], items);
     group(cat(vec![
         text(open),
         nest(cat(inner)),
@@ -1336,17 +1632,8 @@ fn delimited(open: &str, close: &str, items: Vec<Doc>) -> Doc {
 }
 
 /// `{ a, b }` on one line, or one item per line with a trailing comma.
-fn spaced_braces(items: Vec<Doc>) -> Doc {
-    let mut inner = vec![Doc::Line];
-    let n = items.len();
-    for (i, d) in items.into_iter().enumerate() {
-        inner.push(d);
-        if i + 1 < n {
-            inner.push(text(","));
-            inner.push(Doc::Line);
-        }
-    }
-    inner.push(Doc::IfBreak(",".to_string()));
+fn spaced_braces<I: Into<Item>>(items: Vec<I>) -> Doc {
+    let inner = items_inner(vec![Doc::Line], items);
     group(cat(vec![text("{"), nest(cat(inner)), Doc::Line, text("}")]))
 }
 

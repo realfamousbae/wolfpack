@@ -18,6 +18,9 @@ pub(crate) enum Doc {
     Soft,
     /// Always a newline; the enclosing groups are broken.
     Hard,
+    /// Prints nothing, but the enclosing groups are broken (a line comment inside a list, which
+    /// must be followed by a line break).
+    BreakParent,
     /// Text printed only when the group is broken (a trailing comma).
     IfBreak(String),
     /// One more level of indentation after the newlines inside.
@@ -60,7 +63,7 @@ pub(crate) fn flat(d: Doc) -> Doc {
 /// Whether the document always breaks.
 pub(crate) fn has_hard(d: &Doc) -> bool {
     match d {
-        Doc::Hard => true,
+        Doc::Hard | Doc::BreakParent => true,
         Doc::Nest(x) | Doc::Group(x) => has_hard(x),
         Doc::Flat(_) => false,
         Doc::Cat(xs) | Doc::Fill(xs) => xs.iter().any(has_hard),
@@ -74,7 +77,7 @@ pub(crate) fn flat_width(d: &Doc) -> Option<usize> {
         Doc::Text(s) | Doc::Verbatim(s, _, _) => Some(s.chars().count()),
         Doc::Line => Some(1),
         Doc::Soft | Doc::IfBreak(_) => Some(0),
-        Doc::Hard => None,
+        Doc::Hard | Doc::BreakParent => None,
         Doc::Nest(x) | Doc::Group(x) | Doc::Flat(x) => flat_width(x),
         Doc::Cat(xs) => xs.iter().map(flat_width).sum(),
         Doc::Fill(xs) => {
@@ -152,6 +155,7 @@ pub(crate) fn print(d: &Doc) -> String {
                     col += 1;
                 }
             }
+            Doc::BreakParent => {}
             Doc::Line | Doc::Soft | Doc::Hard => newline(&mut out, &mut col, ind),
             Doc::IfBreak(s) => {
                 if mode == Mode::Break {
@@ -222,6 +226,8 @@ fn fits(room: usize, d: &Doc, rest: &[Cmd<'_>]) -> bool {
             Doc::Text(s) | Doc::Verbatim(s, _, _) => room -= s.chars().count() as isize,
             Doc::Line | Doc::Soft | Doc::Hard if mode == Mode::Break => return room >= 0,
             Doc::Hard => return false,
+            Doc::BreakParent if mode == Mode::Flat => return false,
+            Doc::BreakParent => {}
             Doc::Line => room -= 1,
             Doc::Soft | Doc::IfBreak(_) => {}
             Doc::Nest(x) | Doc::Group(x) => items.push((mode, x)),
