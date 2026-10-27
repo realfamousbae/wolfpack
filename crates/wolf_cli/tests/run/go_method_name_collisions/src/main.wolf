@@ -6,6 +6,14 @@
 module main
 
 types {
+    struct Dog {
+        label: String
+    }
+
+    struct Box<T> {
+        item: T
+    }
+
     struct Stack<T> {
         items: List<T>
     }
@@ -15,7 +23,25 @@ types {
     }
 }
 
+interfaces {
+    interface Named {
+        fn name(self) -> String
+    }
+}
+
 impl {
+    Dog: Named {
+        fn name(self) -> String {
+            self.label.copy()
+        }
+    }
+
+    Box<T> {
+        fn describe(self) -> String where T: Named {
+            "box of " + self.item.name()
+        }
+    }
+
     Stack<T> {
         fn contains(self, item: T) -> Bool where T: Equatable {
             for x in self.items {
@@ -28,6 +54,14 @@ impl {
     }
 
     Bag<T> {
+        fn describe(self) -> String where T: Named {
+            var out = "bag of"
+            for x in self.items {
+                out += " " + x.name()
+            }
+            out
+        }
+
         fn contains(self, item: T) -> Bool where T: Equatable {
             var n = 0
             for x in self.items {
@@ -67,6 +101,8 @@ main {
     print(f"{s.total()} {b.total()}")
     print(f"{stack_total(s)} {stack_contains(s, 3)}")
     print(shadowed(s).to_string())
+    let d = Dog { label: "rex" }
+    print(f"{Box { item: d.copy() }.describe()} / {Bag { items: [d.copy(), d.copy()] }.describe()} / {box_describe(d.copy())}")
 }
 
 functions {
@@ -83,5 +119,13 @@ functions {
         let stack_total = stack.total()
         let bag_total = Bag { items: [stack_total, 2] }.total()
         stack_total + bag_total
+    }
+
+    fn box_describe(d: Dog) -> String {
+        "user " + Box { item: d.copy() }.describe()
+    }
+
+    fn bag_describe(d: Dog) -> String {
+        Bag { items: [d.copy()] }.describe()
     }
 }

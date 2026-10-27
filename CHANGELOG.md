@@ -128,6 +128,12 @@ All notable changes are recorded here at the end of each milestone.
   was written at the top of the file, so the build without tests reported an unused import. These
   imports are now written inside `#[cfg(test)] mod tests`. The test project
   `rust_debug_index_in_tests` checks it.
+- Fixed in the Go backend: two methods of the same name that add a bound by a user interface with
+  `where` (`fn describe(self) -> String where T: Named` in `Box<T>` and in `Bag<T>`) are package
+  functions in Go and were both named `describe`, so the package did not compile ("redeclared in
+  this block"). They are now named after their type and method (`boxDescribe`, `bagDescribe`),
+  and get a `_` suffix when a function of the user already has that name. The run test
+  `go_method_name_collisions` covers it.
 
 ## 0.5.1 (2026-10-26)
 
