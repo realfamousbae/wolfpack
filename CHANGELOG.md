@@ -4,6 +4,17 @@ All notable changes are recorded here at the end of each milestone.
 
 ## Unreleased
 
+- Fixed in the Rust backend: the code of `--debug` builds, whose arithmetic becomes calls such as
+  `wolf_rt::mul_at(x, 2i64, "src/main.wolf:26:42")`, was not laid out as rustfmt lays it out:
+  long closure bodies, `as` casts, a single long argument, the value after `=` and multi-line
+  conditions of `if`, `while`, `for` and `match`. The printer now follows rustfmt there; the code
+  of normal builds is unchanged. `abs_at` and `int_pow` no longer get needless parentheses around
+  a negative literal (`unused_parens`), and the crate allows `clippy::modulo_one`, which denied a
+  remainder by `-1` written on purpose.
+- Tests: the lint matrix (`crates/wolf_cli/tests/lint.rs`) builds every example and every test
+  project for every target in every mode (the normal build, `--debug`, the test build and the
+  test build with `--debug`) and checks the code with `tsc --strict`, `gofmt` and `go vet`,
+  `rustfmt` and `cargo clippy`.
 - Fixed: `wolf fmt` moved a comment written inside a line onto a line of its own, after the
   statement (`let x = big /* (+) */ + 1` became `let x = big + 1` followed by `/* (+) */`). Block
   comments between operands, before and after `=`, between and after the arguments of a call, the
