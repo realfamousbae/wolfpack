@@ -186,7 +186,7 @@ fn crate_attrs() -> Vec<String> {
             .to_string(),
         "#![allow(clippy::match_single_binding, clippy::approx_constant)]".to_string(),
         "#![allow(clippy::manual_find, clippy::eq_op, clippy::zero_divided_by_zero)]".to_string(),
-        "#![allow(clippy::never_loop)]".to_string(),
+        "#![allow(clippy::never_loop, clippy::modulo_one)]".to_string(),
     ]
 }
 

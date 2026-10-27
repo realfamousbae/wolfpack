@@ -192,7 +192,7 @@ func main() {
 #![allow(clippy::type_complexity, clippy::single_match, clippy::manual_contains)]
 #![allow(clippy::match_single_binding, clippy::approx_constant)]
 #![allow(clippy::manual_find, clippy::eq_op, clippy::zero_divided_by_zero)]
-#![allow(clippy::never_loop)]
+#![allow(clippy::never_loop, clippy::modulo_one)]
 
 mod wolf_rt;
 
