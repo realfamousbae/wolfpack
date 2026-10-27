@@ -1230,6 +1230,29 @@ impl<'p> Emitter<'p> {
             }
         }
         self.runtime_bounds = runtime_bounds;
+        // A method that adds a bound by a user interface is a function of the package, which
+        // needs a name of its own: that of its type and its method, as for the other methods
+        // that are functions. Whether it is one is known only now, with every interface.
+        for (index, m) in p.modules.iter().enumerate() {
+            let std = m.role == ModuleRole::Std;
+            for item in &m.items {
+                let (owner, public, methods) = match item {
+                    ir::Item::Struct(s) => (&s.name, s.public, &s.methods),
+                    ir::Item::Enum(e) => (&e.name, e.public, &e.methods),
+                    _ => continue,
+                };
+                for f in methods {
+                    if self.names.contains_key(&f.def)
+                        && !derived.iter().any(|(d, _, _)| *d == f.def)
+                        && self.adds_iface_bounds(f.def)
+                    {
+                        let base = format!("{}{}", owner, case(&camel(&f.name), true));
+                        let exported = f.public && f.interface.is_none() && public;
+                        derived.push((f.def, index, case(&base, exported || std)));
+                    }
+                }
+            }
+        }
         for (def, index, name) in derived {
             let set = taken.entry(self.pkg_group(index)).or_default();
             let mut n = name;

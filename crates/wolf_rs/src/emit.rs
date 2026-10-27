@@ -161,6 +161,11 @@ pub(crate) struct Emitter<'p> {
     // State of the module being emitted.
     module: usize,
     uses: BTreeMap<String, BTreeSet<String>>,
+    /// The imports that only the tests of the module need: they are written inside `mod tests`,
+    /// since the build without tests would not use them.
+    test_uses: BTreeMap<String, BTreeSet<String>>,
+    /// Whether the tests of the module are being emitted.
+    in_tests: bool,
     f: FnState,
 }
 
@@ -244,6 +249,52 @@ fn block(stmts: Vec<Stmt>, tail: Option<Expr>) -> rs::Block {
         stmts,
         tail: tail.map(Box::new),
     }
+}
+
+/// Removes the `return` of every tail position of a function body: `return x` there is `x`, and
+/// Clippy rejects the `return` (`needless_return`). Only the tails of blocks, of the branches of
+/// `if` with an `else` and of the arms of `match` are tail positions; loops and labeled blocks
+/// are left alone.
+fn strip_tail_returns(b: &mut rs::Block) {
+    if b.tail.is_none() {
+        if let Some(Stmt::Expr(Expr::Return(_))) = b.stmts.last() {
+            if let Some(Stmt::Expr(Expr::Return(v))) = b.stmts.pop() {
+                b.tail = v;
+            }
+        }
+    }
+    if let Some(t) = b.tail.take() {
+        b.tail = strip_tail_return(*t).map(Box::new);
+    }
+}
+
+/// The expression that stands in a tail position for `e`; `None` for `return` without a value.
+fn strip_tail_return(e: Expr) -> Option<Expr> {
+    Some(match e {
+        Expr::Return(v) => return v.map(|v| *v),
+        Expr::Block(mut b) => {
+            strip_tail_returns(&mut b);
+            Expr::Block(b)
+        }
+        Expr::If(c, mut then, Some(otherwise)) => {
+            strip_tail_returns(&mut then);
+            let otherwise = strip_tail_return(*otherwise).unwrap_or(Expr::Tuple(Vec::new()));
+            Expr::If(c, then, Some(Box::new(otherwise)))
+        }
+        Expr::IfLet(p, s, mut then, Some(otherwise)) => {
+            strip_tail_returns(&mut then);
+            let otherwise = strip_tail_return(*otherwise).unwrap_or(Expr::Tuple(Vec::new()));
+            Expr::IfLet(p, s, then, Some(Box::new(otherwise)))
+        }
+        Expr::Match(s, mut arms) => {
+            for arm in &mut arms {
+                let body = std::mem::replace(&mut arm.body, Expr::Tuple(Vec::new()));
+                arm.body = strip_tail_return(body).unwrap_or(Expr::Tuple(Vec::new()));
+            }
+            Expr::Match(s, arms)
+        }
+        other => other,
+    })
 }
 
 fn to_string(e: Expr) -> Expr {
@@ -598,6 +649,8 @@ impl<'p> Emitter<'p> {
             extra_test_targets: Vec::new(),
             module: 0,
             uses: BTreeMap::new(),
+            test_uses: BTreeMap::new(),
+            in_tests: false,
             f: FnState::default(),
         };
         e.tables();
@@ -1088,6 +1141,15 @@ impl<'p> Emitter<'p> {
         self.role() == ModuleRole::Test && self.p.kind == ProgramKind::Cli
     }
 
+    /// The imports of the file, or of its `tests` module while the tests are being emitted.
+    fn use_map(&mut self) -> &mut BTreeMap<String, BTreeSet<String>> {
+        if self.in_tests {
+            &mut self.test_uses
+        } else {
+            &mut self.uses
+        }
+    }
+
     /// The path of the runtime from the current file.
     fn rt(&mut self, piece: &'static str) -> String {
         if !piece.is_empty() {
@@ -1098,7 +1160,7 @@ impl<'p> Emitter<'p> {
         } else {
             "crate::wolf_rt".to_string()
         };
-        self.uses.entry(base).or_default();
+        self.use_map().entry(base).or_default();
         "wolf_rt".to_string()
     }
 
@@ -1181,7 +1243,10 @@ impl<'p> Emitter<'p> {
         } else {
             "crate::wolf_rt".to_string()
         };
-        self.uses.entry(base).or_default().insert(name.to_string());
+        self.use_map()
+            .entry(base)
+            .or_default()
+            .insert(name.to_string());
     }
 
     /// A reference to a top-level declaration from the current file, importing it.
@@ -1198,10 +1263,8 @@ impl<'p> Emitter<'p> {
         };
         if self.outside() {
             if let Some(n) = self.reexported.get(&def).cloned() {
-                self.uses
-                    .entry(self.crate_name.clone())
-                    .or_default()
-                    .insert(n.clone());
+                let base = self.crate_name.clone();
+                self.use_map().entry(base).or_default().insert(n.clone());
                 return n;
             }
         }
@@ -1222,7 +1285,7 @@ impl<'p> Emitter<'p> {
         } else {
             format!("{root}::{}", mp.join("::"))
         };
-        self.uses.entry(base).or_default().insert(name.clone());
+        self.use_map().entry(base).or_default().insert(name.clone());
         name
     }
 
@@ -1591,6 +1654,8 @@ impl<'p> Emitter<'p> {
         let m = p.modules.get(index).ok_or("module")?;
         self.module = index;
         self.uses.clear();
+        self.test_uses.clear();
+        self.in_tests = false;
         let first_test = self.test_list.len();
         let mut items = Vec::new();
         let mut tests = Vec::new();
@@ -1598,12 +1663,18 @@ impl<'p> Emitter<'p> {
             match item {
                 ir::Item::Fn(f) if f.in_tests => {
                     if self.tests {
-                        tests.push(self.function_item(f)?);
+                        self.in_tests = true;
+                        let item = self.function_item(f);
+                        self.in_tests = false;
+                        tests.push(item?);
                     }
                 }
                 ir::Item::Test(t) => {
                     if self.tests {
-                        tests.push(self.test_fn(m, t)?);
+                        self.in_tests = true;
+                        let item = self.test_fn(m, t);
+                        self.in_tests = false;
+                        tests.push(item?);
                     }
                 }
                 _ => self.item(item, &mut items)?,
@@ -1674,6 +1745,24 @@ impl<'p> Emitter<'p> {
                 });
             }
         }
+        let mut test_uses = std::mem::take(&mut self.test_uses);
+        if m.role == ModuleRole::Test {
+            // The whole file is test code: its imports are plain imports.
+            for (base, names) in test_uses {
+                self.uses.entry(base).or_default().extend(names);
+            }
+            test_uses = BTreeMap::new();
+        }
+        // What the file imports anyway, `use super::*` gives to its tests.
+        for (base, names) in &self.uses {
+            if let Some(t) = test_uses.get_mut(base) {
+                t.retain(|n| !names.contains(n));
+                if t.is_empty() {
+                    test_uses.remove(base);
+                }
+            }
+        }
+        let test_uses = use_lines(test_uses, entry);
         let test_mods: Vec<String> = std::mem::take(&mut self.test_mods).into_iter().collect();
         if m.role == ModuleRole::Test {
             // An integration test of Cargo is a crate of tests of its own; in a program, a
@@ -1682,6 +1771,7 @@ impl<'p> Emitter<'p> {
         } else if !tests.is_empty() || !test_mods.is_empty() {
             items.push(Item::Tests {
                 mods: test_mods,
+                uses: test_uses,
                 items: tests,
             });
         }
@@ -1711,25 +1801,7 @@ impl<'p> Emitter<'p> {
                 head.push(Item::Mod(vis.to_string(), k.clone()));
             }
         }
-        let mut uses: Vec<String> = Vec::new();
-        for (base, names) in std::mem::take(&mut self.uses) {
-            if base.ends_with("wolf_rt") {
-                if !(entry && base == "crate::wolf_rt") {
-                    uses.push(base.clone());
-                }
-                for n in names {
-                    uses.push(format!("{base}::{n}"));
-                }
-                continue;
-            }
-            let names: Vec<String> = names.into_iter().collect();
-            match names.as_slice() {
-                [] => {}
-                [one] => uses.push(format!("{base}::{one}")),
-                many => uses.push(format!("{base}::{{{}}}", many.join(", "))),
-            }
-        }
-        uses.sort_by_key(|u| use_key(u));
+        let uses = use_lines(std::mem::take(&mut self.uses), entry);
         for u in uses {
             head.push(Item::Use(u));
         }
@@ -1912,6 +1984,7 @@ impl<'p> Emitter<'p> {
                 }
                 rebind.append(&mut b.stmts);
                 b.stmts = rebind;
+                strip_tail_returns(&mut b);
                 Some(b)
             }
             None => None,
@@ -1957,7 +2030,7 @@ impl<'p> Emitter<'p> {
                 _ => {}
             }
         }
-        for names in self.uses.values() {
+        for names in self.uses.values().chain(self.test_uses.values()) {
             taken.extend(names.iter().cloned());
         }
         if self.role() == ModuleRole::Entry {
@@ -5627,6 +5700,31 @@ fn type_text(t: &Type) -> String {
 }
 
 /// The order of `use` declarations that `rustfmt` writes.
+/// The `use` lines (without `use` and `;`) for imports: the runtime ones one name per line, the
+/// others grouped by module.
+fn use_lines(imports: BTreeMap<String, BTreeSet<String>>, entry: bool) -> Vec<String> {
+    let mut uses: Vec<String> = Vec::new();
+    for (base, names) in imports {
+        if base.ends_with("wolf_rt") {
+            if !(entry && base == "crate::wolf_rt") {
+                uses.push(base.clone());
+            }
+            for n in names {
+                uses.push(format!("{base}::{n}"));
+            }
+            continue;
+        }
+        let names: Vec<String> = names.into_iter().collect();
+        match names.as_slice() {
+            [] => {}
+            [one] => uses.push(format!("{base}::{one}")),
+            many => uses.push(format!("{base}::{{{}}}", many.join(", "))),
+        }
+    }
+    uses.sort_by_key(|u| use_key(u));
+    uses
+}
+
 fn use_key(u: &str) -> String {
     u.to_string()
 }
