@@ -1,0 +1,87 @@
+//! On Go, the methods with `where` bounds (spec chapter 4, section 8.6) and the methods of blocks
+//! for one instantiation (section 8.3, rule 8) are package functions. Two types of one module
+//! with a method of the same name must not collide, nor may such a function collide with a
+//! function of the user that has the generated name.
+
+module main
+
+types {
+    struct Stack<T> {
+        items: List<T>
+    }
+
+    struct Bag<T> {
+        items: List<T>
+    }
+}
+
+impl {
+    Stack<T> {
+        fn contains(self, item: T) -> Bool where T: Equatable {
+            for x in self.items {
+                if x == item {
+                    return true
+                }
+            }
+            false
+        }
+    }
+
+    Bag<T> {
+        fn contains(self, item: T) -> Bool where T: Equatable {
+            var n = 0
+            for x in self.items {
+                if x == item {
+                    n += 1
+                }
+            }
+            n > 0
+        }
+    }
+
+    Stack<Int> {
+        fn total(self) -> Int {
+            var t = 0
+            for x in self.items {
+                t += x
+            }
+            t
+        }
+    }
+
+    Bag<Int> {
+        fn total(self) -> Int {
+            var t = 1
+            for x in self.items {
+                t *= x
+            }
+            t
+        }
+    }
+}
+
+main {
+    let s = Stack { items: [2, 3, 4] }
+    let b = Bag { items: [2, 3, 4] }
+    print(f"{s.contains(3)} {b.contains(5)}")
+    print(f"{s.total()} {b.total()}")
+    print(f"{stack_total(s)} {stack_contains(s, 3)}")
+    print(shadowed(s).to_string())
+}
+
+functions {
+    fn stack_total(s: Stack<Int>) -> Int {
+        -s.total()
+    }
+
+    fn stack_contains(s: Stack<Int>, x: Int) -> Bool {
+        !s.contains(x)
+    }
+
+    /// A local variable has the name that the Go function of `total` would have.
+    fn shadowed(stack: Stack<Int>) -> Int {
+        let stack_total = stack.total()
+        let bag_total = Bag { items: [stack_total, 2] }.total()
+        stack_total + bag_total
+    }
+}
