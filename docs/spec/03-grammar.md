@@ -268,6 +268,8 @@ arm        = pattern ( "if" expr )? "=>" ( expr | block )
    `Self { count: 0 }`, `Self.Leaf` (author, 2026-10-08). Outside `impl` blocks `Self` is an
    error reported by name resolution. A field whose value is a
    variable of the same name may be shortened: `User { id, name }` **[PROPOSAL]**.
+   The fields of a literal are evaluated as they are written, left to right, whatever the order of
+   their declaration (0.6).
    **Update syntax** (added in 0.2, author, 2026-10-18): `User { name: "B", ..old }`. The
    `..base` comes last, after the listed fields (E0316 otherwise, or when it appears twice). The
    base is an expression of the same struct type with the same type arguments (E0401); every field
