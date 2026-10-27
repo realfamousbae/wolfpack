@@ -446,7 +446,10 @@ that would change and changes nothing. A file with syntax errors is not formatte
      that makes it fit.
 7. **Comments.** Doc comments and ordinary comments are kept as written. A comment on its own line
    stays before the statement, member or item that follows it; a comment after code on the same line
-   stays at the end of that line, after one space.
+   stays at the end of that line, after one space. A block comment inside a line (between operands,
+   after `=`, between arguments or items, before a closing bracket) stays where it is, with one
+   space on each side; a `//` comment inside a construct stays at the end of its line, and the
+   construct is then broken one item per line.
 8. **Strings** (0.2). A string literal is kept as written, including the expressions inside
    `f"..."`. When a `"""` string moves to another indentation level, every line of its content and
    the closing `"""` move by the same amount, so its value stays the same; trailing spaces inside
