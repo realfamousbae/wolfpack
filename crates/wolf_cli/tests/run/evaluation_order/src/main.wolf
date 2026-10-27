@@ -1,0 +1,95 @@
+//! The fields of a struct literal are evaluated as written, left to right, and with the update
+//! syntax `..base` the base after them (spec chapter 3, section 5, rule 6; chapter 4, section
+//! 7.2), on every target and in the VM, whatever the order of the declaration.
+
+module main
+
+types {
+    struct Point {
+        x: Int
+        y: Int
+        z: Int
+    }
+
+    enum Shape {
+        Rect { width: Int, height: Int, depth: Int }
+        Dot
+    }
+}
+
+main {
+    print("literal")
+    let p = Point { z: note("z", 3), x: note("x", 1), y: note("y", 2) }
+    print(show(p))
+
+    print("literal in order")
+    let q = Point { x: note("x", 4), y: note("y", 5), z: note("z", 6) }
+    print(show(q))
+
+    print("update")
+    let r = Point { z: note("z", 9), y: note("y", 8), ..q }
+    print(show(r))
+
+    print("update with a noted base")
+    let s = Point { y: note("y", 20), x: note("x", 10), ..base_point("base") }
+    print(show(s))
+
+    print("variant")
+    let a = Shape.Rect {
+        depth: note("depth", 3),
+        width: note("width", 1),
+        height: note("height", 2),
+    }
+    print(describe(a))
+
+    print("variant update")
+    let b = Shape.Rect { height: note("height", 7), width: note("width", 6), ..a }
+    print(describe(b))
+
+    print("variant update with a noted base")
+    let c = Shape.Rect { depth: note("depth", 30), width: note("width", 10), ..base_shape("base") }
+    print(describe(c))
+
+    print("literals and locals")
+    let k = 40
+    let t = Point { z: 3, y: k, x: note("x", 1) }
+    print(show(t))
+
+    print("update after a change of the base")
+    var m = Point { x: 1, y: 2, z: 3 }
+    let u = Point { y: bump(mut m), ..m }
+    print(show(u))
+}
+
+functions {
+    fn note(text: String, n: Int) -> Int {
+        print(text)
+        n
+    }
+
+    fn bump(mut p: Point) -> Int {
+        p.x = 100
+        7
+    }
+
+    fn show(p: Point) -> String {
+        f"{p.x} {p.y} {p.z}"
+    }
+
+    fn describe(s: Shape) -> String {
+        match s {
+            Shape.Rect { width, height, depth } => f"{width}x{height}x{depth}"
+            Shape.Dot => "dot"
+        }
+    }
+
+    fn base_point(text: String) -> Point {
+        print(text)
+        Point { x: 0, y: 0, z: 0 }
+    }
+
+    fn base_shape(text: String) -> Shape {
+        print(text)
+        Shape.Rect { width: 0, height: 0, depth: 0 }
+    }
+}

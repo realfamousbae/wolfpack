@@ -696,8 +696,8 @@ impl<'a> Vm<'a> {
                         .map(int)
                         .collect::<Result<_, _>>()?;
                     let n = u32::try_from(positions.len()).unwrap_or(u32::MAX);
-                    let values = self.pop_n(n)?;
                     let base_obj = obj(&self.pop()?)?;
+                    let values = self.pop_n(n)?;
                     let mut all = base_obj.fields.borrow().clone();
                     for (p, v) in positions.iter().zip(values) {
                         let slot = usize::try_from(*p)

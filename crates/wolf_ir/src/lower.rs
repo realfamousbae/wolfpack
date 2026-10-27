@@ -1652,7 +1652,8 @@ impl<'a> Lowerer<'a> {
             }
             _ => return Err(unsupported("struct literal of an unknown type")),
         };
-        let mut values: BTreeMap<String, Expr> = BTreeMap::new();
+        // The fields as written: they are evaluated in this order (chapter 3, section 5, rule 6).
+        let mut written: Vec<(String, Expr)> = Vec::new();
         for f in fields {
             let value = match &f.value {
                 Some(v) => self.expr(ctx, v)?,
@@ -1684,31 +1685,95 @@ impl<'a> Lowerer<'a> {
                     self.coerced(ctx, f.id, value)
                 }
             };
-            values.insert(f.name.name.clone(), value);
+            if names.contains(&f.name.name) && !written.iter().any(|(n, _)| *n == f.name.name) {
+                written.push((f.name.name.clone(), value));
+            }
         }
-        let ordered: Vec<(String, Expr)> = names
-            .into_iter()
-            .filter_map(|n| values.remove(&n).map(|v| (n, v)))
-            .collect();
-        if let (Some(RDef::Variant { .. }), Some(base)) =
-            (self.resolved.def(def).map(|d| d.kind), base)
-        {
-            return self.variant_update(ctx, e, def, ordered, base);
+        let kind = self.resolved.def(def).map(|d| d.kind);
+        if let (Some(RDef::Variant { .. }), Some(base)) = (kind, base) {
+            return self.variant_update(ctx, e, def, written, base);
         }
-        Ok(match self.resolved.def(def).map(|d| d.kind) {
-            Some(RDef::Struct) => ExprKind::Struct {
+        if let Some(RDef::Struct) = kind {
+            // The targets build a struct by field name, so the fields stay as written.
+            return Ok(ExprKind::Struct {
                 def: Lowerer::dref(def),
-                fields: ordered,
+                fields: written,
                 base: match base {
                     Some(b) => Some(self.boxed(ctx, b)?),
                     None => None,
                 },
-            },
-            _ => ExprKind::Variant {
-                def: Lowerer::dref(def),
-                values: ordered.into_iter().map(|(_, v)| v).collect(),
-            },
-        })
+            });
+        }
+        // A variant takes its values by position, in declaration order. When the fields are
+        // written in another order, they are evaluated first, as written, into variables.
+        let in_order = written.iter().map(|(n, _)| n).eq(names
+            .iter()
+            .filter(|n| written.iter().any(|(w, _)| w == *n)));
+        let (stmts, mut given) = if in_order {
+            (Vec::new(), written.into_iter().collect::<Vec<_>>())
+        } else {
+            self.evaluated_first(written)
+        };
+        let values = names
+            .iter()
+            .filter_map(|n| {
+                let i = given.iter().position(|(g, _)| g == n)?;
+                Some(given.remove(i).1)
+            })
+            .collect();
+        let variant = ExprKind::Variant {
+            def: Lowerer::dref(def),
+            values,
+        };
+        if stmts.is_empty() {
+            return Ok(variant);
+        }
+        let ty = self.expr_ty(ctx, e.id);
+        Ok(ExprKind::Block(Block {
+            stmts,
+            tail: Some(Box::new(Expr {
+                kind: variant,
+                ty,
+                span: e.span,
+            })),
+        }))
+    }
+
+    /// Evaluates the written fields of a literal, in their order, into variables, except
+    /// literals, which have no effects: the statements and a value for each field.
+    fn evaluated_first(
+        &mut self,
+        written: Vec<(String, Expr)>,
+    ) -> (Vec<Stmt>, Vec<(String, Expr)>) {
+        let mut stmts = Vec::new();
+        let mut given = Vec::new();
+        for (name, value) in written {
+            let literal = matches!(
+                value.kind,
+                ExprKind::Int(_)
+                    | ExprKind::Float(_)
+                    | ExprKind::Str(_)
+                    | ExprKind::Bool(_)
+                    | ExprKind::Unit
+            );
+            if literal {
+                given.push((name, value));
+                continue;
+            }
+            let local = self.fresh_local(&name, value.ty.clone());
+            let read = Expr {
+                kind: ExprKind::Local(local),
+                ty: value.ty.clone(),
+                span: value.span,
+            };
+            stmts.push(Stmt::Let {
+                local,
+                mutable: false,
+                value,
+            });
+            given.push((name, read));
+        }
+        (stmts, given)
     }
 
     /// The update syntax of a variant, `Shape.Rect { width: 10, ..old }` (spec chapter 4,
@@ -1744,34 +1809,9 @@ impl<'a> Lowerer<'a> {
             .get(&parent)
             .map(|g| g.iter().map(|g| ParamId::Decl(g.span)).zip(args).collect())
             .unwrap_or_default();
-        let mut stmts = Vec::new();
-        let mut given: BTreeMap<String, Expr> = BTreeMap::new();
-        for (name, value) in listed {
-            let literal = matches!(
-                value.kind,
-                ExprKind::Int(_)
-                    | ExprKind::Float(_)
-                    | ExprKind::Str(_)
-                    | ExprKind::Bool(_)
-                    | ExprKind::Unit
-            );
-            if literal {
-                given.insert(name, value);
-                continue;
-            }
-            let local = self.fresh_local(&name, value.ty.clone());
-            let read = Expr {
-                kind: ExprKind::Local(local),
-                ty: value.ty.clone(),
-                span: value.span,
-            };
-            stmts.push(Stmt::Let {
-                local,
-                mutable: false,
-                value,
-            });
-            given.insert(name, read);
-        }
+        // The listed fields first, as written, then the base (chapter 4, section 7.2).
+        let (stmts, given) = self.evaluated_first(listed);
+        let mut given: BTreeMap<String, Expr> = given.into_iter().collect();
         let mut patterns = Vec::new();
         let mut values = Vec::new();
         for f in fields {

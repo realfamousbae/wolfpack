@@ -3445,13 +3445,36 @@ impl<'p> Emitter<'p> {
                     items.push((b, Repr::Tagged));
                 }
                 let mut values = self.seq(&items, out)?;
-                // `..base`: the base is spread first, the written fields replace its values.
-                let spread = if base.is_some() { values.pop() } else { None };
-                let mut entries: Vec<(String, Expr)> = Vec::new();
-                if let Some(b) = spread {
-                    entries.push((String::new(), b));
+                // `..base`: the written fields are evaluated first, then the base (chapter 3,
+                // section 5, rule 6), so the fields it gives are read after them. When the base
+                // has effects of its own, the written fields get variables before it.
+                let base_value = if base.is_some() { values.pop() } else { None };
+                let base_value = match base_value {
+                    Some(b) if !pure(&b) => {
+                        for v in &mut values {
+                            if !pure(v) {
+                                let t = self.temp("v");
+                                let x = std::mem::replace(v, ident(&t));
+                                out.push(Stmt::Const(t, None, x));
+                            }
+                        }
+                        Some(self.stable(b, "base", out))
+                    }
+                    other => other,
+                };
+                let mut entries: Vec<(String, Expr)> = fields
+                    .iter()
+                    .zip(values)
+                    .map(|((n, _), v)| (camel(n), v))
+                    .collect();
+                if let (Some(b), Some(st)) = (base_value, self.structs.get(def).copied()) {
+                    for f in &st.fields {
+                        if fields.iter().all(|(n, _)| *n != f.name) {
+                            let name = camel(&f.name);
+                            entries.push((name.clone(), member(b.clone(), &name)));
+                        }
+                    }
                 }
-                entries.extend(fields.iter().zip(values).map(|((n, _), v)| (camel(n), v)));
                 let object = Expr::Object(entries);
                 let mut args = vec![object];
                 args.extend(self.instance_dicts(*def, &e.ty)?);

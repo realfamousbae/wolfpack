@@ -118,6 +118,16 @@ All notable changes are recorded here at the end of each milestone.
   written `new ShapeRect(...) as Shape`), and the Rust printer wrote struct patterns wider than
   `struct_lit_width` and the struct variants of an enum with a long one on one line, which
   `rustfmt` breaks.
+- Fixed: the fields of a struct literal and of a variant with named fields are evaluated as
+  written, left to right, and with the update syntax `..base` the base after them (spec chapter
+  3, section 5, rule 6; chapter 4, section 7.2), on every target and in the VM. The IR kept the
+  fields in the order of the declaration, so `Point { y: f(), x: g() }` called `g` first; the VM
+  evaluated the base of a struct update before the fields, TypeScript spread the base before
+  them and Go read the base into a variable before them. The IR now keeps the fields as written;
+  a variant, whose values are positional, gets variables for fields written out of order; the
+  TypeScript and Go literals list the written fields first and then the fields of the base
+  (`new Point({ y: bump(q), x: q.x })`), with variables for the written fields when the base
+  itself has effects; the VM's `Update` takes the base on top of the fields.
 
 ## 0.5.1 (2026-10-26)
 

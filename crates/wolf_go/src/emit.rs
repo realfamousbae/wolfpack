@@ -5258,24 +5258,27 @@ impl<'p> Emitter<'p> {
                     items.push(b);
                 }
                 let mut values = self.seq(&items, out)?;
-                // `..base`: the fields that are not written are read from the base.
+                // `..base`: the fields that are not written are read from the base. The written
+                // fields are evaluated first (chapter 3, section 5, rule 6): if the base needs a
+                // variable, they get one before it.
                 let base_value = match base {
                     Some(_) => {
                         let b = values.pop().unwrap_or(Expr::Lit("nil".to_string()));
+                        if !pure(&b) {
+                            for v in &mut values {
+                                if !pure(v) {
+                                    let t = self.fresh("v");
+                                    let x = std::mem::replace(v, id(&t));
+                                    out.push(Stmt::Define(vec![t], vec![x]));
+                                }
+                            }
+                        }
                         Some(self.stable(b, "base", out))
                     }
                     None => None,
                 };
+                // The written fields come first, as in the source, then those of the base.
                 let mut elems = Vec::new();
-                if let (Some(b), Some(st)) = (&base_value, self.structs.get(def).copied()) {
-                    for f in &st.fields {
-                        if fields.iter().any(|(n, _)| *n == f.name) {
-                            continue;
-                        }
-                        let name = self.field_name(&e.ty, &f.name);
-                        elems.push((Some(name.clone()), sel(b.clone(), &name)));
-                    }
-                }
                 for ((n, _), v) in fields.iter().zip(values) {
                     let f = self.field_name(&e.ty, n);
                     let v = if self.field_boxed(&e.ty, n) {
@@ -5284,6 +5287,15 @@ impl<'p> Emitter<'p> {
                         v
                     };
                     elems.push((Some(f), v));
+                }
+                if let (Some(b), Some(st)) = (&base_value, self.structs.get(def).copied()) {
+                    for f in &st.fields {
+                        if fields.iter().any(|(n, _)| *n == f.name) {
+                            continue;
+                        }
+                        let name = self.field_name(&e.ty, &f.name);
+                        elems.push((Some(name.clone()), sel(b.clone(), &name)));
+                    }
                 }
                 let ty = self.ty(&e.ty)?;
                 let _ = def;
