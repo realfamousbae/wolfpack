@@ -1,0 +1,14 @@
+//! Indexing appears only in `tests`: a debug build must not get an unused import.
+
+module main
+
+main {
+    print("hi")
+}
+
+tests {
+    test "indexes" {
+        let items = [1, 2, 3]
+        assert_eq(items[1], 2)
+    }
+}

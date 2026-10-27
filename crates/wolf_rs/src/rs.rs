@@ -274,6 +274,8 @@ pub enum Item {
     Tests {
         /// The modules declared inside, `src/tests/<name>.rs`.
         mods: Vec<String>,
+        /// Imports that only the tests need, after `use super::*;`.
+        uses: Vec<String>,
         /// The tests and test helpers; `use super::*;` only comes with them.
         items: Vec<Item>,
     },
@@ -1575,11 +1577,14 @@ impl Printer {
                 let rhs = self.rhs(value, ind, width(&head) + 1, 1);
                 out.push_str(&format!("{head}{rhs};\n"));
             }
-            Item::Tests { mods, items } => {
+            Item::Tests { mods, uses, items } => {
                 out.push_str(&format!("{pad}#[cfg(test)]\n{pad}mod tests {{\n"));
                 let inner = spaces(ind + 1);
                 if !items.is_empty() {
                     out.push_str(&format!("{inner}use super::*;\n"));
+                    for u in uses {
+                        out.push_str(&format!("{inner}use {u};\n"));
+                    }
                 }
                 if !mods.is_empty() {
                     if !items.is_empty() {

@@ -123,6 +123,11 @@ All notable changes are recorded here at the end of each milestone.
   printed as `return expr` without a semicolon, which rustfmt and Clippy (`needless_return`)
   reject. It is now printed as the tail expression `expr`. The test project `rust_tail_return`
   checks it.
+- Fixed in the Rust backend: an import that only the tests of a module need, such as
+  `use crate::wolf_rt::ItemAt;` for an index in a `--debug` build, or the name of another module,
+  was written at the top of the file, so the build without tests reported an unused import. These
+  imports are now written inside `#[cfg(test)] mod tests`. The test project
+  `rust_debug_index_in_tests` checks it.
 
 ## 0.5.1 (2026-10-26)
 
