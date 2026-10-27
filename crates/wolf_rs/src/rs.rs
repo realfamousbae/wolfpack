@@ -1878,4 +1878,241 @@ mod tests {
     fn strings_are_quoted() {
         assert_eq!(quote("a\"b\\c\n😀"), "\"a\\\"b\\\\c\\n😀\"");
     }
+
+    fn lit(s: &str) -> Expr {
+        Expr::Lit(s.to_string())
+    }
+
+    fn string(s: &str) -> Expr {
+        Expr::Str(s.to_string())
+    }
+
+    fn call(f: &str, args: Vec<Expr>) -> Expr {
+        Expr::Call(Box::new(path(f)), args)
+    }
+
+    fn method(r: Expr, name: &str, args: Vec<Expr>) -> Expr {
+        Expr::Method(Box::new(r), name.to_string(), Vec::new(), args)
+    }
+
+    fn closure(param: Pat, ty: Option<Type>, body: Expr, mv: bool) -> Expr {
+        Expr::Closure(vec![(param, ty)], Box::new(body), mv)
+    }
+
+    fn bind(n: &str) -> Pat {
+        Pat::Bind(n.to_string(), false)
+    }
+
+    fn stmt(s: &Stmt, ind: usize) -> String {
+        let mut out = String::new();
+        Printer::default().stmt(&mut out, s, ind);
+        out
+    }
+
+    /// `Box::new(|..| body) as Box<dyn Fn(&T) -> i64>`
+    fn boxed_fn(param: Pat, t: Type, body: Expr) -> Expr {
+        let f = Type::DynFn(
+            vec![Type::Ref(Box::new(t.clone()))],
+            Box::new(Type::name("i64")),
+        );
+        Expr::Cast(
+            Box::new(call(
+                "Box::new",
+                vec![closure(param, Some(Type::Ref(Box::new(t))), body, false)],
+            )),
+            Type::Path("Box".to_string(), vec![f]),
+        )
+    }
+
+    #[test]
+    fn a_cast_that_does_not_fit_starts_the_next_line_and_a_long_closure_body_takes_a_block() {
+        let p = Printer::default();
+        let add = boxed_fn(
+            Pat::Ref(Box::new(bind("x"))),
+            Type::name("i64"),
+            call(
+                "wolf_rt::add_at",
+                vec![path("x"), lit("1i64"), string("src/main.wolf:26:42")],
+            ),
+        );
+        let mul = boxed_fn(
+            bind("s"),
+            Type::name("String"),
+            call(
+                "wolf_rt::mul_at",
+                vec![
+                    call("wolf_rt::str_len", vec![path("s")]),
+                    lit("2i64"),
+                    string("src/main.wolf:28:80"),
+                ],
+            ),
+        );
+        let e = Expr::Struct(
+            "Pair".to_string(),
+            vec![("first".to_string(), add), ("second".to_string(), mul)],
+        );
+        assert_eq!(
+            p.expr(&e, 1, 50, 1),
+            "Pair {
+        first: Box::new(|&x: &i64| wolf_rt::add_at(x, 1i64, \"src/main.wolf:26:42\"))
+            as Box<dyn Fn(&i64) -> i64>,
+        second: Box::new(|s: &String| {
+            wolf_rt::mul_at(wolf_rt::str_len(s), 2i64, \"src/main.wolf:28:80\")
+        }) as Box<dyn Fn(&String) -> i64>,
+    }"
+        );
+    }
+
+    #[test]
+    fn a_single_argument_wider_than_fn_call_width_stays_on_the_line() {
+        let inner = closure(
+            Pat::Ref(Box::new(bind("x"))),
+            None,
+            call(
+                "wolf_rt::mul_at",
+                vec![path("x"), path("base"), string("src/main.wolf:55:39")],
+            ),
+            true,
+        );
+        let outer = closure(
+            Pat::Ref(Box::new(bind("base"))),
+            None,
+            call("Box::new", vec![inner]),
+            false,
+        );
+        let t = Type::Path(
+            "Box".to_string(),
+            vec![Type::DynFn(
+                vec![Type::Ref(Box::new(Type::name("i64")))],
+                Box::new(Type::Path(
+                    "Box".to_string(),
+                    vec![Type::DynFn(
+                        vec![Type::Ref(Box::new(Type::name("i64")))],
+                        Box::new(Type::name("i64")),
+                    )],
+                )),
+            )],
+        );
+        let s = Stmt::Let(bind("make"), Some(t), Some(call("Box::new", vec![outer])));
+        assert_eq!(
+            stmt(&s, 1),
+            "    let make: Box<dyn Fn(&i64) -> Box<dyn Fn(&i64) -> i64>> =
+        Box::new(|&base| Box::new(move |&x| wolf_rt::mul_at(x, base, \"src/main.wolf:55:39\")));
+"
+        );
+    }
+
+    #[test]
+    fn a_value_that_does_not_fit_after_the_equals_sign_starts_the_next_line() {
+        let at = |r: Expr, name: &str, loc: &str| method(r, name, vec![lit("0"), string(loc)]);
+        let place = Expr::Unary(
+            "*",
+            Box::new(at(
+                Expr::Paren(Box::new(Expr::Unary(
+                    "*",
+                    Box::new(at(path("grid"), "item_at_mut", "src/main.wolf:68:9")),
+                ))),
+                "item_at_mut",
+                "src/main.wolf:68:12",
+            )),
+        );
+        let read = Expr::Unary(
+            "*",
+            Box::new(at(
+                at(path("grid"), "item_at", "src/main.wolf:68:9"),
+                "item_at",
+                "src/main.wolf:68:12",
+            )),
+        );
+        let value = call(
+            "wolf_rt::add_at",
+            vec![read, lit("9"), string("src/main.wolf:68:16")],
+        );
+        let s = Stmt::Expr(Expr::Binary(Box::new(place), "=", Box::new(value)));
+        assert_eq!(
+            stmt(&s, 1),
+            "    *(*grid.item_at_mut(0, \"src/main.wolf:68:9\")).item_at_mut(0, \"src/main.wolf:68:12\") =
+        wolf_rt::add_at(
+            *grid
+                .item_at(0, \"src/main.wolf:68:9\")
+                .item_at(0, \"src/main.wolf:68:12\"),
+            9,
+            \"src/main.wolf:68:16\",
+        );
+"
+        );
+    }
+
+    #[test]
+    fn an_argument_that_is_a_long_chain_goes_on_its_own_line() {
+        let p = Printer::default();
+        let chain = Expr::Method(
+            Box::new(method(
+                method(
+                    Expr::Array(vec![lit("1i64"), lit("2i64")]),
+                    "iter",
+                    Vec::new(),
+                ),
+                "map",
+                vec![closure(
+                    Pat::Ref(Box::new(bind("x"))),
+                    None,
+                    call(
+                        "wolf_rt::mul_at",
+                        vec![path("x"), lit("2i64"), string("src/main.wolf:29:48")],
+                    ),
+                    false,
+                )],
+            )),
+            "collect".to_string(),
+            vec![Type::Path("Vec".to_string(), vec![Type::name("_")])],
+            Vec::new(),
+        );
+        let e = call(
+            "wolf_rt::Display::to_string",
+            vec![Expr::Unary("&", Box::new(chain))],
+        );
+        assert_eq!(
+            p.expr(&e, 2, 8, 1),
+            "wolf_rt::Display::to_string(
+            &[1i64, 2i64]
+                .iter()
+                .map(|&x| wolf_rt::mul_at(x, 2i64, \"src/main.wolf:29:48\"))
+                .collect::<Vec<_>>(),
+        )"
+        );
+    }
+
+    #[test]
+    fn a_condition_over_several_lines_puts_the_brace_on_its_own_line() {
+        let p = Printer::default();
+        let rem = call(
+            "wolf_rt::rem_at",
+            vec![path("x"), lit("2"), string("src/main.wolf:87:22")],
+        );
+        let mul = call(
+            "wolf_rt::mul_at",
+            vec![path("x"), path("x"), string("src/main.wolf:87:36")],
+        );
+        let cond = Expr::Binary(
+            Box::new(Expr::Binary(Box::new(rem), "==", Box::new(lit("1")))),
+            "&&",
+            Box::new(Expr::Binary(Box::new(mul), ">", Box::new(path("limit")))),
+        );
+        let then = Block {
+            stmts: vec![Stmt::Expr(Expr::Break(Some("squares".to_string()), None))],
+            tail: None,
+        };
+        let e = Expr::If(Box::new(cond), then, None);
+        assert_eq!(
+            p.expr(&e, 3, 12, 0),
+            "if wolf_rt::rem_at(x, 2, \"src/main.wolf:87:22\") == 1
+                && wolf_rt::mul_at(x, x, \"src/main.wolf:87:36\") > limit
+            {
+                break 'squares;
+            }"
+        );
+        // A condition whose last line only closes brackets keeps the brace on that line.
+        assert_eq!(brace_sep("f(\n    a,\n)", 0), " ");
+    }
 }
