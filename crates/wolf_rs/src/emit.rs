@@ -4867,12 +4867,12 @@ impl<'p> Emitter<'p> {
                 v => Expr::Cast(Box::new(v), Type::name("f64")),
             },
             "math.Int.abs" if at.is_some() => {
-                let a = op(self, 0)?;
+                let a = unparen(op(self, 0)?);
                 self.rt_call_at(("int_at", "abs_at"), ("int_at", "abs_at"), vec![a], at)
             }
             "math.Int.abs" | "math.Float.abs" => method(op(self, 0)?, "abs", Vec::new()),
             "math.Int.pow" => {
-                let a = op(self, 0)?;
+                let a = unparen(op(self, 0)?);
                 let b = op(self, 1)?;
                 self.rt_call_at(
                     ("int", "int_pow"),

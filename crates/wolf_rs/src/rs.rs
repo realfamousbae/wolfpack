@@ -354,7 +354,7 @@ pub fn print(file: &File) -> String {
             out.push('\n');
         }
     }
-    let p = Printer;
+    let p = Printer::default();
     let mut previous: Option<&Item> = None;
     for item in &file.items {
         let together = matches!(
@@ -471,7 +471,12 @@ pub fn block_like(e: &Expr) -> bool {
     )
 }
 
-struct Printer;
+/// The printer; `in_macro` is rustfmt's `inside_macro`: set for the arguments of a macro and
+/// reset in the blocks inside them.
+#[derive(Clone, Copy, Default)]
+struct Printer {
+    in_macro: bool,
+}
 
 impl Printer {
     // ----- types ------------------------------------------------------------------------------
@@ -819,11 +824,12 @@ impl Printer {
                 self.args(&head, "(", ")", args, ind, c, reserve)
             }
             Expr::Macro(name, args) => {
+                let p = Printer { in_macro: true };
                 if name == "vec" {
-                    return self.array_broken("vec!", args, ind, col, reserve);
+                    return p.array_broken("vec!", args, ind, col, reserve);
                 }
                 let head = format!("{name}!");
-                self.args(&head, "(", ")", args, ind, col + width(&head), reserve)
+                p.args(&head, "(", ")", args, ind, col + width(&head), reserve)
             }
             Expr::Method(..) | Expr::Field(..) | Expr::Try(_) => self.chain(e, ind, col, reserve),
             Expr::Struct(path, fields) => {
@@ -890,17 +896,19 @@ impl Printer {
                         }
                         _ => self.block(b, ind),
                     },
-                    // rustfmt puts an `if` that does not fit on one line into a block.
-                    other @ (Expr::If(..) | Expr::IfLet(..)) => {
+                    // A body that is not a block stays on one line, or rustfmt puts it into a
+                    // block (`rewrite_closure_expr`); a match, a struct literal and the like may
+                    // span lines, and so may anything in the arguments of a macro.
+                    other => {
                         let one = self.expr(other, ind, c, reserve);
-                        if one.contains('\n') {
-                            let inner = self.expr(other, ind + 1, (ind + 1) * 4, 0);
+                        if one.contains('\n') && !self.in_macro && !closure_body_multi_line(other) {
+                            let p = Printer { in_macro: false };
+                            let inner = p.expr(other, ind + 1, (ind + 1) * 4, 0);
                             format!("{{\n{}{inner}\n{}}}", spaces(ind + 1), spaces(ind))
                         } else {
                             one
                         }
                     }
-                    other => self.expr(other, ind, c, reserve),
                 };
                 format!("{head}{b}")
             }
@@ -912,7 +920,8 @@ impl Printer {
             Expr::Labeled(l, b) => format!("'{l}: {}", self.block(b, ind)),
             Expr::If(c, then, otherwise) => {
                 let cond = self.expr(c, ind, col + 3, 2);
-                let mut s = format!("if {cond} {}", self.block(then, ind));
+                let sep = brace_sep(&cond, ind);
+                let mut s = format!("if {cond}{sep}{}", self.block(then, ind));
                 if let Some(o) = otherwise {
                     s.push_str(" else ");
                     match o.as_ref() {
@@ -925,7 +934,8 @@ impl Printer {
             Expr::IfLet(p, x, then, otherwise) => {
                 let head = format!("if let {} = ", self.pat(p));
                 let v = self.expr(x, ind, col + width(&head), 2);
-                let mut s = format!("{head}{v} {}", self.block(then, ind));
+                let sep = brace_sep(&v, ind);
+                let mut s = format!("{head}{v}{sep}{}", self.block(then, ind));
                 if let Some(o) = otherwise {
                     s.push_str(" else ");
                     match o.as_ref() {
@@ -937,7 +947,8 @@ impl Printer {
             }
             Expr::Match(x, arms) => {
                 let head = self.expr(x, ind, col + 6, 2);
-                let mut s = format!("match {head} {{\n");
+                let sep = brace_sep(&head, ind);
+                let mut s = format!("match {head}{sep}{{\n");
                 for arm in arms {
                     s.push_str(&self.arm(arm, ind + 1));
                 }
@@ -946,12 +957,21 @@ impl Printer {
             }
             Expr::Return(Some(x)) => format!("return {}", self.expr(x, ind, col + 7, reserve)),
             Expr::Paren(x) => format!("({})", self.expr(x, ind, col + 1, reserve + 1)),
+            // rustfmt's `rewrite_pair`: the value takes the whole line; ` as T` follows it if
+            // it fits, else it starts the next line, indented.
             Expr::Cast(x, t) => {
                 let t = self.ty(t);
-                format!(
-                    "{} as {t}",
-                    self.operand(x, 11, ind, col, reserve + 4 + width(&t))
-                )
+                let left = self.operand(x, 11, ind, col, 0);
+                let end = if left.contains('\n') {
+                    width(last_line(&left))
+                } else {
+                    col + width(&left)
+                };
+                if end + 4 + width(&t) + reserve <= MAX_WIDTH {
+                    format!("{left} as {t}")
+                } else {
+                    format!("{left}\n{}as {t}", spaces(ind + 1))
+                }
             }
             Expr::Range(a, b, inclusive) => {
                 let op = if *inclusive { "..=" } else { ".." };
@@ -1006,10 +1026,11 @@ impl Printer {
             if width(&s) <= CALL_WIDTH && col + width(&s) + 2 + reserve <= MAX_WIDTH {
                 return format!("{head}{open}{s}{close}");
             }
-            // A single string literal stays on the line if it fits (rustfmt keeps a single
-            // argument horizontal when nothing in it can break).
-            if let ([Expr::Str(_)], [one]) = (args, list.as_slice()) {
-                if col + width(one) + 2 + reserve <= MAX_WIDTH {
+            // A single argument that is not a call stays on the line if it fits, even if it is
+            // wider than `fn_call_width` (rustfmt's `try_overflow_last_item`: a single item on
+            // one line is horizontal; a call is overflowed within `fn_call_width` instead).
+            if let ([a], [one]) = (args, list.as_slice()) {
+                if !nested_call(a) && col + width(one) + 2 + reserve <= MAX_WIDTH {
                     return format!("{head}{open}{one}{close}");
                 }
             }
@@ -1025,8 +1046,20 @@ impl Printer {
                         prefix.push_str(", ");
                     }
                     let c = col + 1 + width(&prefix);
-                    if c < MAX_WIDTH && width(&prefix) <= CALL_WIDTH {
-                        let mut l = self.broken(last, ind, c, 1 + reserve);
+                    // An overflowed method call keeps its chain on one line (rustfmt's
+                    // `force_one_line_chain`), unless the callee is shorter than a tab.
+                    let ident = head.rfind('.').map_or(head, |i| &head[i..]);
+                    let one_line = method_call(last) && !(args.len() == 1 && width(ident) < 4);
+                    let overflowed = if !one_line {
+                        Some(self.broken(last, ind, c, 1 + reserve))
+                    } else if c < MAX_WIDTH {
+                        self.one_line_chain(last, ind, c, 1 + reserve)
+                    } else {
+                        None
+                    };
+                    if let (true, Some(mut l)) =
+                        (c < MAX_WIDTH && width(&prefix) <= CALL_WIDTH, overflowed)
+                    {
                         // An overflowed call longer than `fn_call_width` breaks its own
                         // arguments.
                         if !l.contains('\n') && (width(&l) > CALL_WIDTH || !allow_flat) {
@@ -1076,6 +1109,41 @@ impl Printer {
         s
     }
 
+    /// A method call whose chain stays on one line but for the arguments of its last call, as
+    /// rustfmt overflows it (`force_one_line_chain`); `None` if the chain does not fit so.
+    fn one_line_chain(&self, e: &Expr, ind: usize, col: usize, reserve: usize) -> Option<String> {
+        match e {
+            Expr::Unary(op, x) => self
+                .one_line_chain(x, ind, col + op.len(), reserve)
+                .map(|s| format!("{op}{s}")),
+            Expr::Try(x) => self
+                .one_line_chain(x, ind, col, reserve + 1)
+                .map(|s| format!("{s}?")),
+            Expr::Method(r, name, targs, args) => {
+                let head = format!(
+                    "{}.{name}{}",
+                    self.flat_chain_root(r)?,
+                    turbofish(self, targs)
+                );
+                let c = col + width(&head);
+                if c >= MAX_WIDTH {
+                    return None;
+                }
+                let s = self.args(&head, "(", ")", args, ind, c, reserve);
+                let first = s.lines().next().unwrap_or("");
+                // A chain of more than one call fits in `chain_width`, unless its last call
+                // spans five lines or more.
+                if self.chain_len(e) > 2
+                    && (width(first) > CHAIN_WIDTH || (s.contains('\n') && s.lines().count() < 5))
+                {
+                    return None;
+                }
+                Some(s)
+            }
+            _ => None,
+        }
+    }
+
     /// A call or a macro with its arguments broken over lines, if `e` is one.
     fn forced(&self, e: &Expr, ind: usize, col: usize, reserve: usize) -> Option<String> {
         match e {
@@ -1087,7 +1155,8 @@ impl Printer {
             Expr::Macro(name, args) if name != "vec" => {
                 let head = format!("{name}!");
                 let c = col + width(&head);
-                Some(self.args_in(&head, "(", ")", args, ind, c, reserve, false))
+                let p = Printer { in_macro: true };
+                Some(p.args_in(&head, "(", ")", args, ind, c, reserve, false))
             }
             Expr::Unary(op, x) => self
                 .forced(x, ind, col + op.len(), reserve)
@@ -1267,12 +1336,13 @@ impl Printer {
         if b.stmts.is_empty() && b.tail.is_none() {
             return "{}".to_string();
         }
+        let p = Printer { in_macro: false };
         let mut s = "{\n".to_string();
         for st in &b.stmts {
-            self.stmt(&mut s, st, ind + 1);
+            p.stmt(&mut s, st, ind + 1);
         }
         if let Some(t) = &b.tail {
-            let v = self.expr(t, ind + 1, (ind + 1) * 4, 0);
+            let v = p.expr(t, ind + 1, (ind + 1) * 4, 0);
             s.push_str(&format!("{}{v}\n", spaces(ind + 1)));
         }
         s.push_str(&format!("{}}}", spaces(ind)));
@@ -1317,18 +1387,21 @@ impl Printer {
             }
             Stmt::While(c, b) => {
                 let cond = self.expr(c, ind, ind * 4 + 6, 2);
-                out.push_str(&format!("{pad}while {cond} {}\n", self.block(b, ind)));
+                let sep = brace_sep(&cond, ind);
+                out.push_str(&format!("{pad}while {cond}{sep}{}\n", self.block(b, ind)));
             }
             Stmt::Loop(b) => out.push_str(&format!("{pad}loop {}\n", self.block(b, ind))),
             Stmt::WhileLet(p, e, b) => {
                 let head = format!("while let {} = ", self.pat(p));
                 let v = self.expr(e, ind, ind * 4 + width(&head), 2);
-                out.push_str(&format!("{pad}{head}{v} {}\n", self.block(b, ind)));
+                let sep = brace_sep(&v, ind);
+                out.push_str(&format!("{pad}{head}{v}{sep}{}\n", self.block(b, ind)));
             }
             Stmt::For(p, e, b) => {
                 let head = format!("for {} in ", self.pat(p));
                 let it = self.expr(e, ind, ind * 4 + width(&head), 2);
-                out.push_str(&format!("{pad}{head}{it} {}\n", self.block(b, ind)));
+                let sep = brace_sep(&it, ind);
+                out.push_str(&format!("{pad}{head}{it}{sep}{}\n", self.block(b, ind)));
             }
             Stmt::Labeled(l, inner) => {
                 let mut sub = String::new();
@@ -1359,6 +1432,10 @@ impl Printer {
         let next = self.expr(v, ind + 1, c, reserve);
         if !fits(&next, c) {
             return format!(" {same}");
+        }
+        // The value does not fit after `=` (rustfmt finds no rewrite there).
+        if !fits(&same, col) {
+            return format!("\n{}{next}", spaces(ind + 1));
         }
         let ends = |s: &str, ch: char| s.lines().next().is_some_and(|l| l.ends_with(ch));
         let newlines = |s: &str| s.matches('\n').count();
@@ -1610,7 +1687,27 @@ impl Printer {
 
 /// A type as Rust writes it, for paths such as `Stack::<i64>::zero`.
 pub fn type_text(t: &Type) -> String {
-    Printer.ty(t)
+    Printer::default().ty(t)
+}
+
+/// What goes before the `{` of a block after the condition of `if`, `while`, `for` or `match`:
+/// a space, or a new line when the condition spans lines and its last line is not only closing
+/// brackets at the indentation of the statement (rustfmt's `force_newline_brace`).
+fn brace_sep(cond: &str, ind: usize) -> String {
+    if !cond.contains('\n') {
+        return " ".to_string();
+    }
+    let last = last_line(cond);
+    let closing = cond.ends_with("\"#")
+        || last
+            .chars()
+            .all(|c| matches!(c, '(' | ')' | ']' | '}' | '?' | '>') || c.is_whitespace());
+    let offset = width(last) - width(last.trim_start()) > ind * 4;
+    if closing && !offset {
+        " ".to_string()
+    } else {
+        format!("\n{}", spaces(ind))
+    }
 }
 
 fn last_line(s: &str) -> &str {
@@ -1622,6 +1719,40 @@ fn turbofish(p: &Printer, targs: &[Type]) -> String {
         String::new()
     } else {
         format!("::<{}>", p.types(targs))
+    }
+}
+
+/// Whether `e` is a call or a macro, also behind `&`, `*`, `?` or `as` (rustfmt's
+/// `is_nested_call`): as the only argument it overflows within `fn_call_width`.
+fn nested_call(e: &Expr) -> bool {
+    match e {
+        Expr::Call(..) | Expr::Macro(..) => true,
+        Expr::Unary(_, x) | Expr::Try(x) | Expr::Cast(x, _) => nested_call(x),
+        _ => false,
+    }
+}
+
+/// Whether `e` is a method call, also behind `&`, `*`, `?` or `as` (rustfmt's
+/// `is_method_call`).
+fn method_call(e: &Expr) -> bool {
+    match e {
+        Expr::Method(..) => true,
+        Expr::Unary(_, x) | Expr::Try(x) | Expr::Cast(x, _) => method_call(x),
+        _ => false,
+    }
+}
+
+/// Whether the body of a closure may span lines without a block around it (rustfmt's
+/// `allow_multi_line` in `rewrite_closure_expr`).
+fn closure_body_multi_line(e: &Expr) -> bool {
+    match e {
+        Expr::Match(..)
+        | Expr::Block(_)
+        | Expr::Loop(..)
+        | Expr::Labeled(..)
+        | Expr::Struct(..) => true,
+        Expr::Unary(_, x) | Expr::Try(x) | Expr::Cast(x, _) => closure_body_multi_line(x),
+        _ => false,
     }
 }
 
@@ -1656,7 +1787,7 @@ mod tests {
 
     #[test]
     fn struct_literals_go_vertical_when_long() {
-        let p = Printer;
+        let p = Printer::default();
         let short = Expr::Struct(
             "Rect".to_string(),
             vec![
@@ -1683,7 +1814,7 @@ mod tests {
 
     #[test]
     fn long_chains_put_each_element_on_a_line() {
-        let p = Printer;
+        let p = Printer::default();
         let e = Expr::Method(
             Box::new(Expr::Method(
                 Box::new(Expr::Method(
@@ -1717,7 +1848,7 @@ mod tests {
 
     #[test]
     fn a_single_tuple_in_an_array_hugs_the_brackets() {
-        let p = Printer;
+        let p = Printer::default();
         let entry = Expr::Tuple(vec![
             Expr::Method(
                 Box::new(path("bottom")),
@@ -1746,5 +1877,242 @@ mod tests {
     #[test]
     fn strings_are_quoted() {
         assert_eq!(quote("a\"b\\c\n😀"), "\"a\\\"b\\\\c\\n😀\"");
+    }
+
+    fn lit(s: &str) -> Expr {
+        Expr::Lit(s.to_string())
+    }
+
+    fn string(s: &str) -> Expr {
+        Expr::Str(s.to_string())
+    }
+
+    fn call(f: &str, args: Vec<Expr>) -> Expr {
+        Expr::Call(Box::new(path(f)), args)
+    }
+
+    fn method(r: Expr, name: &str, args: Vec<Expr>) -> Expr {
+        Expr::Method(Box::new(r), name.to_string(), Vec::new(), args)
+    }
+
+    fn closure(param: Pat, ty: Option<Type>, body: Expr, mv: bool) -> Expr {
+        Expr::Closure(vec![(param, ty)], Box::new(body), mv)
+    }
+
+    fn bind(n: &str) -> Pat {
+        Pat::Bind(n.to_string(), false)
+    }
+
+    fn stmt(s: &Stmt, ind: usize) -> String {
+        let mut out = String::new();
+        Printer::default().stmt(&mut out, s, ind);
+        out
+    }
+
+    /// `Box::new(|..| body) as Box<dyn Fn(&T) -> i64>`
+    fn boxed_fn(param: Pat, t: Type, body: Expr) -> Expr {
+        let f = Type::DynFn(
+            vec![Type::Ref(Box::new(t.clone()))],
+            Box::new(Type::name("i64")),
+        );
+        Expr::Cast(
+            Box::new(call(
+                "Box::new",
+                vec![closure(param, Some(Type::Ref(Box::new(t))), body, false)],
+            )),
+            Type::Path("Box".to_string(), vec![f]),
+        )
+    }
+
+    #[test]
+    fn a_cast_that_does_not_fit_starts_the_next_line_and_a_long_closure_body_takes_a_block() {
+        let p = Printer::default();
+        let add = boxed_fn(
+            Pat::Ref(Box::new(bind("x"))),
+            Type::name("i64"),
+            call(
+                "wolf_rt::add_at",
+                vec![path("x"), lit("1i64"), string("src/main.wolf:26:42")],
+            ),
+        );
+        let mul = boxed_fn(
+            bind("s"),
+            Type::name("String"),
+            call(
+                "wolf_rt::mul_at",
+                vec![
+                    call("wolf_rt::str_len", vec![path("s")]),
+                    lit("2i64"),
+                    string("src/main.wolf:28:80"),
+                ],
+            ),
+        );
+        let e = Expr::Struct(
+            "Pair".to_string(),
+            vec![("first".to_string(), add), ("second".to_string(), mul)],
+        );
+        assert_eq!(
+            p.expr(&e, 1, 50, 1),
+            "Pair {
+        first: Box::new(|&x: &i64| wolf_rt::add_at(x, 1i64, \"src/main.wolf:26:42\"))
+            as Box<dyn Fn(&i64) -> i64>,
+        second: Box::new(|s: &String| {
+            wolf_rt::mul_at(wolf_rt::str_len(s), 2i64, \"src/main.wolf:28:80\")
+        }) as Box<dyn Fn(&String) -> i64>,
+    }"
+        );
+    }
+
+    #[test]
+    fn a_single_argument_wider_than_fn_call_width_stays_on_the_line() {
+        let inner = closure(
+            Pat::Ref(Box::new(bind("x"))),
+            None,
+            call(
+                "wolf_rt::mul_at",
+                vec![path("x"), path("base"), string("src/main.wolf:55:39")],
+            ),
+            true,
+        );
+        let outer = closure(
+            Pat::Ref(Box::new(bind("base"))),
+            None,
+            call("Box::new", vec![inner]),
+            false,
+        );
+        let t = Type::Path(
+            "Box".to_string(),
+            vec![Type::DynFn(
+                vec![Type::Ref(Box::new(Type::name("i64")))],
+                Box::new(Type::Path(
+                    "Box".to_string(),
+                    vec![Type::DynFn(
+                        vec![Type::Ref(Box::new(Type::name("i64")))],
+                        Box::new(Type::name("i64")),
+                    )],
+                )),
+            )],
+        );
+        let s = Stmt::Let(bind("make"), Some(t), Some(call("Box::new", vec![outer])));
+        assert_eq!(
+            stmt(&s, 1),
+            "    let make: Box<dyn Fn(&i64) -> Box<dyn Fn(&i64) -> i64>> =
+        Box::new(|&base| Box::new(move |&x| wolf_rt::mul_at(x, base, \"src/main.wolf:55:39\")));
+"
+        );
+    }
+
+    #[test]
+    fn a_value_that_does_not_fit_after_the_equals_sign_starts_the_next_line() {
+        let at = |r: Expr, name: &str, loc: &str| method(r, name, vec![lit("0"), string(loc)]);
+        let place = Expr::Unary(
+            "*",
+            Box::new(at(
+                Expr::Paren(Box::new(Expr::Unary(
+                    "*",
+                    Box::new(at(path("grid"), "item_at_mut", "src/main.wolf:68:9")),
+                ))),
+                "item_at_mut",
+                "src/main.wolf:68:12",
+            )),
+        );
+        let read = Expr::Unary(
+            "*",
+            Box::new(at(
+                at(path("grid"), "item_at", "src/main.wolf:68:9"),
+                "item_at",
+                "src/main.wolf:68:12",
+            )),
+        );
+        let value = call(
+            "wolf_rt::add_at",
+            vec![read, lit("9"), string("src/main.wolf:68:16")],
+        );
+        let s = Stmt::Expr(Expr::Binary(Box::new(place), "=", Box::new(value)));
+        assert_eq!(
+            stmt(&s, 1),
+            "    *(*grid.item_at_mut(0, \"src/main.wolf:68:9\")).item_at_mut(0, \"src/main.wolf:68:12\") =
+        wolf_rt::add_at(
+            *grid
+                .item_at(0, \"src/main.wolf:68:9\")
+                .item_at(0, \"src/main.wolf:68:12\"),
+            9,
+            \"src/main.wolf:68:16\",
+        );
+"
+        );
+    }
+
+    #[test]
+    fn an_argument_that_is_a_long_chain_goes_on_its_own_line() {
+        let p = Printer::default();
+        let chain = Expr::Method(
+            Box::new(method(
+                method(
+                    Expr::Array(vec![lit("1i64"), lit("2i64")]),
+                    "iter",
+                    Vec::new(),
+                ),
+                "map",
+                vec![closure(
+                    Pat::Ref(Box::new(bind("x"))),
+                    None,
+                    call(
+                        "wolf_rt::mul_at",
+                        vec![path("x"), lit("2i64"), string("src/main.wolf:29:48")],
+                    ),
+                    false,
+                )],
+            )),
+            "collect".to_string(),
+            vec![Type::Path("Vec".to_string(), vec![Type::name("_")])],
+            Vec::new(),
+        );
+        let e = call(
+            "wolf_rt::Display::to_string",
+            vec![Expr::Unary("&", Box::new(chain))],
+        );
+        assert_eq!(
+            p.expr(&e, 2, 8, 1),
+            "wolf_rt::Display::to_string(
+            &[1i64, 2i64]
+                .iter()
+                .map(|&x| wolf_rt::mul_at(x, 2i64, \"src/main.wolf:29:48\"))
+                .collect::<Vec<_>>(),
+        )"
+        );
+    }
+
+    #[test]
+    fn a_condition_over_several_lines_puts_the_brace_on_its_own_line() {
+        let p = Printer::default();
+        let rem = call(
+            "wolf_rt::rem_at",
+            vec![path("x"), lit("2"), string("src/main.wolf:87:22")],
+        );
+        let mul = call(
+            "wolf_rt::mul_at",
+            vec![path("x"), path("x"), string("src/main.wolf:87:36")],
+        );
+        let cond = Expr::Binary(
+            Box::new(Expr::Binary(Box::new(rem), "==", Box::new(lit("1")))),
+            "&&",
+            Box::new(Expr::Binary(Box::new(mul), ">", Box::new(path("limit")))),
+        );
+        let then = Block {
+            stmts: vec![Stmt::Expr(Expr::Break(Some("squares".to_string()), None))],
+            tail: None,
+        };
+        let e = Expr::If(Box::new(cond), then, None);
+        assert_eq!(
+            p.expr(&e, 3, 12, 0),
+            "if wolf_rt::rem_at(x, 2, \"src/main.wolf:87:22\") == 1
+                && wolf_rt::mul_at(x, x, \"src/main.wolf:87:36\") > limit
+            {
+                break 'squares;
+            }"
+        );
+        // A condition whose last line only closes brackets keeps the brace on that line.
+        assert_eq!(brace_sep("f(\n    a,\n)", 0), " ");
     }
 }
